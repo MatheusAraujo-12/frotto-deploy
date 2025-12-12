@@ -1,0 +1,26 @@
+{
+  "applications": "*",
+  "changelogDate": "20220930140419",
+  "dto": "no",
+  "embedded": false,
+  "entityTableName": "tire",
+  "fields": [
+    {
+      "fieldName": "model",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "60"
+    },
+    {
+      "fieldName": "integrity",
+      "fieldType": "Integer"
+    }
+  ],
+  "fluentMethods": true,
+  "jpaMetamodelFiltering": false,
+  "name": "Tire",
+  "pagination": "no",
+  "readOnly": false,
+  "relationships": [],
+  "service": "no"
+}

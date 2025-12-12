@@ -1,0 +1,402 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap");
+
+:root {
+  --app-gradient: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
+  --app-card: #ffffff;
+  --app-card-strong: #f8fafc;
+  --app-border: 1px solid #e2e8f0;
+  --app-radius: 14px;
+  --app-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+
+body,
+ion-app {
+  font-family: "Poppins", "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: #f7f9fc;
+  background-image: var(--app-gradient);
+  color: var(--ion-text-color);
+  min-height: 100vh;
+}
+
+ion-content {
+  --background: transparent;
+}
+
+ion-page {
+  background: transparent;
+}
+
+ion-toolbar {
+  --background: #ffffff;
+  --color: #0f172a;
+  backdrop-filter: none;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+ion-title {
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+ion-button {
+  --border-radius: 12px;
+  --box-shadow: 0 6px 14px rgba(14, 165, 233, 0.14);
+  text-transform: none;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+ion-progress-bar {
+  --background: #e2e8f0;
+  --progress-background: linear-gradient(90deg, #0ea5e9 0%, #22d3ee 60%, #f97316 100%);
+}
+
+ion-list {
+  background: transparent;
+  padding: 4px 12px 12px;
+}
+
+ion-searchbar {
+  --background: #f8fafc;
+  --color: #0f172a;
+  --placeholder-color: #94a3b8;
+  --icon-color: #0ea5e9;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  margin: 8px 12px 12px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.section-shell {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 16px 18px 28px;
+}
+
+/* Auth / Login */
+.auth-content {
+  --padding-top: 8px;
+  --padding-bottom: 24px;
+}
+
+.auth-grid {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  justify-content: center;
+  padding: 24px 18px 34px;
+  margin: 0 auto;
+}
+
+.auth-card {
+  width: 100%;
+  background: var(--app-card);
+  border: var(--app-border);
+  border-radius: calc(var(--app-radius) + 2px);
+  padding: 22px 20px 28px;
+  box-shadow: var(--app-shadow);
+}
+
+.auth-card h2 {
+  margin: 0 0 6px;
+  color: #0f172a;
+  font-size: 20px;
+  letter-spacing: 0.2px;
+}
+
+.auth-card p {
+  margin: 0 0 12px;
+  color: #475569;
+}
+
+.auth-card form {
+  margin-top: 10px;
+}
+
+.auth-card ion-item {
+  --background: #f8fafc;
+  --border-radius: 12px;
+  --padding-start: 12px;
+  --inner-padding-end: 10px;
+  border: 1px solid #e2e8f0;
+  margin-top: 12px;
+}
+
+.auth-card ion-label {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.auth-card ion-input {
+  --color: #0f172a;
+  --placeholder-color: #94a3b8;
+}
+
+.auth-actions {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.auth-secondary {
+  display: flex;
+  justify-content: center;
+  color: #2563eb;
+  font-weight: 600;
+}
+
+/* Menu */
+.app-menu {
+  --width: 320px;
+  --ion-background-color: #ffffff;
+  box-shadow: 8px 0 18px rgba(15, 23, 42, 0.06);
+}
+
+.menu-toolbar {
+  --background: transparent;
+  --border-color: transparent;
+  color: #0f172a;
+}
+
+.menu-content {
+  --background: transparent;
+}
+
+.menu-inner {
+  padding: 10px 12px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+}
+
+.menu-hero {
+  background: var(--app-card-strong);
+  border: var(--app-border);
+  border-radius: var(--app-radius);
+  padding: 16px 18px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--app-shadow);
+}
+
+.menu-hero::after {
+  content: "";
+  position: absolute;
+  inset: -10% -12% auto auto;
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle at 30% 30%, rgba(34, 211, 238, 0.16), rgba(249, 115, 22, 0.08));
+  filter: blur(6px);
+}
+
+.menu-hero small {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #ea580c;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.menu-hero h3 {
+  margin: 10px 0 4px;
+  color: #0f172a;
+  font-size: 20px;
+}
+
+.menu-hero p {
+  margin: 0;
+  color: #475569;
+  line-height: 1.4;
+}
+
+.menu-item {
+  --background: #f8fafc;
+  --border-radius: 12px;
+  --color: #0f172a;
+  border: 1px solid #e2e8f0;
+  margin: 2px 6px;
+  font-weight: 600;
+}
+
+.menu-item:hover {
+  --background: #e0f2fe;
+}
+
+.menu-item ion-icon {
+  color: var(--ion-color-primary);
+}
+
+.menu-footer {
+  margin-top: auto;
+  padding: 10px 6px 0;
+  display: grid;
+  gap: 8px;
+}
+
+/* ========================= */
+/*  CARDS DA FROTA (LISTA)   */
+/* ========================= */
+
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 16px;
+  padding: 12px 16px 24px;
+}
+
+.cards-empty {
+  padding: 0 16px 24px;
+}
+
+/* Card principal */
+.car-card {
+  --background: #ffffff;
+  border-radius: 18px;
+  border: var(--app-border);
+  box-shadow: var(--app-shadow);
+
+  padding: 16px 18px;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.car-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.12);
+}
+
+.car-card__main {
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: 18px;
+}
+
+/* Bloco principal de texto (esquerda) */
+.car-card__info-block {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Título: ÔNIX - CHEVROLET */
+.car-card__title {
+  font-weight: 600;
+  font-size: 0.98rem;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+/* Linhas de info */
+.car-card__line {
+  font-size: 0.86rem;
+  color: #475569;
+  margin-top: 2px;
+}
+
+.car-card__line span {
+  font-weight: 500;
+}
+
+.car-card__line--km {
+  margin-top: 8px;
+}
+
+/* Driver em verde quando alugado */
+.car-card__driver {
+  font-weight: 600;
+}
+
+.car-card__driver--rented {
+  color: #15803d; /* verde motorista alugado */
+}
+
+/* Badge "Disponível" em amarelo */
+.car-card__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.car-card__badge--available {
+  background: #fef3c7; /* amarelo claro */
+  color: #92400e; /* texto âmbar escuro */
+}
+
+/* Coluna direita (pressão + ícones) */
+.car-card__aside {
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.car-card__hint {
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+/* Ações (editar / deletar) */
+.car-card__actions {
+  display: flex;
+  gap: 12px;
+}
+
+.car-card__icon {
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.car-card__icon--edit {
+  color: #2563eb; /* azul */
+}
+
+.car-card__icon--delete {
+  color: #ef4444; /* vermelho */
+}
+
+/* Responsivo: em telas bem pequenas, coluna direita desce */
+@media (max-width: 640px) {
+  .car-card__main {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .car-card__aside {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .car-card__hint {
+    order: 1;
+  }
+
+  .car-card__actions {
+    order: 2;
+  }
+}
+
+
+@media (max-width: 640px) {
+  .auth-grid {
+    padding-top: 18px;
+  }
+
+  ion-toolbar {
+    --background: #ffffff;
+    backdrop-filter: none;
+  }
+}

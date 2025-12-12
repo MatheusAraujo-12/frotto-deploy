@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <!--
+        Added the constraints for entity Inspection.
+    -->
+    <changeSet id="20220930140420-2" author="jhipster">
+
+        <addForeignKeyConstraint baseColumnNames="left_front_id"
+                                 baseTableName="inspection"
+                                 constraintName="fk_inspection__left_front_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="tire"/>
+
+        <addForeignKeyConstraint baseColumnNames="right_front_id"
+                                 baseTableName="inspection"
+                                 constraintName="fk_inspection__right_front_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="tire"/>
+
+        <addForeignKeyConstraint baseColumnNames="left_back_id"
+                                 baseTableName="inspection"
+                                 constraintName="fk_inspection__left_back_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="tire"/>
+
+        <addForeignKeyConstraint baseColumnNames="right_back_id"
+                                 baseTableName="inspection"
+                                 constraintName="fk_inspection__right_back_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="tire"/>
+
+        <addForeignKeyConstraint baseColumnNames="spare_id"
+                                 baseTableName="inspection"
+                                 constraintName="fk_inspection__spare_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="tire"/>
+
+        <addForeignKeyConstraint baseColumnNames="inspection_id"
+                                 baseTableName="rel_inspection__car_body_damage"
+                                 constraintName="fk_rel_inspection__car_body_damage__inspection_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="inspection"/>
+
+        <addForeignKeyConstraint baseColumnNames="car_body_damage_id"
+                                 baseTableName="rel_inspection__car_body_damage"
+                                 constraintName="fk_rel_inspection__car_body_damage__car_body_damage_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="car_body_damage"/>
+
+        <addForeignKeyConstraint baseColumnNames="car_id"
+                                 baseTableName="inspection"
+                                 constraintName="fk_inspection__car_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="car"/>
+    </changeSet>
+</databaseChangeLog>

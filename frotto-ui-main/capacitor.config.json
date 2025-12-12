@@ -1,0 +1,9 @@
+{
+	"appId": "io.ionic.starter",
+	"appName": "local+",
+	"webDir": "build",
+	"bundledWebRuntime": false,
+	"server": {
+		"cleartext": true
+	}
+}

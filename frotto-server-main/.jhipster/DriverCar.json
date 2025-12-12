@@ -1,0 +1,53 @@
+{
+  "applications": "*",
+  "changelogDate": "20220930140425",
+  "dto": "no",
+  "embedded": false,
+  "entityTableName": "driver_car",
+  "fields": [
+    {
+      "fieldName": "startDate",
+      "fieldType": "LocalDate"
+    },
+    {
+      "fieldName": "endDate",
+      "fieldType": "LocalDate"
+    },
+    {
+      "fieldName": "warranty",
+      "fieldType": "BigDecimal"
+    },
+    {
+      "fieldName": "score",
+      "fieldType": "Float"
+    },
+    {
+      "fieldName": "debt",
+      "fieldType": "BigDecimal"
+    },
+    {
+      "fieldName": "concluded",
+      "fieldType": "Boolean"
+    }
+  ],
+  "fluentMethods": true,
+  "jpaMetamodelFiltering": false,
+  "name": "DriverCar",
+  "pagination": "no",
+  "readOnly": false,
+  "relationships": [
+    {
+      "otherEntityName": "car",
+      "otherEntityRelationshipName": "driverCar",
+      "relationshipName": "car",
+      "relationshipType": "many-to-one"
+    },
+    {
+      "otherEntityName": "driver",
+      "otherEntityRelationshipName": "driverCar",
+      "relationshipName": "driver",
+      "relationshipType": "many-to-one"
+    }
+  ],
+  "service": "no"
+}

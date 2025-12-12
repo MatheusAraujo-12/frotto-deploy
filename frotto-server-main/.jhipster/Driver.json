@@ -1,0 +1,75 @@
+{
+  "applications": "*",
+  "changelogDate": "20220930140424",
+  "dto": "no",
+  "embedded": false,
+  "entityTableName": "driver",
+  "fields": [
+    {
+      "fieldName": "name",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "60"
+    },
+    {
+      "fieldName": "cpf",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "20"
+    },
+    {
+      "fieldName": "email",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "60"
+    },
+    {
+      "fieldName": "contact",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "60"
+    },
+    {
+      "fieldName": "emergencyContact",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "60"
+    },
+    {
+      "fieldName": "publicScore",
+      "fieldType": "Float"
+    },
+    {
+      "fieldName": "averageKm",
+      "fieldType": "Float"
+    },
+    {
+      "fieldName": "averageInspectioScore",
+      "fieldType": "Float"
+    },
+    {
+      "fieldName": "averageDriverCarScore",
+      "fieldType": "Float"
+    }
+  ],
+  "fluentMethods": true,
+  "jpaMetamodelFiltering": false,
+  "name": "Driver",
+  "pagination": "no",
+  "readOnly": false,
+  "relationships": [
+    {
+      "otherEntityName": "address",
+      "ownerSide": true,
+      "relationshipName": "address",
+      "relationshipType": "one-to-one"
+    },
+    {
+      "otherEntityName": "driverCar",
+      "otherEntityRelationshipName": "driver",
+      "relationshipName": "driverCar",
+      "relationshipType": "one-to-many"
+    }
+  ],
+  "service": "no"
+}

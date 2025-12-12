@@ -1,0 +1,106 @@
+{
+  "applications": "*",
+  "changelogDate": "20220930140420",
+  "dto": "no",
+  "embedded": false,
+  "entityTableName": "inspection",
+  "fields": [
+    {
+      "fieldName": "date",
+      "fieldType": "LocalDate"
+    },
+    {
+      "fieldName": "driverName",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "60"
+    },
+    {
+      "fieldName": "odometer",
+      "fieldType": "Float"
+    },
+    {
+      "fieldName": "internalCleaning",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "60"
+    },
+    {
+      "fieldName": "externalCleaning",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "60"
+    },
+    {
+      "fieldName": "comment",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "100"
+    },
+    {
+      "fieldName": "score",
+      "fieldType": "Float"
+    },
+    {
+      "fieldName": "cost",
+      "fieldType": "BigDecimal"
+    }
+  ],
+  "fluentMethods": true,
+  "jpaMetamodelFiltering": false,
+  "name": "Inspection",
+  "pagination": "no",
+  "readOnly": false,
+  "relationships": [
+    {
+      "otherEntityName": "tire",
+      "ownerSide": true,
+      "relationshipName": "leftFront",
+      "relationshipType": "one-to-one"
+    },
+    {
+      "otherEntityName": "tire",
+      "ownerSide": true,
+      "relationshipName": "rightFront",
+      "relationshipType": "one-to-one"
+    },
+    {
+      "otherEntityName": "tire",
+      "ownerSide": true,
+      "relationshipName": "leftBack",
+      "relationshipType": "one-to-one"
+    },
+    {
+      "otherEntityName": "tire",
+      "ownerSide": true,
+      "relationshipName": "rightBack",
+      "relationshipType": "one-to-one"
+    },
+    {
+      "otherEntityName": "tire",
+      "ownerSide": true,
+      "relationshipName": "spare",
+      "relationshipType": "one-to-one"
+    },
+    {
+      "otherEntityName": "expense",
+      "otherEntityRelationshipName": "inspection",
+      "relationshipName": "expense",
+      "relationshipType": "one-to-many"
+    },
+    {
+      "otherEntityName": "carBodyDamage",
+      "otherEntityRelationshipName": "inspection",
+      "ownerSide": true,
+      "relationshipName": "carBodyDamage",
+      "relationshipType": "many-to-many"
+    },
+    {
+      "otherEntityName": "car",
+      "otherEntityRelationshipName": "inspection",
+      "relationshipName": "car",
+      "relationshipType": "many-to-one"
+    }
+  ],
+  "service": "no"
+}

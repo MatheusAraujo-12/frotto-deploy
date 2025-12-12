@@ -1,0 +1,37 @@
+{
+  "applications": "*",
+  "changelogDate": "20220930140421",
+  "dto": "no",
+  "embedded": false,
+  "entityTableName": "expense",
+  "fields": [
+    {
+      "fieldName": "name",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "60"
+    },
+    {
+      "fieldName": "ammount",
+      "fieldType": "Float"
+    },
+    {
+      "fieldName": "cost",
+      "fieldType": "BigDecimal"
+    }
+  ],
+  "fluentMethods": true,
+  "jpaMetamodelFiltering": false,
+  "name": "Expense",
+  "pagination": "no",
+  "readOnly": false,
+  "relationships": [
+    {
+      "otherEntityName": "inspection",
+      "otherEntityRelationshipName": "expense",
+      "relationshipName": "inspection",
+      "relationshipType": "many-to-one"
+    }
+  ],
+  "service": "no"
+}

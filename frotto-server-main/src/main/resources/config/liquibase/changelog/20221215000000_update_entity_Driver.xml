@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+
+    <!--
+        Update the entity Driver.
+    -->
+    <changeSet id="20220930140427-1" author="jhipster">
+        <addColumn tableName="driver">
+            <column name="emergency_contact_second" type="varchar(60)">
+                <constraints nullable="true" />
+            </column>
+            <column name="document_driver_license" type="varchar(30)">
+                <constraints nullable="true" />
+            </column>
+            <column name="document_driver_register" type="varchar(30)">
+                <constraints nullable="true" />
+            </column>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

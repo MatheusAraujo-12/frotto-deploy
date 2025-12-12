@@ -1,0 +1,100 @@
+{
+  "name": "local",
+  "version": "0.0.1",
+  "private": true,
+  "dependencies": {
+    "@capacitor-community/file-opener": "^1.0.4",
+    "@capacitor/android": "4.3.0",
+    "@capacitor/app": "4.0.1",
+    "@capacitor/camera": "^4.1.4",
+    "@capacitor/core": "4.3.0",
+    "@capacitor/filesystem": "^4.1.4",
+    "@capacitor/haptics": "4.0.1",
+    "@capacitor/keyboard": "4.0.1",
+    "@capacitor/status-bar": "4.0.1",
+    "@codesyntax/ionic-react-photo-viewer": "^1.14.0",
+    "@hookform/error-message": "^2.0.0",
+    "@hookform/resolvers": "^2.9.8",
+    "@ionic/pwa-elements": "^3.1.1",
+    "@ionic/react": "^6.0.0",
+    "@ionic/react-router": "^6.0.0",
+    "@reduxjs/toolkit": "^1.8.6",
+    "@testing-library/jest-dom": "^5.11.9",
+    "@testing-library/react": "^13.3.0",
+    "@testing-library/user-event": "^12.6.3",
+    "@types/jest": "^26.0.20",
+    "@types/node": "^12.19.15",
+    "@types/react": "^18.0.17",
+    "@types/react-dom": "^18.0.6",
+    "@types/react-router": "^5.1.11",
+    "@types/react-router-dom": "^5.1.7",
+    "@types/redux-saga": "^0.10.5",
+    "@types/styled-components": "^5.1.26",
+    "@types/yup": "^0.32.0",
+    "axios": "^1.1.2",
+    "date-fns": "^2.29.3",
+    "imask": "^6.4.3",
+    "ionicons": "^6.0.3",
+    "lodash": "^4.17.21",
+    "moment": "^2.29.4",
+    "pdfmake": "^0.2.7",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-hook-form": "^7.37.0",
+    "react-redux": "^8.0.4",
+    "react-router": "^5.2.0",
+    "react-router-dom": "^5.2.0",
+    "react-scripts": "^5.0.0",
+    "redux": "^4.2.0",
+    "redux-logger": "^3.0.6",
+    "redux-saga": "^1.2.1",
+    "rxjs": "^7.8.0",
+    "styled-components": "^5.3.6",
+    "typescript": "^4.1.3",
+    "web-vitals": "^0.2.4",
+    "workbox-background-sync": "^5.1.4",
+    "workbox-broadcast-update": "^5.1.4",
+    "workbox-cacheable-response": "^5.1.4",
+    "workbox-core": "^5.1.4",
+    "workbox-expiration": "^5.1.4",
+    "workbox-google-analytics": "^5.1.4",
+    "workbox-navigation-preload": "^5.1.4",
+    "workbox-precaching": "^5.1.4",
+    "workbox-range-requests": "^5.1.4",
+    "workbox-routing": "^5.1.4",
+    "workbox-strategies": "^5.1.4",
+    "workbox-streams": "^5.1.4",
+    "yup": "^0.32.11"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test --transformIgnorePatterns 'node_modules/(?!(@ionic/react|@ionic/react-router|@ionic/core|@stencil/core|ionicons)/)'",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "@capacitor/cli": "4.3.0",
+    "@redux-devtools/core": "^3.13.1",
+    "@types/lodash": "^4.14.186",
+    "@types/pdfmake": "^0.2.2"
+  },
+  "description": "An Ionic project"
+}

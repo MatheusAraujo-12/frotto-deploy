@@ -1,0 +1,58 @@
+{
+  "applications": "*",
+  "changelogDate": "20220930140418",
+  "dto": "no",
+  "embedded": false,
+  "entityTableName": "car_body_damage",
+  "fields": [
+    {
+      "fieldName": "date",
+      "fieldType": "LocalDate"
+    },
+    {
+      "fieldName": "responsible",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "60"
+    },
+    {
+      "fieldName": "part",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "60"
+    },
+    {
+      "fieldName": "imagePath",
+      "fieldType": "String"
+    },
+    {
+      "fieldName": "cost",
+      "fieldType": "BigDecimal"
+    },
+    {
+      "fieldName": "resolved",
+      "fieldType": "Boolean"
+    }
+  ],
+  "fluentMethods": true,
+  "jpaMetamodelFiltering": false,
+  "name": "CarBodyDamage",
+  "pagination": "no",
+  "readOnly": false,
+  "relationships": [
+    {
+      "otherEntityName": "car",
+      "otherEntityRelationshipName": "bodyDamage",
+      "relationshipName": "car",
+      "relationshipType": "many-to-one"
+    },
+    {
+      "otherEntityName": "inspection",
+      "otherEntityRelationshipName": "carBodyDamage",
+      "ownerSide": false,
+      "relationshipName": "inspection",
+      "relationshipType": "many-to-many"
+    }
+  ],
+  "service": "no"
+}

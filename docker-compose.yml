@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  backend:
+    container_name: locamais-backend
+    build:
+      context: ./locamais-service-master
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      # Ajuste essas variáveis conforme seu application.yml
+      SPRING_PROFILES_ACTIVE: prod
+      # Exemplos (só se você usar DB externo)
+      # SPRING_DATASOURCE_URL: jdbc:mysql://host:3306/sua_base
+      # SPRING_DATASOURCE_USERNAME: usuario
+      # SPRING_DATASOURCE_PASSWORD: senha
+    restart: unless-stopped
+
+  frontend:
+    container_name: locamais-frontend
+    build:
+      context: ./locamais-ui-master
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"   # navegador acessa http://localhost:3000
+    depends_on:
+      - backend
+    restart: unless-stopped

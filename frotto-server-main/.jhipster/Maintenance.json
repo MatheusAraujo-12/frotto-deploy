@@ -1,0 +1,43 @@
+{
+  "applications": "*",
+  "changelogDate": "20220930140422",
+  "dto": "no",
+  "embedded": false,
+  "entityTableName": "maintenance",
+  "fields": [
+    {
+      "fieldName": "date",
+      "fieldType": "LocalDate"
+    },
+    {
+      "fieldName": "odometer",
+      "fieldType": "Float"
+    },
+    {
+      "fieldName": "local",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "100"
+    }
+  ],
+  "fluentMethods": true,
+  "jpaMetamodelFiltering": false,
+  "name": "Maintenance",
+  "pagination": "no",
+  "readOnly": false,
+  "relationships": [
+    {
+      "otherEntityName": "service",
+      "otherEntityRelationshipName": "maintenance",
+      "relationshipName": "service",
+      "relationshipType": "one-to-many"
+    },
+    {
+      "otherEntityName": "car",
+      "otherEntityRelationshipName": "maintenance",
+      "relationshipName": "car",
+      "relationshipType": "many-to-one"
+    }
+  ],
+  "service": "no"
+}

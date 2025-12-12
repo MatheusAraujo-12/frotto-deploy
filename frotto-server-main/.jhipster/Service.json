@@ -1,0 +1,33 @@
+{
+  "applications": "*",
+  "changelogDate": "20220930140423",
+  "dto": "no",
+  "embedded": false,
+  "entityTableName": "service",
+  "fields": [
+    {
+      "fieldName": "name",
+      "fieldType": "String",
+      "fieldValidateRules": ["maxlength"],
+      "fieldValidateRulesMaxlength": "60"
+    },
+    {
+      "fieldName": "cost",
+      "fieldType": "BigDecimal"
+    }
+  ],
+  "fluentMethods": true,
+  "jpaMetamodelFiltering": false,
+  "name": "Service",
+  "pagination": "no",
+  "readOnly": false,
+  "relationships": [
+    {
+      "otherEntityName": "maintenance",
+      "otherEntityRelationshipName": "service",
+      "relationshipName": "maintenance",
+      "relationshipType": "many-to-one"
+    }
+  ],
+  "service": "no"
+}

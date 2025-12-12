@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+
+    <!--
+        Added the entity Car History.
+    -->
+    <changeSet id="20230113000000" author="jhipster">
+        <createTable tableName="car_history">
+            <column name="car_id" type="bigint" >
+                <constraints  nullable="false"/>
+            </column>
+            <column name="date" type="date">
+                <constraints nullable="false" />
+            </column>
+            <column name="earnings" type="decimal(21,2)">
+                <constraints nullable="true" />
+            </column>
+            <column name="expenses" type="decimal(21,2)">
+                <constraints nullable="true" />
+            </column>
+            <column name="admin_fee" type="decimal(21,2)">
+                <constraints nullable="true" />
+            </column>
+            <column name="net_earnings" type="decimal(21,2)">
+                <constraints nullable="true" />
+            </column>
+        </createTable>
+    </changeSet>
+
+
+</databaseChangeLog>
