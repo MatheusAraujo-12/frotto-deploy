@@ -9,11 +9,13 @@ services:
       SPRING_PROFILES_ACTIVE: prod
     restart: unless-stopped
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.frotto-api.rule=Host(`api.frotto.com.br`)"
-      - "traefik.http.routers.frotto-api.entrypoints=web,websecure"
-      - "traefik.http.routers.frotto-api.tls=true"
-      - "traefik.http.services.frotto-api.loadbalancer.server.port=5000"
+    - "traefik.enable=true"
+    - "traefik.http.routers.frotto-api.rule=Host(`api.frotto.com.br`)"
+    - "traefik.http.routers.frotto-api.entrypoints=http,https"
+    - "traefik.http.routers.frotto-api.tls=true"
+    - "traefik.http.services.frotto-api.loadbalancer.server.port=5000"
+
+
 
   frontend:
     build:
@@ -26,7 +28,8 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.frotto-web.rule=Host(`frotto.com.br`) || Host(`www.frotto.com.br`)"
-      - "traefik.http.routers.frotto-web.entrypoints=web,websecure"
+      - "traefik.http.routers.frotto-web.rule=Host(`frotto.com.br`,`www.frotto.com.br`)"
+      - "traefik.http.routers.frotto-web.entrypoints=http,https"
       - "traefik.http.routers.frotto-web.tls=true"
       - "traefik.http.services.frotto-web.loadbalancer.server.port=80"
+
