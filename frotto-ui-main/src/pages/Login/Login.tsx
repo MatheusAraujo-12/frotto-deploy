@@ -71,7 +71,7 @@ const Login: React.FC = () => {
         <div className="auth-grid">
           <section className="auth-card">
             <h2>{TEXT.login}</h2>
-            <p>Acesse para acompanhar sua frota com o novo visual da Loca+.</p>
+            <p>Acesse para acompanhar sua frota na frotto.</p>
             <form onSubmit={handleSubmit(onSubmit)}>
               <FormInput
                 label={TEXT.email}

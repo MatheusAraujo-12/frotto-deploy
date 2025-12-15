@@ -1,5 +1,5 @@
 export const TEXT = {
-  appTitle: "Loca+",
+  appTitle: "Frotto",
   login: "Login",
   register: "Cadastro",
   doRegister: "Fazer o Cadastro",

@@ -65,7 +65,7 @@ const Register: React.FC = () => {
         <div className="auth-grid">
           <section className="auth-card">
             <h2>{TEXT.doRegister}</h2>
-            <p>Crie sua conta para acessar o painel completo do Loca+.</p>
+            <p>Crie sua conta para acessar o painel completo do Frotto.</p>
             <form onSubmit={handleSubmit(onSubmit)}>
               <FormInput
                 label={TEXT.firstName}
