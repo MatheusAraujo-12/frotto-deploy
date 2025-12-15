@@ -15,8 +15,6 @@ services:
     - "traefik.http.routers.frotto-api.tls=true"
     - "traefik.http.services.frotto-api.loadbalancer.server.port=5000"
 
-
-
   frontend:
     build:
       context: ./frotto-ui-main
@@ -26,10 +24,9 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.frotto-web.rule=Host(`frotto.com.br`,`www.frotto.com.br`)"
-      - "traefik.http.routers.frotto-web.entrypoints=http,https"
-      - "traefik.http.routers.frotto-web.tls=true"
-      - "traefik.http.services.frotto-web.loadbalancer.server.port=80"
-
+      labels:
+    - "traefik.enable=true"
+    - "traefik.http.routers.frotto-web.rule=Host(`frotto.com.br`)"
+    - "traefik.http.routers.frotto-web.entrypoints=http,https"
+    - "traefik.http.routers.frotto-web.tls=true"
+    - "traefik.http.services.frotto-web.loadbalancer.server.port=80"
