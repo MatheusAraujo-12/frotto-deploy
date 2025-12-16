@@ -67,6 +67,29 @@ ion-searchbar {
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
 }
 
+/* Dark theme overrides */
+.dark ion-searchbar {
+  --background: rgba(255,255,255,0.04);
+  --color: var(--ion-text-color);
+  --placeholder-color: var(--ion-color-medium);
+  --icon-color: var(--ion-color-primary);
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: none;
+}
+
+/* Ensure toolbars and titles look correct on dark */
+.dark ion-toolbar {
+  --background: var(--ion-toolbar-background);
+  --color: var(--ion-text-color);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.dark .menu-hero {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.04);
+}
+
+
 .section-shell {
   width: 100%;
   max-width: 1080px;

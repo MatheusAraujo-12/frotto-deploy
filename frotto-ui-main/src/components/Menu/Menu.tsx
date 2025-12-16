@@ -10,9 +10,12 @@ import {
   IonRouterOutlet,
   IonTitle,
   IonToolbar,
+  IonLabel,
+  IonToggle,
   useIonRouter,
 } from "@ionic/react";
 import { Redirect, Route } from "react-router";
+import React, { useState, useEffect } from "react";
 import BodyDamages from "../../pages/BodyDamage/BodyDamages";
 import Car from "../../pages/Cars/Car";
 import Cars from "../../pages/Cars/Cars";
@@ -30,6 +33,23 @@ import DriverPendencies from "../../pages/DriverPendency/DriverPendencies";
 
 const Menu: React.FC = () => {
   const history = useIonRouter();
+  const [isDark, setIsDark] = useState<boolean>(false);
+
+  useEffect(() => {
+    // lazy import theme util to avoid circular issues
+    import("../../services/theme").then((mod) => {
+      const t = mod.getTheme();
+      setIsDark(t === "dark");
+    });
+  }, []);
+
+  const onToggleTheme = (checked: boolean) => {
+    setIsDark(checked);
+    import("../../services/theme").then((mod) => {
+      mod.setTheme(checked ? "dark" : "light");
+    });
+  };
+
   return (
     <IonPage>
       <>
@@ -58,6 +78,10 @@ const Menu: React.FC = () => {
                 </IonItem>
               </IonMenuToggle>
               <div className="menu-footer">
+                <IonItem lines="none">
+                  <IonLabel>{TEXT.theme}</IonLabel>
+                  <IonToggle checked={isDark} onIonChange={(e) => onToggleTheme(e.detail.checked)} />
+                </IonItem>
                 <IonMenuToggle>
                   <IonButton
                     color="danger"

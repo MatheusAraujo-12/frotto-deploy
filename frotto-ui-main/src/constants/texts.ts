@@ -161,4 +161,7 @@ export const TEXT = {
   moneySymbol: "R$",
   zeroMoney: "R$ 0,00",
   logout: "Logout",
+  theme: "Tema",
+  themeDark: "Tema escuro",
+  themeLight: "Tema claro",
 };

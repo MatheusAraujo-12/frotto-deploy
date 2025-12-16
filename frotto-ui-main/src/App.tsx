@@ -57,6 +57,11 @@ const App: React.FC = () => {
     if (token) {
       api.defaults.headers.common["Authorization"] = token;
     }
+
+    // initialize theme (persisted or system preference)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    import("./services/theme").then((mod) => mod.initTheme());
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
