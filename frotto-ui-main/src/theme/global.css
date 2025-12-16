@@ -27,10 +27,10 @@ ion-page {
 }
 
 ion-toolbar {
-  --background: #ffffff;
-  --color: #0f172a;
+  --background: var(--ion-toolbar-background);
+  --color: var(--ion-text-color);
   backdrop-filter: none;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--ion-border-color);
 }
 
 ion-title {
@@ -63,8 +63,31 @@ ion-searchbar {
   --icon-color: #0ea5e9;
   border: 1px solid #e2e8f0;
   border-radius: 14px;
-  margin: 8px 12px 12px;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  margin: 12px auto;
+  max-width: 720px;
+  width: calc(100% - 48px);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+
+  /* sizing / spacing */
+  --height: 44px;
+  --padding-start: 14px;
+  --padding-end: 14px;
+  transition: box-shadow 0.15s ease, transform 0.12s ease, border-color 0.12s ease;
+}
+
+/* Focused searchbar */
+ion-searchbar:focus-within {
+  border-color: var(--ion-color-primary);
+  box-shadow: 0 12px 30px rgba(14, 165, 233, 0.08);
+  transform: translateY(-1px);
+}
+
+/* Make it more compact on very small screens */
+@media (max-width: 420px) {
+  ion-searchbar {
+    width: calc(100% - 24px);
+    max-width: none;
+  }
 }
 
 /* Dark theme overrides */
@@ -75,6 +98,26 @@ ion-searchbar {
   --icon-color: var(--ion-color-primary);
   border: 1px solid rgba(255,255,255,0.06);
   box-shadow: none;
+
+  /* keep same centered sizing */
+  margin: 12px auto;
+  max-width: 720px;
+  width: calc(100% - 48px);
+  --height: 44px;
+  --padding-start: 14px;
+  --padding-end: 14px;
+}
+
+.dark ion-searchbar:focus-within {
+  border-color: var(--ion-color-primary);
+  box-shadow: 0 10px 24px rgba(14, 165, 233, 0.06);
+}
+
+@media (max-width: 420px) {
+  .dark ion-searchbar {
+    width: calc(100% - 24px);
+    max-width: none;
+  }
 }
 
 /* Ensure toolbars and titles look correct on dark */
@@ -123,38 +166,38 @@ ion-searchbar {
 
 .auth-card h2 {
   margin: 0 0 6px;
-  color: #0f172a;
+  color: var(--ion-text-color);
   font-size: 20px;
   letter-spacing: 0.2px;
 }
 
 .auth-card p {
   margin: 0 0 12px;
-  color: #475569;
-}
+  color: var(--ion-color-medium);
+} 
 
 .auth-card form {
   margin-top: 10px;
 }
 
 .auth-card ion-item {
-  --background: #f8fafc;
+  --background: var(--ion-item-background);
   --border-radius: 12px;
   --padding-start: 12px;
   --inner-padding-end: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--ion-border-color);
   margin-top: 12px;
 }
 
 .auth-card ion-label {
-  color: #0f172a;
+  color: var(--ion-text-color);
   font-weight: 600;
 }
 
 .auth-card ion-input {
-  --color: #0f172a;
-  --placeholder-color: #94a3b8;
-}
+  --color: var(--ion-text-color);
+  --placeholder-color: var(--ion-color-medium);
+} 
 
 .auth-actions {
   margin-top: 18px;
@@ -166,9 +209,9 @@ ion-searchbar {
 .auth-secondary {
   display: flex;
   justify-content: center;
-  color: #2563eb;
+  color: var(--ion-color-primary);
   font-weight: 600;
-}
+} 
 
 /* Menu */
 .app-menu {
@@ -180,8 +223,8 @@ ion-searchbar {
 .menu-toolbar {
   --background: transparent;
   --border-color: transparent;
-  color: #0f172a;
-}
+  color: var(--ion-text-color);
+} 
 
 .menu-content {
   --background: transparent;
@@ -221,32 +264,32 @@ ion-searchbar {
   gap: 6px;
   padding: 6px 10px;
   border-radius: 999px;
-  background: #fff7ed;
-  color: #ea580c;
+  background: var(--app-card-strong);
+  color: var(--ion-color-warning);
   font-weight: 600;
   letter-spacing: 0.2px;
-}
+} 
 
 .menu-hero h3 {
   margin: 10px 0 4px;
-  color: #0f172a;
+  color: var(--ion-text-color);
   font-size: 20px;
 }
 
 .menu-hero p {
   margin: 0;
-  color: #475569;
+  color: var(--ion-color-medium);
   line-height: 1.4;
-}
+} 
 
 .menu-item {
-  --background: #f8fafc;
+  --background: var(--ion-item-background);
   --border-radius: 12px;
-  --color: #0f172a;
-  border: 1px solid #e2e8f0;
+  --color: var(--ion-text-color);
+  border: 1px solid var(--ion-border-color);
   margin: 2px 6px;
   font-weight: 600;
-}
+} 
 
 .menu-item:hover {
   --background: #e0f2fe;
@@ -280,7 +323,7 @@ ion-searchbar {
 
 /* Card principal */
 .car-card {
-  --background: #ffffff;
+  --background: var(--ion-card-background);
   border-radius: 18px;
   border: var(--app-border);
   box-shadow: var(--app-shadow);
@@ -288,7 +331,7 @@ ion-searchbar {
   padding: 16px 18px;
   cursor: pointer;
   transition: box-shadow 0.15s ease, transform 0.15s ease;
-}
+} 
 
 .car-card:hover {
   transform: translateY(-1px);
@@ -312,14 +355,14 @@ ion-searchbar {
 .car-card__title {
   font-weight: 600;
   font-size: 0.98rem;
-  color: #0f172a;
+  color: var(--ion-text-color);
   margin-bottom: 4px;
 }
 
 /* Linhas de info */
 .car-card__line {
   font-size: 0.86rem;
-  color: #475569;
+  color: var(--ion-color-medium);
   margin-top: 2px;
 }
 
@@ -337,7 +380,7 @@ ion-searchbar {
 }
 
 .car-card__driver--rented {
-  color: #15803d; /* verde motorista alugado */
+  color: var(--ion-color-success); /* verde motorista alugado */
 }
 
 /* Badge "Disponível" em amarelo */
@@ -367,7 +410,7 @@ ion-searchbar {
 
 .car-card__hint {
   font-size: 0.78rem;
-  color: #94a3b8;
+  color: var(--ion-color-medium);
 }
 
 /* Ações (editar / deletar) */
@@ -382,11 +425,11 @@ ion-searchbar {
 }
 
 .car-card__icon--edit {
-  color: #2563eb; /* azul */
+  color: var(--ion-color-primary); /* azul */
 }
 
 .car-card__icon--delete {
-  color: #ef4444; /* vermelho */
+  color: var(--ion-color-danger); /* vermelho */
 }
 
 /* Responsivo: em telas bem pequenas, coluna direita desce */

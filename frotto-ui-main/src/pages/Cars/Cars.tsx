@@ -47,12 +47,25 @@ const Cars: React.FC = () => {
   const loadCars = async () => {
     setIsLoading(true);
     try {
-      const response = await api.get<CarModel[]>(endpoints.CARS_ACTIVE());
-      setCarList(response.data);
+      const response = await api.get(endpoints.CARS_ACTIVE());
+      // Handle possible response shapes (array or wrapped payload)
+      const data = response && response.data ? response.data : [];
+
+      // If the API wraps payload (e.g., { items: [] } or { content: [] }) try common keys
+      const list = Array.isArray(data)
+        ? data
+        : data.items || data.content || data.data || [];
+
+      setCarList(list);
+      // Debugging info
+      // eslint-disable-next-line no-console
+      console.debug("Loaded cars", { length: list.length, sample: list[0] });
       setIsLoading(false);
-    } catch (error) {
+    } catch (error: any) {
+      // eslint-disable-next-line no-console
+      console.error("Error loading cars:", error);
       setIsLoading(false);
-      showErrorAlert(TEXT.loadCarsFailed);
+      showErrorAlert(TEXT.loadCarsFailed + (error?.message ? `: ${error.message}` : ""));
     }
   };
 
