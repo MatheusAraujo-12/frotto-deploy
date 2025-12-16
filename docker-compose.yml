@@ -13,6 +13,8 @@ services:
       - "traefik.http.routers.frotto-api.rule=Host(`api.frotto.com.br`)"
       - "traefik.http.routers.frotto-api.entrypoints=http"
       - "traefik.http.services.frotto-api.loadbalancer.server.port=5000"
+      - "traefik.http.routers.frotto-web.entrypoints=http,https"
+      - "traefik.http.routers.frotto-web.tls=true"
 
   frontend:
     build:
@@ -28,3 +30,5 @@ services:
       - "traefik.http.routers.frotto-web.rule=Host(`frotto.com.br`) || Host(`www.frotto.com.br`)"
       - "traefik.http.routers.frotto-web.entrypoints=http"
       - "traefik.http.services.frotto-web.loadbalancer.server.port=80"
+      - "traefik.http.routers.frotto-api.entrypoints=http,https"
+      - "traefik.http.routers.frotto-api.tls=true"
