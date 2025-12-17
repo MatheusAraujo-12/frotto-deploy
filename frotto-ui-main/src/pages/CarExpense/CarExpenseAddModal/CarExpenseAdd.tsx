@@ -9,15 +9,16 @@ import {
   IonToolbar,
 } from "@ionic/react";
 import { TEXT } from "../../../constants/texts";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAlert } from "../../../services/hooks/useAlert";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 
 import FormDate from "../../../components/Form/FormDate";
+import CarSelector from "../../../components/Car/CarSelector";
+import { CarModel, CarExpenseModel } from "../../../constants/CarModels";
 import api from "../../../services/axios/axios";
 import endpoints from "../../../constants/endpoints";
-import { CarExpenseModel } from "../../../constants/CarModels";
 import FormInput from "../../../components/Form/FormInput";
 import {
   carExpenseAddValidationSchema,
@@ -28,9 +29,9 @@ import FormCurrency from "../../../components/Form/FormCurrency";
 import FormToggle from "../../../components/Form/FormToggle";
 
 interface CarExpenseAddModalProps {
-  closeModal: Function;
+  closeModal: (response?: CarExpenseModel) => void;
   initialValues?: CarExpenseModel;
-  carId: String;
+  carId?: string; // Agora opcional, pois pode ser undefined
 }
 
 const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
@@ -39,84 +40,168 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
   carId,
 }) => {
   const { showErrorAlert } = useAlert();
-  const [isLoading, setisLoading] = useState(false);
-
+  const [isLoading, setIsLoading] = useState(false);
   const [replicateForAllCars, setReplicateForAllCars] = useState(false);
+  const [selectedCar, setSelectedCar] = useState<CarModel | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const formInitial = initialCarExpenseValues(initialValues || {});
+
+  // Buscar informações do carro se carId for fornecido
+  useEffect(() => {
+    if (!carId) return;
+
+    let mounted = true;
+    const controller = new AbortController();
+
+    const fetchCar = async () => {
+      try {
+        setFetchError(null);
+        const response = await api.get(
+          endpoints.CAR({ pathVariables: { id: carId } }),
+          { signal: controller.signal }
+        );
+        if (mounted) {
+          setSelectedCar(response.data);
+        }
+      } catch (error: any) {
+        if (error.name === 'AbortError') return;
+        if (mounted) {
+          console.error("Erro ao buscar carro:", error);
+          setFetchError("Não foi possível carregar informações do veículo");
+        }
+      }
+    };
+
+    fetchCar();
+
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
+  }, [carId]); // Dependência correta
 
   const {
     handleSubmit,
     watch,
     setValue,
-    formState: { errors },
+    formState: { errors, isValid },
   } = useForm({
     reValidateMode: "onBlur",
     resolver: yupResolver(carExpenseAddValidationSchema),
     defaultValues: formInitial,
+    mode: "onTouched", // Melhor UX para validação
   });
 
   const onSubmit = async (newCarExpense: CarExpenseModel) => {
-    setisLoading(true);
+    if (!isValid) {
+      showErrorAlert("Preencha todos os campos obrigatórios corretamente");
+      return;
+    }
+
+    setIsLoading(true);
     try {
       let responseCarExpense: CarExpenseModel;
+      
+      // EDITAR
       if (newCarExpense.id) {
-        const urlPatch = endpoints.CAR_EXPENSES_EDIT({
-          pathVariables: {
-            id: newCarExpense.id,
-          },
+        const url = endpoints.CAR_EXPENSES_EDIT({
+          pathVariables: { id: newCarExpense.id }
         });
-        const response = await api.put(urlPatch, newCarExpense);
+        const response = await api.put(url, newCarExpense);
         responseCarExpense = response.data;
-      } else {
-        let urlPost = endpoints.CAR_EXPENSES({
-          pathVariables: {
-            id: carId,
-          },
-        });
+      } 
+      // CRIAR NOVO
+      else {
+        let url: string;
+        
         if (replicateForAllCars) {
-          urlPost = endpoints.CAR_EXPENSES_ALL();
+          url = endpoints.CAR_EXPENSES_ALL();
+        } else {
+          const targetCarId = selectedCar?.id || carId;
+          if (!targetCarId) {
+            showErrorAlert(TEXT.select);
+            setIsLoading(false);
+            return;
+          }
+          url = endpoints.CAR_EXPENSES({ 
+            pathVariables: { id: String(targetCarId) } 
+          });
         }
-        const response = await api.post(urlPost, newCarExpense);
+        
+        const response = await api.post(url, newCarExpense);
         responseCarExpense = response.data;
       }
-      setisLoading(false);
+      
+      setIsLoading(false);
       closeModal(responseCarExpense);
-    } catch (e: any) {
-      setisLoading(false);
-      showErrorAlert(TEXT.saveFailed);
+    } catch (error: any) {
+      setIsLoading(false);
+      console.error("Erro ao salvar despesa:", error);
+      
+      const errorMessage = error.response?.data?.message 
+        || error.message 
+        || TEXT.saveFailed;
+      showErrorAlert(errorMessage);
     }
   };
 
   const onDelete = async () => {
-    setisLoading(true);
+    if (!formInitial.id) return;
+    
+    setIsLoading(true);
     try {
       await api.delete(
-        endpoints.CAR_EXPENSES_EDIT({ pathVariables: { id: formInitial.id } })
+        endpoints.CAR_EXPENSES_EDIT({ 
+          pathVariables: { id: formInitial.id } 
+        })
       );
-      setisLoading(false);
-      closeModal({});
-    } catch (e) {
-      setisLoading(false);
-      showErrorAlert(TEXT.deleteFailed);
+      setIsLoading(false);
+      closeModal({} as CarExpenseModel); // Ou undefined
+    } catch (error: any) {
+      setIsLoading(false);
+      console.error("Erro ao deletar despesa:", error);
+      
+      const errorMessage = error.response?.data?.message 
+        || error.message 
+        || TEXT.deleteFailed;
+      showErrorAlert(errorMessage);
     }
   };
 
+  const handleCarSelect = (car: CarModel) => {
+    setSelectedCar(car);
+  };
+
+  const handleReplicateToggle = (value: boolean) => {
+    setReplicateForAllCars(value);
+    // Se ativar replicação, limpa carro selecionado
+    if (value) {
+      setSelectedCar(null);
+    }
+  };
+
+  const handleClose = (response?: CarExpenseModel) => {
+    if (isLoading) return; // Impede fechar durante loading
+    closeModal(response);
+  };
+
   return (
-    <IonPage id="car-carExpense-add-page">
+    <IonPage id="car-expense-add-page">
       <IonHeader>
         <IonToolbar>
           <IonButtons slot="start">
             <IonButton
-              color="danger"
-              onClick={() => {
-                closeModal();
-              }}
+              color="medium"
+              onClick={() => handleClose()}
+              disabled={isLoading}
             >
               {TEXT.cancel}
             </IonButton>
           </IonButtons>
-          <IonTitle>{TEXT.carExpense}</IonTitle>
+          <IonTitle>
+            {formInitial.id ? TEXT.editExpense : TEXT.newExpense}
+          </IonTitle>
           <IonButtons slot="end">
             <IonButton
               disabled={isLoading}
@@ -126,20 +211,24 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
               {TEXT.save}
             </IonButton>
           </IonButtons>
-          {isLoading && <IonProgressBar type="indeterminate"></IonProgressBar>}
+          {isLoading && <IonProgressBar type="indeterminate" />}
         </IonToolbar>
       </IonHeader>
+      
       <IonContent>
-        <form>
+        <form onSubmit={(e) => e.preventDefault()}>
           <FormDate
-            id="date-carExpense-add"
-            initialValue={watch("date").toString()}
+            id="date-car-expense-add"
+            initialValue={watch("date")}
             label={TEXT.date}
             presentation="date"
             formCallBack={(value: string) => {
-              setValue("date", value);
+              setValue("date", value, { shouldValidate: true });
             }}
+            error={errors.date?.message}
+            required
           />
+          
           <FormInput
             label={TEXT.carExpenseName}
             errorsObj={errors}
@@ -147,10 +236,11 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
             initialValue={watch("name")}
             maxlength={50}
             changeCallback={(value: string) => {
-              setValue("name", value);
+              setValue("name", value, { shouldValidate: true });
             }}
             required
           />
+          
           <FormCurrency
             label={TEXT.value}
             errorsObj={errors}
@@ -158,26 +248,74 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
             initialValue={watch("cost")}
             maxlength={15}
             changeCallback={(value: number) => {
-              setValue("cost", value);
+              setValue("cost", value, { shouldValidate: true });
             }}
             required
           />
+
+          {/* Mostrar seletor de carro apenas para novas despesas */}
           {!formInitial.id && (
-            <FormToggle
-              label={TEXT.replicateExpense}
-              initialValue={replicateForAllCars}
-              changeCallback={(value: boolean) => {
-                setReplicateForAllCars(value);
-              }}
-            />
+            <>
+              <FormToggle
+                label={TEXT.replicateExpense}
+                initialValue={replicateForAllCars}
+                changeCallback={handleReplicateToggle}
+                disabled={!!carId} // Desabilita se já veio com carId
+              />
+
+              {!replicateForAllCars && (
+                <div style={{ padding: 12 }}>
+                  {fetchError && (
+                    <div style={{ color: "var(--ion-color-danger)", marginBottom: 12 }}>
+                      {fetchError}
+                    </div>
+                  )}
+                  
+                  {!selectedCar && !carId ? (
+                    <>
+                      <h3 style={{ marginTop: 0, marginBottom: 12 }}>
+                        {TEXT.selectVehicle}
+                      </h3>
+                      <CarSelector onSelect={handleCarSelect} />
+                    </>
+                  ) : (
+                    <div>
+                      <strong>
+                        {selectedCar?.name || "Veículo selecionado"}
+                      </strong>
+                      <div style={{ 
+                        fontSize: 12, 
+                        color: "var(--ion-color-medium)",
+                        marginBottom: 8 
+                      }}>
+                        {selectedCar?.plate || carId || "ID do veículo"}
+                      </div>
+                      {!carId && ( // Só permite trocar se não veio com carId
+                        <IonButton 
+                          size="small" 
+                          fill="outline"
+                          onClick={() => setSelectedCar(null)}
+                        >
+                          {TEXT.changeVehicle}
+                        </IonButton>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </form>
+        
         {formInitial.id && (
-          <FormDeleteButton
-            label={`${TEXT.delete} ${TEXT.carExpense}`}
-            message={TEXT.carExpense}
-            callBackFunc={onDelete}
-          />
+          <div style={{ padding: 16 }}>
+            <FormDeleteButton
+              label={`${TEXT.delete} ${TEXT.carExpense.toLowerCase()}`}
+              message={TEXT.confirmDeleteExpense}
+              callBackFunc={onDelete}
+              disabled={isLoading}
+            />
+          </div>
         )}
       </IonContent>
     </IonPage>

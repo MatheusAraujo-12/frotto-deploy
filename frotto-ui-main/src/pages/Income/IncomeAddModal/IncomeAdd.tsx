@@ -9,15 +9,16 @@ import {
   IonToolbar,
 } from "@ionic/react";
 import { TEXT } from "../../../constants/texts";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAlert } from "../../../services/hooks/useAlert";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 
 import FormDate from "../../../components/Form/FormDate";
+import CarSelector from "../../../components/Car/CarSelector";
+import { CarModel, IncomeModel } from "../../../constants/CarModels";
 import api from "../../../services/axios/axios";
 import endpoints from "../../../constants/endpoints";
-import { IncomeModel } from "../../../constants/CarModels";
 import {
   incomeAddValidationSchema,
   initialIncomeValues,
@@ -29,9 +30,9 @@ import FormDeleteButton from "../../../components/Form/FormDeleteButton";
 import FormCurrency from "../../../components/Form/FormCurrency";
 
 interface IncomeAddModalProps {
-  closeModal: Function;
+  closeModal: (response?: IncomeModel) => void;
   initialValues?: IncomeModel;
-  carId: String;
+  carId?: string; // Tornando opcional
 }
 
 const IncomeAdd: React.FC<IncomeAddModalProps> = ({
@@ -40,7 +41,9 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({
   carId,
 }) => {
   const { showErrorAlert } = useAlert();
-  const [isLoading, setisLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedCar, setSelectedCar] = useState<CarModel | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const formInitial = initialIncomeValues(initialValues || {});
 
@@ -48,54 +51,142 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({
     handleSubmit,
     watch,
     setValue,
-    formState: { errors },
+    reset,
+    formState: { errors, isValid, isDirty },
   } = useForm({
     resolver: yupResolver(incomeAddValidationSchema),
     defaultValues: formInitial,
+    mode: "onTouched", // Validação mais responsiva
   });
 
-  const onSubmit = async (newIncome: IncomeModel) => {
-    setisLoading(true);
+  // Buscar informações do carro se carId for fornecido
+  useEffect(() => {
+    if (!carId) return;
+
+    let mounted = true;
+    const controller = new AbortController();
+
+    const fetchCar = async () => {
+      try {
+        setFetchError(null);
+        const response = await api.get(
+          endpoints.CAR({ pathVariables: { id: carId } }),
+          { signal: controller.signal }
+        );
+        if (mounted) {
+          setSelectedCar(response.data);
+        }
+      } catch (error: any) {
+        if (error.name === 'AbortError') return;
+        if (mounted) {
+          console.error("Erro ao buscar carro:", error);
+          setFetchError("Não foi possível carregar informações do veículo");
+          showErrorAlert("Erro ao carregar dados do veículo");
+        }
+      }
+    };
+
+    fetchCar();
+
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
+  }, [carId, showErrorAlert]);
+
+  // Resetar formulário quando initialValues mudar
+  useEffect(() => {
+    if (initialValues) {
+      reset(initialIncomeValues(initialValues));
+    }
+  }, [initialValues, reset]);
+
+  const onSubmit = useCallback(async (formData: IncomeModel) => {
+    if (!isValid) {
+      showErrorAlert("Preencha todos os campos obrigatórios corretamente");
+      return;
+    }
+
+    setIsLoading(true);
     try {
       let responseIncome: IncomeModel;
-      if (newIncome.id) {
-        const urlPatch = endpoints.INCOMES_EDIT({
-          pathVariables: {
-            id: newIncome.id,
-          },
+      
+      // EDITAR
+      if (formData.id) {
+        const url = endpoints.INCOMES_EDIT({
+          pathVariables: { id: formData.id }
         });
-        const response = await api.put(urlPatch, newIncome);
+        const response = await api.put(url, formData);
         responseIncome = response.data;
-      } else {
-        const urlPost = endpoints.INCOMES({
-          pathVariables: {
-            id: carId,
-          },
+      } 
+      // CRIAR NOVO
+      else {
+        const targetCarId = selectedCar?.id?.toString() || carId;
+        if (!targetCarId) {
+          showErrorAlert(TEXT.selectVehicle || "Selecione um veículo");
+          setIsLoading(false);
+          return;
+        }
+        
+        const url = endpoints.INCOMES({
+          pathVariables: { id: targetCarId }
         });
-        const response = await api.post(urlPost, newIncome);
+        const response = await api.post(url, formData);
         responseIncome = response.data;
       }
-      setisLoading(false);
+      
+      setIsLoading(false);
       closeModal(responseIncome);
-    } catch (e: any) {
-      setisLoading(false);
-      showErrorAlert(TEXT.saveFailed);
+    } catch (error: any) {
+      setIsLoading(false);
+      console.error("Erro ao salvar receita:", error);
+      
+      const errorMessage = error.response?.data?.message 
+        || error.message 
+        || TEXT.saveFailed;
+      showErrorAlert(errorMessage);
     }
-  };
+  }, [isValid, selectedCar, carId, closeModal, showErrorAlert]);
 
-  const onDelete = async () => {
-    setisLoading(true);
+  const onDelete = useCallback(async () => {
+    if (!formInitial.id) return;
+    
+    setIsLoading(true);
     try {
       await api.delete(
-        endpoints.INCOMES_EDIT({ pathVariables: { id: formInitial.id } })
+        endpoints.INCOMES_EDIT({ 
+          pathVariables: { id: formInitial.id } 
+        })
       );
-      setisLoading(false);
-      closeModal({});
-    } catch (e) {
-      setisLoading(false);
-      showErrorAlert(TEXT.deleteFailed);
+      setIsLoading(false);
+      closeModal({} as IncomeModel); // Ou undefined se preferir
+    } catch (error: any) {
+      setIsLoading(false);
+      console.error("Erro ao deletar receita:", error);
+      
+      const errorMessage = error.response?.data?.message 
+        || error.message 
+        || TEXT.deleteFailed;
+      showErrorAlert(errorMessage);
     }
-  };
+  }, [formInitial.id, closeModal, showErrorAlert]);
+
+  const handleCarSelect = useCallback((car: CarModel) => {
+    setSelectedCar(car);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    if (isLoading) return; // Impede fechar durante loading
+    closeModal();
+  }, [isLoading, closeModal]);
+
+  const handleResetCar = useCallback(() => {
+    setSelectedCar(null);
+  }, []);
+
+  const incomeName = watch("name");
+  const incomeDate = watch("date");
+  const incomeValue = watch("cost");
 
   return (
     <IonPage id="car-income-add-page">
@@ -103,68 +194,156 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({
         <IonToolbar>
           <IonButtons slot="start">
             <IonButton
-              color="danger"
-              onClick={() => {
-                closeModal();
-              }}
+              color="medium"
+              onClick={handleClose}
+              disabled={isLoading}
             >
               {TEXT.cancel}
             </IonButton>
           </IonButtons>
-          <IonTitle>{TEXT.income}</IonTitle>
+          
+          <IonTitle>
+            {formInitial.id ? TEXT.editIncome : TEXT.newIncome}
+          </IonTitle>
+          
           <IonButtons slot="end">
             <IonButton
-              disabled={isLoading}
+              disabled={isLoading || !isValid || (!isDirty && formInitial.id)}
               strong={true}
               onClick={handleSubmit(onSubmit)}
             >
               {TEXT.save}
             </IonButton>
           </IonButtons>
-          {isLoading && <IonProgressBar type="indeterminate"></IonProgressBar>}
+          
+          {isLoading && <IonProgressBar type="indeterminate" />}
         </IonToolbar>
       </IonHeader>
+      
       <IonContent>
-        <form>
-          <FormDate
-            id="date-income-add"
-            initialValue={watch("date").toString()}
-            label={TEXT.date}
-            presentation="date"
-            formCallBack={(value: string) => {
-              setValue("date", value);
-            }}
-          />
-          <FormSelectFilterAdd
-            label={TEXT.incomeName}
-            errorsObj={errors}
-            errorName="name"
-            formCallBack={(value: string) => {
-              setValue("name", value);
-            }}
-            initialValue={watch("name")}
-            options={INCOMES}
-            storageToken={INCOME_KEY}
-            required
-          />
-          <FormCurrency
-            label={TEXT.value}
-            errorsObj={errors}
-            errorName="cost"
-            initialValue={watch('cost')}
-            maxlength={15}
-            changeCallback={(value: number) => {
-              setValue("cost", value);
-            }}
-            required
-          />
+        <form onSubmit={(e) => e.preventDefault()}>
+          {/* Seletor de Carro (apenas se não veio com carId) */}
+          {!selectedCar && !carId && (
+            <div style={{ padding: 16 }}>
+              {fetchError && (
+                <div style={{ 
+                  color: "var(--ion-color-danger)", 
+                  marginBottom: 12,
+                  fontSize: 14 
+                }}>
+                  {fetchError}
+                </div>
+              )}
+              
+              <h3 style={{ 
+                marginTop: 0, 
+                marginBottom: 16,
+                fontSize: 16,
+                fontWeight: 600 
+              }}>
+                {TEXT.selectVehicle || "Selecione um veículo"}
+              </h3>
+              
+              <CarSelector onSelect={handleCarSelect} />
+            </div>
+          )}
+
+          {/* Info do Carro Selecionado */}
+          {selectedCar && (
+            <div style={{ 
+              padding: 16, 
+              backgroundColor: "var(--ion-color-light)",
+              marginBottom: 16 
+            }}>
+              <div style={{ 
+                display: "flex", 
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 8 
+              }}>
+                <div>
+                  <strong style={{ fontSize: 16, display: "block" }}>
+                    {selectedCar.name}
+                  </strong>
+                  <div style={{ 
+                    fontSize: 14, 
+                    color: "var(--ion-color-medium)",
+                    marginTop: 4 
+                  }}>
+                    {selectedCar.plate || "Sem placa"}
+                  </div>
+                </div>
+                
+                {!carId && (
+                  <IonButton 
+                    size="small" 
+                    fill="clear"
+                    color="medium"
+                    onClick={handleResetCar}
+                  >
+                    {TEXT.change || "Trocar"}
+                  </IonButton>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Formulário (apenas se tiver carro selecionado ou carId) */}
+          {(selectedCar || carId) && (
+            <>
+              <FormDate
+                id="date-income-add"
+                initialValue={incomeDate}
+                label={TEXT.date}
+                presentation="date"
+                formCallBack={(value: string) => {
+                  setValue("date", value, { shouldValidate: true });
+                }}
+                error={errors.date?.message}
+                required
+                disabled={isLoading}
+              />
+              
+              <FormSelectFilterAdd
+                label={TEXT.incomeName || "Tipo de receita"}
+                errorsObj={errors}
+                errorName="name"
+                formCallBack={(value: string) => {
+                  setValue("name", value, { shouldValidate: true });
+                }}
+                initialValue={incomeName}
+                options={INCOMES}
+                storageToken={INCOME_KEY}
+                required
+                disabled={isLoading}
+              />
+              
+              <FormCurrency
+                label={TEXT.value || "Valor"}
+                errorsObj={errors}
+                errorName="cost"
+                initialValue={incomeValue}
+                maxlength={15}
+                changeCallback={(value: number) => {
+                  setValue("cost", value, { shouldValidate: true });
+                }}
+                required
+                disabled={isLoading}
+              />
+            </>
+          )}
         </form>
+        
+        {/* Botão de deletar (apenas para edição) */}
         {formInitial.id && (
-          <FormDeleteButton
-            label={`${TEXT.delete} ${TEXT.income}`}
-            message={TEXT.income}
-            callBackFunc={onDelete}
-          />
+          <div style={{ padding: 16, marginTop: 24 }}>
+            <FormDeleteButton
+              label={`${TEXT.delete || "Excluir"} ${TEXT.income?.toLowerCase() || "receita"}`}
+              message={TEXT.confirmDeleteIncome || "Tem certeza que deseja excluir esta receita?"}
+              callBackFunc={onDelete}
+              disabled={isLoading}
+            />
+          </div>
         )}
       </IonContent>
     </IonPage>

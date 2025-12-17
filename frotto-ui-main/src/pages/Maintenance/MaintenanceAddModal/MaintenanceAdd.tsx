@@ -15,19 +15,20 @@ import {
   IonToolbar,
 } from "@ionic/react";
 import { TEXT } from "../../../constants/texts";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useAlert } from "../../../services/hooks/useAlert";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import FormDate from "../../../components/Form/FormDate";
+import CarSelector from "../../../components/Car/CarSelector";
+import { 
+  CarModel, 
+  MaintenanceModel, 
+  MaintenanceServiceModel, 
+  ReminderModel 
+} from "../../../constants/CarModels";
 import api from "../../../services/axios/axios";
 import endpoints from "../../../constants/endpoints";
-import {
-  InspectionModel,
-  MaintenanceModel,
-  MaintenanceServiceModel,
-  ReminderModel,
-} from "../../../constants/CarModels";
 import FormInput from "../../../components/Form/FormInput";
 import ItemNotFound from "../../../components/List/ItemNotFound";
 import {
@@ -36,15 +37,15 @@ import {
   maintenanceAddValidationSchema,
 } from "./maintenanceValidationSchema";
 import ServiceAddModal from "../ServiceAddModal/ServiceAddModal";
-import { useLocation, useHistory } from "react-router";
+import { useHistory, useLocation } from "react-router-dom";
 import { currencyFormat } from "../../../services/currencyFormat";
 import FormDeleteButton from "../../../components/Form/FormDeleteButton";
 import ReminderAdd from "../../Reminders/ReminderAddModal/reminderAdd";
 
 interface MaintenanceAddModalProps {
-  closeModal: Function;
-  initialValues?: InspectionModel;
-  carId: String;
+  closeModal: (response?: MaintenanceModel) => void;
+  initialValues?: MaintenanceModel;
+  carId?: string;
 }
 
 const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({
@@ -52,129 +53,286 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({
   initialValues,
   carId,
 }) => {
+  const history = useHistory();
   const location = useLocation();
-  const nav = useHistory();
   const { showErrorAlert } = useAlert();
-  const [isLoading, setisLoading] = useState(false);
+  
+  const [isLoading, setIsLoading] = useState(false);
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
-  const [reminderList, setRemindersList] = useState<ReminderModel[]>([]);
   const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
-  const [activeReminder, setActiveReminder] = useState({});
+  const [reminderList, setReminderList] = useState<ReminderModel[]>([]);
+  const [selectedCar, setSelectedCar] = useState<CarModel | null>(null);
+  const [activeReminder, setActiveReminder] = useState<ReminderModel | null>(null);
+  
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const formInitial = initialMaintenanceValues(initialValues || {});
 
   const {
     handleSubmit,
     setValue,
     watch,
-    formState: { errors },
+    reset,
+    formState: { errors, isValid, isDirty },
   } = useForm({
     reValidateMode: "onBlur",
     resolver: yupResolver(maintenanceAddValidationSchema),
     defaultValues: formInitial,
+    mode: "onTouched",
   });
 
-  const loadReminders = async () => {
-    setisLoading(true);
+  // Observar valores do formulário
+  const services = watch("services");
+  const date = watch("date");
+  const odometer = watch("odometer");
+  const local = watch("local");
+
+  // Carregar lembretes
+  const loadReminders = useCallback(async () => {
+    if (!carId || formInitial.id) return; // Não carrega se já é edição
+    
+    const controller = new AbortController();
+    
     try {
+      setIsLoading(true);
       const { data } = await api.get(
         endpoints.REMINDERS({
-          pathVariables: {
-            id: carId,
-          },
-        })
+          pathVariables: { id: carId },
+        }),
+        { signal: controller.signal }
       );
-      setisLoading(false);
-      if (data) {
-        setRemindersList(data);
+      
+      if (Array.isArray(data)) {
+        setReminderList(data);
       }
-    } catch (error) {
-      setisLoading(false);
-      showErrorAlert(TEXT.loadRemindersFailed);
+    } catch (error: any) {
+      if (error.name !== 'AbortError') {
+        console.error("Erro ao carregar lembretes:", error);
+        showErrorAlert(TEXT.loadRemindersFailed || "Erro ao carregar lembretes");
+      }
+    } finally {
+      setIsLoading(false);
     }
-  };
+    
+    return () => controller.abort();
+  }, [carId, formInitial.id, showErrorAlert]);
 
-  useEffect(() => {
-    if (!location.search.includes("modalServiceOpened=true")) {
-      setIsServiceModalOpen(false);
+  // Carregar carro se carId fornecido
+  const loadCar = useCallback(async () => {
+    if (!carId) return;
+    
+    // Cancelar requisição anterior
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
-    if (!location.search.includes("modalReminderOpened=true")) {
-      setIsReminderModalOpen(false);
+    
+    abortControllerRef.current = new AbortController();
+    
+    try {
+      const response = await api.get(
+        endpoints.CAR({ pathVariables: { id: carId } }),
+        { signal: abortControllerRef.current.signal }
+      );
+      setSelectedCar(response.data);
+    } catch (error: any) {
+      if (error.name !== 'AbortError') {
+        console.error("Erro ao carregar carro:", error);
+        showErrorAlert("Erro ao carregar informações do veículo");
+      }
     }
-  }, [location]);
+  }, [carId, showErrorAlert]);
 
+  // Efeito inicial
   useEffect(() => {
-    if (formInitial.id === undefined) {
+    loadCar();
+    if (!formInitial.id) {
       loadReminders();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const closeServiceModal = useCallback(
-    (newServices: MaintenanceServiceModel[]) => {
-      if (newServices) {
-        setValue("services", newServices);
+    
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
-      setIsServiceModalOpen(false);
-      nav.goBack();
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [setValue]
-  );
+    };
+  }, [loadCar, loadReminders, formInitial.id]);
 
-  const closeReminderModal = useCallback(
-    (reminder: ReminderModel) => {
-      if (reminder) {
-        loadReminders();
-      }
-      nav.goBack();
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
-
-  const onSubmit = async (newMaintenance: MaintenanceModel) => {
-    setisLoading(true);
-    newMaintenance.cost = calculateMaintenanceCost(newMaintenance);
-    try {
-      let responseMaintenance: MaintenanceModel;
-      if (newMaintenance.id) {
-        const urlPatch = endpoints.MAINTENANCES_EDIT({
-          pathVariables: {
-            id: newMaintenance.id,
-          },
-        });
-        const response = await api.put(urlPatch, newMaintenance);
-        responseMaintenance = response.data;
-      } else {
-        const urlPost = endpoints.MAINTENANCES({
-          pathVariables: {
-            id: carId,
-          },
-        });
-        const response = await api.post(urlPost, newMaintenance);
-        responseMaintenance = response.data;
-      }
-      setisLoading(false);
-      closeModal(responseMaintenance);
-    } catch (e: any) {
-      setisLoading(false);
-      showErrorAlert(TEXT.saveFailed);
+  // Resetar formulário quando initialValues mudar
+  useEffect(() => {
+    if (initialValues) {
+      reset(initialMaintenanceValues(initialValues));
     }
-  };
+  }, [initialValues, reset]);
 
-  const onDelete = async () => {
-    setisLoading(true);
+  // Gerenciar URL parameters
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const serviceModal = searchParams.get('modalServiceOpened') === 'true';
+    const reminderModal = searchParams.get('modalReminderOpened') === 'true';
+    
+    if (serviceModal) {
+      setIsServiceModalOpen(true);
+    }
+    if (reminderModal) {
+      setIsReminderModalOpen(true);
+    }
+  }, [location.search]);
+
+  // Fechar modal de serviços
+  const closeServiceModal = useCallback((newServices?: MaintenanceServiceModel[]) => {
+    setIsServiceModalOpen(false);
+    
+    // Limpar query params
+    const searchParams = new URLSearchParams(location.search);
+    searchParams.delete('modalServiceOpened');
+    history.replace({
+      pathname: location.pathname,
+      search: searchParams.toString()
+    });
+    
+    // Atualizar serviços se fornecidos
+    if (newServices) {
+      setValue("services", newServices, { shouldValidate: true });
+    }
+  }, [history, location, setValue]);
+
+  // Fechar modal de lembrete
+  const closeReminderModal = useCallback((reminder?: ReminderModel) => {
+    setIsReminderModalOpen(false);
+    setActiveReminder(null);
+    
+    // Limpar query params
+    const searchParams = new URLSearchParams(location.search);
+    searchParams.delete('modalReminderOpened');
+    history.replace({
+      pathname: location.pathname,
+      search: searchParams.toString()
+    });
+    
+    // Recarregar lembretes se um novo foi criado/editado
+    if (reminder && !formInitial.id) {
+      loadReminders();
+    }
+  }, [history, location, formInitial.id, loadReminders]);
+
+  // Abrir modal de serviços
+  const openServiceModal = useCallback(() => {
+    const searchParams = new URLSearchParams(location.search);
+    searchParams.set('modalServiceOpened', 'true');
+    history.push({
+      pathname: location.pathname,
+      search: searchParams.toString()
+    });
+    setIsServiceModalOpen(true);
+  }, [history, location]);
+
+  // Abrir modal de lembrete
+  const openReminderModal = useCallback((reminder?: ReminderModel) => {
+    setActiveReminder(reminder || null);
+    
+    const searchParams = new URLSearchParams(location.search);
+    searchParams.set('modalReminderOpened', 'true');
+    history.push({
+      pathname: location.pathname,
+      search: searchParams.toString()
+    });
+    setIsReminderModalOpen(true);
+  }, [history, location]);
+
+  // Submeter formulário
+  const onSubmit = useCallback(async (formData: MaintenanceModel) => {
+    if (!isValid) {
+      showErrorAlert("Preencha todos os campos obrigatórios");
+      return;
+    }
+    
+    // Validar carro selecionado
+    const targetCarId = selectedCar?.id?.toString() || carId;
+    if (!targetCarId) {
+      showErrorAlert(TEXT.selectVehicle || "Selecione um veículo");
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      // Calcular custo total
+      const maintenanceData = {
+        ...formData,
+        cost: calculateMaintenanceCost(formData)
+      };
+      
+      let response: MaintenanceModel;
+      
+      if (maintenanceData.id) {
+        // EDITAR
+        const url = endpoints.MAINTENANCES_EDIT({
+          pathVariables: { id: maintenanceData.id }
+        });
+        const apiResponse = await api.put(url, maintenanceData);
+        response = apiResponse.data;
+      } else {
+        // CRIAR
+        const url = endpoints.MAINTENANCES({
+          pathVariables: { id: targetCarId }
+        });
+        const apiResponse = await api.post(url, maintenanceData);
+        response = apiResponse.data;
+      }
+      
+      setIsLoading(false);
+      closeModal(response);
+    } catch (error: any) {
+      setIsLoading(false);
+      console.error("Erro ao salvar manutenção:", error);
+      
+      const errorMessage = error.response?.data?.message 
+        || error.message 
+        || TEXT.saveFailed;
+      showErrorAlert(errorMessage);
+    }
+  }, [isValid, selectedCar, carId, closeModal, showErrorAlert]);
+
+  // Deletar manutenção
+  const onDelete = useCallback(async () => {
+    if (!formInitial.id) return;
+    
+    setIsLoading(true);
     try {
       await api.delete(
-        endpoints.MAINTENANCES_EDIT({ pathVariables: { id: formInitial.id } })
+        endpoints.MAINTENANCES_EDIT({ 
+          pathVariables: { id: formInitial.id } 
+        })
       );
-      setisLoading(false);
-      closeModal({});
-    } catch (e) {
-      setisLoading(false);
-      showErrorAlert(TEXT.deleteFailed);
+      setIsLoading(false);
+      closeModal();
+    } catch (error: any) {
+      setIsLoading(false);
+      console.error("Erro ao deletar manutenção:", error);
+      
+      const errorMessage = error.response?.data?.message 
+        || error.message 
+        || TEXT.deleteFailed;
+      showErrorAlert(errorMessage);
     }
-  };
+  }, [formInitial.id, closeModal, showErrorAlert]);
+
+  // Selecionar carro
+  const handleSelectCar = useCallback((car: CarModel) => {
+    setSelectedCar(car);
+  }, []);
+
+  // Resetar seleção de carro
+  const handleResetCar = useCallback(() => {
+    setSelectedCar(null);
+  }, []);
+
+  // Fechar modal principal
+  const handleClose = useCallback(() => {
+    if (isLoading) return;
+    closeModal();
+  }, [isLoading, closeModal]);
+
+  // Calcular custo total
+  const totalCost = calculateMaintenanceCost(watch());
 
   return (
     <IonPage id="car-maintenance-add-page">
@@ -182,172 +340,266 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({
         <IonToolbar>
           <IonButtons slot="start">
             <IonButton
-              color="danger"
-              onClick={() => {
-                closeModal();
-              }}
+              color="medium"
+              onClick={handleClose}
+              disabled={isLoading}
             >
               {TEXT.cancel}
             </IonButton>
           </IonButtons>
-          <IonTitle>{TEXT.addCarMaintenance}</IonTitle>
+          
+          <IonTitle>
+            {formInitial.id ? TEXT.editMaintenance : TEXT.addCarMaintenance}
+          </IonTitle>
+          
           <IonButtons slot="end">
             <IonButton
-              disabled={isLoading}
+              disabled={isLoading || !isValid || (!isDirty && formInitial.id)}
               strong={true}
               onClick={handleSubmit(onSubmit)}
             >
               {TEXT.save}
             </IonButton>
           </IonButtons>
-          {isLoading && <IonProgressBar type="indeterminate"></IonProgressBar>}
+          
+          {isLoading && <IonProgressBar type="indeterminate" />}
         </IonToolbar>
       </IonHeader>
+      
       <IonContent>
-        <form>
-          <FormDate
-            id="date-maintenance-add"
-            initialValue={watch("date").toString()}
-            label={TEXT.date}
-            presentation="date"
-            formCallBack={(value: string) => {
-              setValue("date", value);
-            }}
-          />
-          <FormInput
-            label={TEXT.odometer}
-            errorsObj={errors}
-            errorName="odometer"
-            initialValue={watch("odometer")}
-            maxlength={15}
-            type="number"
-            changeCallback={(value: number) => {
-              setValue("odometer", value);
-            }}
-            required
-          />
-          <FormInput
-            label={TEXT.local}
-            errorsObj={errors}
-            errorName="local"
-            initialValue={watch("local")}
-            maxlength={50}
-            changeCallback={(value: string) => {
-              setValue("local", value);
-            }}
-            required
-          />
-          <IonList>
-            <IonListHeader>
-              <IonLabel>
-                <h1>{TEXT.maintenanceServices}</h1>
-              </IonLabel>
-              <IonButton
-                onClick={(e) => {
-                  e.preventDefault();
-                  setIsServiceModalOpen(true);
-                  nav.push(
-                    nav.location.pathname +
-                      "?modalOpened=true&modalServiceOpened=true"
-                  );
+        <form onSubmit={(e) => e.preventDefault()}>
+          {/* Seletor de Carro */}
+          {!selectedCar && !carId && (
+            <div style={{ padding: 16 }}>
+              <h3 style={{ 
+                marginTop: 0, 
+                marginBottom: 16,
+                fontSize: 16,
+                fontWeight: 600 
+              }}>
+                {TEXT.selectVehicle || "Selecione um veículo"}
+              </h3>
+              <CarSelector onSelect={handleSelectCar} />
+            </div>
+          )}
+
+          {/* Info do Carro Selecionado */}
+          {selectedCar && (
+            <div style={{ 
+              padding: 16, 
+              backgroundColor: "var(--ion-color-light)",
+              marginBottom: 16 
+            }}>
+              <div style={{ 
+                display: "flex", 
+                justifyContent: "space-between",
+                alignItems: "center"
+              }}>
+                <div>
+                  <strong style={{ fontSize: 16, display: "block" }}>
+                    {selectedCar.name}
+                  </strong>
+                  <div style={{ 
+                    fontSize: 14, 
+                    color: "var(--ion-color-medium)",
+                    marginTop: 4 
+                  }}>
+                    {selectedCar.plate || "Sem placa"}
+                  </div>
+                </div>
+                
+                {!carId && (
+                  <IonButton 
+                    size="small" 
+                    fill="clear"
+                    color="medium"
+                    onClick={handleResetCar}
+                  >
+                    {TEXT.change || "Trocar"}
+                  </IonButton>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Formulário (apenas se tiver carro selecionado ou carId) */}
+          {(selectedCar || carId) && (
+            <>
+              <FormDate
+                id="date-maintenance-add"
+                initialValue={date}
+                label={TEXT.date}
+                presentation="date"
+                formCallBack={(value: string) => {
+                  setValue("date", value, { shouldValidate: true });
                 }}
-              >
-                {TEXT.edit}
-              </IonButton>
-            </IonListHeader>
-            {watch("services").map(
-              (service: MaintenanceServiceModel, index) => {
-                if (service) {
-                  return (
-                    <IonItem key={index}>
+                error={errors.date?.message}
+                required
+                disabled={isLoading}
+              />
+              
+              <FormInput
+                label={TEXT.odometer || "Odômetro"}
+                errorsObj={errors}
+                errorName="odometer"
+                initialValue={odometer}
+                maxlength={15}
+                type="number"
+                changeCallback={(value: number) => {
+                  setValue("odometer", value, { shouldValidate: true });
+                }}
+                required
+                disabled={isLoading}
+              />
+              
+              <FormInput
+                label={TEXT.local || "Local"}
+                errorsObj={errors}
+                errorName="local"
+                initialValue={local}
+                maxlength={50}
+                changeCallback={(value: string) => {
+                  setValue("local", value, { shouldValidate: true });
+                }}
+                required
+                disabled={isLoading}
+              />
+              
+              {/* Lista de Serviços */}
+              <IonList>
+                <IonListHeader>
+                  <IonLabel>
+                    <h2>{TEXT.maintenanceServices || "Serviços"}</h2>
+                    {totalCost > 0 && (
+                      <IonText color="primary" style={{ marginLeft: 8 }}>
+                        ({currencyFormat(totalCost)})
+                      </IonText>
+                    )}
+                  </IonLabel>
+                  <IonButton
+                    onClick={openServiceModal}
+                    disabled={isLoading}
+                  >
+                    {TEXT.edit || "Editar"}
+                  </IonButton>
+                </IonListHeader>
+                
+                {services?.length > 0 ? (
+                  services.map((service, index) => (
+                    <IonItem key={`service-${index}`}>
+                      <IonLabel slot="start" class="ion-text-wrap">
+                        <h3 style={{ margin: 0 }}>
+                          <IonText color="dark">{service.name}</IonText>
+                        </h3>
+                        {service.description && (
+                          <p style={{ 
+                            fontSize: 12, 
+                            color: "var(--ion-color-medium)",
+                            margin: 0 
+                          }}>
+                            {service.description}
+                          </p>
+                        )}
+                      </IonLabel>
                       <IonLabel slot="end">
-                        <IonText color="dark">
-                          {currencyFormat(service.cost)}
+                        <IonText color="dark" style={{ fontWeight: 600 }}>
+                          {currencyFormat(service.cost || 0)}
                         </IonText>
                       </IonLabel>
-                      <IonLabel class="ion-text-wrap">
-                        <h2>
-                          <IonText color="medium">{service.name}</IonText>
-                        </h2>
-                      </IonLabel>
                     </IonItem>
-                  );
-                } else {
-                  return <ItemNotFound text={TEXT.noServices} />;
-                }
-              }
-            )}
-            {watch("services") && watch("services").length === 0 && (
-              <ItemNotFound text={TEXT.noServices} />
-            )}
-          </IonList>
+                  ))
+                ) : (
+                  <ItemNotFound 
+                    text={TEXT.noServices || "Nenhum serviço adicionado"} 
+                  />
+                )}
+              </IonList>
+            </>
+          )}
         </form>
+        
+        {/* Botão de deletar (apenas para edição) */}
         {formInitial.id && (
-          <FormDeleteButton
-            label={`${TEXT.delete} ${TEXT.maintenance}`}
-            message={TEXT.maintenance}
-            callBackFunc={onDelete}
-          />
+          <div style={{ padding: 16, marginTop: 24 }}>
+            <FormDeleteButton
+              label={`${TEXT.delete || "Excluir"} ${TEXT.maintenance?.toLowerCase() || "manutenção"}`}
+              message={TEXT.confirmDeleteMaintenance || "Tem certeza que deseja excluir esta manutenção?"}
+              callBackFunc={onDelete}
+              disabled={isLoading}
+            />
+          </div>
         )}
-
-        {formInitial.id === undefined && (
-          <>
-            <IonList>
-              <IonListHeader>
+        
+        {/* Lista de Lembretes (apenas para nova manutenção) */}
+        {!formInitial.id && reminderList.length > 0 && (
+          <IonList style={{ marginTop: 24 }}>
+            <IonListHeader>
+              <IonLabel>
+                <h2>{TEXT.reminders || "Lembretes"}</h2>
+              </IonLabel>
+              <IonButton
+                onClick={() => openReminderModal()}
+                disabled={isLoading}
+              >
+                {TEXT.add || "Adicionar"}
+              </IonButton>
+            </IonListHeader>
+            
+            {reminderList.map((reminder, index) => (
+              <IonItem
+                button
+                key={`reminder-${index}`}
+                onClick={() => openReminderModal(reminder)}
+                disabled={isLoading}
+              >
                 <IonLabel>
-                  <h1>{TEXT.reminders}</h1>
+                  <p style={{ margin: 0 }}>{reminder.message}</p>
+                  {reminder.date && (
+                    <p style={{ 
+                      fontSize: 12, 
+                      color: "var(--ion-color-medium)",
+                      margin: 0 
+                    }}>
+                      {reminder.date}
+                    </p>
+                  )}
                 </IonLabel>
-                <IonButton
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setActiveReminder({});
-                    setIsReminderModalOpen(true);
-                    nav.push(
-                      nav.location.pathname +
-                        "?modalOpened=true&modalReminderOpened=true"
-                    );
-                  }}
-                >
-                  {TEXT.add}
-                </IonButton>
-              </IonListHeader>
-              {reminderList.map((reminder: ReminderModel, index) => {
-                return (
-                  <IonItem
-                    button
-                    key={index}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setActiveReminder(reminder);
-                      setIsReminderModalOpen(true);
-                      nav.push(
-                        nav.location.pathname +
-                          "?modalOpened=true&modalReminderOpened=true"
-                      );
-                    }}
-                  >
-                    <p>{reminder.message}</p>
-                  </IonItem>
-                );
-              })}
-              {reminderList.length === 0 && (
-                <ItemNotFound text={TEXT.noReminders} />
-              )}
-            </IonList>
-          </>
+              </IonItem>
+            ))}
+          </IonList>
+        )}
+        
+        {!formInitial.id && reminderList.length === 0 && (
+          <div style={{ padding: 16, textAlign: "center" }}>
+            <p style={{ color: "var(--ion-color-medium)" }}>
+              {TEXT.noReminders || "Nenhum lembrete configurado"}
+            </p>
+          </div>
         )}
       </IonContent>
-      <IonModal isOpen={isServiceModalOpen} backdropDismiss={false}>
+
+      {/* Modal de Serviços */}
+      <IonModal
+        isOpen={isServiceModalOpen}
+        onDidDismiss={() => closeServiceModal()}
+        backdropDismiss={false}
+      >
         <ServiceAddModal
           closeModal={closeServiceModal}
-          initialValues={watch("services")}
+          initialValues={services}
         />
       </IonModal>
-      <IonModal isOpen={isReminderModalOpen} backdropDismiss={false}>
+
+      {/* Modal de Lembretes */}
+      <IonModal
+        isOpen={isReminderModalOpen}
+        onDidDismiss={() => closeReminderModal()}
+        backdropDismiss={false}
+      >
         <ReminderAdd
-          carId={carId}
+          carId={carId || selectedCar?.id?.toString() || ''}
           closeModal={closeReminderModal}
-          initialValues={activeReminder}
+          initialValues={activeReminder || undefined}
         />
       </IonModal>
     </IonPage>

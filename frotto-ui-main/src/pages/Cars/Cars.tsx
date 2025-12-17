@@ -14,309 +14,336 @@ import {
   IonToolbar,
   useIonViewWillEnter,
 } from "@ionic/react";
+import { add } from "ionicons/icons";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useHistory, useLocation } from "react-router-dom";
 import api from "../../services/axios/axios";
 import endpoints from "../../constants/endpoints";
 import { TEXT } from "../../constants/texts";
-import { add } from "ionicons/icons";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAlert } from "../../services/hooks/useAlert";
 import CarAdd from "./CarAddModal/CarAdd";
 import MaintenanceAdd from "../Maintenance/MaintenanceAddModal/MaintenanceAdd";
 import ReminderAdd from "../Reminders/ReminderAddModal/reminderAdd";
 import IncomeAdd from "../Income/IncomeAddModal/IncomeAdd";
 import CarExpenseAdd from "../CarExpense/CarExpenseAddModal/CarExpenseAdd";
 import CarSelector from "../../components/Car/CarSelector";
-import { useAlert } from "../../services/hooks/useAlert";
-import { CarModel } from "../../constants/CarModels";
 import CarListItem from "./CarListItem";
 import { filterListObj } from "../../services/filterList";
 import ItemNotFound from "../../components/List/ItemNotFound";
-import { useLocation, useHistory } from "react-router";
+import { CarModel } from "../../constants/CarModels";
+
+// Tipo para as ações disponíveis
+type ActionType = 'maintenance' | 'reminder' | 'expense' | 'income' | null;
 
 const Cars: React.FC = () => {
+  const history = useHistory();
   const location = useLocation();
-  const nav = useHistory();
   const { showErrorAlert } = useAlert();
-
+  
   const [isLoading, setIsLoading] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [actionSheetOpen, setActionSheetOpen] = useState(false);
-  const [actionModalOpen, setActionModalOpen] = useState(false);
-  const [actionType, setActionType] = useState<string | null>(null);
-  const [selectedCarForAction, setSelectedCarForAction] =
-    useState<CarModel | null>(null);
-  const [searchValue, setSearchValue] = useState<string | undefined>(undefined);
+  const [isAddCarModalOpen, setIsAddCarModalOpen] = useState(false);
+  const [isActionSheetOpen, setIsActionSheetOpen] = useState(false);
+  const [isActionModalOpen, setIsActionModalOpen] = useState(false);
+  const [selectedAction, setSelectedAction] = useState<ActionType>(null);
+  const [selectedCar, setSelectedCar] = useState<CarModel | null>(null);
+  const [searchValue, setSearchValue] = useState("");
   const [carList, setCarList] = useState<CarModel[]>([]);
+  
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Fecha modal quando sair da URL ?modalOpened=true
+  // Efeito para gerenciar URL state
   useEffect(() => {
-    if (!location.search.includes("modalOpened=true")) {
-      setIsModalOpen(false);
+    const searchParams = new URLSearchParams(location.search);
+    const modalOpened = searchParams.get('modalOpened') === 'true';
+    
+    if (modalOpened) {
+      setIsAddCarModalOpen(true);
     }
-  }, [location]);
+  }, [location.search]);
 
-  // Carregar carros do backend
-  const loadCars = async () => {
+  // Função para carregar carros
+  const loadCars = useCallback(async (signal?: AbortSignal) => {
     setIsLoading(true);
+    
     try {
-      const response = await api.get(endpoints.CARS_ACTIVE());
+      // Cancelar request anterior se existir
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      
+      abortControllerRef.current = new AbortController();
+      const currentSignal = signal || abortControllerRef.current.signal;
+      
+      const response = await api.get(endpoints.CARS_ACTIVE(), {
+        signal: currentSignal
+      });
+      
       const data = response?.data ?? [];
-
-      const list = Array.isArray(data)
-        ? data
-        : data.items || data.content || data.data || [];
-
+      
+      // Extrair array de forma segura
+      let list: CarModel[] = [];
+      if (Array.isArray(data)) {
+        list = data;
+      } else if (data && typeof data === 'object') {
+        list = data.items || data.content || data.data || [];
+      }
+      
       setCarList(list);
-      setIsLoading(false);
     } catch (error: any) {
-      setIsLoading(false);
+      // Ignorar erros de abort
+      if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+        return;
+      }
+      
+      console.error("Erro ao carregar carros:", error);
       showErrorAlert(
-        TEXT.loadCarsFailed +
-          (error?.message ? `: ${error.message}` : "")
+        `${TEXT.loadCarsFailed}${error?.message ? `: ${error.message}` : ''}`
       );
+      setCarList([]);
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, [showErrorAlert]);
 
   // Carregar ao entrar na página
   useIonViewWillEnter(() => {
-    if (!location.search.includes("modalOpened=true")) {
-      loadCars();
-    }
-  }, [location]);
+    loadCars();
+    
+    return () => {
+      // Cleanup ao sair da página
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [loadCars]);
 
   // Filtro de busca
   const filteredList = useMemo(() => {
+    if (!searchValue.trim()) return carList;
     return filterListObj(carList, searchValue);
   }, [carList, searchValue]);
 
-  // Adicionar novo carro ao estado
-  const addCarToList = useCallback(
-    (newCar: CarModel) => {
-      setCarList((prev) => [newCar, ...prev]);
-    },
-    []
-  );
-
-  // Remover carro da lista após deletar
-  const removeCarFromList = useCallback((id: number) => {
-    setCarList((prev) => prev.filter((car) => car.id !== id));
+  // Adicionar novo carro
+  const handleAddCar = useCallback((newCar: CarModel) => {
+    setCarList(prev => [newCar, ...prev]);
   }, []);
 
-  // Fecha modal do CarAdd
-  const closeModal = useCallback(
-    (newCar: CarModel) => {
-      if (newCar) {
-        addCarToList(newCar);
+  // Remover carro
+  const handleDeleteCar = useCallback((deletedCarId: number) => {
+    setCarList(prev => prev.filter(car => car.id !== deletedCarId));
+  }, []);
+
+  // Fechar modal de adicionar carro
+  const handleCloseAddCarModal = useCallback((newCar?: CarModel) => {
+    setIsAddCarModalOpen(false);
+    
+    // Limpar query params
+    const searchParams = new URLSearchParams(location.search);
+    searchParams.delete('modalOpened');
+    history.replace({
+      pathname: location.pathname,
+      search: searchParams.toString()
+    });
+    
+    // Adicionar novo carro se existir
+    if (newCar) {
+      handleAddCar(newCar);
+    }
+  }, [history, location, handleAddCar]);
+
+  // Abrir modal de ação
+  const handleOpenActionModal = useCallback((action: ActionType) => {
+    setSelectedAction(action);
+    setIsActionSheetOpen(false);
+    setIsActionModalOpen(true);
+  }, []);
+
+  // Fechar modal de ação
+  const handleCloseActionModal = useCallback(() => {
+    setIsActionModalOpen(false);
+    setSelectedAction(null);
+    setSelectedCar(null);
+  }, []);
+
+  // Renderizar conteúdo do modal de ação
+  const renderActionModalContent = () => {
+    if (!selectedAction) return null;
+
+    // Se não tem carro selecionado, mostrar seletor
+    if (!selectedCar) {
+      return (
+        <div style={{ padding: 16 }}>
+          <h3 style={{ marginTop: 0, marginBottom: 16 }}>
+            {TEXT.selectVehicle}
+          </h3>
+          <CarSelector
+            cars={carList}
+            onSelect={(car) => setSelectedCar(car)}
+          />
+        </div>
+      );
+    }
+
+    // Se tem carro selecionado, mostrar o formulário apropriado
+    const modalProps = {
+      closeModal: handleCloseActionModal,
+      carId: selectedCar.id.toString()
+    };
+
+    switch (selectedAction) {
+      case 'maintenance':
+        return <MaintenanceAdd {...modalProps} />;
+      case 'reminder':
+        return <ReminderAdd {...modalProps} />;
+      case 'income':
+        return <IncomeAdd {...modalProps} />;
+      case 'expense':
+        return <CarExpenseAdd {...modalProps} />;
+      default:
+        return null;
+    }
+  };
+
+  // Botões do ActionSheet
+  const actionSheetButtons = useMemo(() => [
+    {
+      text: TEXT.addCar,
+      handler: () => {
+        const searchParams = new URLSearchParams(location.search);
+        searchParams.set('modalOpened', 'true');
+        history.push({
+          pathname: location.pathname,
+          search: searchParams.toString()
+        });
+        setIsAddCarModalOpen(true);
       }
-      setIsModalOpen(false);
-      nav.goBack();
     },
-    [addCarToList, nav]
-  );
+    {
+      text: TEXT.addCarMaintenance,
+      handler: () => handleOpenActionModal('maintenance')
+    },
+    {
+      text: TEXT.reminder,
+      handler: () => handleOpenActionModal('reminder')
+    },
+    {
+      text: `${TEXT.add} ${TEXT.carExpense}`,
+      handler: () => handleOpenActionModal('expense')
+    },
+    {
+      text: `${TEXT.add} ${TEXT.income}`,
+      handler: () => handleOpenActionModal('income')
+    },
+    {
+      text: TEXT.cancel,
+      role: 'cancel' as const
+    }
+  ], [location, history, handleOpenActionModal]);
 
   return (
     <IonPage id="cars-page">
       <IonHeader>
         <IonToolbar>
-          <IonButtons slot="secondary">
-            <IonButton>
-              <IonMenuButton />
-            </IonButton>
+          <IonButtons slot="start">
+            <IonMenuButton />
           </IonButtons>
 
-          <IonButtons slot="primary">
-            <IonButton
-              onClick={(e) => {
-                e.preventDefault();
-                setActionSheetOpen(true);
-              }}
-            >
+          <IonTitle>{TEXT.cars}</IonTitle>
+
+          <IonButtons slot="end">
+            <IonButton onClick={() => setIsActionSheetOpen(true)}>
               <IonIcon slot="icon-only" icon={add} />
             </IonButton>
           </IonButtons>
-
-          <IonActionSheet
-            isOpen={actionSheetOpen}
-            onDidDismiss={() => setActionSheetOpen(false)}
-            buttons={[
-              {
-                text: TEXT.addCar,
-                handler: () => {
-                  setActionSheetOpen(false);
-                  nav.push(nav.location.pathname + "?modalOpened=true");
-                  setIsModalOpen(true);
-                },
-              },
-              {
-                text: TEXT.addCarMaintenance,
-                handler: () => {
-                  setActionSheetOpen(false);
-                  setActionType("maintenance");
-                  setActionModalOpen(true);
-                },
-              },
-              {
-                text: TEXT.reminder,
-                handler: () => {
-                  setActionSheetOpen(false);
-                  setActionType("reminder");
-                  setActionModalOpen(true);
-                },
-              },
-              {
-                text: `${TEXT.add} ${TEXT.carExpense}`,
-                handler: () => {
-                  setActionSheetOpen(false);
-                  setActionType("expense");
-                  setActionModalOpen(true);
-                },
-              },
-              {
-                text: `${TEXT.add} ${TEXT.income}`,
-                handler: () => {
-                  setActionSheetOpen(false);
-                  setActionType("income");
-                  setActionModalOpen(true);
-                },
-              },
-              {
-                text: "Cancelar",
-                role: "cancel",
-              },
-            ]}
-          />
-
-          <IonModal
-            isOpen={actionModalOpen}
-            onDidDismiss={() => {
-              setActionModalOpen(false);
-              setSelectedCarForAction(null);
-              setActionType(null);
-            }}
-          >
-            <IonHeader>
-              <IonToolbar>
-                <IonButtons slot="start">
-                  <IonButton
-                    onClick={() => {
-                      setSelectedCarForAction(null);
-                      setActionModalOpen(false);
-                      setActionType(null);
-                    }}
-                  >
-                    {TEXT.cancel}
-                  </IonButton>
-                </IonButtons>
-
-                <IonTitle>
-                  {actionType === "maintenance"
-                    ? TEXT.addCarMaintenance
-                    : actionType === "reminder"
-                    ? TEXT.reminder
-                    : actionType === "expense"
-                    ? TEXT.carExpense
-                    : actionType === "income"
-                    ? TEXT.income
-                    : TEXT.add}
-                </IonTitle>
-
-                <IonButtons slot="end">
-                  <IonButton onClick={() => setSelectedCarForAction(null)}>
-                    {TEXT.all}
-                  </IonButton>
-                </IonButtons>
-              </IonToolbar>
-            </IonHeader>
-
-            <IonContent>
-              {!selectedCarForAction && (
-                <div style={{ padding: 12 }}>
-                  <h3 style={{ marginTop: 0 }}>{TEXT.select}</h3>
-                  <CarSelector
-                    onSelect={(car) => setSelectedCarForAction(car)}
-                  />
-                </div>
-              )}
-
-              {selectedCarForAction && actionType === "maintenance" && (
-                <MaintenanceAdd
-                  closeModal={() => {
-                    setActionModalOpen(false);
-                    setSelectedCarForAction(null);
-                    setActionType(null);
-                  }}
-                  carId={String(selectedCarForAction.id)}
-                />
-              )}
-
-              {selectedCarForAction && actionType === "reminder" && (
-                <ReminderAdd
-                  closeModal={() => {
-                    setActionModalOpen(false);
-                    setSelectedCarForAction(null);
-                    setActionType(null);
-                  }}
-                  carId={String(selectedCarForAction.id)}
-                />
-              )}
-
-              {selectedCarForAction && actionType === "income" && (
-                <IncomeAdd
-                  closeModal={() => {
-                    setActionModalOpen(false);
-                    setSelectedCarForAction(null);
-                    setActionType(null);
-                  }}
-                  carId={String(selectedCarForAction.id)}
-                />
-              )}
-
-              {selectedCarForAction && actionType === "expense" && (
-                <CarExpenseAdd
-                  closeModal={() => {
-                    setActionModalOpen(false);
-                    setSelectedCarForAction(null);
-                    setActionType(null);
-                  }}
-                  carId={String(selectedCarForAction.id)}
-                />
-              )}
-            </IonContent>
-          </IonModal>
-
-          <IonTitle>{TEXT.cars}</IonTitle>
         </IonToolbar>
 
         <IonToolbar>
           <IonSearchbar
             debounce={500}
             placeholder={TEXT.search}
-            onIonChange={(e) => setSearchValue(e.detail.value)}
+            value={searchValue}
+            onIonChange={(e) => setSearchValue(e.detail.value || '')}
           />
-
           {isLoading && <IonProgressBar type="indeterminate" />}
         </IonToolbar>
       </IonHeader>
 
       <IonContent>
         <div className="cards-grid">
-          {filteredList.map((car: CarModel, index) => (
+          {filteredList.map((car, index) => (
             <CarListItem
-              key={car.id ?? index}
+              key={car.id || `car-${index}`}
               {...car}
-              onDeleted={removeCarFromList}
+              onDeleted={handleDeleteCar}
             />
           ))}
         </div>
 
-        {!isLoading && filteredList.length === 0 && (
+        {!isLoading && filteredList.length === 0 && carList.length === 0 && (
           <div className="cards-empty">
-            <ItemNotFound />
+            <ItemNotFound message="Nenhum veículo encontrado" />
+          </div>
+        )}
+
+        {!isLoading && filteredList.length === 0 && carList.length > 0 && (
+          <div className="cards-empty">
+            <ItemNotFound message="Nenhum veículo corresponde à busca" />
           </div>
         )}
       </IonContent>
 
-      <IonModal isOpen={isModalOpen} backdropDismiss={false}>
-        <CarAdd closeModal={closeModal} />
+      {/* Action Sheet */}
+      <IonActionSheet
+        isOpen={isActionSheetOpen}
+        onDidDismiss={() => setIsActionSheetOpen(false)}
+        header="Adicionar"
+        buttons={actionSheetButtons}
+      />
+
+      {/* Modal para adicionar carro */}
+      <IonModal
+        isOpen={isAddCarModalOpen}
+        onDidDismiss={() => handleCloseAddCarModal()}
+      >
+        <CarAdd closeModal={handleCloseAddCarModal} />
+      </IonModal>
+
+      {/* Modal para outras ações */}
+      <IonModal
+        isOpen={isActionModalOpen}
+        onDidDismiss={handleCloseActionModal}
+      >
+        <IonHeader>
+          <IonToolbar>
+            <IonButtons slot="start">
+              <IonButton onClick={handleCloseActionModal}>
+                {TEXT.cancel}
+              </IonButton>
+            </IonButtons>
+            
+            <IonTitle>
+              {selectedAction === 'maintenance' && TEXT.addCarMaintenance}
+              {selectedAction === 'reminder' && TEXT.reminder}
+              {selectedAction === 'expense' && TEXT.carExpense}
+              {selectedAction === 'income' && TEXT.income}
+            </IonTitle>
+            
+            {selectedCar && (
+              <IonButtons slot="end">
+                <IonButton
+                  onClick={() => setSelectedCar(null)}
+                  color="medium"
+                >
+                  {TEXT.changeVehicle}
+                </IonButton>
+              </IonButtons>
+            )}
+          </IonToolbar>
+        </IonHeader>
+        
+        <IonContent>
+          {renderActionModalContent()}
+        </IonContent>
       </IonModal>
     </IonPage>
   );
