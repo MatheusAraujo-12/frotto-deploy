@@ -1,17 +1,19 @@
-import { IonItem, IonLabel, IonText } from "@ionic/react";
-import { TEXT } from "../../constants/texts";
+import React from "react";
+import { IonIcon } from "@ionic/react";
+import { searchOutline } from "ionicons/icons";
 
-interface ItemNotFoundProps {
-  text?: string;
-}
+export type ItemNotFoundProps = {
+  message?: string;
+};
 
-const ItemNotFound: React.FC<ItemNotFoundProps> = ({ text }) => {
+const ItemNotFound: React.FC<ItemNotFoundProps> = ({
+  message = "Nenhum item encontrado",
+}) => {
   return (
-    <IonItem>
-      <IonLabel class="ion-text-wrap">
-        <IonText color="secondary">{text ? text : TEXT.itensNotFound}</IonText>
-      </IonLabel>
-    </IonItem>
+    <div style={{ textAlign: "center", padding: 16, opacity: 0.85 }}>
+      <IonIcon icon={searchOutline} style={{ fontSize: 34, marginBottom: 8 }} />
+      <div style={{ fontWeight: 600 }}>{message}</div>
+    </div>
   );
 };
 
