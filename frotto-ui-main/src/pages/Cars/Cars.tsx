@@ -42,7 +42,8 @@ const Cars: React.FC = () => {
   const [actionSheetOpen, setActionSheetOpen] = useState(false);
   const [actionModalOpen, setActionModalOpen] = useState(false);
   const [actionType, setActionType] = useState<string | null>(null);
-  const [selectedCarForAction, setSelectedCarForAction] = useState<CarModel | null>(null);
+  const [selectedCarForAction, setSelectedCarForAction] =
+    useState<CarModel | null>(null);
   const [searchValue, setSearchValue] = useState<string | undefined>(undefined);
   const [carList, setCarList] = useState<CarModel[]>([]);
 
@@ -58,24 +59,20 @@ const Cars: React.FC = () => {
     setIsLoading(true);
     try {
       const response = await api.get(endpoints.CARS_ACTIVE());
-      // Handle possible response shapes (array or wrapped payload)
-      const data = response && response.data ? response.data : [];
+      const data = response?.data ?? [];
 
-      // If the API wraps payload (e.g., { items: [] } or { content: [] }) try common keys
       const list = Array.isArray(data)
         ? data
         : data.items || data.content || data.data || [];
 
       setCarList(list);
-      // Debugging info
-      // eslint-disable-next-line no-console
-      console.debug("Loaded cars", { length: list.length, sample: list[0] });
       setIsLoading(false);
     } catch (error: any) {
-      // eslint-disable-next-line no-console
-      console.error("Error loading cars:", error);
       setIsLoading(false);
-      showErrorAlert(TEXT.loadCarsFailed + (error?.message ? `: ${error.message}` : ""));
+      showErrorAlert(
+        TEXT.loadCarsFailed +
+          (error?.message ? `: ${error.message}` : "")
+      );
     }
   };
 
@@ -94,10 +91,9 @@ const Cars: React.FC = () => {
   // Adicionar novo carro ao estado
   const addCarToList = useCallback(
     (newCar: CarModel) => {
-      const newList = [newCar, ...carList];
-      setCarList(newList);
+      setCarList((prev) => [newCar, ...prev]);
     },
-    [carList]
+    []
   );
 
   // Remover carro da lista após deletar
@@ -123,7 +119,7 @@ const Cars: React.FC = () => {
         <IonToolbar>
           <IonButtons slot="secondary">
             <IonButton>
-              <IonMenuButton></IonMenuButton>
+              <IonMenuButton />
             </IonButton>
           </IonButtons>
 
@@ -131,11 +127,10 @@ const Cars: React.FC = () => {
             <IonButton
               onClick={(e) => {
                 e.preventDefault();
-                // open action sheet with quick add options
                 setActionSheetOpen(true);
               }}
             >
-              <IonIcon slot="icon-only" icon={add}></IonIcon>
+              <IonIcon slot="icon-only" icon={add} />
             </IonButton>
           </IonButtons>
 
@@ -186,39 +181,58 @@ const Cars: React.FC = () => {
               {
                 text: "Cancelar",
                 role: "cancel",
-+              },
+              },
             ]}
           />
 
-          <IonModal isOpen={actionModalOpen} onDidDismiss={() => { setActionModalOpen(false); setSelectedCarForAction(null); setActionType(null); }}>
+          <IonModal
+            isOpen={actionModalOpen}
+            onDidDismiss={() => {
+              setActionModalOpen(false);
+              setSelectedCarForAction(null);
+              setActionType(null);
+            }}
+          >
             <IonHeader>
               <IonToolbar>
                 <IonButtons slot="start">
-                  <IonButton onClick={() => { setSelectedCarForAction(null); setActionModalOpen(false); setActionType(null); }}>
+                  <IonButton
+                    onClick={() => {
+                      setSelectedCarForAction(null);
+                      setActionModalOpen(false);
+                      setActionType(null);
+                    }}
+                  >
                     {TEXT.cancel}
                   </IonButton>
                 </IonButtons>
-                <IonTitle>{actionType === "maintenance" ? TEXT.addCarMaintenance : actionType === "reminder" ? TEXT.reminder : actionType === "expense" ? TEXT.carExpense : actionType === "income" ? TEXT.income : TEXT.add}</IonTitle>
+
+                <IonTitle>
+                  {actionType === "maintenance"
+                    ? TEXT.addCarMaintenance
+                    : actionType === "reminder"
+                    ? TEXT.reminder
+                    : actionType === "expense"
+                    ? TEXT.carExpense
+                    : actionType === "income"
+                    ? TEXT.income
+                    : TEXT.add}
+                </IonTitle>
+
                 <IonButtons slot="end">
-                  <IonButton
-                    onClick={() => {
-                      // go back to select another
-                      setSelectedCarForAction(null);
-                    }}
-                  >
+                  <IonButton onClick={() => setSelectedCarForAction(null)}>
                     {TEXT.all}
                   </IonButton>
                 </IonButtons>
               </IonToolbar>
             </IonHeader>
+
             <IonContent>
               {!selectedCarForAction && (
                 <div style={{ padding: 12 }}>
                   <h3 style={{ marginTop: 0 }}>{TEXT.select}</h3>
                   <CarSelector
-                    onSelect={(car) => {
-                      setSelectedCarForAction(car);
-                    }}
+                    onSelect={(car) => setSelectedCarForAction(car)}
                   />
                 </div>
               )}
@@ -277,9 +291,9 @@ const Cars: React.FC = () => {
             debounce={500}
             placeholder={TEXT.search}
             onIonChange={(e) => setSearchValue(e.detail.value)}
-          ></IonSearchbar>
+          />
 
-          {isLoading && <IonProgressBar type="indeterminate"></IonProgressBar>}
+          {isLoading && <IonProgressBar type="indeterminate" />}
         </IonToolbar>
       </IonHeader>
 
