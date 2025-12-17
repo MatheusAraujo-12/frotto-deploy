@@ -9,6 +9,14 @@
   --app-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
 }
 
+.dark {
+  --app-gradient: linear-gradient(180deg, #0b1224 0%, #050915 100%);
+  --app-card: rgba(255,255,255,0.06);
+  --app-card-strong: rgba(255,255,255,0.04);
+  --app-border: 1px solid rgba(255,255,255,0.08);
+  --app-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+}
+
 body,
 ion-app {
   font-family: "Poppins", "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -16,6 +24,12 @@ ion-app {
   background-image: var(--app-gradient);
   color: var(--ion-text-color);
   min-height: 100vh;
+}
+
+body.dark,
+.dark ion-app {
+  background: #050915;
+  background-image: var(--app-gradient);
 }
 
 ion-content {
@@ -130,6 +144,11 @@ ion-searchbar:focus-within {
 .dark .menu-hero {
   background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.04);
+}
+
+.dark .app-menu {
+  --ion-background-color: rgba(5,9,21,0.96);
+  box-shadow: 8px 0 18px rgba(0, 0, 0, 0.32);
 }
 
 

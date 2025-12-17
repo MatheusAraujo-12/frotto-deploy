@@ -86,7 +86,7 @@ const CarExpenses: React.FC<CarExpenseDetail> = ({ match }) => {
     return filterListObj(carExpenseList, searchValue);
   }, [carExpenseList, searchValue]);
 
-  const closeModal = useCallback((newCarExpense: CarExpenseModel) => {
+  const closeModal = useCallback((newCarExpense?: CarExpenseModel) => {
     if (newCarExpense) {
       loadCarExpenses();
     }

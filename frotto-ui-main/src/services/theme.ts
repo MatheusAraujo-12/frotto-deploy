@@ -5,6 +5,7 @@ const THEME_KEY = "app-theme";
 export const applyTheme = (theme: Theme) => {
   const enableDark = theme === "dark";
   document.body.classList.toggle("dark", enableDark);
+  document.documentElement.style.colorScheme = enableDark ? "dark" : "light";
 };
 
 export const setTheme = (theme: Theme) => {
@@ -32,9 +33,11 @@ export const initTheme = () => {
   return initial;
 };
 
-export default {
+const themeApi = {
   initTheme,
   setTheme,
   getTheme,
   applyTheme,
 };
+
+export default themeApi;

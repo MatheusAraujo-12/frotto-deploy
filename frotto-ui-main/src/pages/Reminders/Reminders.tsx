@@ -82,7 +82,7 @@ const Reminders: React.FC<ReminderDetail> = ({ match }) => {
     return filterListObj(ReminderList, searchValue);
   }, [ReminderList, searchValue]);
 
-  const closeModal = useCallback((newReminder: ReminderModel) => {
+  const closeModal = useCallback((newReminder?: ReminderModel) => {
     if (newReminder) {
       loadReminders();
     }

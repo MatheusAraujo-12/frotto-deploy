@@ -85,7 +85,7 @@ const Incomes: React.FC<IncomeDetail> = ({ match }) => {
     return filterListObj(incomeList, searchValue);
   }, [incomeList, searchValue]);
 
-  const closeModal = useCallback((newIncome: IncomeModel) => {
+  const closeModal = useCallback((newIncome?: IncomeModel) => {
     if (newIncome) {
       loadIncomes();
     }

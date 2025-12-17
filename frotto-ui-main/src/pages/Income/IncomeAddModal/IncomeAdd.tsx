@@ -19,10 +19,7 @@ import CarSelector from "../../../components/Car/CarSelector";
 import { CarModel, IncomeModel } from "../../../constants/CarModels";
 import api from "../../../services/axios/axios";
 import endpoints from "../../../constants/endpoints";
-import {
-  incomeAddValidationSchema,
-  initialIncomeValues,
-} from "./incomeAddValidationSchema";
+import { incomeAddValidationSchema, initialIncomeValues } from "./incomeAddValidationSchema";
 import FormSelectFilterAdd from "../../../components/Form/FormSelectFilterAdd";
 import { INCOMES } from "../../../constants/selectOptions";
 import { INCOME_KEY } from "../../../services/localStorage/localstorage";
@@ -35,11 +32,7 @@ interface IncomeAddModalProps {
   carId?: string;
 }
 
-const IncomeAdd: React.FC<IncomeAddModalProps> = ({
-  closeModal,
-  initialValues,
-  carId,
-}) => {
+const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, carId }) => {
   const { showErrorAlert } = useAlert();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedCar, setSelectedCar] = useState<CarModel | null>(null);
@@ -59,7 +52,6 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({
     mode: "onTouched",
   });
 
-  // Buscar informações do carro se carId for fornecido
   useEffect(() => {
     if (!carId) return;
 
@@ -69,13 +61,10 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({
     const fetchCar = async () => {
       try {
         setFetchError(null);
-        const response = await api.get(
-          endpoints.CAR({ pathVariables: { id: carId } }),
-          { signal: controller.signal }
-        );
-        if (mounted) {
-          setSelectedCar(response.data);
-        }
+        const response = await api.get(endpoints.CAR({ pathVariables: { id: carId } }), {
+          signal: controller.signal,
+        });
+        if (mounted) setSelectedCar(response.data);
       } catch (error: any) {
         if (error?.name === "AbortError") return;
         if (mounted) {
@@ -95,11 +84,8 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({
     };
   }, [carId, showErrorAlert]);
 
-  // Resetar formulário quando initialValues mudar
   useEffect(() => {
-    if (initialValues) {
-      reset(initialIncomeValues(initialValues));
-    }
+    if (initialValues) reset(initialIncomeValues(initialValues));
   }, [initialValues, reset]);
 
   const onSubmit = useCallback(
@@ -113,16 +99,11 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({
       try {
         let responseIncome: IncomeModel;
 
-        // EDITAR
         if (formData.id) {
-          const url = endpoints.INCOMES_EDIT({
-            pathVariables: { id: formData.id },
-          });
+          const url = endpoints.INCOMES_EDIT({ pathVariables: { id: formData.id } });
           const response = await api.put(url, formData);
           responseIncome = response.data;
-        }
-        // CRIAR NOVO
-        else {
+        } else {
           const targetCarId = selectedCar?.id?.toString() || carId;
           if (!targetCarId) {
             showErrorAlert(`${TEXT.select} ${TEXT.car}`);
@@ -130,9 +111,7 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({
             return;
           }
 
-          const url = endpoints.INCOMES({
-            pathVariables: { id: targetCarId },
-          });
+          const url = endpoints.INCOMES({ pathVariables: { id: targetCarId } });
           const response = await api.post(url, formData);
           responseIncome = response.data;
         }
@@ -143,68 +122,38 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({
         setIsLoading(false);
         // eslint-disable-next-line no-console
         console.error("Erro ao salvar receita:", error);
-
-        const errorMessage =
-          error?.response?.data?.message || error?.message || TEXT.saveFailed;
-        showErrorAlert(errorMessage);
+        showErrorAlert(error?.response?.data?.message || error?.message || TEXT.saveFailed);
       }
     },
     [isValid, selectedCar, carId, closeModal, showErrorAlert]
   );
 
-  const onDelete = useCallback(
-    async () => {
-      if (!formInitial.id) return;
+  const onDelete = useCallback(async () => {
+    if (!formInitial.id) return;
 
-      setIsLoading(true);
-      try {
-        await api.delete(
-          endpoints.INCOMES_EDIT({
-            pathVariables: { id: formInitial.id },
-          })
-        );
-        setIsLoading(false);
-        closeModal({} as IncomeModel);
-      } catch (error: any) {
-        setIsLoading(false);
-        // eslint-disable-next-line no-console
-        console.error("Erro ao deletar receita:", error);
+    setIsLoading(true);
+    try {
+      await api.delete(endpoints.INCOMES_EDIT({ pathVariables: { id: formInitial.id } }));
+      setIsLoading(false);
+      closeModal({} as IncomeModel);
+    } catch (error: any) {
+      setIsLoading(false);
+      // eslint-disable-next-line no-console
+      console.error("Erro ao deletar receita:", error);
+      showErrorAlert(error?.response?.data?.message || error?.message || TEXT.deleteFailed);
+    }
+  }, [formInitial.id, closeModal, showErrorAlert]);
 
-        const errorMessage =
-          error?.response?.data?.message || error?.message || TEXT.deleteFailed;
-        showErrorAlert(errorMessage);
-      }
-    },
-    [formInitial.id, closeModal, showErrorAlert]
-  );
-
-  const handleCarSelect = useCallback((car: CarModel) => {
-    setSelectedCar(car);
-  }, []);
-
+  const handleCarSelect = useCallback((car: CarModel) => setSelectedCar(car), []);
   const handleClose = useCallback(() => {
-    if (isLoading) return;
-    closeModal();
+    if (!isLoading) closeModal();
   }, [isLoading, closeModal]);
-
-  const handleResetCar = useCallback(() => {
-    setSelectedCar(null);
-  }, []);
 
   const incomeName = watch("name");
   const incomeDate = watch("date");
   const incomeValue = watch("cost");
 
-  // Textos seguros (sem depender de chaves inexistentes)
-  const titleText = formInitial.id
-    ? `${TEXT.edit} ${TEXT.income}`
-    : `${TEXT.newIncome} ${TEXT.income}`;
-
-  const selectVehicleText = `${TEXT.select} ${TEXT.car}`;
-
-  const confirmDeleteIncomeMessage =
-    (TEXT as any).confirmDeleteIncome ||
-    `Tem certeza que deseja excluir esta ${String(TEXT.income).toLowerCase()}?`;
+  const titleText = formInitial.id ? `${TEXT.edit} ${TEXT.income}` : `${TEXT.newIncome} ${TEXT.income}`;
 
   return (
     <IonPage id="car-income-add-page">
@@ -221,7 +170,7 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({
           <IonButtons slot="end">
             <IonButton
               disabled={isLoading || !isValid || (!isDirty && !!formInitial.id)}
-              strong={true}
+              strong
               onClick={handleSubmit(onSubmit)}
             >
               {TEXT.save}
@@ -234,83 +183,22 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({
 
       <IonContent>
         <form onSubmit={(e) => e.preventDefault()}>
-          {/* Seletor de Carro (apenas se não veio com carId) */}
           {!selectedCar && !carId && (
             <div style={{ padding: 16 }}>
               {fetchError && (
-                <div
-                  style={{
-                    color: "var(--ion-color-danger)",
-                    marginBottom: 12,
-                    fontSize: 14,
-                  }}
-                >
+                <div style={{ color: "var(--ion-color-danger)", marginBottom: 12, fontSize: 14 }}>
                   {fetchError}
                 </div>
               )}
 
-              <h3
-                style={{
-                  marginTop: 0,
-                  marginBottom: 16,
-                  fontSize: 16,
-                  fontWeight: 600,
-                }}
-              >
-                {selectVehicleText}
+              <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: 16, fontWeight: 600 }}>
+                {`${TEXT.select} ${TEXT.car}`}
               </h3>
 
               <CarSelector onSelect={handleCarSelect} />
             </div>
           )}
 
-          {/* Info do Carro Selecionado */}
-          {selectedCar && (
-            <div
-              style={{
-                padding: 16,
-                backgroundColor: "var(--ion-color-light)",
-                marginBottom: 16,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 8,
-                }}
-              >
-                <div>
-                  <strong style={{ fontSize: 16, display: "block" }}>
-                    {selectedCar.name}
-                  </strong>
-                  <div
-                    style={{
-                      fontSize: 14,
-                      color: "var(--ion-color-medium)",
-                      marginTop: 4,
-                    }}
-                  >
-                    {selectedCar.plate || "Sem placa"}
-                  </div>
-                </div>
-
-                {!carId && (
-                  <IonButton
-                    size="small"
-                    fill="clear"
-                    color="medium"
-                    onClick={handleResetCar}
-                  >
-                    {TEXT.cancel /* ou "Trocar", mas cancel já existe */}
-                  </IonButton>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Formulário (apenas se tiver carro selecionado ou carId) */}
           {(selectedCar || carId) && (
             <>
               <FormDate
@@ -318,26 +206,19 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({
                 initialValue={incomeDate}
                 label={TEXT.date}
                 presentation="date"
-                formCallBack={(value: string) => {
-                  setValue("date", value, { shouldValidate: true });
-                }}
-                error={errors.date?.message as any}
+                formCallBack={(value: string) => setValue("date", value)}
                 required
-                disabled={isLoading}
               />
 
               <FormSelectFilterAdd
                 label={TEXT.incomeName}
                 errorsObj={errors}
                 errorName="name"
-                formCallBack={(value: string) => {
-                  setValue("name", value, { shouldValidate: true });
-                }}
+                formCallBack={(value: string) => setValue("name", value)}
                 initialValue={incomeName}
                 options={INCOMES}
                 storageToken={INCOME_KEY}
                 required
-                disabled={isLoading}
               />
 
               <FormCurrency
@@ -346,24 +227,19 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({
                 errorName="cost"
                 initialValue={incomeValue}
                 maxlength={15}
-                changeCallback={(value: number) => {
-                  setValue("cost", value, { shouldValidate: true });
-                }}
+                changeCallback={(value: number) => setValue("cost", value)}
                 required
-                disabled={isLoading}
               />
             </>
           )}
         </form>
 
-        {/* Botão de deletar (apenas para edição) */}
         {formInitial.id && (
           <div style={{ padding: 16, marginTop: 24 }}>
             <FormDeleteButton
               label={`${TEXT.delete} ${String(TEXT.income).toLowerCase()}`}
-              message={confirmDeleteIncomeMessage}
+              message={TEXT.income}
               callBackFunc={onDelete}
-              disabled={isLoading}
             />
           </div>
         )}

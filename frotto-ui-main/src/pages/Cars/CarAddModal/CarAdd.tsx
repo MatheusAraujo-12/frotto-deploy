@@ -199,8 +199,8 @@ const CarAdd: React.FC<CarAddModalProps> = ({ closeModal, initialValues }) => {
             initialValue={watch("year").toString()}
             label={TEXT.year}
             presentation="year"
-            formCallBack={(value: number) => {
-              setValue("year", value);
+            formCallBack={(value: string) => {
+              setValue("year", Number(value));
             }}
           />
         </form>

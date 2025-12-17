@@ -179,8 +179,8 @@ const Reports: React.FC<IncomeDetail> = () => {
               label={TEXT.year}
               presentation="year"
               min="2021"
-              formCallBack={(value: number) => {
-                setValue("year", value);
+              formCallBack={(value: string) => {
+                setValue("year", Number(value));
               }}
             />
           )}

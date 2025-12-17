@@ -83,7 +83,7 @@ const Inspections: React.FC<InspectionDetail> = ({ match }) => {
     return filterListObj(inspectionList, searchValue);
   }, [inspectionList, searchValue]);
 
-  const closeModal = useCallback((newInspection: InspectionModel) => {
+  const closeModal = useCallback((newInspection?: InspectionModel) => {
     if (newInspection) {
       loadInspections();
     }

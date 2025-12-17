@@ -164,7 +164,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
   }, [inspection]);
 
   const closeAddInspectionModal = useCallback(
-    (newInspection: InspectionModel) => {
+    (newInspection?: InspectionModel) => {
       if (newInspection) {
         loadCar();
       }
@@ -176,7 +176,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
   );
 
   const closeAddMaintenanceModal = useCallback(
-    (newMaintenance: MaintenanceModel) => {
+    (newMaintenance?: MaintenanceModel) => {
       if (newMaintenance) {
         loadCar();
       }

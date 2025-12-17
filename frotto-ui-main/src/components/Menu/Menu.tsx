@@ -38,8 +38,21 @@ const Menu: React.FC = () => {
   useEffect(() => {
     // lazy import theme util to avoid circular issues
     import("../../services/theme").then((mod) => {
-      const t = mod.getTheme();
-      setIsDark(t === "dark");
+      const saved = mod.getTheme();
+      if (saved) {
+        mod.applyTheme(saved);
+        setIsDark(saved === "dark");
+        return;
+      }
+
+      const prefersDark =
+        typeof window !== "undefined" &&
+        window.matchMedia &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+      const themeToUse = prefersDark ? "dark" : "light";
+      mod.applyTheme(themeToUse);
+      setIsDark(themeToUse === "dark");
     });
   }, []);
 

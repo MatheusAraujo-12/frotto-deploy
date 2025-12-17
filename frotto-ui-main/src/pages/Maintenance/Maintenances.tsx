@@ -86,7 +86,7 @@ const Maintenances: React.FC<MaintenanceDetail> = ({ match }) => {
     return filterListObj(maintenanceList, searchValue);
   }, [maintenanceList, searchValue]);
 
-  const closeModal = useCallback((newMaintenance: MaintenanceModel) => {
+  const closeModal = useCallback((newMaintenance?: MaintenanceModel) => {
     if (newMaintenance) {
       loadMaintenances();
     }
