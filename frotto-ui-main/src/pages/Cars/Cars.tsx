@@ -1,4 +1,5 @@
 import {
+  IonActionSheet,
   IonButton,
   IonButtons,
   IonContent,
@@ -19,6 +20,11 @@ import { TEXT } from "../../constants/texts";
 import { add } from "ionicons/icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import CarAdd from "./CarAddModal/CarAdd";
+import MaintenanceAdd from "../Maintenance/MaintenanceAddModal/MaintenanceAdd";
+import ReminderAdd from "../Reminders/ReminderAddModal/reminderAdd";
+import IncomeAdd from "../Income/IncomeAddModal/IncomeAdd";
+import CarExpenseAdd from "../CarExpense/CarExpenseAddModal/CarExpenseAdd";
+import CarSelector from "../../components/Car/CarSelector";
 import { useAlert } from "../../services/hooks/useAlert";
 import { CarModel } from "../../constants/CarModels";
 import CarListItem from "./CarListItem";
@@ -33,6 +39,10 @@ const Cars: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [actionSheetOpen, setActionSheetOpen] = useState(false);
+  const [actionModalOpen, setActionModalOpen] = useState(false);
+  const [actionType, setActionType] = useState<string | null>(null);
+  const [selectedCarForAction, setSelectedCarForAction] = useState<CarModel | null>(null);
   const [searchValue, setSearchValue] = useState<string | undefined>(undefined);
   const [carList, setCarList] = useState<CarModel[]>([]);
 
@@ -121,13 +131,143 @@ const Cars: React.FC = () => {
             <IonButton
               onClick={(e) => {
                 e.preventDefault();
-                nav.push(nav.location.pathname + "?modalOpened=true");
-                setIsModalOpen(true);
+                // open action sheet with quick add options
+                setActionSheetOpen(true);
               }}
             >
               <IonIcon slot="icon-only" icon={add}></IonIcon>
             </IonButton>
           </IonButtons>
+
+          <IonActionSheet
+            isOpen={actionSheetOpen}
+            onDidDismiss={() => setActionSheetOpen(false)}
+            buttons={[
+              {
+                text: TEXT.addCar,
+                handler: () => {
+                  setActionSheetOpen(false);
+                  nav.push(nav.location.pathname + "?modalOpened=true");
+                  setIsModalOpen(true);
+                },
+              },
+              {
+                text: TEXT.addCarMaintenance,
+                handler: () => {
+                  setActionSheetOpen(false);
+                  setActionType("maintenance");
+                  setActionModalOpen(true);
+                },
+              },
+              {
+                text: TEXT.reminder,
+                handler: () => {
+                  setActionSheetOpen(false);
+                  setActionType("reminder");
+                  setActionModalOpen(true);
+                },
+              },
+              {
+                text: `${TEXT.add} ${TEXT.carExpense}`,
+                handler: () => {
+                  setActionSheetOpen(false);
+                  setActionType("expense");
+                  setActionModalOpen(true);
+                },
+              },
+              {
+                text: `${TEXT.add} ${TEXT.income}`,
+                handler: () => {
+                  setActionSheetOpen(false);
+                  setActionType("income");
+                  setActionModalOpen(true);
+                },
+              },
+              {
+                text: "Cancelar",
+                role: "cancel",
++              },
+            ]}
+          />
+
+          <IonModal isOpen={actionModalOpen} onDidDismiss={() => { setActionModalOpen(false); setSelectedCarForAction(null); setActionType(null); }}>
+            <IonHeader>
+              <IonToolbar>
+                <IonButtons slot="start">
+                  <IonButton onClick={() => { setSelectedCarForAction(null); setActionModalOpen(false); setActionType(null); }}>
+                    {TEXT.cancel}
+                  </IonButton>
+                </IonButtons>
+                <IonTitle>{actionType === "maintenance" ? TEXT.addCarMaintenance : actionType === "reminder" ? TEXT.reminder : actionType === "expense" ? TEXT.carExpense : actionType === "income" ? TEXT.income : TEXT.add}</IonTitle>
+                <IonButtons slot="end">
+                  <IonButton
+                    onClick={() => {
+                      // go back to select another
+                      setSelectedCarForAction(null);
+                    }}
+                  >
+                    {TEXT.all}
+                  </IonButton>
+                </IonButtons>
+              </IonToolbar>
+            </IonHeader>
+            <IonContent>
+              {!selectedCarForAction && (
+                <div style={{ padding: 12 }}>
+                  <h3 style={{ marginTop: 0 }}>{TEXT.select}</h3>
+                  <CarSelector
+                    onSelect={(car) => {
+                      setSelectedCarForAction(car);
+                    }}
+                  />
+                </div>
+              )}
+
+              {selectedCarForAction && actionType === "maintenance" && (
+                <MaintenanceAdd
+                  closeModal={() => {
+                    setActionModalOpen(false);
+                    setSelectedCarForAction(null);
+                    setActionType(null);
+                  }}
+                  carId={String(selectedCarForAction.id)}
+                />
+              )}
+
+              {selectedCarForAction && actionType === "reminder" && (
+                <ReminderAdd
+                  closeModal={() => {
+                    setActionModalOpen(false);
+                    setSelectedCarForAction(null);
+                    setActionType(null);
+                  }}
+                  carId={String(selectedCarForAction.id)}
+                />
+              )}
+
+              {selectedCarForAction && actionType === "income" && (
+                <IncomeAdd
+                  closeModal={() => {
+                    setActionModalOpen(false);
+                    setSelectedCarForAction(null);
+                    setActionType(null);
+                  }}
+                  carId={String(selectedCarForAction.id)}
+                />
+              )}
+
+              {selectedCarForAction && actionType === "expense" && (
+                <CarExpenseAdd
+                  closeModal={() => {
+                    setActionModalOpen(false);
+                    setSelectedCarForAction(null);
+                    setActionType(null);
+                  }}
+                  carId={String(selectedCarForAction.id)}
+                />
+              )}
+            </IonContent>
+          </IonModal>
 
           <IonTitle>{TEXT.cars}</IonTitle>
         </IonToolbar>
