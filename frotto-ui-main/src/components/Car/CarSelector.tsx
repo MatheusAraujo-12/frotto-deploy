@@ -1,5 +1,11 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { IonItem, IonLabel, IonSearchbar, IonSpinner } from "@ionic/react";
+import {
+  IonItem,
+  IonLabel,
+  IonSearchbar,
+  IonSpinner,
+  type SearchbarCustomEvent,
+} from "@ionic/react";
 import ItemNotFound from "../List/ItemNotFound";
 import { CarModel } from "../../constants/CarModels";
 import { TEXT } from "../../constants/texts";
@@ -18,29 +24,25 @@ const CarSelector: React.FC<Props> = ({ cars = [], onSelect }) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Se recebeu cars por props, não precisa buscar
     if (cars && cars.length > 0) return;
 
     let mounted = true;
-    let controller: AbortController | null = null;
+    const controller = new AbortController();
 
     const fetchCars = async () => {
       try {
         setLoading(true);
         setError(null);
-        
-        controller = new AbortController();
-        const { data } = await api.get(endpoints.CARS(), {
-          signal: controller.signal
+
+        const { data } = await api.get(endpoints.CARS_ACTIVE?.() ?? endpoints.CARS(), {
+          signal: controller.signal,
         });
-        
-        if (mounted) {
-          setInternalCars(data || []);
-        }
+
+        if (mounted) setInternalCars(data || []);
       } catch (e: any) {
-        if (e.name !== 'AbortError' && mounted) {
-          console.error('Erro ao buscar carros:', e);
-          setError('Não foi possível carregar os veículos');
+        if (e?.name !== "AbortError" && mounted) {
+          console.error("Erro ao buscar carros:", e);
+          setError("Não foi possível carregar os veículos");
         }
       } finally {
         if (mounted) setLoading(false);
@@ -51,36 +53,38 @@ const CarSelector: React.FC<Props> = ({ cars = [], onSelect }) => {
 
     return () => {
       mounted = false;
-      controller?.abort();
+      controller.abort();
     };
   }, [cars]);
 
-  const source = useMemo(() => 
-    cars && cars.length > 0 ? cars : internalCars,
+  const source = useMemo(
+    () => (cars && cars.length > 0 ? cars : internalCars),
     [cars, internalCars]
   );
 
   const filtered = useMemo(() => {
     if (!search.trim()) return source;
-    
+
     const q = search.toLowerCase().trim();
-    return source.filter((c) => 
-      c.name?.toLowerCase().includes(q) || 
-      c.plate?.toLowerCase().includes(q)
+    return source.filter(
+      (c) =>
+        c.name?.toLowerCase().includes(q) ||
+        c.plate?.toLowerCase().includes(q)
     );
   }, [source, search]);
 
-  const handleSearchChange = useCallback((e: CustomEvent) => {
-    setSearch(e.detail.value || "");
+  const handleSearchChange = useCallback((e: SearchbarCustomEvent) => {
+    setSearch(e.detail.value ?? "");
   }, []);
 
-  const handleSelect = useCallback((car: CarModel) => {
-    onSelect(car);
-  }, [onSelect]);
+  const handleSelect = useCallback(
+    (car: CarModel) => onSelect(car),
+    [onSelect]
+  );
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '20px' }}>
+      <div style={{ textAlign: "center", padding: "20px" }}>
         <IonSpinner />
         <p>Carregando veículos...</p>
       </div>
@@ -89,7 +93,13 @@ const CarSelector: React.FC<Props> = ({ cars = [], onSelect }) => {
 
   if (error) {
     return (
-      <div style={{ textAlign: 'center', padding: '20px', color: 'var(--ion-color-danger)' }}>
+      <div
+        style={{
+          textAlign: "center",
+          padding: "20px",
+          color: "var(--ion-color-danger)",
+        }}
+      >
         {error}
       </div>
     );
@@ -115,14 +125,14 @@ const CarSelector: React.FC<Props> = ({ cars = [], onSelect }) => {
       {filtered.map((car: CarModel, index) => (
         <IonItem
           button
-          key={car.id || `car-${index}`}
+          key={car.id ?? `car-${index}`}
           onClick={() => handleSelect(car)}
           detail={false}
         >
           <IonLabel>
             <div style={{ fontWeight: 600 }}>{car.name}</div>
             <div style={{ fontSize: 12, color: "var(--ion-color-medium)" }}>
-              {car.plate || 'Sem placa'}
+              {car.plate || "Sem placa"}
             </div>
           </IonLabel>
         </IonItem>

@@ -31,7 +31,7 @@ import FormToggle from "../../../components/Form/FormToggle";
 interface CarExpenseAddModalProps {
   closeModal: (response?: CarExpenseModel) => void;
   initialValues?: CarExpenseModel;
-  carId?: string; // Agora opcional, pois pode ser undefined
+  carId?: string; // opcional
 }
 
 const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
@@ -65,8 +65,9 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
           setSelectedCar(response.data);
         }
       } catch (error: any) {
-        if (error.name === 'AbortError') return;
+        if (error?.name === "AbortError") return;
         if (mounted) {
+          // eslint-disable-next-line no-console
           console.error("Erro ao buscar carro:", error);
           setFetchError("Não foi possível carregar informações do veículo");
         }
@@ -79,7 +80,7 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
       mounted = false;
       controller.abort();
     };
-  }, [carId]); // Dependência correta
+  }, [carId]);
 
   const {
     handleSubmit,
@@ -90,7 +91,7 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
     reValidateMode: "onBlur",
     resolver: yupResolver(carExpenseAddValidationSchema),
     defaultValues: formInitial,
-    mode: "onTouched", // Melhor UX para validação
+    mode: "onTouched",
   });
 
   const onSubmit = async (newCarExpense: CarExpenseModel) => {
@@ -102,19 +103,19 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
     setIsLoading(true);
     try {
       let responseCarExpense: CarExpenseModel;
-      
+
       // EDITAR
       if (newCarExpense.id) {
         const url = endpoints.CAR_EXPENSES_EDIT({
-          pathVariables: { id: newCarExpense.id }
+          pathVariables: { id: newCarExpense.id },
         });
         const response = await api.put(url, newCarExpense);
         responseCarExpense = response.data;
-      } 
+      }
       // CRIAR NOVO
       else {
         let url: string;
-        
+
         if (replicateForAllCars) {
           url = endpoints.CAR_EXPENSES_ALL();
         } else {
@@ -124,47 +125,47 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
             setIsLoading(false);
             return;
           }
-          url = endpoints.CAR_EXPENSES({ 
-            pathVariables: { id: String(targetCarId) } 
+          url = endpoints.CAR_EXPENSES({
+            pathVariables: { id: String(targetCarId) },
           });
         }
-        
+
         const response = await api.post(url, newCarExpense);
         responseCarExpense = response.data;
       }
-      
+
       setIsLoading(false);
       closeModal(responseCarExpense);
     } catch (error: any) {
       setIsLoading(false);
+      // eslint-disable-next-line no-console
       console.error("Erro ao salvar despesa:", error);
-      
-      const errorMessage = error.response?.data?.message 
-        || error.message 
-        || TEXT.saveFailed;
+
+      const errorMessage =
+        error?.response?.data?.message || error?.message || TEXT.saveFailed;
       showErrorAlert(errorMessage);
     }
   };
 
   const onDelete = async () => {
     if (!formInitial.id) return;
-    
+
     setIsLoading(true);
     try {
       await api.delete(
-        endpoints.CAR_EXPENSES_EDIT({ 
-          pathVariables: { id: formInitial.id } 
+        endpoints.CAR_EXPENSES_EDIT({
+          pathVariables: { id: formInitial.id },
         })
       );
       setIsLoading(false);
-      closeModal({} as CarExpenseModel); // Ou undefined
+      closeModal({} as CarExpenseModel);
     } catch (error: any) {
       setIsLoading(false);
+      // eslint-disable-next-line no-console
       console.error("Erro ao deletar despesa:", error);
-      
-      const errorMessage = error.response?.data?.message 
-        || error.message 
-        || TEXT.deleteFailed;
+
+      const errorMessage =
+        error?.response?.data?.message || error?.message || TEXT.deleteFailed;
       showErrorAlert(errorMessage);
     }
   };
@@ -175,16 +176,27 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
 
   const handleReplicateToggle = (value: boolean) => {
     setReplicateForAllCars(value);
-    // Se ativar replicação, limpa carro selecionado
-    if (value) {
-      setSelectedCar(null);
-    }
+    if (value) setSelectedCar(null);
   };
 
   const handleClose = (response?: CarExpenseModel) => {
-    if (isLoading) return; // Impede fechar durante loading
+    if (isLoading) return;
     closeModal(response);
   };
+
+  const titleText = formInitial.id
+    ? `${TEXT.edit} ${TEXT.carExpense}`
+    : `${TEXT.newCarExpense} ${TEXT.carExpense}`;
+
+  const confirmDeleteMessage =
+    (TEXT as any).confirmDeleteExpense ||
+    `Deseja excluir esta ${String(TEXT.carExpense).toLowerCase()}?`;
+
+  const selectVehicleText =
+    (TEXT as any).selectVehicle || `${TEXT.select} ${TEXT.car}`;
+
+  const changeVehicleText =
+    (TEXT as any).changeVehicle || "Trocar veículo";
 
   return (
     <IonPage id="car-expense-add-page">
@@ -199,9 +211,9 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
               {TEXT.cancel}
             </IonButton>
           </IonButtons>
-          <IonTitle>
-            {formInitial.id ? TEXT.editExpense : TEXT.newExpense}
-          </IonTitle>
+
+          <IonTitle>{titleText}</IonTitle>
+
           <IonButtons slot="end">
             <IonButton
               disabled={isLoading}
@@ -211,10 +223,11 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
               {TEXT.save}
             </IonButton>
           </IonButtons>
+
           {isLoading && <IonProgressBar type="indeterminate" />}
         </IonToolbar>
       </IonHeader>
-      
+
       <IonContent>
         <form onSubmit={(e) => e.preventDefault()}>
           <FormDate
@@ -225,10 +238,10 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
             formCallBack={(value: string) => {
               setValue("date", value, { shouldValidate: true });
             }}
-            error={errors.date?.message}
+            error={errors.date?.message as any}
             required
           />
-          
+
           <FormInput
             label={TEXT.carExpenseName}
             errorsObj={errors}
@@ -240,7 +253,7 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
             }}
             required
           />
-          
+
           <FormCurrency
             label={TEXT.value}
             errorsObj={errors}
@@ -260,43 +273,49 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
                 label={TEXT.replicateExpense}
                 initialValue={replicateForAllCars}
                 changeCallback={handleReplicateToggle}
-                disabled={!!carId} // Desabilita se já veio com carId
+                disabled={!!carId}
               />
 
               {!replicateForAllCars && (
                 <div style={{ padding: 12 }}>
                   {fetchError && (
-                    <div style={{ color: "var(--ion-color-danger)", marginBottom: 12 }}>
+                    <div
+                      style={{
+                        color: "var(--ion-color-danger)",
+                        marginBottom: 12,
+                      }}
+                    >
                       {fetchError}
                     </div>
                   )}
-                  
+
                   {!selectedCar && !carId ? (
                     <>
                       <h3 style={{ marginTop: 0, marginBottom: 12 }}>
-                        {TEXT.selectVehicle}
+                        {selectVehicleText}
                       </h3>
                       <CarSelector onSelect={handleCarSelect} />
                     </>
                   ) : (
                     <div>
-                      <strong>
-                        {selectedCar?.name || "Veículo selecionado"}
-                      </strong>
-                      <div style={{ 
-                        fontSize: 12, 
-                        color: "var(--ion-color-medium)",
-                        marginBottom: 8 
-                      }}>
+                      <strong>{selectedCar?.name || "Veículo selecionado"}</strong>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "var(--ion-color-medium)",
+                          marginBottom: 8,
+                        }}
+                      >
                         {selectedCar?.plate || carId || "ID do veículo"}
                       </div>
-                      {!carId && ( // Só permite trocar se não veio com carId
-                        <IonButton 
-                          size="small" 
+
+                      {!carId && (
+                        <IonButton
+                          size="small"
                           fill="outline"
                           onClick={() => setSelectedCar(null)}
                         >
-                          {TEXT.changeVehicle}
+                          {changeVehicleText}
                         </IonButton>
                       )}
                     </div>
@@ -306,12 +325,12 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
             </>
           )}
         </form>
-        
+
         {formInitial.id && (
           <div style={{ padding: 16 }}>
             <FormDeleteButton
-              label={`${TEXT.delete} ${TEXT.carExpense.toLowerCase()}`}
-              message={TEXT.confirmDeleteExpense}
+              label={`${TEXT.delete} ${String(TEXT.carExpense).toLowerCase()}`}
+              message={confirmDeleteMessage}
               callBackFunc={onDelete}
               disabled={isLoading}
             />

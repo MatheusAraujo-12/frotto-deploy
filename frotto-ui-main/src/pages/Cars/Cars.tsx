@@ -245,7 +245,7 @@ const Cars: React.FC = () => {
       <IonHeader>
         <IonToolbar>
           <IonButtons slot="start">
-            <IonMenuButton />
+            <IonMenuButton menu="main-menu" />
           </IonButtons>
 
           <IonTitle>{TEXT.cars}</IonTitle>

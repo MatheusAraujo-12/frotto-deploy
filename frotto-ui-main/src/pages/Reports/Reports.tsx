@@ -129,7 +129,7 @@ const Reports: React.FC<IncomeDetail> = () => {
         <IonToolbar>
           <IonButtons slot="secondary">
             <IonButton>
-              <IonMenuButton></IonMenuButton>
+              <IonMenuButton menu="main-menu"></IonMenuButton>
             </IonButton>
           </IonButtons>
           <IonTitle>{TEXT.reports}</IonTitle>

@@ -27,7 +27,7 @@ import FormInputArea from "../../../components/Form/FormInputArea";
 interface ReminderAddModalProps {
   closeModal: (response?: ReminderModel) => void;
   initialValues?: ReminderModel;
-  carId?: string; // Tornando opcional
+  carId?: string;
 }
 
 const ReminderAdd: React.FC<ReminderAddModalProps> = ({
@@ -39,7 +39,7 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [selectedCar, setSelectedCar] = useState<CarModel | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  
+
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const formInitial = initialReminderValues(initialValues || {});
@@ -57,32 +57,32 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
     mode: "onTouched",
   });
 
-  // Observar valor do campo message
   const message = watch("message") || "";
 
   // Buscar informações do carro se carId for fornecido
   useEffect(() => {
     if (!carId) return;
 
-    // Cancelar requisição anterior se existir
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
 
     abortControllerRef.current = new AbortController();
-    
+
     const fetchCar = async () => {
       try {
         setFetchError(null);
+
         const response = await api.get(
           endpoints.CAR({ pathVariables: { id: carId } }),
           { signal: abortControllerRef.current!.signal }
         );
+
         setSelectedCar(response.data);
       } catch (error: any) {
-        if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
-          return;
-        }
+        if (error?.name === "AbortError" || error?.code === "ERR_CANCELED") return;
+
+        // eslint-disable-next-line no-console
         console.error("Erro ao buscar carro:", error);
         setFetchError("Não foi possível carregar informações do veículo");
         showErrorAlert("Erro ao carregar dados do veículo");
@@ -92,9 +92,7 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
     fetchCar();
 
     return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+      abortControllerRef.current?.abort();
     };
   }, [carId, showErrorAlert]);
 
@@ -105,70 +103,73 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
     }
   }, [initialValues, reset]);
 
-  const onSubmit = useCallback(async (formData: ReminderModel) => {
-    if (!isValid) {
-      showErrorAlert("Preencha o campo de lembrete corretamente");
-      return;
-    }
-
-    const targetCarId = selectedCar?.id?.toString() || carId;
-    if (!targetCarId) {
-      showErrorAlert(TEXT.selectVehicle || "Selecione um veículo");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      let responseReminder: ReminderModel;
-      
-      if (formData.id) {
-        // EDITAR
-        const url = endpoints.REMINDERS_EDIT({
-          pathVariables: { id: formData.id }
-        });
-        const response = await api.put(url, formData);
-        responseReminder = response.data;
-      } else {
-        // CRIAR NOVO
-        const url = endpoints.REMINDERS({
-          pathVariables: { id: targetCarId }
-        });
-        const response = await api.post(url, formData);
-        responseReminder = response.data;
+  const onSubmit = useCallback(
+    async (formData: ReminderModel) => {
+      if (!isValid) {
+        showErrorAlert("Preencha o campo de lembrete corretamente");
+        return;
       }
-      
-      setIsLoading(false);
-      closeModal(responseReminder);
-    } catch (error: any) {
-      setIsLoading(false);
-      console.error("Erro ao salvar lembrete:", error);
-      
-      const errorMessage = error.response?.data?.message 
-        || error.message 
-        || TEXT.saveFailed;
-      showErrorAlert(errorMessage);
-    }
-  }, [isValid, selectedCar, carId, closeModal, showErrorAlert]);
+
+      const targetCarId = selectedCar?.id?.toString() || carId;
+      if (!targetCarId) {
+        showErrorAlert(`${TEXT.select} ${TEXT.car}`);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        let responseReminder: ReminderModel;
+
+        if (formData.id) {
+          // EDITAR
+          const url = endpoints.REMINDERS_EDIT({
+            pathVariables: { id: formData.id },
+          });
+          const response = await api.put(url, formData);
+          responseReminder = response.data;
+        } else {
+          // CRIAR NOVO
+          const url = endpoints.REMINDERS({
+            pathVariables: { id: targetCarId },
+          });
+          const response = await api.post(url, formData);
+          responseReminder = response.data;
+        }
+
+        setIsLoading(false);
+        closeModal(responseReminder);
+      } catch (error: any) {
+        setIsLoading(false);
+        // eslint-disable-next-line no-console
+        console.error("Erro ao salvar lembrete:", error);
+
+        const errorMessage =
+          error?.response?.data?.message || error?.message || TEXT.saveFailed;
+        showErrorAlert(errorMessage);
+      }
+    },
+    [isValid, selectedCar, carId, closeModal, showErrorAlert]
+  );
 
   const onDelete = useCallback(async () => {
     if (!formInitial.id) return;
-    
+
     setIsLoading(true);
     try {
       await api.delete(
-        endpoints.REMINDERS_EDIT({ 
-          pathVariables: { id: formInitial.id } 
+        endpoints.REMINDERS_EDIT({
+          pathVariables: { id: formInitial.id },
         })
       );
       setIsLoading(false);
       closeModal();
     } catch (error: any) {
       setIsLoading(false);
+      // eslint-disable-next-line no-console
       console.error("Erro ao deletar lembrete:", error);
-      
-      const errorMessage = error.response?.data?.message 
-        || error.message 
-        || TEXT.deleteFailed;
+
+      const errorMessage =
+        error?.response?.data?.message || error?.message || TEXT.deleteFailed;
       showErrorAlert(errorMessage);
     }
   }, [formInitial.id, closeModal, showErrorAlert]);
@@ -182,103 +183,117 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
   }, []);
 
   const handleClose = useCallback(() => {
-    if (isLoading) return; // Impede fechar durante loading
+    if (isLoading) return;
     closeModal();
   }, [isLoading, closeModal]);
+
+  const titleText = formInitial.id
+    ? `${TEXT.edit} ${TEXT.reminder}`
+    : `${TEXT.new} ${TEXT.reminder}`;
+
+  const selectVehicleText = `${TEXT.select} ${TEXT.car}`;
+
+  const confirmDeleteMessage = `Tem certeza que deseja excluir este ${String(
+    TEXT.reminder
+  ).toLowerCase()}?`;
 
   return (
     <IonPage id="car-reminder-add-page">
       <IonHeader>
         <IonToolbar>
           <IonButtons slot="start">
-            <IonButton
-              color="medium"
-              onClick={handleClose}
-              disabled={isLoading}
-            >
+            <IonButton color="medium" onClick={handleClose} disabled={isLoading}>
               {TEXT.cancel}
             </IonButton>
           </IonButtons>
-          
-          <IonTitle>
-            {formInitial.id ? TEXT.editReminder : TEXT.newReminder || "Novo Lembrete"}
-          </IonTitle>
-          
+
+          <IonTitle>{titleText}</IonTitle>
+
           <IonButtons slot="end">
             <IonButton
-              disabled={isLoading || !isValid || (!isDirty && formInitial.id)}
+              disabled={isLoading || !isValid || (!isDirty && !!formInitial.id)}
               strong={true}
               onClick={handleSubmit(onSubmit)}
             >
               {TEXT.save}
             </IonButton>
           </IonButtons>
-          
+
           {isLoading && <IonProgressBar type="indeterminate" />}
         </IonToolbar>
       </IonHeader>
-      
+
       <IonContent>
         <form onSubmit={(e) => e.preventDefault()}>
           {/* Seletor de Carro (apenas se não veio com carId) */}
           {!selectedCar && !carId && (
             <div style={{ padding: 16 }}>
               {fetchError && (
-                <div style={{ 
-                  color: "var(--ion-color-danger)", 
-                  marginBottom: 12,
-                  fontSize: 14 
-                }}>
+                <div
+                  style={{
+                    color: "var(--ion-color-danger)",
+                    marginBottom: 12,
+                    fontSize: 14,
+                  }}
+                >
                   {fetchError}
                 </div>
               )}
-              
-              <h3 style={{ 
-                marginTop: 0, 
-                marginBottom: 16,
-                fontSize: 16,
-                fontWeight: 600 
-              }}>
-                {TEXT.selectVehicle || "Selecione um veículo"}
+
+              <h3
+                style={{
+                  marginTop: 0,
+                  marginBottom: 16,
+                  fontSize: 16,
+                  fontWeight: 600,
+                }}
+              >
+                {selectVehicleText}
               </h3>
-              
+
               <CarSelector onSelect={handleSelectCar} />
             </div>
           )}
 
           {/* Info do Carro Selecionado */}
           {selectedCar && (
-            <div style={{ 
-              padding: 16, 
-              backgroundColor: "var(--ion-color-light)",
-              marginBottom: 16 
-            }}>
-              <div style={{ 
-                display: "flex", 
-                justifyContent: "space-between",
-                alignItems: "center"
-              }}>
+            <div
+              style={{
+                padding: 16,
+                backgroundColor: "var(--ion-color-light)",
+                marginBottom: 16,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
                 <div>
                   <strong style={{ fontSize: 16, display: "block" }}>
                     {selectedCar.name}
                   </strong>
-                  <div style={{ 
-                    fontSize: 14, 
-                    color: "var(--ion-color-medium)",
-                    marginTop: 4 
-                  }}>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      color: "var(--ion-color-medium)",
+                      marginTop: 4,
+                    }}
+                  >
                     {selectedCar.plate || "Sem placa"}
                   </div>
                 </div>
-                
+
                 {!carId && (
-                  <IonButton 
-                    size="small" 
+                  <IonButton
+                    size="small"
                     fill="clear"
                     color="medium"
                     onClick={handleResetCar}
                   >
-                    {TEXT.change || "Trocar"}
+                    Trocar
                   </IonButton>
                 )}
               </div>
@@ -288,7 +303,7 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
           {/* Formulário (apenas se tiver carro selecionado ou carId) */}
           {(selectedCar || carId) && (
             <FormInputArea
-              label={TEXT.reminder || "Lembrete"}
+              label={TEXT.reminder}
               errorsObj={errors}
               errorName="message"
               initialValue={message}
@@ -305,40 +320,40 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
             />
           )}
         </form>
-        
+
         {/* Botão de deletar (apenas para edição) */}
         {formInitial.id && (
           <div style={{ padding: 16, marginTop: 24 }}>
             <FormDeleteButton
-              label={`${TEXT.delete || "Excluir"} ${TEXT.reminder?.toLowerCase() || "lembrete"}`}
-              message={TEXT.confirmDeleteReminder || "Tem certeza que deseja excluir este lembrete?"}
+              label={`${TEXT.delete} ${String(TEXT.reminder).toLowerCase()}`}
+              message={confirmDeleteMessage}
               callBackFunc={onDelete}
               disabled={isLoading}
             />
           </div>
         )}
-        
-        {/* Dicas para o usuário */}
+
+        {/* Dicas */}
         {!formInitial.id && (selectedCar || carId) && (
-          <div style={{ 
-            padding: 16, 
-            marginTop: 24,
-            backgroundColor: "var(--ion-color-light)",
-            borderRadius: 8
-          }}>
-            <p style={{ 
-              fontSize: 14, 
-              color: "var(--ion-color-medium)",
-              margin: 0 
-            }}>
+          <div
+            style={{
+              padding: 16,
+              marginTop: 24,
+              backgroundColor: "var(--ion-color-light)",
+              borderRadius: 8,
+            }}
+          >
+            <p style={{ fontSize: 14, color: "var(--ion-color-medium)", margin: 0 }}>
               <strong>Dicas para lembrete:</strong>
             </p>
-            <ul style={{ 
-              fontSize: 12, 
-              color: "var(--ion-color-medium)",
-              margin: "8px 0 0 16px",
-              padding: 0 
-            }}>
+            <ul
+              style={{
+                fontSize: 12,
+                color: "var(--ion-color-medium)",
+                margin: "8px 0 0 16px",
+                padding: 0,
+              }}
+            >
               <li>Troca de óleo a cada 10.000km</li>
               <li>Calibragem de pneus semanal</li>
               <li>Revisão anual obrigatória</li>

@@ -53,7 +53,7 @@ const Menu: React.FC = () => {
   return (
     <IonPage>
       <>
-        <IonMenu contentId="main" className="app-menu">
+        <IonMenu contentId="main" menuId="main-menu" className="app-menu">
           <IonHeader translucent>
             <IonToolbar className="menu-toolbar">
               <IonTitle>{TEXT.appTitle}</IonTitle>
