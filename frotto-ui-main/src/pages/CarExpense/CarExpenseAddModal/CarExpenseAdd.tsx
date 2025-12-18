@@ -86,7 +86,7 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
     handleSubmit,
     watch,
     setValue,
-    formState: { errors, isValid },
+    formState: { errors },
   } = useForm({
     reValidateMode: "onBlur",
     resolver: yupResolver(carExpenseAddValidationSchema),
@@ -95,11 +95,6 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
   });
 
   const onSubmit = async (newCarExpense: CarExpenseModel) => {
-    if (!isValid) {
-      showErrorAlert("Preencha todos os campos obrigatórios corretamente");
-      return;
-    }
-
     setIsLoading(true);
     try {
       let responseCarExpense: CarExpenseModel;
@@ -188,15 +183,15 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
     ? `${TEXT.edit} ${TEXT.carExpense}`
     : `${TEXT.newCarExpense} ${TEXT.carExpense}`;
 
+  // Ajuste: Garante que a frase fique natural (ex: "Deseja excluir esta despesa?")
   const confirmDeleteMessage =
     (TEXT as any).confirmDeleteExpense ||
-    `Deseja excluir esta ${String(TEXT.carExpense).toLowerCase()}?`;
+    `Deseja excluir esta ${String(TEXT.carExpense || "despesa").toLowerCase()}?`;
 
   const selectVehicleText =
     (TEXT as any).selectVehicle || `${TEXT.select} ${TEXT.car}`;
 
-  const changeVehicleText =
-    (TEXT as any).changeVehicle || "Trocar veículo";
+  const changeVehicleText = (TEXT as any).changeVehicle || "Trocar veículo";
 
   return (
     <IonPage id="car-expense-add-page">
@@ -236,7 +231,11 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
             label={TEXT.date}
             presentation="date"
             formCallBack={(value: string) => {
-              setValue("date", value, { shouldValidate: true });
+              setValue("date", value, {
+                shouldValidate: true,
+                shouldDirty: true,
+                shouldTouch: true,
+              });
             }}
             error={errors.date?.message as any}
             required
@@ -249,7 +248,11 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
             initialValue={watch("name")}
             maxlength={50}
             changeCallback={(value: string) => {
-              setValue("name", value, { shouldValidate: true });
+              setValue("name", value, {
+                shouldValidate: true,
+                shouldDirty: true,
+                shouldTouch: true,
+              });
             }}
             required
           />
@@ -261,7 +264,11 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
             initialValue={watch("cost")}
             maxlength={15}
             changeCallback={(value: number) => {
-              setValue("cost", value, { shouldValidate: true });
+              setValue("cost", value, {
+                shouldValidate: true,
+                shouldDirty: true,
+                shouldTouch: true,
+              });
             }}
             required
           />
@@ -298,7 +305,9 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
                     </>
                   ) : (
                     <div>
-                      <strong>{selectedCar?.name || "Veículo selecionado"}</strong>
+                      <strong>
+                        {selectedCar?.name || "Veículo selecionado"}
+                      </strong>
                       <div
                         style={{
                           fontSize: 12,
@@ -329,7 +338,9 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
         {formInitial.id && (
           <div style={{ padding: 16 }}>
             <FormDeleteButton
-              label={`${TEXT.delete} ${String(TEXT.carExpense).toLowerCase()}`}
+              label={`${TEXT.delete} ${String(
+                TEXT.carExpense
+              ).toLowerCase()}`}
               message={confirmDeleteMessage}
               callBackFunc={onDelete}
               disabled={isLoading}

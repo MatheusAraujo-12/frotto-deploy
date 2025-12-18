@@ -1,12 +1,12 @@
-/* Core CSS required for Ionic components to work properly */
+/* CSS Principal necessário para os componentes Ionic funcionarem corretamente */
 import "@ionic/react/css/core.css";
 
-/* Basic CSS for apps built with Ionic */
+/* CSS Básico para aplicativos construídos com Ionic */
 import "@ionic/react/css/normalize.css";
 import "@ionic/react/css/structure.css";
 import "@ionic/react/css/typography.css";
 
-/* Optional CSS utils that can be commented out */
+/* Utilitários CSS opcionais que podem ser comentados */
 import "@ionic/react/css/padding.css";
 import "@ionic/react/css/float-elements.css";
 import "@ionic/react/css/text-alignment.css";
@@ -14,7 +14,7 @@ import "@ionic/react/css/text-transformation.css";
 import "@ionic/react/css/flex-utils.css";
 import "@ionic/react/css/display.css";
 
-/* Theme variables */
+/* Variáveis de tema */
 import "./theme/variables.css";
 import "./theme/global.css";
 
@@ -35,39 +35,60 @@ import Register from "./pages/Register/Register";
 
 setupIonicReact();
 
-const App: React.FC = () => {
-  const history = useIonRouter();
+/**
+ * Componente auxiliar para lidar com lógica que precisa do Contexto do Roteador.
+ * Isso evita erro de "useIonRouter must be used within an IonRouterContext".
+ */
+const AppSetup: React.FC = () => {
+  const router = useIonRouter();
 
   useEffect(() => {
-    api.interceptors.response.use(
+    // Configura interceptador do Axios
+    const interceptorId = api.interceptors.response.use(
       (config) => {
         return config;
       },
       (error) => {
-        const status = error.response.status;
+        const status = error?.response?.status;
+
         if (status === 401) {
           removeToken();
-          history.push("/", "none", "replace");
+          // Redireciona para login, limpando o histórico
+          router.push("/", "none", "replace");
+        } else if (error?.code === "ERR_CANCELED") {
+          // Ignora requisições canceladas para evitar erros no console
+          return Promise.reject(error);
         }
         return Promise.reject(error);
       }
     );
 
+    // Configura token inicial se existir
     const token = getToken();
     if (token) {
       api.defaults.headers.common["Authorization"] = token;
     }
 
-    // initialize theme (persisted or system preference)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    // Inicializa o tema (persistido ou preferência do sistema)
     import("./services/theme").then((mod) => mod.initTheme());
 
+    // Cleanup do interceptor ao desmontar (boa prática)
+    return () => {
+      api.interceptors.response.eject(interceptorId);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  return null; // Este componente não renderiza nada visualmente
+};
+
+const App: React.FC = () => {
   return (
     <IonApp>
       <IonReactRouter>
+        {/* AppSetup deve estar DENTRO do IonReactRouter para acessar o useIonRouter */}
+        <AppSetup />
+        
         <IonRouterOutlet>
           <Route exact path="/" component={Login} />
           <Route exact path="/cadastro" component={Register} />

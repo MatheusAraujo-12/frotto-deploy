@@ -1,12 +1,15 @@
 import {
-  IonActionSheet,
   IonButton,
   IonButtons,
   IonContent,
   IonHeader,
   IonIcon,
+  IonItem,
+  IonLabel,
+  IonList,
   IonMenuButton,
   IonModal,
+  IonPopover,
   IonPage,
   IonProgressBar,
   IonSearchbar,
@@ -33,6 +36,11 @@ import ItemNotFound from "../../components/List/ItemNotFound";
 import { CarModel } from "../../constants/CarModels";
 
 type ActionType = "maintenance" | "reminder" | "expense" | "income" | null;
+type QuickAction = {
+  key: ActionType | "car";
+  title: string;
+  description: string;
+};
 
 const Cars: React.FC = () => {
   const history = useHistory();
@@ -41,7 +49,7 @@ const Cars: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isAddCarModalOpen, setIsAddCarModalOpen] = useState(false);
-  const [isActionSheetOpen, setIsActionSheetOpen] = useState(false);
+  const [isActionPickerOpen, setIsActionPickerOpen] = useState(false);
   const [isActionModalOpen, setIsActionModalOpen] = useState(false);
   const [selectedAction, setSelectedAction] = useState<ActionType>(null);
   const [selectedCar, setSelectedCar] = useState<CarModel | null>(null);
@@ -141,7 +149,6 @@ const Cars: React.FC = () => {
 
   const handleOpenActionModal = useCallback((action: ActionType) => {
     setSelectedAction(action);
-    setIsActionSheetOpen(false);
     setIsActionModalOpen(true);
   }, []);
 
@@ -150,6 +157,26 @@ const Cars: React.FC = () => {
     setSelectedAction(null);
     setSelectedCar(null);
   }, []);
+
+  const handleSelectQuickAction = useCallback(
+    (action: ActionType | "car") => {
+      setIsActionPickerOpen(false);
+
+      if (action === "car") {
+        const searchParams = new URLSearchParams(location.search);
+        searchParams.set("modalOpened", "true");
+        history.push({
+          pathname: location.pathname,
+          search: searchParams.toString(),
+        });
+        setIsAddCarModalOpen(true);
+        return;
+      }
+
+      handleOpenActionModal(action);
+    },
+    [history, location, handleOpenActionModal]
+  );
 
   const renderActionModalContent = () => {
     if (!selectedAction) return null;
@@ -184,27 +211,15 @@ const Cars: React.FC = () => {
     }
   };
 
-  const actionSheetButtons = useMemo(
+  const quickActions = useMemo<QuickAction[]>(
     () => [
-      {
-        text: TEXT.addCar,
-        handler: () => {
-          const searchParams = new URLSearchParams(location.search);
-          searchParams.set("modalOpened", "true");
-          history.push({
-            pathname: location.pathname,
-            search: searchParams.toString(),
-          });
-          setIsAddCarModalOpen(true);
-        },
-      },
-      { text: TEXT.addCarMaintenance, handler: () => handleOpenActionModal("maintenance") },
-      { text: TEXT.reminder, handler: () => handleOpenActionModal("reminder") },
-      { text: `${TEXT.add} ${TEXT.carExpense}`, handler: () => handleOpenActionModal("expense") },
-      { text: `${TEXT.add} ${TEXT.income}`, handler: () => handleOpenActionModal("income") },
-      { text: TEXT.cancel, role: "cancel" as const },
+      { key: "car", title: TEXT.addCar, description: "Adicionar um novo veículo" },
+      { key: "maintenance", title: TEXT.addCarMaintenance, description: "Registrar serviços e custos" },
+      { key: "reminder", title: TEXT.reminder, description: "Criar alerta para o carro" },
+      { key: "expense", title: `${TEXT.add} ${TEXT.carExpense}`, description: "Nova despesa do veículo" },
+      { key: "income", title: `${TEXT.add} ${TEXT.income}`, description: "Adicionar receita" },
     ],
-    [location, history, handleOpenActionModal]
+    []
   );
 
   return (
@@ -218,7 +233,7 @@ const Cars: React.FC = () => {
           <IonTitle>{TEXT.cars}</IonTitle>
 
           <IonButtons slot="end">
-            <IonButton onClick={() => setIsActionSheetOpen(true)}>
+            <IonButton id="cars-action-trigger" onClick={() => setIsActionPickerOpen(true)}>
               <IonIcon slot="icon-only" icon={add} />
             </IonButton>
           </IonButtons>
@@ -235,7 +250,7 @@ const Cars: React.FC = () => {
         </IonToolbar>
       </IonHeader>
 
-      <IonContent>
+      <IonContent scrollY forceOverscroll={true}>
         <div className="cards-grid">
           {filteredList.map((car: CarModel, index) => (
             <CarListItem
@@ -253,12 +268,29 @@ const Cars: React.FC = () => {
         )}
       </IonContent>
 
-      <IonActionSheet
-        isOpen={isActionSheetOpen}
-        onDidDismiss={() => setIsActionSheetOpen(false)}
-        header={TEXT.add}
-        buttons={actionSheetButtons}
-      />
+      <IonPopover
+        isOpen={isActionPickerOpen}
+        onDidDismiss={() => setIsActionPickerOpen(false)}
+        trigger="cars-action-trigger"
+        triggerAction="click"
+        side="bottom"
+        alignment="end"
+        className="action-picker-popover"
+        showBackdrop
+      >
+        <IonContent className="action-picker-content" scrollY>
+          <IonList inset>
+            {quickActions.map((action) => (
+              <IonItem button key={action.key} onClick={() => handleSelectQuickAction(action.key)}>
+                <IonLabel>
+                  <h3 style={{ margin: 0 }}>{action.title}</h3>
+                  <p style={{ margin: 0, color: "var(--ion-color-medium)" }}>{action.description}</p>
+                </IonLabel>
+              </IonItem>
+            ))}
+          </IonList>
+        </IonContent>
+      </IonPopover>
 
       <IonModal isOpen={isAddCarModalOpen} onDidDismiss={() => handleCloseAddCarModal()}>
         <CarAdd closeModal={handleCloseAddCarModal} />

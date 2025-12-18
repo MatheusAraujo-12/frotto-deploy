@@ -485,3 +485,26 @@ ion-searchbar:focus-within {
     backdrop-filter: none;
   }
 }
+
+/* Quick action popover (button-aligned) */
+ion-popover.action-picker-popover {
+  --width: min(340px, 90vw);
+  --max-width: 360px;
+  --backdrop-opacity: 0.25;
+  --offset-y: 6px;
+  --box-shadow: var(--app-shadow);
+}
+
+ion-popover.action-picker-popover::part(content) {
+  border-radius: 12px;
+  padding: 0;
+}
+
+.action-picker-content {
+  --padding-top: 8px;
+  --padding-bottom: calc(12px + env(safe-area-inset-bottom));
+}
+
+.action-picker-content ion-item h3 {
+  font-weight: 600;
+}

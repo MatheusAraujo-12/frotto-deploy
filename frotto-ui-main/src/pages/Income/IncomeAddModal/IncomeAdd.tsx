@@ -155,6 +155,11 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
 
   const titleText = formInitial.id ? `${TEXT.edit} ${TEXT.income}` : `${TEXT.newIncome} ${TEXT.income}`;
 
+  // Ajuste: Cria uma frase completa para a confirmação de exclusão
+  const confirmDeleteMessage =
+    (TEXT as any).confirmDeleteIncome ||
+    `Deseja excluir esta ${String(TEXT.income || "receita").toLowerCase()}?`;
+
   return (
     <IonPage id="car-income-add-page">
       <IonHeader>
@@ -206,7 +211,13 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
                 initialValue={incomeDate}
                 label={TEXT.date}
                 presentation="date"
-                formCallBack={(value: string) => setValue("date", value)}
+                formCallBack={(value: string) =>
+                  setValue("date", value, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                    shouldTouch: true,
+                  })
+                }
                 required
               />
 
@@ -214,7 +225,13 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
                 label={TEXT.incomeName}
                 errorsObj={errors}
                 errorName="name"
-                formCallBack={(value: string) => setValue("name", value)}
+                formCallBack={(value: string) =>
+                  setValue("name", value, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                    shouldTouch: true,
+                  })
+                }
                 initialValue={incomeName}
                 options={INCOMES}
                 storageToken={INCOME_KEY}
@@ -227,7 +244,13 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
                 errorName="cost"
                 initialValue={incomeValue}
                 maxlength={15}
-                changeCallback={(value: number) => setValue("cost", value)}
+                changeCallback={(value: number) =>
+                  setValue("cost", value, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                    shouldTouch: true,
+                  })
+                }
                 required
               />
             </>
@@ -238,7 +261,7 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
           <div style={{ padding: 16, marginTop: 24 }}>
             <FormDeleteButton
               label={`${TEXT.delete} ${String(TEXT.income).toLowerCase()}`}
-              message={TEXT.income}
+              message={confirmDeleteMessage}
               callBackFunc={onDelete}
             />
           </div>
