@@ -2,7 +2,7 @@ import axios from "axios";
 
 const baseURL =
   (process.env.REACT_APP_API_URL || "").replace(/\/$/, "") ||
-  "https://api.frotto.com.br/api";
+  "https://api.frotto.com.br";
 
 const api = axios.create({
   baseURL,
