@@ -1,15 +1,12 @@
 import axios from "axios";
 
-// Allow pointing the frontend to an external API host when needed.
-// Falls back to relative URLs (same origin) if the env var is not set.
-const apiBaseUrl = (process.env.REACT_APP_SERVER_URL || "").replace(/\/+$/, "");
+const baseURL =
+  (process.env.REACT_APP_API_URL || "").replace(/\/$/, "") ||
+  "https://api.frotto.com.br/api";
 
 const api = axios.create({
-  baseURL: apiBaseUrl || undefined,
-  timeout: 20000,
-  headers: {
-    "Content-Type": "application/json",
-  },
+  baseURL,
+  withCredentials: true, // só se você usa cookie/sessão
 });
 
 export default api;
