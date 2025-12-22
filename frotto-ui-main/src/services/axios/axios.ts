@@ -6,7 +6,7 @@ const baseURL =
 
 const api = axios.create({
   baseURL,
-  withCredentials: true, // só se você usa cookie/sessão
+  withCredentials: false,
 });
 
 export default api;
