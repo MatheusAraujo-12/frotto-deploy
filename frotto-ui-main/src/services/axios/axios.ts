@@ -1,12 +1,9 @@
 import axios from "axios";
 
-const baseURL =
-  (process.env.REACT_APP_API_URL || "").replace(/\/$/, "") ||
-  "https://api.frotto.com.br";
-
+// ✅ baseURL RELATIVO (same-origin)
 const api = axios.create({
-  baseURL,
-  withCredentials: false,
+  baseURL: "",
+  withCredentials: false, // ✅ JWT: não precisa cookie
 });
 
 export default api;

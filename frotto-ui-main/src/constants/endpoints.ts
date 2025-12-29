@@ -1,19 +1,21 @@
 import uniq from "lodash/uniq";
 import qs from "qs";
 
+/**
+ * Remove barras duplicadas
+ */
 function safePath(path: string): string {
   return `${path}`.replace(/\/{2,}/g, "/");
 }
 
+/**
+ * Normaliza URLs absolutas ou relativas
+ */
 export function safeUrl(url: string): string {
-  // Makes sure its a string;
   const string = `${url}`;
-
-  // Is this an absolute url?
   const match = string.match(/^(https?)/);
 
   const clean = safePath(
-    // clean up protocol and replaces '/{2,}' for '/'
     string.replace(/^https?:\/\//, "").replace(/\/{2,}/g, "/")
   );
 
@@ -22,24 +24,21 @@ export function safeUrl(url: string): string {
   return `${protocol}${clean}`.replace(/\/$/, "");
 }
 
-function apiEndpoint(path: string, scope = "api", staticQuery = {}): Function {
+function apiEndpoint(path: string, scope = "api", staticQuery = {}) {
   const pathWildcards = `${path}`.match(/{(\w+)}/g);
 
-  // Are there wildcards in the path?
-  if (Array.isArray(pathWildcards)) {
-    if (
-      process.env.NODE_ENV === "development" &&
-      uniq(pathWildcards).length !== pathWildcards.length
-    ) {
-      // eslint-disable-next-line no-console
-      console.error(
-        new Error(
-          `URL has two or more identical wildcards (${JSON.stringify(
-            pathWildcards
-          )}). This causes undeterministic behaviour.`
-        )
-      );
-    }
+  if (
+    process.env.NODE_ENV === "development" &&
+    Array.isArray(pathWildcards) &&
+    uniq(pathWildcards).length !== pathWildcards.length
+  ) {
+    console.error(
+      new Error(
+        `URL has two or more identical wildcards (${JSON.stringify(
+          pathWildcards
+        )}).`
+      )
+    );
   }
 
   interface CustomObj {
@@ -47,66 +46,96 @@ function apiEndpoint(path: string, scope = "api", staticQuery = {}): Function {
   }
 
   interface QueryPathObj {
-    [key: string]: CustomObj;
+    pathVariables?: CustomObj;
+    query?: CustomObj;
   }
 
   function transformPath({
     pathVariables = {},
     query = {},
   }: QueryPathObj = {}) {
-    const queryValues = { ...staticQuery, ...query };
     let finalPath = path;
 
-    // Replace wildcards
+    // Substitui wildcards
     if (Array.isArray(pathWildcards)) {
       pathWildcards.forEach((wildcard) => {
-        const pathVariableObj = wildcard.replace(/({|})/g, "");
-        const variable = pathVariables[pathVariableObj] || "";
-        finalPath = finalPath.replace(wildcard, variable);
+        const key = wildcard.replace(/({|})/g, "");
+        finalPath = finalPath.replace(wildcard, pathVariables[key] || "");
       });
     }
 
-    if (Object.keys(queryValues).length) {
-      finalPath = `${finalPath}?${qs.stringify(queryValues)}`;
+    if (Object.keys(query).length) {
+      finalPath = `${finalPath}?${qs.stringify({
+        ...staticQuery,
+        ...query,
+      })}`;
     }
 
-    return safeUrl(`/${scope}/${finalPath}`);
+    // Normalização segura
+    const normalizedPath = finalPath.startsWith("/")
+      ? finalPath
+      : `/${finalPath}`;
+
+    const normalizedScope = scope.replace(/^\/|\/$/g, "");
+
+    // 🔴 EVITA /api/api
+    const finalUrl = normalizedPath.startsWith(`/${normalizedScope}/`)
+      ? normalizedPath
+      : `/${normalizedScope}${normalizedPath}`;
+
+    return safeUrl(finalUrl);
   }
 
   transformPath.path = path;
-
   return transformPath;
 }
 
+/**
+ * ENDPOINTS
+ * Resultado FINAL:
+ * AUTH() -> /api/authenticate
+ * CARS() -> /api/cars
+ */
 const endpoints = {
   REGISTER: apiEndpoint("/register"),
   AUTH: apiEndpoint("/authenticate"),
   USER: apiEndpoint("/user/{id}"),
+
   CARS: apiEndpoint("/cars"),
   CARS_ACTIVE: apiEndpoint("/cars-drivers/active"),
   CARS_ACTIVE_GROUPS: apiEndpoint("/cars/active/groups"),
   CAR: apiEndpoint("/cars/{id}"),
+
   BODY_DAMAGE: apiEndpoint("/car-body-damages/car/{id}"),
   BODY_DAMAGE_ACTIVE: apiEndpoint("/car-body-damages/car/{id}/active"),
+  BODY_DAMAGE_EDIT: apiEndpoint("/car-body-damages/{id}"),
+
   DRIVER_CPF: apiEndpoint("/drivers/{cpf}"),
   DRIVERS: apiEndpoint("/driver-cars/car/{id}"),
+  DRIVERS_EDIT: apiEndpoint("/driver-cars/{id}"),
+
   INSPECTIONS: apiEndpoint("/inspections/car/{id}"),
+  INSPECTIONS_EDIT: apiEndpoint("/inspections/{id}"),
+
   INCOMES: apiEndpoint("/incomes/car/{id}"),
+  INCOMES_EDIT: apiEndpoint("/incomes/{id}"),
+
   REMINDERS: apiEndpoint("/reminders/car/{id}"),
+  REMINDERS_EDIT: apiEndpoint("/reminders/{id}"),
+
   CAR_EXPENSES: apiEndpoint("/car-expenses/car/{id}"),
   CAR_EXPENSES_ALL: apiEndpoint("/car-expenses/car-all"),
-  MAINTENANCES: apiEndpoint("/maintenances/car/{id}"),
-  DRIVER_PENDENCIES: apiEndpoint("/pendencies/car-driver/{id}"),
-  DRIVERS_EDIT: apiEndpoint("/driver-cars/{id}"),
-  INSPECTIONS_EDIT: apiEndpoint("/inspections/{id}"),
-  INCOMES_EDIT: apiEndpoint("/incomes/{id}"),
-  REMINDERS_EDIT: apiEndpoint("/reminders/{id}"),
   CAR_EXPENSES_EDIT: apiEndpoint("/car-expenses/{id}"),
+
+  MAINTENANCES: apiEndpoint("/maintenances/car/{id}"),
   MAINTENANCES_EDIT: apiEndpoint("/maintenances/{id}"),
-  BODY_DAMAGE_EDIT: apiEndpoint("/car-body-damages/{id}"),
+
+  DRIVER_PENDENCIES: apiEndpoint("/pendencies/car-driver/{id}"),
   DRIVER_PENDENCIES_EDIT: apiEndpoint("/pendencies/{id}"),
+
   REPORTS: apiEndpoint("/reports"),
   REPORTS_HISTORY: apiEndpoint("/reports-history"),
   REPORTS_MAINTENANCE: apiEndpoint("/reports/maintenance"),
 };
+
 export default endpoints;
