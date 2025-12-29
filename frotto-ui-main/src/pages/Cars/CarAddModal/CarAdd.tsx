@@ -29,7 +29,7 @@ import FormDeleteButton from "../../../components/Form/FormDeleteButton";
 import FormCurrency from "../../../components/Form/FormCurrency";
 
 interface CarAddModalProps {
-  closeModal: Function;
+  closeModal: (response?: CarModel) => void;
   initialValues?: CarModel;
 }
 

@@ -109,48 +109,49 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
   }, [watch]);
 
   const closeExpenseModal = useCallback(
-    (newExpense: ExpenseModelActive) => {
-      const finalExpenseArray = [...getValues().expenses];
-
-      if (newExpense) {
-        if (newExpense.delete) {
-          if (typeof newExpense.activeIndex === "number") {
-            delete finalExpenseArray[newExpense.activeIndex];
-            setValue("expenses", finalExpenseArray.filter((n) => n));
-          }
-        } else {
-          if (typeof newExpense.activeIndex === "number") {
-            finalExpenseArray[newExpense.activeIndex] = newExpense;
-            setValue("expenses", finalExpenseArray);
-          } else {
-            finalExpenseArray.push(newExpense);
-            setValue("expenses", finalExpenseArray);
-          }
-        }
-      }
-
+    (response?: ExpenseModelActive) => {
       setIsExpenseModalOpen(false);
       nav.goBack();
+
+      if (!response) return;
+
+      const finalExpenseArray = [...getValues().expenses];
+
+      if (response.delete) {
+        if (typeof response.activeIndex === "number") {
+          delete finalExpenseArray[response.activeIndex];
+          setValue("expenses", finalExpenseArray.filter((n) => n));
+        }
+        return;
+      }
+
+      if (typeof response.activeIndex === "number") {
+        finalExpenseArray[response.activeIndex] = response;
+        setValue("expenses", finalExpenseArray);
+        return;
+      }
+
+      finalExpenseArray.push(response);
+      setValue("expenses", finalExpenseArray);
     },
     [getValues, setValue, nav]
   );
 
   const closeBodyDamageModal = useCallback(
-    (newCarDamage: CarBodyDamageModel) => {
-      const finalcarBodyDamageArray = [...getValues().carBodyDamages];
-
-      if (newCarDamage) {
-        const indexFound = finalcarBodyDamageArray.findIndex(
-          (bodyDamage) => bodyDamage.id === newCarDamage.id
-        );
-        if (indexFound === -1) finalcarBodyDamageArray.push(newCarDamage);
-        else finalcarBodyDamageArray[indexFound] = newCarDamage;
-
-        setValue("carBodyDamages", finalcarBodyDamageArray);
-      }
-
+    (response?: CarBodyDamageModel) => {
       setIsBodyDamageModalOpen(false);
       nav.goBack();
+
+      if (!response) return;
+
+      const finalcarBodyDamageArray = [...getValues().carBodyDamages];
+      const indexFound = finalcarBodyDamageArray.findIndex(
+        (bodyDamage) => bodyDamage.id === response.id
+      );
+      if (indexFound === -1) finalcarBodyDamageArray.push(response);
+      else finalcarBodyDamageArray[indexFound] = response;
+
+      setValue("carBodyDamages", finalcarBodyDamageArray);
     },
     [getValues, setValue, nav]
   );
@@ -186,7 +187,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
 
     try {
       await api.delete(endpoints.INSPECTIONS_EDIT({ pathVariables: { id: formInitial.id } }));
-      closeModal({});
+      closeModal({ id: formInitial.id, delete: true });
     } catch (e) {
       showErrorAlert(TEXT.deleteFailed);
     } finally {

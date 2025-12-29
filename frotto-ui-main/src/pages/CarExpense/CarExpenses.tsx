@@ -86,12 +86,22 @@ const CarExpenses: React.FC<CarExpenseDetail> = ({ match }) => {
     return filterListObj(carExpenseList, searchValue);
   }, [carExpenseList, searchValue]);
 
-  const closeModal = useCallback((newCarExpense?: CarExpenseModel) => {
-    if (newCarExpense) {
-      loadCarExpenses();
-    }
+  const closeModal = useCallback((response?: CarExpenseModel) => {
     setIsModalOpen(false);
     nav.goBack();
+
+    if (!response) return;
+
+    setCarExpensesList((prev) => {
+      if (response.delete && response.id !== undefined) {
+        return prev.filter((item) => item.id !== response.id);
+      }
+      const exists = prev.some((item) => item.id === response.id);
+      if (exists) {
+        return prev.map((item) => (item.id === response.id ? response : item));
+      }
+      return [response, ...prev];
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

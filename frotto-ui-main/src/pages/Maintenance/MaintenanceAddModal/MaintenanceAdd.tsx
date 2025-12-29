@@ -154,7 +154,9 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
       searchParams.delete("modalServiceOpened");
       history.replace({ pathname: location.pathname, search: searchParams.toString() });
 
-      if (newServices) setValue("services", newServices);
+      if (!newServices) return;
+
+      setValue("services", newServices);
     },
     [history, location, setValue]
   );
@@ -168,7 +170,9 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
       searchParams.delete("modalReminderOpened");
       history.replace({ pathname: location.pathname, search: searchParams.toString() });
 
-      if (reminder && !formInitial.id) loadReminders();
+      if (!reminder) return;
+
+      if (!formInitial.id) loadReminders();
     },
     [history, location, formInitial.id, loadReminders]
   );

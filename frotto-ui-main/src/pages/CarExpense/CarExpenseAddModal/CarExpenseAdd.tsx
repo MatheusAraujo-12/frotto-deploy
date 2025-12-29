@@ -153,7 +153,7 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
         })
       );
       setIsLoading(false);
-      closeModal({} as CarExpenseModel);
+      closeModal({ id: formInitial.id, delete: true });
     } catch (error: any) {
       setIsLoading(false);
       // eslint-disable-next-line no-console

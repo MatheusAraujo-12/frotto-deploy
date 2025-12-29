@@ -72,6 +72,7 @@ export interface InspectionModel {
   spare?: TireModel;
   expenses?: InspectionExpenseModel[];
   carBodyDamages?: CarBodyDamageModel[];
+  delete?: boolean;
 }
 
 export interface AdressModel {
@@ -117,6 +118,7 @@ export interface IncomeModel {
   date?: string;
   name?: string;
   cost?: number;
+  delete?: boolean;
 }
 
 export interface CarExpenseModel {
@@ -124,6 +126,7 @@ export interface CarExpenseModel {
   date?: string;
   name?: string;
   cost?: number;
+  delete?: boolean;
 }
 
 export interface ReminderModel {
@@ -136,4 +139,5 @@ export interface DriverPendencyModel {
   date?: string;
   name?: string;
   cost?: number;
+  delete?: boolean;
 }

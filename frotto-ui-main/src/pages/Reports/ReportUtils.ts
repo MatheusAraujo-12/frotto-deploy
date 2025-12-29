@@ -269,7 +269,7 @@ const createItensV2 = (listItens: ReportItem[]) => {
 
 export const createContentReportHistory = (
   reportsHistory: ReportsHistory[],
-  group: String
+  group: string
 ) => {
   const content: any[] = [];
   content.push({ text: "Relatório Histórico financeiro", style: "header" });
@@ -368,8 +368,8 @@ const historyItens = (carHistory: CarHistory[]) => {
 
 export const createContentReportMaintenance = (
   reportDtos: ReportDTO[],
-  group: String,
-  year: String
+  group: string,
+  year: string
 ) => {
   const content: any[] = [];
   content.push({ text: "Relatório de Manutenções - " + year, style: "header" });

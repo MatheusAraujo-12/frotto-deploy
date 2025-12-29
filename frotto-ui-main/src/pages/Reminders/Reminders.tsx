@@ -82,12 +82,19 @@ const Reminders: React.FC<ReminderDetail> = ({ match }) => {
     return filterListObj(ReminderList, searchValue);
   }, [ReminderList, searchValue]);
 
-  const closeModal = useCallback((newReminder?: ReminderModel) => {
-    if (newReminder) {
-      loadReminders();
-    }
+  const closeModal = useCallback((response?: ReminderModel) => {
     setIsModalOpen(false);
     nav.goBack();
+
+    if (!response) return;
+
+    setRemindersList((prev) => {
+      const exists = prev.some((item) => item.id === response.id);
+      if (exists) {
+        return prev.map((item) => (item.id === response.id ? response : item));
+      }
+      return [response, ...prev];
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

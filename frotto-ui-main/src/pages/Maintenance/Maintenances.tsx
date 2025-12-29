@@ -86,12 +86,19 @@ const Maintenances: React.FC<MaintenanceDetail> = ({ match }) => {
     return filterListObj(maintenanceList, searchValue);
   }, [maintenanceList, searchValue]);
 
-  const closeModal = useCallback((newMaintenance?: MaintenanceModel) => {
-    if (newMaintenance) {
-      loadMaintenances();
-    }
+  const closeModal = useCallback((response?: MaintenanceModel) => {
     setIsModalOpen(false);
     nav.goBack();
+
+    if (!response) return;
+
+    setMaintenanceList((prev) => {
+      const exists = prev.some((item) => item.id === response.id);
+      if (exists) {
+        return prev.map((item) => (item.id === response.id ? response : item));
+      }
+      return [response, ...prev];
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

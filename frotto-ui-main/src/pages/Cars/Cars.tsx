@@ -33,7 +33,13 @@ import CarSelector from "../../components/Car/CarSelector";
 import CarListItem from "./CarListItem";
 import { filterListObj } from "../../services/filterList";
 import ItemNotFound from "../../components/List/ItemNotFound";
-import { CarModel } from "../../constants/CarModels";
+import {
+  CarExpenseModel,
+  CarModel,
+  IncomeModel,
+  MaintenanceModel,
+  ReminderModel,
+} from "../../constants/CarModels";
 
 type ActionType = "maintenance" | "reminder" | "expense" | "income" | null;
 type QuickAction = {
@@ -41,6 +47,11 @@ type QuickAction = {
   title: string;
   description: string;
 };
+type QuickActionResponse =
+  | MaintenanceModel
+  | ReminderModel
+  | IncomeModel
+  | CarExpenseModel;
 
 const Cars: React.FC = () => {
   const history = useHistory();
@@ -123,16 +134,12 @@ const Cars: React.FC = () => {
     return filterListObj(carList, searchValue) as CarModel[];
   }, [carList, searchValue]);
 
-  const handleAddCar = useCallback((newCar: CarModel) => {
-    setCarList((prev) => [newCar, ...prev]);
-  }, []);
-
   const handleDeleteCar = useCallback((deletedCarId: number) => {
     setCarList((prev) => prev.filter((car) => car.id !== deletedCarId));
   }, []);
 
   const handleCloseAddCarModal = useCallback(
-    (newCar?: CarModel) => {
+    (response?: CarModel) => {
       setIsAddCarModalOpen(false);
 
       const searchParams = new URLSearchParams(location.search);
@@ -142,9 +149,17 @@ const Cars: React.FC = () => {
         search: searchParams.toString(),
       });
 
-      if (newCar) handleAddCar(newCar);
+      if (!response) return;
+
+      setCarList((prev) => {
+        const exists = prev.some((item) => item.id === response.id);
+        if (exists) {
+          return prev.map((item) => (item.id === response.id ? response : item));
+        }
+        return [response, ...prev];
+      });
     },
-    [history, location, handleAddCar]
+    [history, location]
   );
 
   const handleOpenActionModal = useCallback((action: ActionType) => {
@@ -152,10 +167,12 @@ const Cars: React.FC = () => {
     setIsActionModalOpen(true);
   }, []);
 
-  const handleCloseActionModal = useCallback(() => {
+  const handleCloseActionModal = useCallback((response?: QuickActionResponse) => {
     setIsActionModalOpen(false);
     setSelectedAction(null);
     setSelectedCar(null);
+
+    if (!response) return;
   }, []);
 
   const handleSelectQuickAction = useCallback(
@@ -296,11 +313,16 @@ const Cars: React.FC = () => {
         <CarAdd closeModal={handleCloseAddCarModal} />
       </IonModal>
 
-      <IonModal isOpen={isActionModalOpen} onDidDismiss={handleCloseActionModal}>
+      <IonModal
+        isOpen={isActionModalOpen}
+        onDidDismiss={() => handleCloseActionModal()}
+      >
         <IonHeader>
           <IonToolbar>
             <IonButtons slot="start">
-              <IonButton onClick={handleCloseActionModal}>{TEXT.cancel}</IonButton>
+              <IonButton onClick={() => handleCloseActionModal()}>
+                {TEXT.cancel}
+              </IonButton>
             </IonButtons>
 
             <IonTitle>

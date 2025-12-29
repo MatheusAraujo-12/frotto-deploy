@@ -135,7 +135,7 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
     try {
       await api.delete(endpoints.INCOMES_EDIT({ pathVariables: { id: formInitial.id } }));
       setIsLoading(false);
-      closeModal({} as IncomeModel);
+      closeModal({ id: formInitial.id, delete: true });
     } catch (error: any) {
       setIsLoading(false);
       // eslint-disable-next-line no-console

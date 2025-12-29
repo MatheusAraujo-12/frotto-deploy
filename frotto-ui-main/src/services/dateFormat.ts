@@ -14,7 +14,7 @@ moment.defineLocale("pt-br", {
 });
 moment.locale("pt-br");
 
-export const formatDateView = (date: string | undefined): String => {
+export const formatDateView = (date: string | undefined): string => {
   if (date) {
     return moment(new Date(date).toUTCString()).utc().format("DD/MM/YYYY");
   }
@@ -34,7 +34,7 @@ export const stringDateToMonthYear = (dateStg: string): string => {
   return moment(new Date(dateStg).toUTCString()).utc().format("MMMM YYYY");
 };
 
-export const formatDateViewMMYYYY = (date: string | undefined): String => {
+export const formatDateViewMMYYYY = (date: string | undefined): string => {
   if (date) {
     return moment(new Date(date).toUTCString()).utc().format("MM/YYYY");
   }

@@ -29,9 +29,9 @@ import FormCurrency from "../../../components/Form/FormCurrency";
 import FormDate from "../../../components/Form/FormDate";
 
 interface DriverPendencyAddModalProps {
-  closeModal: Function;
+  closeModal: (response?: DriverPendencyModel) => void;
   initialValues?: DriverPendencyModel;
-  driverCarId: String;
+  driverCarId: string;
 }
 
 const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
@@ -93,7 +93,7 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
         })
       );
       setisLoading(false);
-      closeModal({});
+      closeModal({ id: formInitial.id, delete: true });
     } catch (e) {
       setisLoading(false);
       showErrorAlert(TEXT.deleteFailed);

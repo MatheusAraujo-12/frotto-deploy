@@ -95,12 +95,19 @@ const BodyDamages: React.FC<BodyDamageDetail> = ({ match }) => {
     return { active: activeList, done: doneList };
   }, [filteredList]);
 
-  const closeModal = useCallback((newCarDamage: CarBodyDamageModel) => {
-    if (newCarDamage) {
-      loadBodyDamages();
-    }
+  const closeModal = useCallback((response?: CarBodyDamageModel) => {
     setIsModalOpen(false);
     nav.goBack();
+
+    if (!response) return;
+
+    setCarDamageList((prev) => {
+      const exists = prev.some((item) => item.id === response.id);
+      if (exists) {
+        return prev.map((item) => (item.id === response.id ? response : item));
+      }
+      return [response, ...prev];
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -54,7 +54,7 @@ export const createMonthlyReport = (reportsMonthly: ReportsMonthly) => {
 
 export const createHistoryReport = (
   reportsHistory: ReportsHistory[],
-  group: String
+  group: string
 ) => {
   const docRef = {
     content: createContentReportHistory(reportsHistory, group),
@@ -90,8 +90,8 @@ export const createHistoryReport = (
 
 export const createMaintenanceReport = (
   reportsMaintenance: ReportDTO[],
-  group: String,
-  year: String
+  group: string,
+  year: string
 ) => {
   const docRef = {
     content: createContentReportMaintenance(reportsMaintenance, group, year),

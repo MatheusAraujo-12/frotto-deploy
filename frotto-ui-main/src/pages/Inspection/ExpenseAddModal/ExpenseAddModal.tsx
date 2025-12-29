@@ -22,7 +22,7 @@ import { EXPENSES_KEY } from "../../../services/localStorage/localstorage";
 import FormCurrency from "../../../components/Form/FormCurrency";
 
 interface ExpenseAddModalProps {
-  closeModal: Function;
+  closeModal: (response?: ExpenseModelActive) => void;
   initialValues: ExpenseModelActive;
 }
 

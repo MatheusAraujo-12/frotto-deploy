@@ -39,7 +39,7 @@ interface SelectedMaintenanceServiceModel extends MaintenanceServiceModel {
   selected?: boolean;
 }
 interface ServiceAddModalProps {
-  closeModal: Function;
+  closeModal: (response?: MaintenanceServiceModel[]) => void;
   initialValues: MaintenanceServiceModel[];
 }
 
@@ -118,7 +118,10 @@ const ServiceAddModal: React.FC<ServiceAddModalProps> = ({
       servicesList,
       ([_, v]) => v?.selected === true
     );
-    closeModal(Object.values(selectedList));
+    const selectedServices = Object.values(selectedList).filter(
+      (service): service is MaintenanceServiceModel => service !== undefined
+    );
+    closeModal(selectedServices);
   }, [servicesList, closeModal]);
 
   return (

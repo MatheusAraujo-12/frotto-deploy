@@ -11,36 +11,40 @@ import {
   IonTitle,
   IonToolbar,
 } from "@ionic/react";
-import { TEXT } from "../../../constants/texts";
+import { camera } from "ionicons/icons";
 import { useCallback, useEffect, useState } from "react";
-import { useAlert } from "../../../services/hooks/useAlert";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
+
+import { TEXT } from "../../../constants/texts";
+import { CarBodyDamageModel } from "../../../constants/CarModels";
 import {
   bodyDamageAddValidationSchema,
   initialBodyValues,
 } from "./bodyDamageValidationSchema";
-import FormDate from "../../../components/Form/FormDate";
-import FormInputLabel from "../../../components/Form/FormInputLabel";
+
 import api from "../../../services/axios/axios";
 import endpoints from "../../../constants/endpoints";
-import { CarBodyDamageModel } from "../../../constants/CarModels";
+import { useAlert } from "../../../services/hooks/useAlert";
 import { usePhotoGallery } from "../../../services/hooks/usePhotoGallery";
-import { camera } from "ionicons/icons";
 import { newFormDataFromBodyDamage } from "../../../services/formData";
 import { urlToS3Image } from "../../../services/BodyImagePath";
+
+import FormDate from "../../../components/Form/FormDate";
 import FormInput from "../../../components/Form/FormInput";
+import FormInputLabel from "../../../components/Form/FormInputLabel";
 import FormToggle from "../../../components/Form/FormToggle";
+import FormCurrency from "../../../components/Form/FormCurrency";
 import FormSelectFilterAdd from "../../../components/Form/FormSelectFilterAdd";
+
 import { BODY_DAMAGES } from "../../../constants/selectOptions";
 import { BODY_DAMAGE_KEY } from "../../../services/localStorage/localstorage";
-import FormCurrency from "../../../components/Form/FormCurrency";
 import IonPhotoViewer from "@codesyntax/ionic-react-photo-viewer";
 
 interface CarDamageAddModalProps {
-  closeModal: Function;
+  closeModal: (response?: CarBodyDamageModel) => void;
   initialValues?: CarBodyDamageModel;
-  carId: String;
+  carId: string; // ✅ string primitivo
 }
 
 const BodyDamageAdd: React.FC<CarDamageAddModalProps> = ({
@@ -49,24 +53,22 @@ const BodyDamageAdd: React.FC<CarDamageAddModalProps> = ({
   carId,
 }) => {
   const { showErrorAlert } = useAlert();
-  const [isLoading, setisLoading] = useState(false);
-  const [bodyFilePath, setBodyFilePath] = useState<string | undefined>(
-    undefined
-  );
-  const [bodyFilePath2, setBodyFilePath2] = useState<string | undefined>(
-    undefined
-  );
-  const [bodyFile, setBodyFile] = useState<File | undefined>(undefined);
-  const [bodyFile2, setBodyFile2] = useState<File | undefined>(undefined);
-  const formInitial = initialBodyValues(initialValues || {});
   const { takePhoto } = usePhotoGallery();
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [bodyFilePath, setBodyFilePath] = useState<string>();
+  const [bodyFilePath2, setBodyFilePath2] = useState<string>();
+  const [bodyFile, setBodyFile] = useState<File>();
+  const [bodyFile2, setBodyFile2] = useState<File>();
+
+  const formInitial = initialBodyValues(initialValues || {});
 
   const {
     handleSubmit,
     watch,
     setValue,
     formState: { errors },
-  } = useForm({
+  } = useForm<CarBodyDamageModel>({
     reValidateMode: "onBlur",
     resolver: yupResolver(bodyDamageAddValidationSchema),
     defaultValues: formInitial,
@@ -82,132 +84,133 @@ const BodyDamageAdd: React.FC<CarDamageAddModalProps> = ({
   }, [formInitial.imagePath, formInitial.imagePath2]);
 
   const takeBodyPhoto = async () => {
-    const { file, path } = await takePhoto(carId);
-    setBodyFilePath(path);
+    const { file, path } = await takePhoto(String(carId));
     setBodyFile(file);
+    setBodyFilePath(path);
   };
 
   const takeBodyPhoto2 = async () => {
-    const { file, path } = await takePhoto(carId);
-    setBodyFilePath2(path);
+    const { file, path } = await takePhoto(String(carId));
     setBodyFile2(file);
+    setBodyFilePath2(path);
   };
 
   const onSubmit = useCallback(
     async (newCarDamage: CarBodyDamageModel) => {
-      let formData = newFormDataFromBodyDamage(
+      const formData = newFormDataFromBodyDamage(
         newCarDamage,
         bodyFile,
         bodyFile2
       );
 
-      const headers = {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      };
-      setisLoading(true);
+      setIsLoading(true);
+
       try {
         let responseCar: CarBodyDamageModel;
+
         if (newCarDamage.id) {
           const urlPatch = endpoints.BODY_DAMAGE_EDIT({
             pathVariables: {
-              id: newCarDamage.id,
+              id: String(newCarDamage.id), // ✅ string
             },
           });
-          const response = await api.patch(urlPatch, formData, headers);
+
+          const response = await api.patch(urlPatch, formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+
           responseCar = response.data;
         } else {
           const urlPost = endpoints.BODY_DAMAGE({
             pathVariables: {
-              id: carId,
+              id: String(carId), // ✅ string
             },
           });
-          const response = await api.post(urlPost, formData, headers);
+
+          const response = await api.post(urlPost, formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+
           responseCar = response.data;
         }
-        setisLoading(false);
+
+        setIsLoading(false);
         closeModal(responseCar);
-      } catch (e) {
-        setisLoading(false);
+      } catch (error) {
+        setIsLoading(false);
         showErrorAlert(TEXT.saveFailed);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bodyFile, bodyFile2]
+    [bodyFile, bodyFile2, carId, closeModal, showErrorAlert]
   );
 
   return (
-    <IonPage id="car-add-page">
+    <IonPage id="car-body-damage-add-page">
       <IonHeader>
         <IonToolbar>
           <IonButtons slot="start">
-            <IonButton color="danger" onClick={() => closeModal()}>
+            <IonButton color="medium" onClick={() => closeModal()}>
               {TEXT.cancel}
             </IonButton>
           </IonButtons>
+
           <IonTitle>{TEXT.addCarDamage}</IonTitle>
+
           <IonButtons slot="end">
-            <IonButton
-              disabled={isLoading}
-              strong={true}
-              onClick={handleSubmit(onSubmit)}
-            >
+            <IonButton disabled={isLoading} strong onClick={handleSubmit(onSubmit)}>
               {TEXT.save}
             </IonButton>
           </IonButtons>
-          {isLoading && <IonProgressBar type="indeterminate"></IonProgressBar>}
+
+          {isLoading && <IonProgressBar type="indeterminate" />}
         </IonToolbar>
       </IonHeader>
+
       <IonContent>
         <form>
           <FormDate
             id="date-car-damage"
-            initialValue={watch("date").toString()}
             label={TEXT.date}
             presentation="date"
-            formCallBack={(value: string) => {
-              setValue("date", value);
-            }}
+            initialValue={watch("date") ?? ""}
+            formCallBack={(value: string) => setValue("date", value)}
           />
+
           <FormSelectFilterAdd
             label={TEXT.part}
             errorsObj={errors}
             errorName="part"
-            formCallBack={(value: string) => {
-              setValue("part", value);
-            }}
-            initialValue={watch("part")}
+            initialValue={watch("part") ?? ""}
             options={BODY_DAMAGES}
             storageToken={BODY_DAMAGE_KEY}
+            formCallBack={(value: string) => setValue("part", value)}
             required
           />
+
           <FormCurrency
             label={TEXT.cost}
             errorsObj={errors}
             errorName="cost"
-            initialValue={watch("cost")}
+            initialValue={watch("cost") ?? ""}
             maxlength={20}
-            changeCallback={(value: number) => {
-              setValue("cost", value);
-            }}
+            changeCallback={(value: number) => setValue("cost", value)}
             required
           />
+
           <FormInput
             label={TEXT.responsible}
-            initialValue={watch("responsible")}
+            initialValue={watch("responsible") ?? ""}
             maxlength={50}
-            changeCallback={(value: string) => {
-              setValue("responsible", value);
-            }}
+            changeCallback={(value: string) => setValue("responsible", value)}
           />
+
           <FormToggle
             label={TEXT.resolved}
-            initialValue={watch("resolved")}
-            changeCallback={(value: boolean) => {
-              setValue("resolved", value);
-            }}
+            initialValue={watch("resolved") ?? false}
+            changeCallback={(value: boolean) => setValue("resolved", value)}
           />
+
+          {/* Foto 1 */}
           <IonItem>
             {bodyFilePath && (
               <IonThumbnail slot="start">
@@ -218,18 +221,15 @@ const BodyDamageAdd: React.FC<CarDamageAddModalProps> = ({
             )}
 
             <FormInputLabel
-              name={bodyFilePath ? TEXT.photo : TEXT.add + " " + TEXT.photo}
+              name={bodyFilePath ? TEXT.photo : `${TEXT.add} ${TEXT.photo}`}
             />
-            <IonButton
-              shape="round"
-              fill="outline"
-              slot="end"
-              onClick={() => takeBodyPhoto()}
-            >
-              <IonIcon slot="icon-only" icon={camera}></IonIcon>
+
+            <IonButton slot="end" fill="outline" onClick={takeBodyPhoto}>
+              <IonIcon icon={camera} />
             </IonButton>
           </IonItem>
 
+          {/* Foto 2 */}
           <IonItem>
             {bodyFilePath2 && (
               <IonThumbnail slot="start">
@@ -240,15 +240,11 @@ const BodyDamageAdd: React.FC<CarDamageAddModalProps> = ({
             )}
 
             <FormInputLabel
-              name={bodyFilePath2 ? TEXT.photo2 : TEXT.add + " " + TEXT.photo2}
+              name={bodyFilePath2 ? TEXT.photo2 : `${TEXT.add} ${TEXT.photo2}`}
             />
-            <IonButton
-              shape="round"
-              fill="outline"
-              slot="end"
-              onClick={() => takeBodyPhoto2()}
-            >
-              <IonIcon slot="icon-only" icon={camera}></IonIcon>
+
+            <IonButton slot="end" fill="outline" onClick={takeBodyPhoto2}>
+              <IonIcon icon={camera} />
             </IonButton>
           </IonItem>
         </form>

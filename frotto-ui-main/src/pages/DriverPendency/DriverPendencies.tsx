@@ -100,12 +100,22 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
     return cost;
   }, [driverPendencyList]);
 
-  const closeModal = useCallback((newDriverPendency: DriverPendencyModel) => {
-    if (newDriverPendency) {
-      loadDriverPendencys();
-    }
+  const closeModal = useCallback((response?: DriverPendencyModel) => {
     setIsModalOpen(false);
     nav.goBack();
+
+    if (!response) return;
+
+    setDriverPendencyList((prev) => {
+      if (response.delete && response.id !== undefined) {
+        return prev.filter((item) => item.id !== response.id);
+      }
+      const exists = prev.some((item) => item.id === response.id);
+      if (exists) {
+        return prev.map((item) => (item.id === response.id ? response : item));
+      }
+      return [response, ...prev];
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

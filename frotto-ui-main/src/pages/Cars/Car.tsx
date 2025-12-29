@@ -108,25 +108,27 @@ const Car: React.FC<CarDetail> = ({ match }) => {
     }
   }, [location]);
 
-  const closeEditCarModal = useCallback((editedCar: CarModel) => {
-    if (editedCar) {
-      setCar(editedCar);
-    }
+  const closeEditCarModal = useCallback((response?: CarModel) => {
     setEditCarModalOpen(false);
     nav.goBack();
+
+    if (!response) return;
+
+    setCar(response);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const closeEditDriverModal = useCallback((editedDriver: CarDriverModel) => {
-    if (editedDriver) {
-      if (editedDriver.concluded) {
-        setDriver(undefined);
-      } else {
-        setDriver(editedDriver);
-      }
-    }
+  const closeEditDriverModal = useCallback((response?: CarDriverModel) => {
     setEditDriverModalOpen(false);
     nav.goBack();
+
+    if (!response) return;
+
+    if (response.concluded) {
+      setDriver(undefined);
+    } else {
+      setDriver(response);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -164,24 +166,26 @@ const Car: React.FC<CarDetail> = ({ match }) => {
   }, [inspection]);
 
   const closeAddInspectionModal = useCallback(
-    (newInspection?: InspectionModel) => {
-      if (newInspection) {
-        loadCar();
-      }
+    (response?: InspectionModel) => {
       setAddInspectionModalOpen(false);
       nav.goBack();
+
+      if (!response) return;
+
+      loadCar();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [car]
   );
 
   const closeAddMaintenanceModal = useCallback(
-    (newMaintenance?: MaintenanceModel) => {
-      if (newMaintenance) {
-        loadCar();
-      }
+    (response?: MaintenanceModel) => {
       setAddMaintenanceModalOpen(false);
       nav.goBack();
+
+      if (!response) return;
+
+      loadCar();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [car]

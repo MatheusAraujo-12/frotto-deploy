@@ -35,9 +35,9 @@ import FormInputMask from "../../../components/Form/FormInputMask";
 import FormInputLabel from "../../../components/Form/FormInputLabel";
 
 interface DriverAddModalProps {
-  closeModal: Function;
+  closeModal: (response?: CarDriverModel) => void;
   initialValues?: CarDriverModel;
-  carId: String;
+  carId: string;
 }
 
 const DriverAdd: React.FC<DriverAddModalProps> = ({

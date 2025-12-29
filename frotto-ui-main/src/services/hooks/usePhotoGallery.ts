@@ -15,7 +15,7 @@ const createFile = async (
 };
 
 export function usePhotoGallery() {
-  const takePhoto = async (carId: String) => {
+  const takePhoto = async (carId: string) => {
     const photo = await Camera.getPhoto({
       resultType: CameraResultType.Uri,
       source: CameraSource.Prompt,

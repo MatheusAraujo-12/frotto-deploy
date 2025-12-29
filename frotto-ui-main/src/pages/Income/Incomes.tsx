@@ -85,12 +85,22 @@ const Incomes: React.FC<IncomeDetail> = ({ match }) => {
     return filterListObj(incomeList, searchValue);
   }, [incomeList, searchValue]);
 
-  const closeModal = useCallback((newIncome?: IncomeModel) => {
-    if (newIncome) {
-      loadIncomes();
-    }
+  const closeModal = useCallback((response?: IncomeModel) => {
     setIsModalOpen(false);
     nav.goBack();
+
+    if (!response) return;
+
+    setIncomesList((prev) => {
+      if (response.delete && response.id !== undefined) {
+        return prev.filter((item) => item.id !== response.id);
+      }
+      const exists = prev.some((item) => item.id === response.id);
+      if (exists) {
+        return prev.map((item) => (item.id === response.id ? response : item));
+      }
+      return [response, ...prev];
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

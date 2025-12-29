@@ -98,12 +98,19 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
     return { active: activeItem, done: doneList };
   }, [filteredList]);
 
-  const closeModal = useCallback((newDriver: CarDriverModel) => {
-    if (newDriver) {
-      loadDrivers();
-    }
+  const closeModal = useCallback((response?: CarDriverModel) => {
     setIsModalOpen(false);
     nav.goBack();
+
+    if (!response) return;
+
+    setDriversList((prev) => {
+      const exists = prev.some((item) => item.id === response.id);
+      if (exists) {
+        return prev.map((item) => (item.id === response.id ? response : item));
+      }
+      return [response, ...prev];
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
