@@ -1,15 +1,17 @@
 import uniq from "lodash/uniq";
 import qs from "qs";
 
-/**
- * Remove barras duplicadas
- */
+type Primitive = string | number | boolean | null | undefined;
+
 function safePath(path: string): string {
   return `${path}`.replace(/\/{2,}/g, "/");
 }
 
 /**
- * Normaliza URLs absolutas ou relativas
+ * Normaliza URL:
+ * - mantém http/https se existir
+ * - remove barras duplicadas
+ * - remove barra final
  */
 export function safeUrl(url: string): string {
   const string = `${url}`;
@@ -20,85 +22,104 @@ export function safeUrl(url: string): string {
   );
 
   const protocol = match ? `${match[0]}://` : "";
-
   return `${protocol}${clean}`.replace(/\/$/, "");
 }
 
-function apiEndpoint(path: string, scope = "api", staticQuery = {}) {
+/**
+ * Remove "/api" do fim do baseURL se alguém colocar isso no env,
+ * para evitar montar "https://.../api" + "/api/..." => "/api/api/..."
+ */
+export function normalizeBaseUrl(baseURL: string): string {
+  const clean = (baseURL || "").trim().replace(/\/$/, "");
+  if (!clean) return clean;
+  // remove apenas um "/api" no final, se existir
+  return clean.replace(/\/api$/, "");
+}
+
+type PathVariables = Record<string, Primitive>;
+type QueryValues = Record<string, Primitive>;
+
+type TransformArgs = {
+  pathVariables?: PathVariables;
+  query?: QueryValues;
+};
+
+function toStr(v: Primitive): string {
+  if (v === null || v === undefined) return "";
+  return String(v);
+}
+
+/**
+ * Cria um endpoint builder.
+ * Por padrão scope="api" -> retorna "/api/...."
+ * Se você quiser endpoints SEM "/api", passe scope="".
+ */
+function apiEndpoint(path: string, scope: string = "api", staticQuery: QueryValues = {}) {
   const pathWildcards = `${path}`.match(/{(\w+)}/g);
 
-  if (
-    process.env.NODE_ENV === "development" &&
-    Array.isArray(pathWildcards) &&
-    uniq(pathWildcards).length !== pathWildcards.length
-  ) {
-    console.error(
-      new Error(
-        `URL has two or more identical wildcards (${JSON.stringify(
-          pathWildcards
-        )}).`
-      )
-    );
+  if (Array.isArray(pathWildcards)) {
+    if (
+      process.env.NODE_ENV === "development" &&
+      uniq(pathWildcards).length !== pathWildcards.length
+    ) {
+      // eslint-disable-next-line no-console
+      console.error(
+        new Error(
+          `URL has two or more identical wildcards (${JSON.stringify(
+            pathWildcards
+          )}). This causes undeterministic behaviour.`
+        )
+      );
+    }
   }
 
-  interface CustomObj {
-    [key: string]: string;
-  }
-
-  interface QueryPathObj {
-    pathVariables?: CustomObj;
-    query?: CustomObj;
-  }
-
-  function transformPath({
-    pathVariables = {},
-    query = {},
-  }: QueryPathObj = {}) {
+  function transformPath({ pathVariables = {}, query = {} }: TransformArgs = {}) {
+    const queryValues: QueryValues = { ...staticQuery, ...query };
     let finalPath = path;
 
-    // Substitui wildcards
+    // Replace wildcards like {id}
     if (Array.isArray(pathWildcards)) {
       pathWildcards.forEach((wildcard) => {
         const key = wildcard.replace(/({|})/g, "");
-        finalPath = finalPath.replace(wildcard, pathVariables[key] || "");
+        finalPath = finalPath.replace(wildcard, toStr(pathVariables[key]));
       });
     }
 
-    if (Object.keys(query).length) {
-      finalPath = `${finalPath}?${qs.stringify({
-        ...staticQuery,
-        ...query,
-      })}`;
+    // Querystring
+    const cleanedQuery: Record<string, string> = {};
+    Object.keys(queryValues).forEach((k) => {
+      const v = queryValues[k];
+      if (v !== null && v !== undefined && `${v}`.length > 0) {
+        cleanedQuery[k] = String(v);
+      }
+    });
+
+    if (Object.keys(cleanedQuery).length) {
+      finalPath = `${finalPath}?${qs.stringify(cleanedQuery)}`;
     }
 
-    // Normalização segura
-    const normalizedPath = finalPath.startsWith("/")
-      ? finalPath
-      : `/${finalPath}`;
-
-    const normalizedScope = scope.replace(/^\/|\/$/g, "");
-
-    // 🔴 EVITA /api/api
-    const finalUrl = normalizedPath.startsWith(`/${normalizedScope}/`)
-      ? normalizedPath
-      : `/${normalizedScope}${normalizedPath}`;
-
-    return safeUrl(finalUrl);
+    // Monta /{scope}/{path} com segurança
+    const prefix = scope ? `/${scope}` : "";
+    return safeUrl(`${prefix}/${finalPath}`);
   }
 
-  transformPath.path = path;
+  // útil pra debug
+  (transformPath as any).path = path;
+  (transformPath as any).scope = scope;
+
   return transformPath;
 }
 
 /**
- * ENDPOINTS
- * Resultado FINAL:
- * AUTH() -> /api/authenticate
- * CARS() -> /api/cars
+ * IMPORTANTÍSSIMO:
+ * Se o seu backend já está atrás do NGINX do frontend em /api,
+ * e você quer evitar CORS, você pode usar baseURL="" e manter scope="api"
+ * => chamadas ficam relativas: "/api/authenticate".
  */
 const endpoints = {
   REGISTER: apiEndpoint("/register"),
   AUTH: apiEndpoint("/authenticate"),
+
   USER: apiEndpoint("/user/{id}"),
 
   CARS: apiEndpoint("/cars"),
