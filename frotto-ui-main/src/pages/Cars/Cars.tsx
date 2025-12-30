@@ -76,8 +76,9 @@ const Cars: React.FC = () => {
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const modalOpened = searchParams.get("modalOpened") === "true";
-    setIsAddCarModalOpen(modalOpened);
-  }, [location.search]);
+    const isCarsPage = location.pathname === "/menu/carros";
+    setIsAddCarModalOpen(isCarsPage && modalOpened);
+  }, [location.pathname, location.search]);
 
   const loadCars = useCallback(
     async (signal?: AbortSignal) => {
@@ -154,12 +155,15 @@ const Cars: React.FC = () => {
     (response?: CarModel) => {
       setIsAddCarModalOpen(false);
 
-      const searchParams = new URLSearchParams(location.search);
-      searchParams.delete("modalOpened");
-      history.replace({
-        pathname: location.pathname,
-        search: searchParams.toString(),
-      });
+      const isCarsPage = location.pathname === "/menu/carros";
+      if (isCarsPage) {
+        const searchParams = new URLSearchParams(location.search);
+        searchParams.delete("modalOpened");
+        history.replace({
+          pathname: location.pathname,
+          search: searchParams.toString(),
+        });
+      }
 
       if (!response) return;
 
@@ -212,18 +216,45 @@ const Cars: React.FC = () => {
 
     if (!selectedCar) {
       return (
-        <div style={{ padding: 16 }}>
-          <h3 style={{ marginTop: 0, marginBottom: 16 }}>
-            {`${TEXT.select} ${TEXT.car}`}
-          </h3>
-          <CarSelector cars={carList} onSelect={(car) => setSelectedCar(car)} />
-        </div>
+        <>
+          <IonHeader>
+            <IonToolbar>
+              <IonButtons slot="start">
+                <IonButton onClick={() => handleCloseActionModal()}>
+                  {TEXT.cancel}
+                </IonButton>
+              </IonButtons>
+
+              <IonTitle>
+                {selectedAction === "maintenance" && TEXT.addCarMaintenance}
+                {selectedAction === "reminder" && TEXT.reminder}
+                {selectedAction === "expense" && TEXT.carExpense}
+                {selectedAction === "income" && TEXT.income}
+              </IonTitle>
+            </IonToolbar>
+          </IonHeader>
+          <IonContent>
+            <div style={{ padding: 16 }}>
+              <h3 style={{ marginTop: 0, marginBottom: 16 }}>
+                {`${TEXT.select} ${TEXT.car}`}
+              </h3>
+              <CarSelector
+                cars={carList}
+                onSelect={(car) => setSelectedCar(car)}
+              />
+            </div>
+          </IonContent>
+        </>
       );
     }
 
+    const selectedCarId = selectedCar.id;
     const modalProps = {
       closeModal: handleCloseActionModal,
-      carId: String(selectedCar.id),
+      carId:
+        selectedCarId !== undefined && selectedCarId !== null
+          ? String(selectedCarId)
+          : undefined,
     };
 
     switch (selectedAction) {
@@ -329,32 +360,7 @@ const Cars: React.FC = () => {
         isOpen={isActionModalOpen}
         onDidDismiss={() => handleCloseActionModal()}
       >
-        <IonHeader>
-          <IonToolbar>
-            <IonButtons slot="start">
-              <IonButton onClick={() => handleCloseActionModal()}>
-                {TEXT.cancel}
-              </IonButton>
-            </IonButtons>
-
-            <IonTitle>
-              {selectedAction === "maintenance" && TEXT.addCarMaintenance}
-              {selectedAction === "reminder" && TEXT.reminder}
-              {selectedAction === "expense" && TEXT.carExpense}
-              {selectedAction === "income" && TEXT.income}
-            </IonTitle>
-
-            {selectedCar && (
-              <IonButtons slot="end">
-                <IonButton onClick={() => setSelectedCar(null)} color="medium">
-                  Trocar
-                </IonButton>
-              </IonButtons>
-            )}
-          </IonToolbar>
-        </IonHeader>
-
-        <IonContent>{renderActionModalContent()}</IonContent>
+        {renderActionModalContent()}
       </IonModal>
     </IonPage>
   );
