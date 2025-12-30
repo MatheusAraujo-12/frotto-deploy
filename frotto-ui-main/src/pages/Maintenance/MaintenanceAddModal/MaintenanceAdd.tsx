@@ -108,22 +108,29 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
   }, [carId, formInitial.id, showErrorAlert]);
 
   const loadCar = useCallback(async () => {
-    if (!carId) return;
+    const normalizedCarId = carId?.toString().trim();
+    if (!normalizedCarId || normalizedCarId === "undefined" || normalizedCarId === "null") {
+      return;
+    }
 
     if (abortControllerRef.current) abortControllerRef.current.abort();
     abortControllerRef.current = new AbortController();
 
     try {
-      const response = await api.get(endpoints.CAR({ pathVariables: { id: carId } }), {
+      const response = await api.get(
+        endpoints.CAR({ pathVariables: { id: normalizedCarId } }),
+        {
         signal: abortControllerRef.current.signal,
-      });
+        }
+      );
       setSelectedCar(response.data);
     } catch (error: any) {
-      if (error?.name !== "AbortError") {
-        // eslint-disable-next-line no-console
-        console.error("Erro ao carregar carro:", error);
-        showErrorAlert("Erro ao carregar informações do veículo");
-      }
+      const isCanceled =
+        error?.name === "AbortError" || error?.code === "ERR_CANCELED";
+      if (isCanceled) return;
+      // eslint-disable-next-line no-console
+      console.error("Erro ao carregar carro:", error);
+      showErrorAlert("Erro ao carregar informações do veículo");
     }
   }, [carId, showErrorAlert]);
 

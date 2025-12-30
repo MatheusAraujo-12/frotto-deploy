@@ -52,6 +52,10 @@ type QuickActionResponse =
   | ReminderModel
   | IncomeModel
   | CarExpenseModel;
+type CarListItem = CarModel & {
+  car?: CarModel;
+  carId?: number;
+};
 
 const Cars: React.FC = () => {
   const history = useHistory();
@@ -89,19 +93,27 @@ const Cars: React.FC = () => {
         });
 
         const data = response?.data ?? [];
-        let list: CarModel[] = [];
+        let list: CarListItem[] = [];
 
         if (Array.isArray(data)) {
-          list = data as CarModel[];
+          list = data;
         } else if (data && typeof data === "object") {
-          const anyData = data as any;
-          list = (anyData.items ||
-            anyData.content ||
-            anyData.data ||
-            []) as CarModel[];
+          const anyData = data as {
+            items?: CarListItem[];
+            content?: CarListItem[];
+            data?: CarListItem[];
+          };
+          list = anyData.items || anyData.content || anyData.data || [];
         }
 
-        setCarList(list);
+        setCarList(
+          list.map((item) => {
+            const { car, carId, ...rest } = item;
+            const baseCar = car ?? rest;
+            const resolvedId = baseCar.id ?? rest.id ?? carId;
+            return { ...rest, ...baseCar, id: resolvedId };
+          })
+        );
       } catch (error: any) {
         if (error?.name === "AbortError" || error?.code === "ERR_CANCELED") return;
 

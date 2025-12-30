@@ -141,6 +141,17 @@ ion-searchbar:focus-within {
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 
+.dark ion-item {
+  --color: var(--ion-text-color);
+}
+
+.dark ion-input,
+.dark ion-textarea,
+.dark ion-select {
+  --color: var(--ion-text-color);
+  --placeholder-color: var(--ion-color-medium);
+}
+
 .dark .menu-hero {
   background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.04);

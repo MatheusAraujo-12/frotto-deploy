@@ -17,6 +17,11 @@ type Props = {
   onSelect: (car: CarModel) => void;
 };
 
+type CarListItem = CarModel & {
+  car?: CarModel;
+  carId?: number;
+};
+
 const CarSelector: React.FC<Props> = ({ cars = [], onSelect }) => {
   const [search, setSearch] = useState<string>("");
   const [internalCars, setInternalCars] = useState<CarModel[]>([]);
@@ -29,16 +34,41 @@ const CarSelector: React.FC<Props> = ({ cars = [], onSelect }) => {
     let mounted = true;
     const controller = new AbortController();
 
+    const normalizeCars = (list: CarListItem[]) =>
+      list.map((item) => {
+        const { car, carId, ...rest } = item;
+        const baseCar = car ?? rest;
+        const resolvedId = baseCar.id ?? rest.id ?? carId;
+        return { ...rest, ...baseCar, id: resolvedId };
+      });
+
     const fetchCars = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        const { data } = await api.get(endpoints.CARS_ACTIVE?.() ?? endpoints.CARS(), {
-          signal: controller.signal,
-        });
+        const { data } = await api.get(
+          endpoints.CARS_ACTIVE?.() ?? endpoints.CARS(),
+          { signal: controller.signal }
+        );
 
-        if (mounted) setInternalCars(data || []);
+        if (mounted) {
+          if (Array.isArray(data)) {
+            setInternalCars(normalizeCars(data));
+            return;
+          }
+          if (data && typeof data === "object") {
+            const anyData = data as {
+              items?: CarListItem[];
+              content?: CarListItem[];
+              data?: CarListItem[];
+            };
+            const list = anyData.items || anyData.content || anyData.data || [];
+            setInternalCars(normalizeCars(list));
+            return;
+          }
+          setInternalCars([]);
+        }
       } catch (e: any) {
         if (e?.name !== "AbortError" && mounted) {
           console.error("Erro ao buscar carros:", e);
