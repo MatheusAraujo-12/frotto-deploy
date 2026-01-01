@@ -165,6 +165,13 @@ const Car: React.FC<CarDetail> = ({ match }) => {
     return {};
   }, [inspection]);
 
+  const maintenanceInitialValues = useMemo(
+    (): MaintenanceModel => ({
+      odometer: car.odometer,
+    }),
+    [car.odometer]
+  );
+
   const closeAddInspectionModal = useCallback(
     (response?: InspectionModel) => {
       setAddInspectionModalOpen(false);
@@ -428,9 +435,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
         <MaintenanceAdd
           carId={match.params.id}
           closeModal={closeAddMaintenanceModal}
-          initialValues={{
-            odometer: car.odometer,
-          }}
+          initialValues={maintenanceInitialValues}
         />
       </IonModal>
     </IonPage>
