@@ -163,7 +163,11 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
 
       if (!newServices) return;
 
-      setValue("services", newServices);
+      setValue("services", newServices, {
+        shouldValidate: true,
+        shouldDirty: true,
+        shouldTouch: true,
+      });
     },
     [history, location, setValue]
   );
@@ -330,7 +334,13 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
                 initialValue={date}
                 label={TEXT.date}
                 presentation="date"
-                formCallBack={(value: string) => setValue("date", value)}
+                formCallBack={(value: string) =>
+                  setValue("date", value, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                    shouldTouch: true,
+                  })
+                }
                 required
               />
 
@@ -341,7 +351,13 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
                 initialValue={odometer}
                 maxlength={15}
                 type="number"
-                changeCallback={(value: number) => setValue("odometer", value)}
+                changeCallback={(value: number) =>
+                  setValue("odometer", value, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                    shouldTouch: true,
+                  })
+                }
                 required
               />
 
@@ -351,7 +367,13 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
                 errorName="local"
                 initialValue={local}
                 maxlength={50}
-                changeCallback={(value: string) => setValue("local", value)}
+                changeCallback={(value: string) =>
+                  setValue("local", value, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                    shouldTouch: true,
+                  })
+                }
                 required
               />
 

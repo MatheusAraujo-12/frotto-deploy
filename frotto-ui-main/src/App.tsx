@@ -18,11 +18,15 @@ import "@ionic/react/css/display.css";
 import "./theme/variables.css";
 import "./theme/global.css";
 
-import { useEffect } from "react";
+import { Suspense, lazy, useEffect } from "react";
+import type { ComponentType, FC } from "react";
 import { Route } from "react-router-dom";
 import {
   IonApp,
+  IonContent,
+  IonPage,
   IonRouterOutlet,
+  IonSpinner,
   setupIonicReact,
   useIonRouter,
 } from "@ionic/react";
@@ -30,16 +34,41 @@ import { IonReactRouter } from "@ionic/react-router";
 import { getToken, removeToken } from "./services/localStorage/localstorage";
 import api from "./services/axios/axios";
 import Login from "./pages/Login/Login";
-import Menu from "./components/Menu/Menu";
 import Register from "./pages/Register/Register";
+const Menu = lazy(() => import("./components/Menu/Menu"));
 
 setupIonicReact();
+
+const PageFallback: FC = () => (
+  <IonPage>
+    <IonContent>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100%",
+        }}
+      >
+        <IonSpinner name="crescent" />
+      </div>
+    </IonContent>
+  </IonPage>
+);
+
+const renderWithSuspense =
+  (Component: ComponentType<any>) =>
+  (props: any) => (
+    <Suspense fallback={<PageFallback />}>
+      <Component {...props} />
+    </Suspense>
+  );
 
 /**
  * Componente auxiliar para lidar com lógica que precisa do Contexto do Roteador.
  * Isso evita erro de "useIonRouter must be used within an IonRouterContext".
  */
-const AppSetup: React.FC = () => {
+const AppSetup: FC = () => {
   const router = useIonRouter();
 
   useEffect(() => {
@@ -82,7 +111,7 @@ const AppSetup: React.FC = () => {
   return null; // Este componente não renderiza nada visualmente
 };
 
-const App: React.FC = () => {
+const App: FC = () => {
   return (
     <IonApp>
       <IonReactRouter>
@@ -92,7 +121,7 @@ const App: React.FC = () => {
         <IonRouterOutlet>
           <Route exact path="/" component={Login} />
           <Route exact path="/cadastro" component={Register} />
-          <Route path="/menu" component={Menu} />
+          <Route path="/menu" render={renderWithSuspense(Menu)} />
         </IonRouterOutlet>
       </IonReactRouter>
     </IonApp>
