@@ -143,6 +143,19 @@ ion-searchbar:focus-within {
 
 .dark ion-item {
   --color: var(--ion-text-color);
+  color: var(--ion-text-color);
+}
+
+.dark ion-label,
+.dark ion-list-header,
+.dark ion-card,
+.dark ion-card-title {
+  color: var(--ion-text-color);
+}
+
+.dark ion-card-subtitle,
+.dark ion-note {
+  color: var(--ion-color-medium);
 }
 
 .dark ion-input,
