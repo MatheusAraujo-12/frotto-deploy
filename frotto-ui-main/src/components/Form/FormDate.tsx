@@ -11,7 +11,7 @@ import styled from "styled-components";
 
 const MyIonModal = styled(IonModal)`
   height: 100%;
-  background-color: #aaaaaa99;
+  background-color: var(--app-modal-backdrop);
 `;
 
 export interface DateProps {

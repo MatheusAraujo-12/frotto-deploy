@@ -260,7 +260,7 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
             <div
               style={{
                 padding: 16,
-                backgroundColor: "var(--ion-color-light)",
+                backgroundColor: "var(--app-card)",
                 marginBottom: 16,
               }}
             >
@@ -339,7 +339,7 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
             style={{
               padding: 16,
               marginTop: 24,
-              backgroundColor: "var(--ion-color-light)",
+              backgroundColor: "var(--app-card)",
               borderRadius: 8,
             }}
           >

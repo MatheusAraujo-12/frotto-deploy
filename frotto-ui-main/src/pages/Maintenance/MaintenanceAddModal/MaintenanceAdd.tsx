@@ -312,7 +312,7 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
           )}
 
           {selectedCar && !carId && (
-            <div style={{ padding: 16, backgroundColor: "var(--ion-color-light)", marginBottom: 16 }}>
+            <div style={{ padding: 16, backgroundColor: "var(--app-card)", marginBottom: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
                   <strong style={{ fontSize: 16, display: "block" }}>{selectedCar.name}</strong>

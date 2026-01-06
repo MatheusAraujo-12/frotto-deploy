@@ -26,13 +26,13 @@ import styled from "styled-components";
 import FormItemWrapper from "./FormItemWrapper";
 
 const MyIonModal = styled(IonModal)`
-  background-color: #aaaaaa99;
+  background-color: var(--app-modal-backdrop);
   --height: 70%;
 `;
 
 const MyIonIcon = styled(IonIcon)`
   font-size: 15px;
-  color: #b8b3b3;
+  color: var(--ion-color-medium);
 `;
 
 export interface SelectFilterAddProps {

@@ -7,20 +7,32 @@
   --app-border: 1px solid #e2e8f0;
   --app-radius: 14px;
   --app-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  --app-shadow-hover: 0 18px 34px rgba(15, 23, 42, 0.12);
+  --app-card-glow: 0 0 0 rgba(0, 0, 0, 0);
+  --app-card-glow-hover: 0 0 0 rgba(0, 0, 0, 0);
+  --app-badge-bg: #fef3c7;
+  --app-badge-text: #92400e;
+  --app-modal-backdrop: rgba(15, 23, 42, 0.4);
 }
 
 .dark {
-  --app-gradient: linear-gradient(180deg, #0b1224 0%, #050915 100%);
-  --app-card: rgba(255,255,255,0.06);
-  --app-card-strong: rgba(255,255,255,0.04);
+  --app-gradient: radial-gradient(120% 120% at 10% 0%, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 55%), linear-gradient(180deg, #111318 0%, #0b0e12 100%);
+  --app-card: rgba(255,255,255,0.05);
+  --app-card-strong: rgba(255,255,255,0.08);
   --app-border: 1px solid rgba(255,255,255,0.08);
-  --app-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+  --app-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
+  --app-shadow-hover: 0 22px 42px rgba(0, 0, 0, 0.55);
+  --app-card-glow: 0 0 18px rgba(14, 165, 233, 0.14);
+  --app-card-glow-hover: 0 0 28px rgba(14, 165, 233, 0.2);
+  --app-badge-bg: rgba(251, 191, 36, 0.18);
+  --app-badge-text: #fbbf24;
+  --app-modal-backdrop: rgba(6, 8, 10, 0.65);
 }
 
 body,
 ion-app {
   font-family: "Poppins", "Segoe UI", system-ui, -apple-system, sans-serif;
-  background: #f7f9fc;
+  background: var(--ion-background-color);
   background-image: var(--app-gradient);
   color: var(--ion-text-color);
   min-height: 100vh;
@@ -28,7 +40,7 @@ ion-app {
 
 body.dark,
 .dark ion-app {
-  background: #050915;
+  background: var(--ion-background-color);
   background-image: var(--app-gradient);
 }
 
@@ -63,6 +75,10 @@ ion-button {
 ion-progress-bar {
   --background: #e2e8f0;
   --progress-background: linear-gradient(90deg, #0ea5e9 0%, #22d3ee 60%, #f97316 100%);
+}
+
+.dark ion-progress-bar {
+  --background: rgba(255,255,255,0.08);
 }
 
 ion-list {
@@ -171,7 +187,7 @@ ion-searchbar:focus-within {
 }
 
 .dark .app-menu {
-  --ion-background-color: rgba(5,9,21,0.96);
+  --ion-background-color: rgba(15,17,21,0.96);
   box-shadow: 8px 0 18px rgba(0, 0, 0, 0.32);
 }
 
@@ -338,6 +354,10 @@ ion-searchbar:focus-within {
   --background: #e0f2fe;
 }
 
+.dark .menu-item:hover {
+  --background: rgba(14, 165, 233, 0.12);
+}
+
 .menu-item ion-icon {
   color: var(--ion-color-primary);
 }
@@ -367,18 +387,23 @@ ion-searchbar:focus-within {
 /* Card principal */
 .car-card {
   --background: var(--ion-card-background);
+  background: var(--ion-card-background);
   border-radius: 18px;
   border: var(--app-border);
-  box-shadow: var(--app-shadow);
+  box-shadow: var(--app-shadow), var(--app-card-glow);
 
   padding: 16px 18px;
   cursor: pointer;
-  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
 } 
 
 .car-card:hover {
   transform: translateY(-1px);
-  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.12);
+  box-shadow: var(--app-shadow-hover), var(--app-card-glow-hover);
+}
+
+.dark .car-card:hover {
+  border-color: rgba(14, 165, 233, 0.32);
 }
 
 .car-card__main {
@@ -438,8 +463,8 @@ ion-searchbar:focus-within {
 }
 
 .car-card__badge--available {
-  background: #fef3c7; /* amarelo claro */
-  color: #92400e; /* texto âmbar escuro */
+  background: var(--app-badge-bg); /* amarelo claro */
+  color: var(--app-badge-text); /* texto âmbar escuro */
 }
 
 /* Coluna direita (pressão + ícones) */
@@ -505,7 +530,7 @@ ion-searchbar:focus-within {
   }
 
   ion-toolbar {
-    --background: #ffffff;
+    --background: var(--ion-toolbar-background);
     backdrop-filter: none;
   }
 }
