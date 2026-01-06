@@ -399,7 +399,7 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
                       <IonItem key={`service-${index}`}>
                         <IonLabel slot="start" class="ion-text-wrap">
                           <h3 style={{ margin: 0 }}>
-                            <IonText color="dark">{service.name}</IonText>
+                            <IonText>{service.name}</IonText>
                           </h3>
                           {!!desc && (
                             <p style={{ fontSize: 12, color: "var(--ion-color-medium)", margin: 0 }}>
@@ -408,7 +408,7 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
                           )}
                         </IonLabel>
                         <IonLabel slot="end">
-                          <IonText color="dark" style={{ fontWeight: 600 }}>
+                          <IonText style={{ fontWeight: 600 }}>
                             {currencyFormat(service.cost || 0)}
                           </IonText>
                         </IonLabel>

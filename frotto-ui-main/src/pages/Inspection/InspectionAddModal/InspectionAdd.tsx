@@ -402,7 +402,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                   }}
                 >
                   <IonLabel slot="end">
-                    <IonText color="dark">{currencyFormat(expense?.cost)}</IonText>
+                    <IonText>{currencyFormat(expense?.cost)}</IonText>
                   </IonLabel>
                   <IonLabel class="ion-text-wrap">
                     <h2>

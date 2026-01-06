@@ -24,7 +24,7 @@ const BodyDamage: React.FC<BodyDamageProps> = ({ carDamage }) => {
       </IonLabelLeft>
       <IonLabekRight>
         <h2>
-          <IonText color="dark">{currencyFormat(carDamage.cost)}</IonText>
+          <IonText>{currencyFormat(carDamage.cost)}</IonText>
         </h2>
         {!carDamage.resolved && (
           <IonBadge slot="start" color="warning">
