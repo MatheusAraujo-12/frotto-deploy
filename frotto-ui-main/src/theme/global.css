@@ -17,13 +17,13 @@
 
 .dark {
   --app-gradient: radial-gradient(120% 120% at 10% 0%, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 55%), linear-gradient(180deg, #111318 0%, #0b0e12 100%);
-  --app-card: rgba(255,255,255,0.05);
-  --app-card-strong: rgba(255,255,255,0.08);
-  --app-border: 1px solid rgba(255,255,255,0.08);
-  --app-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
-  --app-shadow-hover: 0 22px 42px rgba(0, 0, 0, 0.55);
-  --app-card-glow: 0 0 18px rgba(14, 165, 233, 0.14);
-  --app-card-glow-hover: 0 0 28px rgba(14, 165, 233, 0.2);
+  --app-card: rgba(255,255,255,0.08);
+  --app-card-strong: rgba(255,255,255,0.12);
+  --app-border: 1px solid rgba(255,255,255,0.14);
+  --app-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+  --app-shadow-hover: 0 24px 48px rgba(0, 0, 0, 0.6);
+  --app-card-glow: 0 0 20px rgba(14, 165, 233, 0.16);
+  --app-card-glow-hover: 0 0 30px rgba(14, 165, 233, 0.22);
   --app-badge-bg: rgba(251, 191, 36, 0.18);
   --app-badge-text: #fbbf24;
   --app-modal-backdrop: rgba(6, 8, 10, 0.65);
@@ -78,7 +78,7 @@ ion-progress-bar {
 }
 
 .dark ion-progress-bar {
-  --background: rgba(255,255,255,0.08);
+  --background: rgba(255,255,255,0.12);
 }
 
 ion-list {
@@ -122,11 +122,11 @@ ion-searchbar:focus-within {
 
 /* Dark theme overrides */
 .dark ion-searchbar {
-  --background: rgba(255,255,255,0.04);
+  --background: rgba(255,255,255,0.06);
   --color: var(--ion-text-color);
   --placeholder-color: var(--ion-color-medium);
   --icon-color: var(--ion-color-primary);
-  border: 1px solid rgba(255,255,255,0.06);
+  border: 1px solid var(--ion-border-color);
   box-shadow: none;
 
   /* keep same centered sizing */
@@ -154,11 +154,13 @@ ion-searchbar:focus-within {
 .dark ion-toolbar {
   --background: var(--ion-toolbar-background);
   --color: var(--ion-text-color);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid var(--ion-border-color);
 }
 
 .dark ion-item {
   --color: var(--ion-text-color);
+  --background: var(--ion-item-background);
+  --border-color: var(--ion-border-color);
   color: var(--ion-text-color);
 }
 
@@ -169,7 +171,17 @@ ion-searchbar:focus-within {
   color: var(--ion-text-color);
 }
 
-.dark ion-card-subtitle,
+.dark ion-card-title,
+.dark ion-list-header h2 {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.dark ion-card-subtitle {
+  color: var(--ion-color-medium);
+  font-weight: 600;
+}
+
 .dark ion-note {
   color: var(--ion-color-medium);
 }
@@ -182,13 +194,19 @@ ion-searchbar:focus-within {
 }
 
 .dark .menu-hero {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.04);
+  background: var(--app-card-strong);
+  border: var(--app-border);
 }
 
 .dark .app-menu {
   --ion-background-color: rgba(15,17,21,0.96);
   box-shadow: 8px 0 18px rgba(0, 0, 0, 0.32);
+}
+
+.dark ion-card:not(.car-card) {
+  --background: var(--ion-card-background);
+  border: var(--app-border);
+  box-shadow: var(--app-shadow);
 }
 
 
