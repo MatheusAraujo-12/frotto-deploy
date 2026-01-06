@@ -103,7 +103,8 @@ const Menu: FC = () => {
           <IonContent className="menu-content">
             <div className="menu-inner">
               <div className="menu-hero">
-                <h3>Controle sua frota sem esforço</h3>
+               <small>Frotto</small> 
+               <h3>Controle sua frota sem esforço</h3>
               </div>
               <IonMenuToggle>
                 <IonItem className="menu-item" routerLink="/menu/carros" routerDirection="none">
