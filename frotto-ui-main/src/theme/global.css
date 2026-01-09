@@ -16,17 +16,54 @@
 }
 
 .dark {
-  --app-gradient: radial-gradient(120% 120% at 10% 0%, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 55%), linear-gradient(180deg, #111318 0%, #0b0e12 100%);
-  --app-card: rgba(255,255,255,0.08);
-  --app-card-strong: rgba(255,255,255,0.12);
-  --app-border: 1px solid rgba(255,255,255,0.14);
+  /* =========================
+     Paleta baseada no modelo:
+     #0D1F23 (fundo)
+     #132E35 (card)
+     #2D4A53 (card forte)
+     #69818D (muted)
+     #AFB3B7 (texto secundário claro)
+     ========================= */
+
+  /* Ionic tokens (para as letras aparecerem em tudo) */
+  --ion-background-color: #0D1F23;
+  --ion-text-color: #E9EEF1;
+
+  /* “medium” é onde muita coisa fica cinza e some */
+  --ion-color-medium: #AFB3B7;
+
+  /* superfícies */
+  --ion-toolbar-background: rgba(19, 46, 53, 0.92);
+  --ion-card-background: rgba(19, 46, 53, 0.70);
+  --ion-item-background: rgba(19, 46, 53, 0.55);
+
+  /* bordas */
+  --ion-border-color: rgba(175, 179, 183, 0.18);
+
+  /* Seu app theme */
+  --app-gradient: radial-gradient(
+      120% 120% at 10% 0%,
+      rgba(175, 179, 183, 0.10) 0%,
+      rgba(175, 179, 183, 0) 55%
+    ),
+    linear-gradient(180deg, #132E35 0%, #0D1F23 100%);
+
+  --app-card: rgba(19, 46, 53, 0.62);
+  --app-card-strong: rgba(45, 74, 83, 0.55);
+  --app-border: 1px solid rgba(175, 179, 183, 0.18);
+
   --app-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
-  --app-shadow-hover: 0 24px 48px rgba(0, 0, 0, 0.6);
-  --app-card-glow: 0 0 20px rgba(14, 165, 233, 0.16);
-  --app-card-glow-hover: 0 0 30px rgba(14, 165, 233, 0.22);
-  --app-badge-bg: rgba(251, 191, 36, 0.18);
-  --app-badge-text: #fbbf24;
-  --app-modal-backdrop: rgba(6, 8, 10, 0.65);
+  --app-shadow-hover: 0 24px 48px rgba(0, 0, 0, 0.62);
+
+  /* Glow mais suave e alinhado com a paleta (sem neon) */
+  --app-card-glow: 0 0 22px rgba(105, 129, 141, 0.20);
+  --app-card-glow-hover: 0 0 34px rgba(105, 129, 141, 0.28);
+
+  /* Badge */
+  --app-badge-bg: rgba(105, 129, 141, 0.20);
+  --app-badge-text: #E9EEF1;
+
+  --app-modal-backdrop: rgba(6, 10, 12, 0.72);
 }
 
 body,
@@ -74,11 +111,16 @@ ion-button {
 
 ion-progress-bar {
   --background: #e2e8f0;
-  --progress-background: linear-gradient(90deg, #0ea5e9 0%, #22d3ee 60%, #f97316 100%);
+  --progress-background: linear-gradient(
+    90deg,
+    #0ea5e9 0%,
+    #22d3ee 60%,
+    #f97316 100%
+  );
 }
 
 .dark ion-progress-bar {
-  --background: rgba(255,255,255,0.12);
+  --background: rgba(255, 255, 255, 0.12);
 }
 
 ion-list {
@@ -102,7 +144,8 @@ ion-searchbar {
   --height: 44px;
   --padding-start: 14px;
   --padding-end: 14px;
-  transition: box-shadow 0.15s ease, transform 0.12s ease, border-color 0.12s ease;
+  transition: box-shadow 0.15s ease, transform 0.12s ease,
+    border-color 0.12s ease;
 }
 
 /* Focused searchbar */
@@ -122,10 +165,10 @@ ion-searchbar:focus-within {
 
 /* Dark theme overrides */
 .dark ion-searchbar {
-  --background: rgba(255,255,255,0.06);
+  --background: rgba(19, 46, 53, 0.55);
   --color: var(--ion-text-color);
   --placeholder-color: var(--ion-color-medium);
-  --icon-color: var(--ion-color-primary);
+  --icon-color: var(--ion-color-medium);
   border: 1px solid var(--ion-border-color);
   box-shadow: none;
 
@@ -139,8 +182,8 @@ ion-searchbar:focus-within {
 }
 
 .dark ion-searchbar:focus-within {
-  border-color: var(--ion-color-primary);
-  box-shadow: 0 10px 24px rgba(14, 165, 233, 0.06);
+  border-color: rgba(175, 179, 183, 0.30);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.30);
 }
 
 @media (max-width: 420px) {
@@ -199,7 +242,7 @@ ion-searchbar:focus-within {
 }
 
 .dark .app-menu {
-  --ion-background-color: rgba(15,17,21,0.96);
+  --ion-background-color: rgba(13, 31, 35, 0.96);
   box-shadow: 8px 0 18px rgba(0, 0, 0, 0.32);
 }
 
@@ -208,7 +251,6 @@ ion-searchbar:focus-within {
   border: var(--app-border);
   box-shadow: var(--app-shadow);
 }
-
 
 .section-shell {
   width: 100%;
@@ -251,7 +293,7 @@ ion-searchbar:focus-within {
 .auth-card p {
   margin: 0 0 12px;
   color: var(--ion-color-medium);
-} 
+}
 
 .auth-card form {
   margin-top: 10px;
@@ -274,7 +316,7 @@ ion-searchbar:focus-within {
 .auth-card ion-input {
   --color: var(--ion-text-color);
   --placeholder-color: var(--ion-color-medium);
-} 
+}
 
 .auth-actions {
   margin-top: 18px;
@@ -288,7 +330,7 @@ ion-searchbar:focus-within {
   justify-content: center;
   color: var(--ion-color-primary);
   font-weight: 600;
-} 
+}
 
 /* Menu */
 .app-menu {
@@ -301,7 +343,7 @@ ion-searchbar:focus-within {
   --background: transparent;
   --border-color: transparent;
   color: var(--ion-text-color);
-} 
+}
 
 .menu-content {
   --background: transparent;
@@ -331,7 +373,11 @@ ion-searchbar:focus-within {
   inset: -10% -12% auto auto;
   width: 120px;
   height: 120px;
-  background: radial-gradient(circle at 30% 30%, rgba(34, 211, 238, 0.16), rgba(249, 115, 22, 0.08));
+  background: radial-gradient(
+    circle at 30% 30%,
+    rgba(34, 211, 238, 0.16),
+    rgba(249, 115, 22, 0.08)
+  );
   filter: blur(6px);
 }
 
@@ -345,7 +391,7 @@ ion-searchbar:focus-within {
   color: var(--ion-color-warning);
   font-weight: 600;
   letter-spacing: 0.2px;
-} 
+}
 
 .menu-hero h3 {
   margin: 10px 0 4px;
@@ -357,7 +403,7 @@ ion-searchbar:focus-within {
   margin: 0;
   color: var(--ion-color-medium);
   line-height: 1.4;
-} 
+}
 
 .menu-item {
   --background: var(--ion-item-background);
@@ -366,14 +412,14 @@ ion-searchbar:focus-within {
   border: 1px solid var(--ion-border-color);
   margin: 2px 6px;
   font-weight: 600;
-} 
+}
 
 .menu-item:hover {
   --background: #e0f2fe;
 }
 
 .dark .menu-item:hover {
-  --background: rgba(14, 165, 233, 0.12);
+  --background: rgba(105, 129, 141, 0.18);
 }
 
 .menu-item ion-icon {
@@ -412,8 +458,9 @@ ion-searchbar:focus-within {
 
   padding: 16px 18px;
   cursor: pointer;
-  transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
-} 
+  transition: box-shadow 0.15s ease, transform 0.15s ease,
+    border-color 0.15s ease;
+}
 
 .car-card:hover {
   transform: translateY(-1px);
@@ -421,7 +468,7 @@ ion-searchbar:focus-within {
 }
 
 .dark .car-card:hover {
-  border-color: rgba(14, 165, 233, 0.32);
+  border-color: rgba(175, 179, 183, 0.30);
 }
 
 .car-card__main {
@@ -540,7 +587,6 @@ ion-searchbar:focus-within {
     order: 2;
   }
 }
-
 
 @media (max-width: 640px) {
   .auth-grid {
