@@ -127,7 +127,7 @@ export const createMaintenanceReport = (
 
 const openFile = (pdfObj: pdfMake.TCreatedPdf) => {
   const directory = Directory.Cache;
-  const fileName = "locamais_report.pdf";
+  const fileName = "frotto_report.pdf";
   if (isPlatform("cordova")) {
     try {
       pdfObj.getBase64(async (base64) => {

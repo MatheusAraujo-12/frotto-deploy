@@ -75,7 +75,7 @@ const Login: React.FC = () => {
               <img src={`${publicUrl}/assets/icon/icon.png`} alt={TEXT.appTitle} />
             </div>
             <h2>{TEXT.login}</h2>
-            <p>Acesse para acompanhar sua frota na frotto.</p>
+            <p>Acesse para acompanhar sua frota na Frotto.</p>
             <form onSubmit={handleSubmit(onSubmit)}>
               <FormInput
                 label={TEXT.email}
