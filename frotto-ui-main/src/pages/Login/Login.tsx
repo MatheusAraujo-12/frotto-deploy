@@ -24,6 +24,7 @@ const Login: React.FC = () => {
   const history = useIonRouter();
   const { showErrorAlert } = useAlert();
   const [isLoading, setisLoading] = useState(false);
+  const publicUrl = process.env.PUBLIC_URL || "";
   const {
     watch,
     setValue,
@@ -70,6 +71,9 @@ const Login: React.FC = () => {
       <IonContent className="auth-content" fullscreen>
         <div className="auth-grid">
           <section className="auth-card">
+            <div className="auth-logo">
+              <img src={`${publicUrl}/assets/icon/icon.png`} alt={TEXT.appTitle} />
+            </div>
             <h2>{TEXT.login}</h2>
             <p>Acesse para acompanhar sua frota na frotto.</p>
             <form onSubmit={handleSubmit(onSubmit)}>

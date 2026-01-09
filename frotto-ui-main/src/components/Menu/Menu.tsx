@@ -8,7 +8,6 @@ import {
   IonMenuToggle,
   IonPage,
   IonRouterOutlet,
-  IonSpinner,
   IonTitle,
   IonToolbar,
   IonLabel,
@@ -16,50 +15,23 @@ import {
   useIonRouter,
 } from "@ionic/react";
 import { Redirect, Route } from "react-router";
-import { Suspense, lazy, useEffect, useState } from "react";
-import type { ComponentType, FC } from "react";
+import React, { useState, useEffect } from "react";
+import BodyDamages from "../../pages/BodyDamage/BodyDamages";
+import Car from "../../pages/Cars/Car";
+import Cars from "../../pages/Cars/Cars";
+import Drivers from "../../pages/Driver/Drivers";
+import Inspections from "../../pages/Inspection/Inspections";
 import { car, clipboard, logOutOutline } from "ionicons/icons";
 import { removeToken } from "../../services/localStorage/localstorage";
 import { TEXT } from "../../constants/texts";
+import Maintenances from "../../pages/Maintenance/Maintenances";
+import Incomes from "../../pages/Income/Incomes";
+import CarExpenses from "../../pages/CarExpense/CarExpenses";
+import Reports from "../../pages/Reports/Reports";
+import Reminders from "../../pages/Reminders/Reminders";
+import DriverPendencies from "../../pages/DriverPendency/DriverPendencies";
 
-const BodyDamages = lazy(() => import("../../pages/BodyDamage/BodyDamages"));
-const Car = lazy(() => import("../../pages/Cars/Car"));
-const Cars = lazy(() => import("../../pages/Cars/Cars"));
-const Drivers = lazy(() => import("../../pages/Driver/Drivers"));
-const Inspections = lazy(() => import("../../pages/Inspection/Inspections"));
-const Maintenances = lazy(() => import("../../pages/Maintenance/Maintenances"));
-const Incomes = lazy(() => import("../../pages/Income/Incomes"));
-const CarExpenses = lazy(() => import("../../pages/CarExpense/CarExpenses"));
-const Reports = lazy(() => import("../../pages/Reports/Reports"));
-const Reminders = lazy(() => import("../../pages/Reminders/Reminders"));
-const DriverPendencies = lazy(() => import("../../pages/DriverPendency/DriverPendencies"));
-
-const PageFallback: FC = () => (
-  <IonPage>
-    <IonContent>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100%",
-        }}
-      >
-        <IonSpinner name="crescent" />
-      </div>
-    </IonContent>
-  </IonPage>
-);
-
-const renderWithSuspense =
-  (Component: ComponentType<any>) =>
-  (props: any) => (
-    <Suspense fallback={<PageFallback />}>
-      <Component {...props} />
-    </Suspense>
-  );
-
-const Menu: FC = () => {
+const Menu: React.FC = () => {
   const history = useIonRouter();
   const [isDark, setIsDark] = useState<boolean>(false);
 
@@ -103,8 +75,8 @@ const Menu: FC = () => {
           <IonContent className="menu-content">
             <div className="menu-inner">
               <div className="menu-hero">
-               <small>Frotto</small> 
-               <h3>Controle sua frota sem esforço</h3>
+                <small>Resumo rápido</small>
+                <h3>Controle sua frota sem esforço</h3>
               </div>
               <IonMenuToggle>
                 <IonItem className="menu-item" routerLink="/menu/carros" routerDirection="none">
@@ -142,37 +114,37 @@ const Menu: FC = () => {
           </IonContent>
         </IonMenu>
         <IonRouterOutlet id="main">
-          <Route exact path="/menu/carros" render={renderWithSuspense(Cars)} />
-          <Route exact path="/menu/carros/:id" render={renderWithSuspense(Car)} />
-          <Route exact path="/menu/carros/:id/danos" render={renderWithSuspense(BodyDamages)} />
-          <Route exact path="/menu/carros/:id/motoristas" render={renderWithSuspense(Drivers)} />
-          <Route exact path="/menu/carros/:id/receitas" render={renderWithSuspense(Incomes)} />
+          <Route exact path="/menu/carros" component={Cars} />
+          <Route exact path="/menu/carros/:id" component={Car} />
+          <Route exact path="/menu/carros/:id/danos" component={BodyDamages} />
+          <Route exact path="/menu/carros/:id/motoristas" component={Drivers} />
+          <Route exact path="/menu/carros/:id/receitas" component={Incomes} />
           <Route
             exact
             path="/menu/carros/:id/despesas"
-            render={renderWithSuspense(CarExpenses)}
+            component={CarExpenses}
           />
           <Route
             exact
             path="/menu/carros/:id/inspecoes"
-            render={renderWithSuspense(Inspections)}
+            component={Inspections}
           />
           <Route
             exact
             path="/menu/carros/:id/manutencoes"
-            render={renderWithSuspense(Maintenances)}
+            component={Maintenances}
           />
           <Route
             exact
             path="/menu/carros/:id/lembretes"
-            render={renderWithSuspense(Reminders)}
+            component={Reminders}
           />
           <Route
             exact
             path="/menu/carros/motorista/:id/pendencias"
-            render={renderWithSuspense(DriverPendencies)}
+            component={DriverPendencies}
           />
-          <Route exact path="/menu/relatorios" render={renderWithSuspense(Reports)} />
+          <Route exact path="/menu/relatorios" component={Reports} />
 
           <Route exact path="/menu">
             <Redirect to="/menu/carros" />
