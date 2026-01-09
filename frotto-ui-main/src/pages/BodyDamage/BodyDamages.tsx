@@ -143,53 +143,55 @@ const BodyDamages: React.FC<BodyDamageDetail> = ({ match }) => {
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <IonList>
-          <IonItem>
-            <IonLabel>
-              <h1>{TEXT.carDamagesActive}</h1>
-            </IonLabel>
-          </IonItem>
-          {activeDoneList.active.map((carDamage: CarBodyDamageModel, index) => {
-            return (
-              <IonItem
-                key={index}
-                button
-                onClick={() => {
-                  setModalCarDamage(carDamage);
-                  setIsModalOpen(true);
-                  nav.push(nav.location.pathname + "?modalOpened=true");
-                }}
-              >
-                <BodyDamage carDamage={carDamage} />
-              </IonItem>
-            );
-          })}
-          {!isLoading && activeDoneList.active.length === 0 && <ItemNotFound />}
-        </IonList>
-        <IonList>
-          <IonItem>
-            <IonLabel>
-              <h1>{TEXT.carDamagesDone}</h1>
-            </IonLabel>
-          </IonItem>
+        <div className="section-shell">
+          <IonList>
+            <IonItem>
+              <IonLabel>
+                <h1>{TEXT.carDamagesActive}</h1>
+              </IonLabel>
+            </IonItem>
+            {activeDoneList.active.map((carDamage: CarBodyDamageModel, index) => {
+              return (
+                <IonItem
+                  key={index}
+                  button
+                  onClick={() => {
+                    setModalCarDamage(carDamage);
+                    setIsModalOpen(true);
+                    nav.push(nav.location.pathname + "?modalOpened=true");
+                  }}
+                >
+                  <BodyDamage carDamage={carDamage} />
+                </IonItem>
+              );
+            })}
+            {!isLoading && activeDoneList.active.length === 0 && <ItemNotFound />}
+          </IonList>
+          <IonList>
+            <IonItem>
+              <IonLabel>
+                <h1>{TEXT.carDamagesDone}</h1>
+              </IonLabel>
+            </IonItem>
 
-          {activeDoneList.done.map((carDamage: CarBodyDamageModel, index) => {
-            return (
-              <IonItem
-                key={index}
-                button
-                onClick={() => {
-                  setModalCarDamage(carDamage);
-                  setIsModalOpen(true);
-                  nav.push(nav.location.pathname + "?modalOpened=true");
-                }}
-              >
-                <BodyDamage carDamage={carDamage} />
-              </IonItem>
-            );
-          })}
-          {!isLoading && activeDoneList.done.length === 0 && <ItemNotFound />}
-        </IonList>
+            {activeDoneList.done.map((carDamage: CarBodyDamageModel, index) => {
+              return (
+                <IonItem
+                  key={index}
+                  button
+                  onClick={() => {
+                    setModalCarDamage(carDamage);
+                    setIsModalOpen(true);
+                    nav.push(nav.location.pathname + "?modalOpened=true");
+                  }}
+                >
+                  <BodyDamage carDamage={carDamage} />
+                </IonItem>
+              );
+            })}
+            {!isLoading && activeDoneList.done.length === 0 && <ItemNotFound />}
+          </IonList>
+        </div>
       </IonContent>
       <IonModal isOpen={isModalOpen} backdropDismiss={false}>
         <BodyDamageAdd

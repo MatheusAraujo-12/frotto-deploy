@@ -133,71 +133,73 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <IonList>
-          <IonItem>
-            <IonLabel>
-              <h1>{TEXT.active}</h1>
-            </IonLabel>
-          </IonItem>
-
-          {activeDoneList.active && (
-            <IonItem
-              button
-              onClick={() => {
-                setModalDriver(activeDoneList.active!);
-                setIsModalOpen(true);
-                nav.push(nav.location.pathname + "?modalOpened=true");
-              }}
-            >
-              <IonLabelLeft class="ion-text-wrap">
-                <h2>{activeDoneList.active?.driver?.name}</h2>
-                <p>{formatCPF(activeDoneList.active?.driver?.cpf)}</p>
-                <p>{formatTel(activeDoneList.active?.driver?.contact)}</p>
-              </IonLabelLeft>
-              <IonLabekRight>
-                <p>{`${formatDateView(activeDoneList.active?.startDate)}`}</p>
-                <p>{currencyFormat(activeDoneList.active?.warranty)}</p>
-                <p>{`${activeDoneList.active?.driver?.email}`}</p>
-              </IonLabekRight>
+        <div className="section-shell">
+          <IonList>
+            <IonItem>
+              <IonLabel>
+                <h1>{TEXT.active}</h1>
+              </IonLabel>
             </IonItem>
-          )}
-          {!isLoading && !activeDoneList.active && <ItemNotFound />}
-        </IonList>
-        <IonList>
-          <IonItem>
-            <IonLabel>
-              <h1>{TEXT.carDamagesDone}</h1>
-            </IonLabel>
-          </IonItem>
 
-          {activeDoneList.done.map((carDriver: CarDriverModel, index) => {
-            return (
+            {activeDoneList.active && (
               <IonItem
-                key={index}
                 button
                 onClick={() => {
-                  setModalDriver(carDriver);
+                  setModalDriver(activeDoneList.active!);
                   setIsModalOpen(true);
                   nav.push(nav.location.pathname + "?modalOpened=true");
                 }}
               >
                 <IonLabelLeft class="ion-text-wrap">
-                  <h2>{carDriver?.driver?.name}</h2>
-                  <p>{formatCPF(carDriver?.driver?.cpf)}</p>
-                  <p>{formatTel(carDriver?.driver?.contact)}</p>
+                  <h2>{activeDoneList.active?.driver?.name}</h2>
+                  <p>{formatCPF(activeDoneList.active?.driver?.cpf)}</p>
+                  <p>{formatTel(activeDoneList.active?.driver?.contact)}</p>
                 </IonLabelLeft>
                 <IonLabekRight>
-                  <p>{`${formatDateView(
-                    carDriver?.startDate
-                  )} - ${formatDateView(carDriver?.endDate)}`}</p>
-                  <p>{currencyFormat(carDriver?.debt)}</p>
-                  <p>{`${carDriver?.driver?.email}`}</p>
+                  <p>{`${formatDateView(activeDoneList.active?.startDate)}`}</p>
+                  <p>{currencyFormat(activeDoneList.active?.warranty)}</p>
+                  <p>{`${activeDoneList.active?.driver?.email}`}</p>
                 </IonLabekRight>
               </IonItem>
-            );
-          })}
-          {!isLoading && activeDoneList.done.length === 0 && <ItemNotFound />}
-        </IonList>
+            )}
+            {!isLoading && !activeDoneList.active && <ItemNotFound />}
+          </IonList>
+          <IonList>
+            <IonItem>
+              <IonLabel>
+                <h1>{TEXT.carDamagesDone}</h1>
+              </IonLabel>
+            </IonItem>
+
+            {activeDoneList.done.map((carDriver: CarDriverModel, index) => {
+              return (
+                <IonItem
+                  key={index}
+                  button
+                  onClick={() => {
+                    setModalDriver(carDriver);
+                    setIsModalOpen(true);
+                    nav.push(nav.location.pathname + "?modalOpened=true");
+                  }}
+                >
+                  <IonLabelLeft class="ion-text-wrap">
+                    <h2>{carDriver?.driver?.name}</h2>
+                    <p>{formatCPF(carDriver?.driver?.cpf)}</p>
+                    <p>{formatTel(carDriver?.driver?.contact)}</p>
+                  </IonLabelLeft>
+                  <IonLabekRight>
+                    <p>{`${formatDateView(
+                      carDriver?.startDate
+                    )} - ${formatDateView(carDriver?.endDate)}`}</p>
+                    <p>{currencyFormat(carDriver?.debt)}</p>
+                    <p>{`${carDriver?.driver?.email}`}</p>
+                  </IonLabekRight>
+                </IonItem>
+              );
+            })}
+            {!isLoading && activeDoneList.done.length === 0 && <ItemNotFound />}
+          </IonList>
+        </div>
       </IonContent>
       <IonModal isOpen={isModalOpen} backdropDismiss={false}>
         <DriverAdd

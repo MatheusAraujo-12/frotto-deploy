@@ -121,30 +121,32 @@ const Inspections: React.FC<InspectionDetail> = ({ match }) => {
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <IonList>
-          {filteredList.map((inspection: InspectionModel, index) => {
-            return (
-              <IonItem
-                key={index}
-                button
-                onClick={() => {
-                  setModalInspection(inspection);
-                  setIsModalOpen(true);
-                  nav.push(nav.location.pathname + "?modalOpened=true");
-                }}
-              >
-                <IonLabelLeft class="ion-text-wrap">
-                  <h2>{formatDateView(inspection.date)}</h2>
-                  <p>{`${inspection.odometer} ${TEXT.km}`}</p>
-                </IonLabelLeft>
-                <IonLabekRight>
-                  <p>{currencyFormat(inspection.cost)}</p>
-                </IonLabekRight>
-              </IonItem>
-            );
-          })}
-          {!isLoading && filteredList.length === 0 && <ItemNotFound />}
-        </IonList>
+        <div className="section-shell">
+          <IonList>
+            {filteredList.map((inspection: InspectionModel, index) => {
+              return (
+                <IonItem
+                  key={index}
+                  button
+                  onClick={() => {
+                    setModalInspection(inspection);
+                    setIsModalOpen(true);
+                    nav.push(nav.location.pathname + "?modalOpened=true");
+                  }}
+                >
+                  <IonLabelLeft class="ion-text-wrap">
+                    <h2>{formatDateView(inspection.date)}</h2>
+                    <p>{`${inspection.odometer} ${TEXT.km}`}</p>
+                  </IonLabelLeft>
+                  <IonLabekRight>
+                    <p>{currencyFormat(inspection.cost)}</p>
+                  </IonLabekRight>
+                </IonItem>
+              );
+            })}
+            {!isLoading && filteredList.length === 0 && <ItemNotFound />}
+          </IonList>
+        </div>
       </IonContent>
       <IonModal isOpen={isModalOpen} backdropDismiss={false}>
         <InspectionAdd

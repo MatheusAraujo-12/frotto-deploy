@@ -210,7 +210,8 @@ const Car: React.FC<CarDetail> = ({ match }) => {
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <IonCard>
+        <div className="section-shell">
+          <IonCard>
           <IonCardSubtitle className="ion-margin-horizontal ion-margin-top">
             <IonText color="medium">
               <strong>{TEXT.carData}</strong>
@@ -253,8 +254,8 @@ const Car: React.FC<CarDetail> = ({ match }) => {
           >
             {TEXT.carExpenses}
           </IonButton>
-        </IonCard>
-        <IonCard>
+          </IonCard>
+          <IonCard>
           <IonCardSubtitle className="ion-margin-horizontal ion-margin-top">
             <IonText color="medium">
               <strong>{TEXT.driver}</strong>
@@ -307,8 +308,8 @@ const Car: React.FC<CarDetail> = ({ match }) => {
               {TEXT.driverPendencies}
             </IonButton>
           )}
-        </IonCard>
-        <IonCard>
+          </IonCard>
+          <IonCard>
           <IonCardSubtitle className="ion-margin-horizontal ion-margin-top">
             <IonText color="medium">
               <strong>{TEXT.lastInspection}</strong>
@@ -356,8 +357,8 @@ const Car: React.FC<CarDetail> = ({ match }) => {
           >
             {TEXT.damage}
           </IonButton>
-        </IonCard>
-        <IonCard>
+          </IonCard>
+          <IonCard>
           <IonCardSubtitle className="ion-margin-horizontal ion-margin-top">
             <IonText color="medium">
               <strong>{TEXT.lastMaintenance}</strong>
@@ -408,7 +409,8 @@ const Car: React.FC<CarDetail> = ({ match }) => {
           >
             {TEXT.reminders}
           </IonButton>
-        </IonCard>
+          </IonCard>
+        </div>
       </IonContent>
       <IonModal isOpen={editCarModalOpen} backdropDismiss={false}>
         <CarAdd closeModal={closeEditCarModal} initialValues={car} />

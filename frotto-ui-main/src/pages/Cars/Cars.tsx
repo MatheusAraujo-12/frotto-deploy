@@ -311,21 +311,23 @@ const Cars: React.FC = () => {
       </IonHeader>
 
       <IonContent scrollY forceOverscroll={true}>
-        <div className="cards-grid">
-          {filteredList.map((car: CarModel, index) => (
-            <CarListItem
-              key={car.id ?? `car-${index}`}
-              {...car}
-              onDeleted={handleDeleteCar}
-            />
-          ))}
-        </div>
-
-        {!isLoading && filteredList.length === 0 && (
-          <div className="cards-empty">
-            <ItemNotFound />
+        <div className="section-shell">
+          <div className="cards-grid">
+            {filteredList.map((car: CarModel, index) => (
+              <CarListItem
+                key={car.id ?? `car-${index}`}
+                {...car}
+                onDeleted={handleDeleteCar}
+              />
+            ))}
           </div>
-        )}
+
+          {!isLoading && filteredList.length === 0 && (
+            <div className="cards-empty">
+              <ItemNotFound />
+            </div>
+          )}
+        </div>
       </IonContent>
 
       <IonPopover

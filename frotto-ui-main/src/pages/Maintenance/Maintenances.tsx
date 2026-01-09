@@ -121,33 +121,35 @@ const Maintenances: React.FC<MaintenanceDetail> = ({ match }) => {
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <IonList>
-          {filteredList.map((maintenance: MaintenanceModel, index) => {
-            return (
-              <IonItem
-                key={index}
-                button
-                onClick={() => {
-                  setModalMaintenance(maintenance);
-                  setIsModalOpen(true);
-                  nav.push(nav.location.pathname + "?modalOpened=true");
-                }}
-              >
-                <IonLabel class="ion-text-wrap">
-                  <h2>{formatDateView(maintenance.date)}</h2>
-                  <p>
-                    {`${maintenance.odometer} ${TEXT.km}`}
-                    &nbsp;&nbsp;&nbsp;-&nbsp;&nbsp;&nbsp;
-                    {currencyFormat(maintenance.cost)}
-                  </p>
-                  <p>{maintenance.local}</p>
-                  <IonNote>{servicesToString(maintenance.services)}</IonNote>
-                </IonLabel>
-              </IonItem>
-            );
-          })}
-          {!isLoading && filteredList.length === 0 && <ItemNotFound />}
-        </IonList>
+        <div className="section-shell">
+          <IonList>
+            {filteredList.map((maintenance: MaintenanceModel, index) => {
+              return (
+                <IonItem
+                  key={index}
+                  button
+                  onClick={() => {
+                    setModalMaintenance(maintenance);
+                    setIsModalOpen(true);
+                    nav.push(nav.location.pathname + "?modalOpened=true");
+                  }}
+                >
+                  <IonLabel class="ion-text-wrap">
+                    <h2>{formatDateView(maintenance.date)}</h2>
+                    <p>
+                      {`${maintenance.odometer} ${TEXT.km}`}
+                      &nbsp;&nbsp;&nbsp;-&nbsp;&nbsp;&nbsp;
+                      {currencyFormat(maintenance.cost)}
+                    </p>
+                    <p>{maintenance.local}</p>
+                    <IonNote>{servicesToString(maintenance.services)}</IonNote>
+                  </IonLabel>
+                </IonItem>
+              );
+            })}
+            {!isLoading && filteredList.length === 0 && <ItemNotFound />}
+          </IonList>
+        </div>
       </IonContent>
       <IonModal isOpen={isModalOpen} backdropDismiss={false}>
         <MaintenanceAdd

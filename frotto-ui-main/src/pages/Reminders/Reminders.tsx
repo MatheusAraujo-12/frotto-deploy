@@ -129,24 +129,26 @@ const Reminders: React.FC<ReminderDetail> = ({ match }) => {
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <IonList>
-          {filteredList.map((reminder: ReminderModel, index) => {
-            return (
-              <IonItem
-                key={index}
-                button
-                onClick={() => {
-                  setModalReminderValue(reminder);
-                  setIsModalOpen(true);
-                  nav.push(nav.location.pathname + "?modalOpened=true");
-                }}
-              >
-                <p>{reminder.message}</p>
-              </IonItem>
-            );
-          })}
-          {!isLoading && filteredList.length === 0 && <ItemNotFound />}
-        </IonList>
+        <div className="section-shell">
+          <IonList>
+            {filteredList.map((reminder: ReminderModel, index) => {
+              return (
+                <IonItem
+                  key={index}
+                  button
+                  onClick={() => {
+                    setModalReminderValue(reminder);
+                    setIsModalOpen(true);
+                    nav.push(nav.location.pathname + "?modalOpened=true");
+                  }}
+                >
+                  <p>{reminder.message}</p>
+                </IonItem>
+              );
+            })}
+            {!isLoading && filteredList.length === 0 && <ItemNotFound />}
+          </IonList>
+        </div>
       </IonContent>
       <IonModal isOpen={isModalOpen} backdropDismiss={false}>
         <ReminderAdd

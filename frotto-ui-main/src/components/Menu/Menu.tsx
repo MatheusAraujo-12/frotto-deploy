@@ -75,7 +75,7 @@ const Menu: React.FC = () => {
           <IonContent className="menu-content">
             <div className="menu-inner">
               <div className="menu-hero">
-                <small>Resumo rápido</small>
+                <small>Painel do Locador</small>
                 <h3>Controle sua frota sem esforço</h3>
               </div>
               <IonMenuToggle>

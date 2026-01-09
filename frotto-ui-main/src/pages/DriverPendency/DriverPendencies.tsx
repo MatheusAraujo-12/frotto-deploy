@@ -150,39 +150,41 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <IonList>
-          <IonListHeader>
-            <IonLabel>
-              <p>
-                <strong>
-                  {TEXT.total} {currencyFormat(totalCost)}
-                </strong>
-              </p>
-            </IonLabel>
-          </IonListHeader>
-          {filteredList.map((driverPendency: DriverPendencyModel, index) => {
-            return (
-              <IonItem
-                key={index}
-                button
-                onClick={() => {
-                  setModalDriverPendencyValue(driverPendency);
-                  setIsModalOpen(true);
-                  nav.push(nav.location.pathname + "?modalOpened=true");
-                }}
-              >
-                <IonLabelLeft class="ion-text-wrap">
-                  <h2>{formatDateView(driverPendency.date)}</h2>
-                  <p>{driverPendency.name}</p>
-                </IonLabelLeft>
-                <IonLabekRight>
-                  <p>{currencyFormat(driverPendency.cost)}</p>
-                </IonLabekRight>
-              </IonItem>
-            );
-          })}
-          {!isLoading && filteredList.length === 0 && <ItemNotFound />}
-        </IonList>
+        <div className="section-shell">
+          <IonList>
+            <IonListHeader>
+              <IonLabel>
+                <p>
+                  <strong>
+                    {TEXT.total} {currencyFormat(totalCost)}
+                  </strong>
+                </p>
+              </IonLabel>
+            </IonListHeader>
+            {filteredList.map((driverPendency: DriverPendencyModel, index) => {
+              return (
+                <IonItem
+                  key={index}
+                  button
+                  onClick={() => {
+                    setModalDriverPendencyValue(driverPendency);
+                    setIsModalOpen(true);
+                    nav.push(nav.location.pathname + "?modalOpened=true");
+                  }}
+                >
+                  <IonLabelLeft class="ion-text-wrap">
+                    <h2>{formatDateView(driverPendency.date)}</h2>
+                    <p>{driverPendency.name}</p>
+                  </IonLabelLeft>
+                  <IonLabekRight>
+                    <p>{currencyFormat(driverPendency.cost)}</p>
+                  </IonLabekRight>
+                </IonItem>
+              );
+            })}
+            {!isLoading && filteredList.length === 0 && <ItemNotFound />}
+          </IonList>
+        </div>
       </IonContent>
       <IonModal isOpen={isModalOpen} backdropDismiss={false}>
         <DriverPendencyAdd

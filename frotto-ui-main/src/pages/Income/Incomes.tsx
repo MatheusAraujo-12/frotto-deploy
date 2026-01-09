@@ -135,30 +135,32 @@ const Incomes: React.FC<IncomeDetail> = ({ match }) => {
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <IonList>
-          {filteredList.map((income: IncomeModel, index) => {
-            return (
-              <IonItem
-                key={index}
-                button
-                onClick={() => {
-                  setModalIncomeValue(income);
-                  setIsModalOpen(true);
-                  nav.push(nav.location.pathname + "?modalOpened=true");
-                }}
-              >
-                <IonLabelLeft class="ion-text-wrap">
-                  <h2>{formatDateView(income.date)}</h2>
-                  <p>{income.name}</p>
-                </IonLabelLeft>
-                <IonLabekRight>
-                  <p>{currencyFormat(income.cost)}</p>
-                </IonLabekRight>
-              </IonItem>
-            );
-          })}
-          {!isLoading && filteredList.length === 0 && <ItemNotFound />}
-        </IonList>
+        <div className="section-shell">
+          <IonList>
+            {filteredList.map((income: IncomeModel, index) => {
+              return (
+                <IonItem
+                  key={index}
+                  button
+                  onClick={() => {
+                    setModalIncomeValue(income);
+                    setIsModalOpen(true);
+                    nav.push(nav.location.pathname + "?modalOpened=true");
+                  }}
+                >
+                  <IonLabelLeft class="ion-text-wrap">
+                    <h2>{formatDateView(income.date)}</h2>
+                    <p>{income.name}</p>
+                  </IonLabelLeft>
+                  <IonLabekRight>
+                    <p>{currencyFormat(income.cost)}</p>
+                  </IonLabekRight>
+                </IonItem>
+              );
+            })}
+            {!isLoading && filteredList.length === 0 && <ItemNotFound />}
+          </IonList>
+        </div>
       </IonContent>
       <IonModal isOpen={isModalOpen} backdropDismiss={false}>
         <IncomeAdd

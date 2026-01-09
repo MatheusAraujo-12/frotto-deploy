@@ -136,30 +136,32 @@ const CarExpenses: React.FC<CarExpenseDetail> = ({ match }) => {
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <IonList>
-          {filteredList.map((carExpense: CarExpenseModel, index) => {
-            return (
-              <IonItem
-                key={index}
-                button
-                onClick={() => {
-                  setModalCarExpense(carExpense);
-                  setIsModalOpen(true);
-                  nav.push(nav.location.pathname + "?modalOpened=true");
-                }}
-              >
-                <IonLabelLeft class="ion-text-wrap">
-                  <h2>{formatDateView(carExpense.date)}</h2>
-                  <p>{carExpense.name}</p>
-                </IonLabelLeft>
-                <IonLabekRight>
-                  <p>{currencyFormat(carExpense.cost)}</p>
-                </IonLabekRight>
-              </IonItem>
-            );
-          })}
-          {!isLoading && filteredList.length === 0 && <ItemNotFound />}
-        </IonList>
+        <div className="section-shell">
+          <IonList>
+            {filteredList.map((carExpense: CarExpenseModel, index) => {
+              return (
+                <IonItem
+                  key={index}
+                  button
+                  onClick={() => {
+                    setModalCarExpense(carExpense);
+                    setIsModalOpen(true);
+                    nav.push(nav.location.pathname + "?modalOpened=true");
+                  }}
+                >
+                  <IonLabelLeft class="ion-text-wrap">
+                    <h2>{formatDateView(carExpense.date)}</h2>
+                    <p>{carExpense.name}</p>
+                  </IonLabelLeft>
+                  <IonLabekRight>
+                    <p>{currencyFormat(carExpense.cost)}</p>
+                  </IonLabekRight>
+                </IonItem>
+              );
+            })}
+            {!isLoading && filteredList.length === 0 && <ItemNotFound />}
+          </IonList>
+        </div>
       </IonContent>
       <IonModal isOpen={isModalOpen} backdropDismiss={false}>
         <CarExpenseAdd

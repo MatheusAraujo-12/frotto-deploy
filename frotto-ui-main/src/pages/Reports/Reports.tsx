@@ -137,61 +137,63 @@ const Reports: React.FC<IncomeDetail> = () => {
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <form>
-          <FormSelect
-            label={TEXT.report}
-            options={Object.values(REPORTS)}
-            errorsObj={errors}
-            errorName="report"
-            initialValue={watch("report")}
-            changeCallback={(value: REPORTS) => {
-              setValue("report", value);
-              setReportValue(value);
-            }}
-            required
-          />
-          <FormSelect
-            label={TEXT.group}
-            options={groupList}
-            errorsObj={errors}
-            errorName="group"
-            initialValue={watch("group")}
-            changeCallback={(value: string) => {
-              setValue("group", value);
-            }}
-            required
-          />
-          {reportValue === REPORTS.month && (
-            <FormDate
-              id="date-reports"
-              initialValue={watch("date").toString()}
-              label={TEXT.date}
-              presentation="month-year"
-              formCallBack={(value: string) => {
-                setValue("date", value);
+        <div className="section-shell">
+          <form>
+            <FormSelect
+              label={TEXT.report}
+              options={Object.values(REPORTS)}
+              errorsObj={errors}
+              errorName="report"
+              initialValue={watch("report")}
+              changeCallback={(value: REPORTS) => {
+                setValue("report", value);
+                setReportValue(value);
               }}
+              required
             />
-          )}
-          {reportValue === REPORTS.maintenance && (
-            <FormDate
-              id="year-reports"
-              initialValue={watch("year").toString()}
-              label={TEXT.year}
-              presentation="year"
-              min="2021"
-              formCallBack={(value: string) => {
-                setValue("year", Number(value));
+            <FormSelect
+              label={TEXT.group}
+              options={groupList}
+              errorsObj={errors}
+              errorName="group"
+              initialValue={watch("group")}
+              changeCallback={(value: string) => {
+                setValue("group", value);
               }}
+              required
             />
-          )}
-          <IonButton
-            expand="block"
-            onClick={handleSubmit(onSubmit)}
-            disabled={isLoading}
-          >
-            {TEXT.generateReport}
-          </IonButton>
-        </form>
+            {reportValue === REPORTS.month && (
+              <FormDate
+                id="date-reports"
+                initialValue={watch("date").toString()}
+                label={TEXT.date}
+                presentation="month-year"
+                formCallBack={(value: string) => {
+                  setValue("date", value);
+                }}
+              />
+            )}
+            {reportValue === REPORTS.maintenance && (
+              <FormDate
+                id="year-reports"
+                initialValue={watch("year").toString()}
+                label={TEXT.year}
+                presentation="year"
+                min="2021"
+                formCallBack={(value: string) => {
+                  setValue("year", Number(value));
+                }}
+              />
+            )}
+            <IonButton
+              expand="block"
+              onClick={handleSubmit(onSubmit)}
+              disabled={isLoading}
+            >
+              {TEXT.generateReport}
+            </IonButton>
+          </form>
+        </div>
       </IonContent>
     </IonPage>
   );
