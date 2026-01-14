@@ -201,8 +201,8 @@ jhipster:
     contact-email:
     license: unlicensed
     license-url:
-  security:
-# ===================================================================
+
+
 # Application specific properties
 # Add your own application properties here, see the ApplicationProperties class
 # to have type-safe configuration, like in the JHipsterProperties above
