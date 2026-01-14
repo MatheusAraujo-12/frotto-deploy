@@ -70,14 +70,15 @@ jhipster:
   # ========================
   # CORS — JWT (SEM COOKIE)
   # ========================
-  cors:
-    allowed-origins: "https://frotto.com.br,https://www.frotto.com.br"
-    allowed-origin-patterns: ""
-    allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
-    allowed-headers: "*"
-    exposed-headers: "Authorization,Link,X-Total-Count"
-    allow-credentials: false
-    max-age: 1800
+cors:
+  # Web (domínios) + App (Capacitor roda com origin http://localhost)
+  allowed-origins: "http://localhost,capacitor://localhost,ionic://localhost,https://frotto.com.br,https://www.frotto.com.br"
+  allowed-origin-patterns: ""
+  allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
+  allowed-headers: "*"
+  exposed-headers: "Authorization,Link,X-Total-Count"
+  allow-credentials: false
+  max-age: 1800
 
   http:
     cache:
