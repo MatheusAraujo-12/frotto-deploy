@@ -1,35 +1,17 @@
-# ========================
-# STAGE 1: build do frontend
-# ========================
-FROM node:20-alpine AS build
+# ====== BUILD STAGE (Node) ======
+FROM node:18-alpine AS build
 WORKDIR /app
 
-# (Opcional) evita que CRA falhe por warnings em ambiente CI/CD
-ENV CI=false
-
-# Copia package.json / package-lock.json
-COPY package.json package-lock.json ./
-
-# Instala as dependências
+COPY package*.json ./
 RUN npm ci
 
-# Copia o restante do código
 COPY . .
+RUN npm run build
 
-# Diagnóstico (aparece no log do Coolify)
-RUN node -v && npm -v
-RUN echo "==== Listing src/pages (if exists) ====" \
-  && ls -la src || true \
-  && ls -la src/pages || true
-
-# Gera o build de produção (com log mais explícito)
-RUN npm run build -- --verbose
-
-# ========================
-# STAGE 2: nginx servindo estáticos
-# ========================
+# ====== RUNTIME STAGE (Nginx) ======
 FROM nginx:alpine
-COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/build /usr/share/nginx/html
+# Se seu build gerar /dist, troque /app/build por /app/dist
 
 EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
