@@ -15,17 +15,11 @@ management:
         enabled: false
 
 spring:
-  devtools:
-    restart:
-      enabled: false
-    livereload:
-      enabled: false
-
   datasource:
     type: com.zaxxer.hikari.HikariDataSource
-    url: jdbc:mysql://localmais-free-security.c0divoqwxfcq.us-east-1.rds.amazonaws.com:3306/localmais?useUnicode=true&characterEncoding=utf8&useSSL=false&useLegacyDatetimeCode=false&serverTimezone=UTC&createDatabaseIfNotExist=true
-    username: local56mais98
-    password: Na88TG56##!oPFerS#99&
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     hikari:
       poolName: Hikari
       auto-commit: false
@@ -36,11 +30,13 @@ spring:
         useServerPrepStmts: true
       max-lifetime: 30000
 
-  jpa:
-    open-in-view: false
-
   liquibase:
     contexts: prod
+    enabled: true
+
+  jpa:
+    hibernate:
+      ddl-auto: none
 
   mail:
     host: localhost
