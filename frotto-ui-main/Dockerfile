@@ -1,17 +1,24 @@
-# ====== BUILD STAGE (Node) ======
-FROM node:18-alpine AS build
+# ========================
+# STAGE 1: build do frontend
+# ========================
+FROM node:20-alpine AS build
 WORKDIR /app
 
-COPY package*.json ./
+ENV CI=false
+
+COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
 RUN npm run build
 
-# ====== RUNTIME STAGE (Nginx) ======
+# ========================
+# STAGE 2: nginx
+# ========================
 FROM nginx:alpine
+
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/build /usr/share/nginx/html
-# Se seu build gerar /dist, troque /app/build por /app/dist
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
