@@ -52,7 +52,7 @@ type QuickActionResponse =
   | ReminderModel
   | IncomeModel
   | CarExpenseModel;
-type CarListItem = CarModel & {
+type CarListItemData = CarModel & {
   car?: CarModel;
   carId?: number;
 };
@@ -94,15 +94,15 @@ const Cars: React.FC = () => {
         });
 
         const data = response?.data ?? [];
-        let list: CarListItem[] = [];
+        let list: CarListItemData[] = [];
 
         if (Array.isArray(data)) {
           list = data;
         } else if (data && typeof data === "object") {
           const anyData = data as {
-            items?: CarListItem[];
-            content?: CarListItem[];
-            data?: CarListItem[];
+            items?: CarListItemData[];
+            content?: CarListItemData[];
+            data?: CarListItemData[];
           };
           list = anyData.items || anyData.content || anyData.data || [];
         }

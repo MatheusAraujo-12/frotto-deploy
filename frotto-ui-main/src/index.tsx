@@ -1,4 +1,5 @@
 import { createRoot } from "react-dom/client";
+import "./types/react-html-attributes";
 import App from "./App";
 import * as serviceWorkerRegistration from "./serviceWorkerRegistration";
 import reportWebVitals from "./reportWebVitals";

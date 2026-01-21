@@ -84,15 +84,17 @@ const BodyDamageAdd: React.FC<CarDamageAddModalProps> = ({
   }, [formInitial.imagePath, formInitial.imagePath2]);
 
   const takeBodyPhoto = async () => {
-    const { file, path } = await takePhoto(String(carId));
-    setBodyFile(file);
-    setBodyFilePath(path);
+    const photo = await takePhoto(String(carId));
+    if (!photo) return;
+    setBodyFile(photo.file);
+    setBodyFilePath(photo.path);
   };
 
   const takeBodyPhoto2 = async () => {
-    const { file, path } = await takePhoto(String(carId));
-    setBodyFile2(file);
-    setBodyFilePath2(path);
+    const photo = await takePhoto(String(carId));
+    if (!photo) return;
+    setBodyFile2(photo.file);
+    setBodyFilePath2(photo.path);
   };
 
   const onSubmit = useCallback(
