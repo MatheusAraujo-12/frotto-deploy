@@ -13,7 +13,9 @@ const marginTop: [number, number, number, number] = [0, 15, 0, 0];
 const marginBottom: [number, number, number, number] = [0, 0, 0, 15];
 const marginBottom30: [number, number, number, number] = [0, 0, 0, 45];
 
-(pdfMake as any).vfs = (pdfFonts as any).pdfMake.vfs;
+const vfsFonts =
+  (pdfFonts as any).pdfMake?.vfs || (pdfFonts as any).default || (pdfFonts as any);
+(pdfMake as any).vfs = vfsFonts;
 
 export const createMonthlyReport = (reportsMonthly: ReportsMonthly) => {
   const docRef = {
