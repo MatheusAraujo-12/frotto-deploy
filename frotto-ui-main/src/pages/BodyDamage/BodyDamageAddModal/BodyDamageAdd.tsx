@@ -138,9 +138,14 @@ const BodyDamageAdd: React.FC<CarDamageAddModalProps> = ({
 
         setIsLoading(false);
         closeModal(responseCar);
-      } catch (error) {
+      } catch (error: any) {
         setIsLoading(false);
-        showErrorAlert(TEXT.saveFailed);
+        const errorMessage =
+          error?.response?.data?.message ||
+          error?.response?.data?.detail ||
+          error?.message ||
+          TEXT.saveFailed;
+        showErrorAlert(errorMessage);
       }
     },
     [bodyFile, bodyFile2, carId, closeModal, showErrorAlert]
