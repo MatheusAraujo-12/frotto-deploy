@@ -97,9 +97,20 @@ public class CarBodyDamageResource {
             throw new BadRequestAlertException("Car not found for current user", ENTITY_NAME, "notcurrentuser");
         }
         carBodyDamage.setCar(existingCarOpt.get());
-        String filePath = awsS3Service.uploadFile(bodyDamageDto.getFile(), "01");
+        String filePath = "";
+        if (hasMultipartFile(bodyDamageDto.getFile())) {
+            filePath = awsS3Service.uploadFile(bodyDamageDto.getFile(), "01");
+        } else if (hasBase64(bodyDamageDto.getFileBase64())) {
+            filePath = awsS3Service.uploadBase64(bodyDamageDto.getFileBase64(), "01");
+        }
         carBodyDamage.setImagePath(filePath);
-        String filePath2 = awsS3Service.uploadFile(bodyDamageDto.getFile2(), "02");
+
+        String filePath2 = "";
+        if (hasMultipartFile(bodyDamageDto.getFile2())) {
+            filePath2 = awsS3Service.uploadFile(bodyDamageDto.getFile2(), "02");
+        } else if (hasBase64(bodyDamageDto.getFile2Base64())) {
+            filePath2 = awsS3Service.uploadBase64(bodyDamageDto.getFile2Base64(), "02");
+        }
         carBodyDamage.setImagePath2(filePath2);
         CarBodyDamage result = carBodyDamageRepository.save(carBodyDamage);
         return ResponseEntity
@@ -157,18 +168,22 @@ public class CarBodyDamageResource {
         if (carBodyDamage.getPart() != null) {
             existingCarBodyDamage.setPart(carBodyDamage.getPart());
         }
-        if (carBodyDamage.getFile() != null && !carBodyDamage.getFile().isEmpty()) {
+        if (hasMultipartFile(carBodyDamage.getFile()) || hasBase64(carBodyDamage.getFileBase64())) {
             if (existingCarBodyDamage.getImagePath() != null && !existingCarBodyDamage.getImagePath().isEmpty()) {
                 awsS3Service.deleteFile(existingCarBodyDamage.getImagePath());
             }
-            String filePath = awsS3Service.uploadFile(carBodyDamage.getFile(), "01");
+            String filePath = hasMultipartFile(carBodyDamage.getFile())
+                ? awsS3Service.uploadFile(carBodyDamage.getFile(), "01")
+                : awsS3Service.uploadBase64(carBodyDamage.getFileBase64(), "01");
             existingCarBodyDamage.setImagePath(filePath);
         }
-        if (carBodyDamage.getFile2() != null && !carBodyDamage.getFile2().isEmpty()) {
+        if (hasMultipartFile(carBodyDamage.getFile2()) || hasBase64(carBodyDamage.getFile2Base64())) {
             if (existingCarBodyDamage.getImagePath2() != null && !existingCarBodyDamage.getImagePath2().isEmpty()) {
                 awsS3Service.deleteFile(existingCarBodyDamage.getImagePath2());
             }
-            String filePath2 = awsS3Service.uploadFile(carBodyDamage.getFile2(), "02");
+            String filePath2 = hasMultipartFile(carBodyDamage.getFile2())
+                ? awsS3Service.uploadFile(carBodyDamage.getFile2(), "02")
+                : awsS3Service.uploadBase64(carBodyDamage.getFile2Base64(), "02");
             existingCarBodyDamage.setImagePath2(filePath2);
         }
         if (carBodyDamage.getCost() != null) {
@@ -199,5 +214,13 @@ public class CarBodyDamageResource {
         carBodyDamage.setCost(dto.getCost());
         carBodyDamage.setResolved(dto.getResolved());
         return carBodyDamage;
+    }
+
+    private boolean hasMultipartFile(MultipartFile file) {
+        return file != null && !file.isEmpty();
+    }
+
+    private boolean hasBase64(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 }

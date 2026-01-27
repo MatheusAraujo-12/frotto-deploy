@@ -24,6 +24,10 @@ public class BodyDamageDTO {
 
     private MultipartFile file2;
 
+    private String fileBase64;
+
+    private String file2Base64;
+
     public Long getId() {
         return id;
     }
@@ -94,6 +98,22 @@ public class BodyDamageDTO {
 
     public void setFile2(MultipartFile file2) {
         this.file2 = file2;
+    }
+
+    public String getFileBase64() {
+        return fileBase64;
+    }
+
+    public void setFileBase64(String fileBase64) {
+        this.fileBase64 = fileBase64;
+    }
+
+    public String getFile2Base64() {
+        return file2Base64;
+    }
+
+    public void setFile2Base64(String file2Base64) {
+        this.file2Base64 = file2Base64;
     }
 
     public String toString() {
