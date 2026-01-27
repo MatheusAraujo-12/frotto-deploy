@@ -165,7 +165,7 @@ public class ExceptionTranslator implements ProblemHandling, SecurityAdviceTrait
             .builder()
             .withType(ErrorConstants.DEFAULT_TYPE)
             .withTitle("Upload size limit exceeded")
-            .withStatus(Status.PAYLOAD_TOO_LARGE)
+            .withStatus(Status.REQUEST_ENTITY_TOO_LARGE)
             .withDetail("File too large")
             .with(MESSAGE_KEY, "error.upload.size")
             .build();
