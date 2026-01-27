@@ -21,6 +21,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.NativeWebRequest;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import org.zalando.problem.DefaultProblem;
 import org.zalando.problem.Problem;
 import org.zalando.problem.ProblemBuilder;
@@ -155,6 +157,32 @@ public class ExceptionTranslator implements ProblemHandling, SecurityAdviceTrait
             request,
             HeaderUtil.createFailureAlert(applicationName, false, ex.getEntityName(), ex.getErrorKey(), ex.getMessage())
         );
+    }
+
+    @ExceptionHandler
+    public ResponseEntity<Problem> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex, NativeWebRequest request) {
+        Problem problem = Problem
+            .builder()
+            .withType(ErrorConstants.DEFAULT_TYPE)
+            .withTitle("Upload size limit exceeded")
+            .withStatus(Status.PAYLOAD_TOO_LARGE)
+            .withDetail("File too large")
+            .with(MESSAGE_KEY, "error.upload.size")
+            .build();
+        return create(ex, problem, request);
+    }
+
+    @ExceptionHandler
+    public ResponseEntity<Problem> handleMultipartException(MultipartException ex, NativeWebRequest request) {
+        Problem problem = Problem
+            .builder()
+            .withType(ErrorConstants.DEFAULT_TYPE)
+            .withTitle("Invalid multipart request")
+            .withStatus(Status.BAD_REQUEST)
+            .withDetail("Failed to parse multipart request")
+            .with(MESSAGE_KEY, "error.multipart")
+            .build();
+        return create(ex, problem, request);
     }
 
     @ExceptionHandler
