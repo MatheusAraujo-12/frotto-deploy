@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog-ext.xsd">
+
+    <!--
+        Update the entity Car: charge fixed commission on loss.
+    -->
+    <changeSet id="20260205000001-1" author="codex">
+        <addColumn tableName="car">
+            <column name="commission_charge_on_loss" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="true" />
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="20260205000001-2" author="codex">
+        <update tableName="car">
+            <column name="commission_charge_on_loss" valueBoolean="false" />
+            <where>commission_charge_on_loss IS NULL</where>
+        </update>
+    </changeSet>
+
+</databaseChangeLog>

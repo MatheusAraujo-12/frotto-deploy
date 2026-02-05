@@ -27,6 +27,7 @@ import FormInput from "../../../components/Form/FormInput";
 import FormSelect from "../../../components/Form/FormSelect";
 import FormDeleteButton from "../../../components/Form/FormDeleteButton";
 import FormCurrency from "../../../components/Form/FormCurrency";
+import FormToggle from "../../../components/Form/FormToggle";
 
 interface CarAddModalProps {
   closeModal: (response?: CarModel) => void;
@@ -199,17 +200,28 @@ const CarAdd: React.FC<CarAddModalProps> = ({ closeModal, initialValues }) => {
             />
           )}
           {watch("commissionType") === "FIXED" && (
-            <FormCurrency
-              label={TEXT.commissionFixed}
-              errorsObj={errors}
-              errorName="commissionFixed"
-              initialValue={watch("commissionFixed")}
-              maxlength={15}
-              changeCallback={(value: number) => {
-                setValue("commissionFixed", value);
-              }}
-              required
-            />
+            <>
+              <FormCurrency
+                label={TEXT.commissionFixed}
+                errorsObj={errors}
+                errorName="commissionFixed"
+                initialValue={watch("commissionFixed")}
+                maxlength={15}
+                changeCallback={(value: number) => {
+                  setValue("commissionFixed", value);
+                }}
+                required
+              />
+              <FormToggle
+                label={TEXT.commissionChargeOnLoss}
+                errorsObj={errors}
+                errorName="commissionChargeOnLoss"
+                initialValue={!!watch("commissionChargeOnLoss")}
+                changeCallback={(value: boolean) => {
+                  setValue("commissionChargeOnLoss", value);
+                }}
+              />
+            </>
           )}
           <FormCurrency
             label={TEXT.initialValue}

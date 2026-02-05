@@ -16,6 +16,7 @@ public class CarFormDTO {
     private Float administrationFee;
     private CommissionType commissionType;
     private BigDecimal commissionFixed;
+    private Boolean commissionChargeOnLoss;
     private BigDecimal initialValue;
     private Integer year;
     private String group;
@@ -101,6 +102,14 @@ public class CarFormDTO {
         this.commissionFixed = commissionFixed;
     }
 
+    public Boolean getCommissionChargeOnLoss() {
+        return commissionChargeOnLoss;
+    }
+
+    public void setCommissionChargeOnLoss(Boolean commissionChargeOnLoss) {
+        this.commissionChargeOnLoss = commissionChargeOnLoss;
+    }
+
     public BigDecimal getInitialValue() {
         return initialValue;
     }
@@ -144,6 +153,7 @@ public class CarFormDTO {
         car.setCommissionPercent(commissionPercent != null ? commissionPercent : administrationFee);
         car.setCommissionType(commissionType);
         car.setCommissionFixed(commissionFixed);
+        car.setCommissionChargeOnLoss(commissionChargeOnLoss);
         car.setInitialValue(initialValue);
         car.setYear(year);
         car.setGroup(group);

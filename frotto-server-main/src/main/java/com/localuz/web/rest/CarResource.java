@@ -198,6 +198,9 @@ public class CarResource {
             throw new BadRequestAlertException("A new car cannot have an empty User", ENTITY_NAME, "emptyuser");
         }
         applyCommissionDefaults(car);
+        if (car.getCommissionChargeOnLoss() == null) {
+            car.setCommissionChargeOnLoss(false);
+        }
         if (car.getCommissionType() == null) {
             car.setCommissionType(CommissionType.PERCENT_PROFIT);
         }
@@ -259,6 +262,9 @@ public class CarResource {
         }
         if (car.getCommissionFixed() != null) {
             existingCar.setCommissionFixed(car.getCommissionFixed());
+        }
+        if (car.getCommissionChargeOnLoss() != null) {
+            existingCar.setCommissionChargeOnLoss(car.getCommissionChargeOnLoss());
         }
         if (car.getInitialValue() != null) {
             existingCar.setInitialValue(car.getInitialValue());

@@ -35,6 +35,7 @@
     <include file="config/liquibase/changelog/20230102000000_add_entity_CarExpense.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20230109000000_update_entity_Car.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260205000000_update_entity_Car_commission.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260205000001_update_entity_Car_commission_charge_on_loss.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20230113000000_add_entity_CarHistory.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20230114000000_update_entity_CarHistory.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20230114000001_update_entity_CarHistory.xml" relativeToChangelogFile="false"/>

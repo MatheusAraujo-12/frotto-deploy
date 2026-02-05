@@ -12,7 +12,7 @@ public final class CommissionCalculator {
     private CommissionCalculator() {}
 
     public static BigDecimal calcCommission(BigDecimal profit, Car car) {
-        if (profit == null || profit.compareTo(ZERO) <= 0 || car == null) {
+        if (profit == null || car == null) {
             return ZERO;
         }
 
@@ -21,7 +21,14 @@ public final class CommissionCalculator {
             if (car.getCommissionFixed() == null || car.getCommissionFixed().compareTo(ZERO) < 0) {
                 return ZERO;
             }
+            if (profit.compareTo(ZERO) <= 0 && !Boolean.TRUE.equals(car.getCommissionChargeOnLoss())) {
+                return ZERO;
+            }
             return car.getCommissionFixed();
+        }
+
+        if (profit.compareTo(ZERO) <= 0) {
+            return ZERO;
         }
 
         Float commissionPercent = car.getCommissionPercent();
