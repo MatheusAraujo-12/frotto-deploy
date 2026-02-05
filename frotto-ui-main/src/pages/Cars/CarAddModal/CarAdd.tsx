@@ -21,7 +21,7 @@ import {
 import FormDate from "../../../components/Form/FormDate";
 import api from "../../../services/axios/axios";
 import endpoints from "../../../constants/endpoints";
-import { CarModel } from "../../../constants/CarModels";
+import { CarModel, CommissionType } from "../../../constants/CarModels";
 import { COLORS, COMMISSION_TYPES } from "../../../constants/selectOptions";
 import FormInput from "../../../components/Form/FormInput";
 import FormSelect from "../../../components/Form/FormSelect";
@@ -180,7 +180,7 @@ const CarAdd: React.FC<CarAddModalProps> = ({ closeModal, initialValues }) => {
             errorName="commissionType"
             initialValue={watch("commissionType")}
             changeCallback={(value: string) => {
-              setValue("commissionType", value);
+              setValue("commissionType", value as CommissionType);
             }}
             required
           />
