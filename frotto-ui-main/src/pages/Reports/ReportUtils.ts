@@ -4,6 +4,8 @@ import {
   formatDateViewMMYYYY,
   stringDateToMonthYear,
 } from "../../services/dateFormat";
+import { CommissionConfig } from "../../constants/CarModels";
+import { calcCommission } from "../../services/commission";
 
 export interface ReportsMonthly {
   group: string;
@@ -45,7 +47,7 @@ interface CarHistory {
   odometer: number;
 }
 
-export interface ReportDTO {
+export interface ReportDTO extends CommissionConfig {
   carId: number;
   carName: string;
   color: string;
@@ -122,6 +124,13 @@ export const createContentReportMonthly = (reportsMonthly: ReportsMonthly) => {
   });
 
   reportsMonthly.reportsDTO.forEach((reportDto) => {
+    const profit = reportDto.earnings - reportDto.expenses;
+    const computedAdminFee = calcCommission(profit, reportDto);
+    const adminFeeValue =
+      reportDto.adminFee ?? computedAdminFee;
+    const netEarningsValue =
+      reportDto.netEarnings ?? profit - adminFeeValue;
+
     content.push({
       stack: [
         {
@@ -154,8 +163,8 @@ export const createContentReportMonthly = (reportsMonthly: ReportsMonthly) => {
                 currencyFormat(reportDto.earnings),
                 currencyFormat(reportDto.expenses),
                 currencyFormat(reportDto.earnings - reportDto.expenses),
-                currencyFormat(reportDto.adminFee),
-                currencyFormat(reportDto.netEarnings),
+                currencyFormat(adminFeeValue),
+                currencyFormat(netEarningsValue),
               ],
             ],
           },

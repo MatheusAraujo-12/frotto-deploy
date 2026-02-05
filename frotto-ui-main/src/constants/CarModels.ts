@@ -1,13 +1,21 @@
 import { Url } from "url";
 
-export interface CarModel {
+export type CommissionType = "PERCENT_PROFIT" | "FIXED";
+
+export interface CommissionConfig {
+  commissionType?: CommissionType;
+  commissionPercent?: number;
+  commissionFixed?: number;
+  administrationFee?: number;
+}
+
+export interface CarModel extends CommissionConfig {
   id?: number;
   name?: string;
   model?: string;
   color?: string;
   plate?: string;
   odometer?: number;
-  administrationFee?: number;
   year?: number;
   group?: string;
   initialValue?: number;

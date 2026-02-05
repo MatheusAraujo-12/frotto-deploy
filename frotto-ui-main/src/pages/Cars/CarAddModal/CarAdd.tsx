@@ -22,7 +22,7 @@ import FormDate from "../../../components/Form/FormDate";
 import api from "../../../services/axios/axios";
 import endpoints from "../../../constants/endpoints";
 import { CarModel } from "../../../constants/CarModels";
-import { COLORS } from "../../../constants/selectOptions";
+import { COLORS, COMMISSION_TYPES } from "../../../constants/selectOptions";
 import FormInput from "../../../components/Form/FormInput";
 import FormSelect from "../../../components/Form/FormSelect";
 import FormDeleteButton from "../../../components/Form/FormDeleteButton";
@@ -173,17 +173,44 @@ const CarAdd: React.FC<CarAddModalProps> = ({ closeModal, initialValues }) => {
             }}
             required
           />
-          <FormInput
-            label={TEXT.administrationFee}
+          <FormSelect
+            label={TEXT.commissionType}
+            options={COMMISSION_TYPES}
             errorsObj={errors}
-            errorName="administrationFee"
-            initialValue={watch("administrationFee")}
-            type="number"
-            changeCallback={(value: number) => {
-              setValue("administrationFee", value);
+            errorName="commissionType"
+            initialValue={watch("commissionType")}
+            changeCallback={(value: string) => {
+              setValue("commissionType", value);
             }}
             required
           />
+          {watch("commissionType") === "PERCENT_PROFIT" && (
+            <FormInput
+              label={TEXT.commissionPercent}
+              errorsObj={errors}
+              errorName="commissionPercent"
+              initialValue={watch("commissionPercent")}
+              type="number"
+              changeCallback={(value: string) => {
+                const parsed = Number(String(value).replace(",", "."));
+                setValue("commissionPercent", Number.isNaN(parsed) ? 0 : parsed);
+              }}
+              required
+            />
+          )}
+          {watch("commissionType") === "FIXED" && (
+            <FormCurrency
+              label={TEXT.commissionFixed}
+              errorsObj={errors}
+              errorName="commissionFixed"
+              initialValue={watch("commissionFixed")}
+              maxlength={15}
+              changeCallback={(value: number) => {
+                setValue("commissionFixed", value);
+              }}
+              required
+            />
+          )}
           <FormCurrency
             label={TEXT.initialValue}
             errorsObj={errors}

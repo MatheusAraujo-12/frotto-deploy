@@ -7,6 +7,11 @@ export const COLORS = [
   "Outros",
 ];
 
+export const COMMISSION_TYPES = [
+  { value: "PERCENT_PROFIT", label: "Percentual do lucro" },
+  { value: "FIXED", label: "Comissao fixa (R$)" },
+];
+
 export const STATES_BR = [
   "AC",
   "AL",

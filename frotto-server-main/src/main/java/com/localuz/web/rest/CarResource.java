@@ -7,6 +7,7 @@ import com.localuz.domain.Inspection;
 import com.localuz.domain.Maintenance;
 import com.localuz.domain.Reminder;
 import com.localuz.domain.User;
+import com.localuz.domain.enumeration.CommissionType;
 import com.localuz.repository.CarRepository;
 import com.localuz.repository.DriverCarRepository;
 import com.localuz.repository.InspectionRepository;
@@ -14,7 +15,9 @@ import com.localuz.repository.MaintenanceRepository;
 import com.localuz.repository.ReminderRepository;
 import com.localuz.service.UserService;
 import com.localuz.service.dto.CarDTO;
+import com.localuz.service.dto.CarFormDTO;
 import com.localuz.web.rest.errors.BadRequestAlertException;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
@@ -26,10 +29,12 @@ import javax.validation.constraints.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -125,23 +130,14 @@ public class CarResource {
         return null;
     }
 
-    @PostMapping("/cars")
+    @PostMapping(value = "/cars", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Car> createCar(@Valid @RequestBody Car car) throws URISyntaxException {
-        log.debug("REST request to save Car : {}", car);
-        Optional<User> currentUser = userService.getUserWithAuthorities();
-        if (car.getId() != null) {
-            throw new BadRequestAlertException("A new car cannot already have an ID", ENTITY_NAME, "idexists");
-        }
-        if (!currentUser.isPresent()) {
-            throw new BadRequestAlertException("A new car cannot have an empty User", ENTITY_NAME, "emptyuser");
-        }
-        car.setUser(currentUser.get());
-        car.setActive(true);
-        Car result = carRepository.save(car);
-        return ResponseEntity
-            .created(new URI("/api/cars/" + result.getId()))
-            .headers(HeaderUtil.createEntityCreationAlert(applicationName, false, ENTITY_NAME, result.getId().toString()))
-            .body(result);
+        return createCarInternal(car);
+    }
+
+    @PostMapping(value = "/cars", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Car> createCarMultipart(@ModelAttribute CarFormDTO carForm) throws URISyntaxException {
+        return createCarInternal(carForm.toCar());
     }
 
     @DeleteMapping("/cars/{id}")
@@ -165,6 +161,57 @@ public class CarResource {
         @PathVariable(value = "id", required = false) final Long id,
         @NotNull @RequestBody Car car
     ) {
+        return partialUpdateCarInternal(id, car);
+    }
+
+    @PatchMapping(value = "/cars/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Car> partialUpdateCarMultipart(
+        @PathVariable(value = "id", required = false) final Long id,
+        @ModelAttribute CarFormDTO carForm
+    ) {
+        Car car = carForm.toCar();
+        if (car.getId() == null) {
+            car.setId(id);
+        }
+        return partialUpdateCarInternal(id, car);
+    }
+
+    @GetMapping("/admin/cars")
+    public List<Car> getAllCars() {
+        log.debug("REST request to get all Cars");
+        return carRepository.findAll();
+    }
+
+    @GetMapping("admin/cars/user/{userId}")
+    public List<Car> getAllCarsByUserId(@PathVariable Long userId) {
+        log.debug("REST request to get all Cars by User Id");
+        return carRepository.findAllByUserId(userId);
+    }
+
+    private ResponseEntity<Car> createCarInternal(Car car) throws URISyntaxException {
+        log.debug("REST request to save Car : {}", car);
+        Optional<User> currentUser = userService.getUserWithAuthorities();
+        if (car.getId() != null) {
+            throw new BadRequestAlertException("A new car cannot already have an ID", ENTITY_NAME, "idexists");
+        }
+        if (!currentUser.isPresent()) {
+            throw new BadRequestAlertException("A new car cannot have an empty User", ENTITY_NAME, "emptyuser");
+        }
+        applyCommissionDefaults(car);
+        if (car.getCommissionType() == null) {
+            car.setCommissionType(CommissionType.PERCENT_PROFIT);
+        }
+        validateCommission(car);
+        car.setUser(currentUser.get());
+        car.setActive(true);
+        Car result = carRepository.save(car);
+        return ResponseEntity
+            .created(new URI("/api/cars/" + result.getId()))
+            .headers(HeaderUtil.createEntityCreationAlert(applicationName, false, ENTITY_NAME, result.getId().toString()))
+            .body(result);
+    }
+
+    private ResponseEntity<Car> partialUpdateCarInternal(Long id, Car car) {
         log.debug("REST request to partial update Car partially : {}, {}", id, car);
         if (car.getId() == null) {
             throw new BadRequestAlertException("Invalid id", ENTITY_NAME, "idnull");
@@ -177,6 +224,18 @@ public class CarResource {
             throw new BadRequestAlertException("Car not found for current user", ENTITY_NAME, "notcurrentuser");
         }
         Car existingCar = existingCarOpt.get();
+        applyPartialUpdates(existingCar, car);
+        applyCommissionDefaults(existingCar);
+        validateCommission(existingCar);
+        carRepository.save(existingCar);
+
+        return ResponseUtil.wrapOrNotFound(
+            existingCarOpt,
+            HeaderUtil.createEntityUpdateAlert(applicationName, false, ENTITY_NAME, car.getId().toString())
+        );
+    }
+
+    private void applyPartialUpdates(Car existingCar, Car car) {
         if (car.getName() != null) {
             existingCar.setName(car.getName());
         }
@@ -192,8 +251,14 @@ public class CarResource {
         if (car.getOdometer() != null) {
             existingCar.setOdometer(car.getOdometer());
         }
-        if (car.getAdministrationFee() != null) {
-            existingCar.setAdministrationFee(car.getAdministrationFee());
+        if (car.getCommissionPercent() != null) {
+            existingCar.setCommissionPercent(car.getCommissionPercent());
+        }
+        if (car.getCommissionType() != null) {
+            existingCar.setCommissionType(car.getCommissionType());
+        }
+        if (car.getCommissionFixed() != null) {
+            existingCar.setCommissionFixed(car.getCommissionFixed());
         }
         if (car.getInitialValue() != null) {
             existingCar.setInitialValue(car.getInitialValue());
@@ -207,23 +272,55 @@ public class CarResource {
         if (car.getActive() != null) {
             existingCar.setActive(car.getActive());
         }
-        carRepository.save(existingCar);
-
-        return ResponseUtil.wrapOrNotFound(
-            existingCarOpt,
-            HeaderUtil.createEntityUpdateAlert(applicationName, false, ENTITY_NAME, car.getId().toString())
-        );
     }
 
-    @GetMapping("/admin/cars")
-    public List<Car> getAllCars() {
-        log.debug("REST request to get all Cars");
-        return carRepository.findAll();
+    private void applyCommissionDefaults(Car car) {
+        if (car == null || car.getCommissionType() != null) {
+            return;
+        }
+        if (car.getCommissionFixed() != null) {
+            car.setCommissionType(CommissionType.FIXED);
+            return;
+        }
+        if (car.getCommissionPercent() != null) {
+            car.setCommissionType(CommissionType.PERCENT_PROFIT);
+        }
     }
 
-    @GetMapping("admin/cars/user/{userId}")
-    public List<Car> getAllCarsByUserId(@PathVariable Long userId) {
-        log.debug("REST request to get all Cars by User Id");
-        return carRepository.findAllByUserId(userId);
+    private void validateCommission(Car car) {
+        if (car == null || car.getCommissionType() == null) {
+            return;
+        }
+        if (car.getCommissionType() == CommissionType.FIXED) {
+            if (car.getCommissionFixed() == null) {
+                throw new BadRequestAlertException(
+                    "Commission fixed is required when commissionType is FIXED",
+                    ENTITY_NAME,
+                    "commissionfixedrequired"
+                );
+            }
+            if (car.getCommissionFixed().compareTo(BigDecimal.ZERO) < 0) {
+                throw new BadRequestAlertException(
+                    "Commission fixed must be >= 0",
+                    ENTITY_NAME,
+                    "commissionfixedinvalid"
+                );
+            }
+            return;
+        }
+        if (car.getCommissionPercent() == null) {
+            throw new BadRequestAlertException(
+                "Commission percent is required when commissionType is PERCENT_PROFIT",
+                ENTITY_NAME,
+                "commissionpercentrequired"
+            );
+        }
+        if (car.getCommissionPercent() < 0) {
+            throw new BadRequestAlertException(
+                "Commission percent must be >= 0",
+                ENTITY_NAME,
+                "commissionpercentinvalid"
+            );
+        }
     }
 }

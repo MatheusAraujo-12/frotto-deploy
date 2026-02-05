@@ -15,7 +15,7 @@ interface FormSelectProps {
   header?: string;
   required: boolean;
   initialValue: string;
-  options: string[];
+  options: Array<string | { label: string; value: string }>;
   errorsObj?: Object;
   errorName?: string;
   changeCallback: Function;
@@ -43,11 +43,17 @@ const FormSelect: React.FC<FormSelectProps> = ({
             changeCallback(e.target.value);
           }}
         >
-          {options.map((option: string) => (
-            <IonSelectOption key={option} value={option}>
-              {option}
-            </IonSelectOption>
-          ))}
+          {options.map((option) => {
+            const normalized =
+              typeof option === "string"
+                ? { label: option, value: option }
+                : option;
+            return (
+              <IonSelectOption key={normalized.value} value={normalized.value}>
+                {normalized.label}
+              </IonSelectOption>
+            );
+          })}
         </MyIonSelect>
       </IonItem>
     </FormItemWrapper>

@@ -2,6 +2,7 @@ package com.localuz.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.localuz.domain.enumeration.CommissionType;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import javax.persistence.*;
@@ -43,7 +44,14 @@ public class Car implements Serializable {
     private Float odometer;
 
     @Column(name = "administration_fee")
-    private Float administrationFee;
+    private Float commissionPercent;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "commission_type", length = 32)
+    private CommissionType commissionType;
+
+    @Column(name = "commission_fixed", precision = 10, scale = 2)
+    private BigDecimal commissionFixed;
 
     @Column(name = "initial_value", precision = 21, scale = 2)
     private BigDecimal initialValue;
@@ -142,12 +150,38 @@ public class Car implements Serializable {
         this.odometer = odometer;
     }
 
-    public Float getAdministrationFee() {
-        return administrationFee;
+    public Float getCommissionPercent() {
+        return commissionPercent;
     }
 
+    public void setCommissionPercent(Float commissionPercent) {
+        this.commissionPercent = commissionPercent;
+    }
+
+    public CommissionType getCommissionType() {
+        return commissionType;
+    }
+
+    public void setCommissionType(CommissionType commissionType) {
+        this.commissionType = commissionType;
+    }
+
+    public BigDecimal getCommissionFixed() {
+        return commissionFixed;
+    }
+
+    public void setCommissionFixed(BigDecimal commissionFixed) {
+        this.commissionFixed = commissionFixed;
+    }
+
+    @JsonProperty("administrationFee")
+    public Float getAdministrationFee() {
+        return getCommissionPercent();
+    }
+
+    @JsonProperty("administrationFee")
     public void setAdministrationFee(Float administrationFee) {
-        this.administrationFee = administrationFee;
+        this.commissionPercent = administrationFee;
     }
 
     public BigDecimal getInitialValue() {

@@ -18,6 +18,7 @@ import com.localuz.service.dto.Reports.GroupReportDTO;
 import com.localuz.service.dto.Reports.ReportHistoryDTO;
 import com.localuz.service.dto.Reports.ReportItemDTO;
 import com.localuz.service.dto.Reports.ReportsDTO;
+import com.localuz.service.CommissionCalculator;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -151,13 +152,7 @@ public class ReportsResource {
                 reportsDTO.setMaintenances(maintenancesDTO);
 
                 BigDecimal netEarningsWithoutFee = carEarningsDTO.subtract(expensesValueDTO);
-                if (
-                    netEarningsWithoutFee.compareTo(BigDecimal.valueOf(0)) == 1 &&
-                    car.getAdministrationFee() != null &&
-                    car.getAdministrationFee() > 0
-                ) {
-                    adminFeeDTO = netEarningsWithoutFee.multiply(BigDecimal.valueOf(car.getAdministrationFee())).divide(ONE_HUNDRED);
-                }
+                adminFeeDTO = CommissionCalculator.calcCommission(netEarningsWithoutFee, car);
                 netEarningsDTO = netEarningsWithoutFee.subtract(adminFeeDTO);
 
                 reportsDTO.setEarnings(carEarningsDTO);
