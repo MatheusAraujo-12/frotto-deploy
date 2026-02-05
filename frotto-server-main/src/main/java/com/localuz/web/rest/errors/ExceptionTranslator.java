@@ -1,15 +1,19 @@
 package com.localuz.web.rest.errors;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.servlet.http.HttpServletRequest;
+import com.amazonaws.SdkClientException;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import javax.servlet.http.HttpServletRequest;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.dao.ConcurrencyFailureException;
@@ -45,6 +49,9 @@ public class ExceptionTranslator implements ProblemHandling, SecurityAdviceTrait
     private static final String MESSAGE_KEY = "message";
     private static final String PATH_KEY = "path";
     private static final String VIOLATIONS_KEY = "violations";
+    private static final String S3_UPLOAD_ERROR_MESSAGE = "Erro ao enviar arquivo para S3";
+
+    private final Logger log = LoggerFactory.getLogger(ExceptionTranslator.class);
 
     @Value("${jhipster.clientApp.name}")
     private String applicationName;
@@ -159,6 +166,25 @@ public class ExceptionTranslator implements ProblemHandling, SecurityAdviceTrait
     }
 
     @ExceptionHandler
+    public ResponseEntity<Problem> handleAmazonS3Exception(AmazonS3Exception ex, NativeWebRequest request) {
+        log.error(
+            "S3 request failed: status={}, errorCode={}, requestId={}, extendedRequestId={}",
+            ex.getStatusCode(),
+            ex.getErrorCode(),
+            ex.getRequestId(),
+            ex.getExtendedRequestId(),
+            ex
+        );
+        return createS3Problem(ex, request);
+    }
+
+    @ExceptionHandler
+    public ResponseEntity<Problem> handleSdkClientException(SdkClientException ex, NativeWebRequest request) {
+        log.error("S3 client error", ex);
+        return createS3Problem(ex, request);
+    }
+
+    @ExceptionHandler
     public ResponseEntity<Problem> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex, NativeWebRequest request) {
         Problem problem = Problem
             .builder()
@@ -231,5 +257,17 @@ public class ExceptionTranslator implements ProblemHandling, SecurityAdviceTrait
     private boolean containsPackageName(String message) {
         // This list is for sure not complete
         return StringUtils.containsAny(message, "org.", "java.", "net.", "javax.", "com.", "io.", "de.", "com.localuz");
+    }
+
+    private ResponseEntity<Problem> createS3Problem(Throwable ex, NativeWebRequest request) {
+        Problem problem = Problem
+            .builder()
+            .withType(ErrorConstants.DEFAULT_TYPE)
+            .withTitle(S3_UPLOAD_ERROR_MESSAGE)
+            .withStatus(Status.INTERNAL_SERVER_ERROR)
+            .withDetail(S3_UPLOAD_ERROR_MESSAGE)
+            .with(MESSAGE_KEY, S3_UPLOAD_ERROR_MESSAGE)
+            .build();
+        return create(ex, problem, request);
     }
 }
