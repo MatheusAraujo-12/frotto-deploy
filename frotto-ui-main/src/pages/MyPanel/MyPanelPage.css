@@ -1,0 +1,166 @@
+.my-panel-content {
+  --padding-bottom: calc(100px + env(safe-area-inset-bottom));
+}
+
+.my-panel-shell {
+  padding-top: 14px;
+  padding-bottom: 20px;
+}
+
+.my-panel-segment-toolbar {
+  --background: transparent;
+  --border-color: transparent;
+  padding: 8px 12px 10px;
+}
+
+.my-panel-segment {
+  background: var(--app-card);
+  border: var(--app-border);
+  border-radius: 14px;
+  padding: 4px;
+  box-shadow: var(--app-shadow);
+}
+
+.my-panel-segment ion-segment-button {
+  --border-radius: 10px;
+  --indicator-color: var(--ion-color-primary);
+  --color: var(--ion-color-medium);
+  --color-checked: var(--ion-color-primary-contrast);
+  min-height: 38px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  text-transform: none;
+}
+
+.my-panel-card {
+  border: var(--app-border);
+  border-radius: calc(var(--app-radius) + 2px);
+  box-shadow: var(--app-shadow), var(--app-card-glow);
+  background: var(--app-card);
+}
+
+.my-panel-card ion-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  color: var(--ion-text-color);
+}
+
+.my-panel-card ion-card-title ion-icon {
+  font-size: 20px;
+  color: var(--ion-color-primary);
+}
+
+.my-panel-card ion-card-subtitle {
+  color: var(--ion-color-medium);
+  line-height: 1.35;
+}
+
+.my-panel-item {
+  --background: var(--ion-item-background);
+  --border-color: var(--ion-border-color);
+  --border-radius: 12px;
+  --padding-start: 12px;
+  --inner-padding-end: 10px;
+  margin-top: 10px;
+  border: 1px solid var(--ion-border-color);
+}
+
+.my-panel-item ion-label {
+  color: var(--ion-text-color);
+  font-weight: 600;
+}
+
+.my-panel-item ion-input,
+.my-panel-item ion-textarea {
+  --color: var(--ion-text-color);
+  --placeholder-color: var(--ion-color-medium);
+}
+
+.my-panel-field-error {
+  display: block;
+  font-size: 12px;
+  margin: 6px 8px 0;
+}
+
+.my-panel-tax-switch {
+  margin-top: 4px;
+  margin-bottom: 8px;
+  background: var(--app-card-strong);
+  border-radius: 12px;
+  border: var(--app-border);
+  padding: 3px;
+}
+
+.my-panel-tax-switch ion-segment-button {
+  --border-radius: 9px;
+  text-transform: none;
+  font-weight: 600;
+}
+
+.my-panel-empty-state {
+  margin: 0 0 14px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px dashed var(--ion-border-color);
+  background: var(--app-card-strong);
+}
+
+.my-panel-empty-state h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  color: var(--ion-text-color);
+}
+
+.my-panel-empty-state p {
+  margin: 0 0 10px;
+  color: var(--ion-color-medium);
+}
+
+.my-panel-skeleton-line {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.my-panel-error-card h3 {
+  margin-top: 0;
+  margin-bottom: 8px;
+  color: var(--ion-color-danger);
+}
+
+.my-panel-error-card p {
+  margin-top: 0;
+  margin-bottom: 12px;
+  color: var(--ion-color-medium);
+}
+
+.my-panel-footer {
+  --background: var(--ion-toolbar-background);
+  border-top: 1px solid var(--ion-border-color);
+  backdrop-filter: blur(6px);
+}
+
+.my-panel-footer ion-toolbar {
+  --background: transparent;
+  --border-color: transparent;
+}
+
+.my-panel-footer-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+}
+
+.my-panel-footer-inner ion-button {
+  margin: 0;
+}
+
+@media (max-width: 480px) {
+  .my-panel-segment ion-segment-button {
+    font-size: 11px;
+    min-height: 36px;
+  }
+}

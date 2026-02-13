@@ -3,6 +3,7 @@ package com.localuz.domain;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.localuz.config.Constants;
 import java.io.Serializable;
+import java.time.LocalDate;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Locale;
@@ -53,6 +54,67 @@ public class User extends AbstractAuditingEntity<Long> implements Serializable {
     @Size(min = 5, max = 254)
     @Column(length = 254, unique = true)
     private String email;
+
+    @Size(max = 120)
+    @Column(name = "personal_name", length = 120)
+    private String personalName;
+
+    @Size(max = 20)
+    @Column(name = "personal_cpf", length = 20)
+    private String personalCpf;
+
+    @Column(name = "personal_birth_date")
+    private LocalDate personalBirthDate;
+
+    @Email
+    @Size(max = 254)
+    @Column(name = "personal_email", length = 254)
+    private String personalEmail;
+
+    @Size(max = 20)
+    @Column(name = "personal_phone", length = 20)
+    private String personalPhone;
+
+    @Size(max = 10)
+    @Column(name = "tax_person_type", length = 10)
+    private String taxPersonType;
+
+    @Size(max = 120)
+    @Column(name = "tax_landlord_name", length = 120)
+    private String taxLandlordName;
+
+    @Size(max = 20)
+    @Column(name = "tax_cpf", length = 20)
+    private String taxCpf;
+
+    @Email
+    @Size(max = 254)
+    @Column(name = "tax_email", length = 254)
+    private String taxEmail;
+
+    @Size(max = 20)
+    @Column(name = "tax_phone", length = 20)
+    private String taxPhone;
+
+    @Size(max = 160)
+    @Column(name = "tax_company_name", length = 160)
+    private String taxCompanyName;
+
+    @Size(max = 20)
+    @Column(name = "tax_cnpj", length = 20)
+    private String taxCnpj;
+
+    @Size(max = 40)
+    @Column(name = "tax_ie", length = 40)
+    private String taxIe;
+
+    @Size(max = 20)
+    @Column(name = "tax_contact_phone", length = 20)
+    private String taxContactPhone;
+
+    @Size(max = 500)
+    @Column(name = "tax_address", length = 500)
+    private String taxAddress;
 
     @NotNull
     @Column(nullable = false)
@@ -137,6 +199,126 @@ public class User extends AbstractAuditingEntity<Long> implements Serializable {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getPersonalName() {
+        return personalName;
+    }
+
+    public void setPersonalName(String personalName) {
+        this.personalName = personalName;
+    }
+
+    public String getPersonalCpf() {
+        return personalCpf;
+    }
+
+    public void setPersonalCpf(String personalCpf) {
+        this.personalCpf = personalCpf;
+    }
+
+    public LocalDate getPersonalBirthDate() {
+        return personalBirthDate;
+    }
+
+    public void setPersonalBirthDate(LocalDate personalBirthDate) {
+        this.personalBirthDate = personalBirthDate;
+    }
+
+    public String getPersonalEmail() {
+        return personalEmail;
+    }
+
+    public void setPersonalEmail(String personalEmail) {
+        this.personalEmail = personalEmail;
+    }
+
+    public String getPersonalPhone() {
+        return personalPhone;
+    }
+
+    public void setPersonalPhone(String personalPhone) {
+        this.personalPhone = personalPhone;
+    }
+
+    public String getTaxPersonType() {
+        return taxPersonType;
+    }
+
+    public void setTaxPersonType(String taxPersonType) {
+        this.taxPersonType = taxPersonType;
+    }
+
+    public String getTaxLandlordName() {
+        return taxLandlordName;
+    }
+
+    public void setTaxLandlordName(String taxLandlordName) {
+        this.taxLandlordName = taxLandlordName;
+    }
+
+    public String getTaxCpf() {
+        return taxCpf;
+    }
+
+    public void setTaxCpf(String taxCpf) {
+        this.taxCpf = taxCpf;
+    }
+
+    public String getTaxEmail() {
+        return taxEmail;
+    }
+
+    public void setTaxEmail(String taxEmail) {
+        this.taxEmail = taxEmail;
+    }
+
+    public String getTaxPhone() {
+        return taxPhone;
+    }
+
+    public void setTaxPhone(String taxPhone) {
+        this.taxPhone = taxPhone;
+    }
+
+    public String getTaxCompanyName() {
+        return taxCompanyName;
+    }
+
+    public void setTaxCompanyName(String taxCompanyName) {
+        this.taxCompanyName = taxCompanyName;
+    }
+
+    public String getTaxCnpj() {
+        return taxCnpj;
+    }
+
+    public void setTaxCnpj(String taxCnpj) {
+        this.taxCnpj = taxCnpj;
+    }
+
+    public String getTaxIe() {
+        return taxIe;
+    }
+
+    public void setTaxIe(String taxIe) {
+        this.taxIe = taxIe;
+    }
+
+    public String getTaxContactPhone() {
+        return taxContactPhone;
+    }
+
+    public void setTaxContactPhone(String taxContactPhone) {
+        this.taxContactPhone = taxContactPhone;
+    }
+
+    public String getTaxAddress() {
+        return taxAddress;
+    }
+
+    public void setTaxAddress(String taxAddress) {
+        this.taxAddress = taxAddress;
     }
 
     public String getImageUrl() {
@@ -228,6 +410,50 @@ public class User extends AbstractAuditingEntity<Long> implements Serializable {
         + '\''
         + ", email='"
         + email
+        + '\''
+        + ", personalName='"
+        + personalName
+        + '\''
+        + ", personalCpf='"
+        + personalCpf
+        + '\''
+        + ", personalBirthDate="
+        + personalBirthDate
+        + ", personalEmail='"
+        + personalEmail
+        + '\''
+        + ", personalPhone='"
+        + personalPhone
+        + '\''
+        + ", taxPersonType='"
+        + taxPersonType
+        + '\''
+        + ", taxLandlordName='"
+        + taxLandlordName
+        + '\''
+        + ", taxCpf='"
+        + taxCpf
+        + '\''
+        + ", taxEmail='"
+        + taxEmail
+        + '\''
+        + ", taxPhone='"
+        + taxPhone
+        + '\''
+        + ", taxCompanyName='"
+        + taxCompanyName
+        + '\''
+        + ", taxCnpj='"
+        + taxCnpj
+        + '\''
+        + ", taxIe='"
+        + taxIe
+        + '\''
+        + ", taxContactPhone='"
+        + taxContactPhone
+        + '\''
+        + ", taxAddress='"
+        + taxAddress
         + '\''
         + ", imageUrl='"
         + imageUrl

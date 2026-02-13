@@ -122,6 +122,8 @@ const App: FC = () => {
           <Route exact path="/" component={Login} />
           <Route exact path="/cadastro" component={Register} />
           <Route path="/menu" render={renderWithSuspense(Menu)} />
+          <Route path="/meu-painel" render={renderWithSuspense(Menu)} />
+          <Route path="/my-panel" render={renderWithSuspense(Menu)} />
         </IonRouterOutlet>
       </IonReactRouter>
     </IonApp>

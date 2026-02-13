@@ -21,7 +21,7 @@ import Car from "../../pages/Cars/Car";
 import Cars from "../../pages/Cars/Cars";
 import Drivers from "../../pages/Driver/Drivers";
 import Inspections from "../../pages/Inspection/Inspections";
-import { car, clipboard, logOutOutline } from "ionicons/icons";
+import { car, clipboard, logOutOutline, personCircleOutline } from "ionicons/icons";
 import { removeToken } from "../../services/localStorage/localstorage";
 import { TEXT } from "../../constants/texts";
 import Maintenances from "../../pages/Maintenance/Maintenances";
@@ -30,6 +30,7 @@ import CarExpenses from "../../pages/CarExpense/CarExpenses";
 import Reports from "../../pages/Reports/Reports";
 import Reminders from "../../pages/Reminders/Reminders";
 import DriverPendencies from "../../pages/DriverPendency/DriverPendencies";
+import MyPanelPage from "../../pages/MyPanel/MyPanelPage";
 
 const Menu: React.FC = () => {
   const history = useIonRouter();
@@ -90,6 +91,12 @@ const Menu: React.FC = () => {
                   {TEXT.reports}
                 </IonItem>
               </IonMenuToggle>
+              <IonMenuToggle>
+                <IonItem className="menu-item" routerLink="/meu-painel" routerDirection="none">
+                  <IonIcon icon={personCircleOutline} slot="start"></IonIcon>
+                  Meu Painel
+                </IonItem>
+              </IonMenuToggle>
               <div className="menu-footer">
                 <IonItem lines="none">
                   <IonLabel>{TEXT.theme}</IonLabel>
@@ -145,6 +152,9 @@ const Menu: React.FC = () => {
             component={DriverPendencies}
           />
           <Route exact path="/menu/relatorios" component={Reports} />
+          <Route exact path="/menu/meu-painel" component={MyPanelPage} />
+          <Route exact path="/meu-painel" component={MyPanelPage} />
+          <Route exact path="/my-panel" component={MyPanelPage} />
 
           <Route exact path="/menu">
             <Redirect to="/menu/carros" />

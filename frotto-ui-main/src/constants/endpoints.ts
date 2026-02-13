@@ -121,6 +121,9 @@ const endpoints = {
   AUTH: apiEndpoint("/authenticate"),
 
   USER: apiEndpoint("/user/{id}"),
+  ME: apiEndpoint("/me"),
+  ME_TAX_DATA: apiEndpoint("/me/tax-data"),
+  ME_CHANGE_PASSWORD: apiEndpoint("/me/change-password"),
 
   CARS: apiEndpoint("/cars"),
   CARS_ACTIVE: apiEndpoint("/cars-drivers/active"),
