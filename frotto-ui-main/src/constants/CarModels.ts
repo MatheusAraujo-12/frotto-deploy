@@ -6,7 +6,6 @@ export interface CommissionConfig {
   commissionType?: CommissionType;
   commissionPercent?: number;
   commissionFixed?: number;
-  commissionChargeOnLoss?: boolean;
   administrationFee?: number;
 }
 

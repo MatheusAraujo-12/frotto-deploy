@@ -1,12 +1,18 @@
 import { CommissionConfig, CommissionType } from "../constants/CarModels";
 
-export const calcCommission = (profit: number, config?: CommissionConfig) => {
-  if (!config || !Number.isFinite(profit)) {
+const toNumber = (value: unknown): number => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+export const calcCommission = (profitValue: number, config?: CommissionConfig) => {
+  if (!config) {
     return 0;
   }
 
+  const profit = toNumber(profitValue);
   const commissionPercent =
-    config.commissionPercent ?? config.administrationFee ?? 0;
+    toNumber(config.commissionPercent ?? config.administrationFee ?? 0);
   let commissionType: CommissionType = config.commissionType ?? "PERCENT_PROFIT";
 
   if (
@@ -19,20 +25,18 @@ export const calcCommission = (profit: number, config?: CommissionConfig) => {
   }
 
   if (commissionType === "FIXED") {
-    if (config.commissionFixed == null || config.commissionFixed < 0) {
+    const commissionFixed = toNumber(config.commissionFixed);
+    if (commissionFixed <= 0) {
       return 0;
     }
-    if (profit <= 0 && !config.commissionChargeOnLoss) {
-      return 0;
-    }
-    return config.commissionFixed;
+    return commissionFixed;
   }
 
   if (profit <= 0) {
     return 0;
   }
 
-  if (!Number.isFinite(commissionPercent) || commissionPercent <= 0) {
+  if (commissionPercent <= 0) {
     return 0;
   }
 

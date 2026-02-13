@@ -53,9 +53,6 @@ public class Car implements Serializable {
     @Column(name = "commission_fixed", precision = 10, scale = 2)
     private BigDecimal commissionFixed;
 
-    @Column(name = "commission_charge_on_loss")
-    private Boolean commissionChargeOnLoss;
-
     @Column(name = "initial_value", precision = 21, scale = 2)
     private BigDecimal initialValue;
 
@@ -175,14 +172,6 @@ public class Car implements Serializable {
 
     public void setCommissionFixed(BigDecimal commissionFixed) {
         this.commissionFixed = commissionFixed;
-    }
-
-    public Boolean getCommissionChargeOnLoss() {
-        return commissionChargeOnLoss;
-    }
-
-    public void setCommissionChargeOnLoss(Boolean commissionChargeOnLoss) {
-        this.commissionChargeOnLoss = commissionChargeOnLoss;
     }
 
     @JsonProperty("administrationFee")

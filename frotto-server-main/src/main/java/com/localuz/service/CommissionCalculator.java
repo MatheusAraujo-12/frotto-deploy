@@ -21,9 +21,6 @@ public final class CommissionCalculator {
             if (car.getCommissionFixed() == null || car.getCommissionFixed().compareTo(ZERO) < 0) {
                 return ZERO;
             }
-            if (profit.compareTo(ZERO) <= 0 && !Boolean.TRUE.equals(car.getCommissionChargeOnLoss())) {
-                return ZERO;
-            }
             return car.getCommissionFixed();
         }
 

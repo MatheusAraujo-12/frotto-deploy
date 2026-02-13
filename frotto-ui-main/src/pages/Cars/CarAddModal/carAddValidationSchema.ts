@@ -8,7 +8,6 @@ export const initialCarValues = (initialValues: CarModel) => {
     initialValues.administrationFee ??
     0;
   const commissionFixed = initialValues.commissionFixed ?? 0;
-  const commissionChargeOnLoss = initialValues.commissionChargeOnLoss ?? false;
   const commissionType: CommissionType =
     initialValues.commissionType ??
     (initialValues.commissionFixed != null &&
@@ -25,7 +24,6 @@ export const initialCarValues = (initialValues: CarModel) => {
     commissionType,
     commissionPercent,
     commissionFixed,
-    commissionChargeOnLoss,
     plate: initialValues.plate || "",
     model: initialValues.model || "",
     color: initialValues.color || "",
@@ -64,7 +62,6 @@ export const carAddValidationSchema = Yup.object().shape({
         .min(0, TEXT.minFieldNumber("0")),
     otherwise: (schema) => schema.notRequired(),
   }),
-  commissionChargeOnLoss: Yup.boolean(),
   plate: Yup.string().required(TEXT.requiredField),
   model: Yup.string(),
   color: Yup.string(),

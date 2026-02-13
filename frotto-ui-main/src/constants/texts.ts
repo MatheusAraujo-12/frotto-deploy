@@ -72,7 +72,6 @@ export const TEXT = {
   commissionType: "Tipo de comissao",
   commissionPercent: "Comissao % do lucro",
   commissionFixed: "Comissao fixa (R$)",
-  commissionChargeOnLoss: "Cobrar comissao fixa com lucro negativo",
   initialValue: "Valor Inicial",
   group: "Dono/Grupo",
   year: "Ano",
