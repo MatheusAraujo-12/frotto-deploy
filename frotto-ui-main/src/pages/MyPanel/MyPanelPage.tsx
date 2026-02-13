@@ -102,6 +102,29 @@ const touchAllCadastro: Record<keyof CadastroForm, boolean> = {
   langKey: true,
 };
 
+const resolveProfileImageUrl = (imageUrl: string | null | undefined): string => {
+  const value = `${imageUrl || ""}`.trim();
+  if (!value) {
+    return "";
+  }
+  if (value.startsWith("http://") || value.startsWith("https://") || value.startsWith("blob:") || value.startsWith("data:")) {
+    return value;
+  }
+  const s3Base = `${process.env.REACT_APP_S3_URL || ""}`.trim();
+  return s3Base ? `${s3Base}${value}` : value;
+};
+
+const splitName = (fullName: string): { firstName: string; lastName: string } => {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) {
+    return { firstName: "", lastName: "" };
+  }
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(" "),
+  };
+};
+
 const MyPanelPage: React.FC = () => {
   const [presentAlert] = useIonAlert();
   const [presentToast] = useIonToast();
@@ -110,6 +133,9 @@ const MyPanelPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasLoadError, setHasLoadError] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState("");
+  const [avatarRemoved, setAvatarRemoved] = useState(false);
 
   const [personalForm, setPersonalForm] = useState<PersonalForm>(EMPTY_PERSONAL_FORM);
   const [fiscalForm, setFiscalForm] = useState<FiscalForm>(EMPTY_FISCAL_FORM);
@@ -141,10 +167,17 @@ const MyPanelPage: React.FC = () => {
     const fiscal = mapFiscalForm(data);
     const cadastro = mapCadastroForm(data);
 
+    if (avatarPreviewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(avatarPreviewUrl);
+    }
+
     setPersonalForm(personal);
     setFiscalForm(fiscal);
     setCadastroForm(cadastro);
     setSecurityForm(EMPTY_SECURITY_FORM);
+    setAvatarFile(null);
+    setAvatarPreviewUrl(resolveProfileImageUrl(data.imageUrl));
+    setAvatarRemoved(false);
 
     setInitialPersonalForm(personal);
     setInitialFiscalForm(fiscal);
@@ -155,7 +188,7 @@ const MyPanelPage: React.FC = () => {
     setFiscalTouched({ ...EMPTY_FISCAL_TOUCHED });
     setSecurityTouched({ ...EMPTY_SECURITY_TOUCHED });
     setCadastroTouched({ ...EMPTY_CADASTRO_TOUCHED });
-  }, []);
+  }, [avatarPreviewUrl]);
 
   const getErrorMessage = (error: any, fallback: string): string =>
     error?.response?.data?.detail || error?.response?.data?.title || error?.message || fallback;
@@ -189,11 +222,29 @@ const MyPanelPage: React.FC = () => {
     loadProfile();
   }, [loadProfile]);
 
+  useEffect(() => {
+    return () => {
+      if (avatarPreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(avatarPreviewUrl);
+      }
+    };
+  }, [avatarPreviewUrl]);
+
   const savePersonalAndCadastro = async () => {
+    let imageUrl = toNullable(cadastroForm.imageUrl);
+    if (avatarRemoved) {
+      const avatarData = await profileService.removeAvatar();
+      imageUrl = avatarData.imageUrl ?? null;
+    }
+    if (avatarFile) {
+      const avatarData = await profileService.uploadAvatar(avatarFile);
+      imageUrl = avatarData.imageUrl ?? imageUrl;
+    }
+
     const payload = {
       firstName: toNullable(cadastroForm.firstName),
       lastName: toNullable(cadastroForm.lastName),
-      imageUrl: toNullable(cadastroForm.imageUrl),
+      imageUrl,
       langKey: toNullable(cadastroForm.langKey),
       personalName: toNullable(personalForm.personalName),
       personalCpf: toNullableDigits(personalForm.personalCpf),
@@ -234,6 +285,51 @@ const MyPanelPage: React.FC = () => {
     await showSuccess("Senha alterada com sucesso.");
   };
 
+  const handleAvatarSelect = (file: File, previewUrl: string) => {
+    if (avatarPreviewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(avatarPreviewUrl);
+    }
+    setAvatarFile(file);
+    setAvatarPreviewUrl(previewUrl);
+    setAvatarRemoved(false);
+  };
+
+  const handleRemoveAvatar = () => {
+    if (avatarPreviewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(avatarPreviewUrl);
+    }
+
+    setAvatarFile(null);
+    setAvatarPreviewUrl("");
+    setAvatarRemoved(true);
+    setCadastroTouched(prev => ({ ...prev, imageUrl: true }));
+  };
+
+  const useFiscalDataInCadastro = () => {
+    const sourceName =
+      fiscalForm.taxPersonType === "CPF" ? fiscalForm.taxLandlordName : fiscalForm.taxCompanyName;
+
+    if (!sourceName || !sourceName.trim()) {
+      showError("Não há nome fiscal preenchido para copiar para o cadastro.");
+      return;
+    }
+
+    const names = splitName(sourceName);
+    setCadastroForm(prev => ({
+      ...prev,
+      firstName: names.firstName,
+      lastName: names.lastName,
+      langKey: prev.langKey || "pt-br",
+    }));
+
+    setCadastroTouched(prev => ({
+      ...prev,
+      firstName: true,
+      lastName: true,
+      langKey: true,
+    }));
+  };
+
   const onSave = async () => {
     if (activeTab === "pessoal") setPersonalTouched({ ...touchAllPersonal });
     if (activeTab === "fiscal") setFiscalTouched({ ...touchAllFiscal });
@@ -260,7 +356,13 @@ const MyPanelPage: React.FC = () => {
     }
   };
 
-  const isDirty = activeTab === "pessoal" ? personalDirty : activeTab === "fiscal" ? fiscalDirty : activeTab === "seguranca" ? securityDirty : cadastroDirty;
+  const isDirty = activeTab === "pessoal"
+    ? personalDirty
+    : activeTab === "fiscal"
+    ? fiscalDirty
+    : activeTab === "seguranca"
+    ? securityDirty
+    : cadastroDirty || Boolean(avatarFile) || avatarRemoved;
   const isInvalid = activeTab === "pessoal" ? Object.keys(personalErrors).length > 0 : activeTab === "fiscal" ? Object.keys(fiscalErrors).length > 0 : activeTab === "seguranca" ? Object.keys(securityErrors).length > 0 : Object.keys(cadastroErrors).length > 0;
   const saveLabel = activeTab === "pessoal" ? "Salvar Dados Pessoais" : activeTab === "fiscal" ? "Salvar Dados Fiscais" : activeTab === "seguranca" ? "Salvar Nova Senha" : "Salvar Cadastro";
 
@@ -296,10 +398,53 @@ const MyPanelPage: React.FC = () => {
           )}
 
           {isLoading && renderSkeleton()}
-          {!isLoading && activeTab === "pessoal" && <PersonalTab form={personalForm} touched={personalTouched} errors={personalErrors} hasData={hasPersonalData(personalForm)} onTouch={(field) => setPersonalTouched((prev) => ({ ...prev, [field]: true }))} onChange={setPersonalForm} onQuickSave={onSave} />}
-          {!isLoading && activeTab === "fiscal" && <FiscalTab form={fiscalForm} touched={fiscalTouched} errors={fiscalErrors} hasData={hasFiscalData(fiscalForm)} onTouch={(field) => setFiscalTouched((prev) => ({ ...prev, [field]: true }))} onChange={setFiscalForm} onQuickSave={onSave} />}
-          {!isLoading && activeTab === "seguranca" && <SecurityTab form={securityForm} touched={securityTouched} errors={securityErrors} onTouch={(field) => setSecurityTouched((prev) => ({ ...prev, [field]: true }))} onChange={setSecurityForm} />}
-          {!isLoading && activeTab === "cadastro" && <CadastroTab form={cadastroForm} touched={cadastroTouched} errors={cadastroErrors} hasData={hasCadastroData(cadastroForm)} onTouch={(field) => setCadastroTouched((prev) => ({ ...prev, [field]: true }))} onChange={setCadastroForm} onQuickSave={onSave} />}
+          {!isLoading && activeTab === "pessoal" && (
+            <PersonalTab
+              form={personalForm}
+              touched={personalTouched}
+              errors={personalErrors}
+              hasData={hasPersonalData(personalForm)}
+              onTouch={(field) => setPersonalTouched((prev) => ({ ...prev, [field]: true }))}
+              onChange={setPersonalForm}
+              onQuickSave={onSave}
+            />
+          )}
+          {!isLoading && activeTab === "fiscal" && (
+            <FiscalTab
+              form={fiscalForm}
+              touched={fiscalTouched}
+              errors={fiscalErrors}
+              hasData={hasFiscalData(fiscalForm)}
+              onTouch={(field) => setFiscalTouched((prev) => ({ ...prev, [field]: true }))}
+              onChange={setFiscalForm}
+              onQuickSave={onSave}
+            />
+          )}
+          {!isLoading && activeTab === "seguranca" && (
+            <SecurityTab
+              form={securityForm}
+              touched={securityTouched}
+              errors={securityErrors}
+              onTouch={(field) => setSecurityTouched((prev) => ({ ...prev, [field]: true }))}
+              onChange={setSecurityForm}
+            />
+          )}
+          {!isLoading && activeTab === "cadastro" && (
+            <CadastroTab
+              form={cadastroForm}
+              touched={cadastroTouched}
+              errors={cadastroErrors}
+              hasData={hasCadastroData(cadastroForm) || Boolean(avatarPreviewUrl)}
+              avatarPreviewUrl={avatarPreviewUrl}
+              onTouch={(field) => setCadastroTouched((prev) => ({ ...prev, [field]: true }))}
+              onChange={setCadastroForm}
+              onQuickSave={onSave}
+              onAvatarSelect={handleAvatarSelect}
+              onRemoveAvatar={handleRemoveAvatar}
+              canRemoveAvatar={Boolean(avatarPreviewUrl) || avatarRemoved}
+              onUseFiscalData={useFiscalDataInCadastro}
+            />
+          )}
         </div>
       </IonContent>
 

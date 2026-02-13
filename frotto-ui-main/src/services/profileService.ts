@@ -78,6 +78,23 @@ const profileService = {
   async changePassword(payload: ChangePasswordPayload): Promise<void> {
     await api.post(endpoints.ME_CHANGE_PASSWORD(), payload);
   },
+
+  async uploadAvatar(file: File): Promise<MeResponseDTO> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const { data } = await api.post<MeResponseDTO>(endpoints.ME_AVATAR(), formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return data;
+  },
+
+  async removeAvatar(): Promise<MeResponseDTO> {
+    const { data } = await api.delete<MeResponseDTO>(endpoints.ME_AVATAR());
+    return data;
+  },
 };
 
 export default profileService;

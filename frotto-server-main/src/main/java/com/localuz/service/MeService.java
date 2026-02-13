@@ -11,9 +11,12 @@ import com.localuz.web.rest.errors.BadRequestAlertException;
 import com.localuz.web.rest.vm.ManagedUserVM;
 import java.util.Locale;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @Transactional
@@ -22,15 +25,23 @@ public class MeService {
     private static final String ENTITY_NAME = "me";
     private static final String TAX_TYPE_CPF = "CPF";
     private static final String TAX_TYPE_CNPJ = "CNPJ";
+    private final Logger log = LoggerFactory.getLogger(MeService.class);
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final MeMapper meMapper;
+    private final AWSS3FileService awsS3FileService;
 
-    public MeService(UserRepository userRepository, PasswordEncoder passwordEncoder, MeMapper meMapper) {
+    public MeService(
+        UserRepository userRepository,
+        PasswordEncoder passwordEncoder,
+        MeMapper meMapper,
+        AWSS3FileService awsS3FileService
+    ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.meMapper = meMapper;
+        this.awsS3FileService = awsS3FileService;
     }
 
     @Transactional(readOnly = true)
@@ -117,6 +128,45 @@ public class MeService {
         userRepository.save(user);
     }
 
+    public MeResponseDTO uploadAvatar(String currentUser, MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BadRequestAlertException("Imagem nao enviada", ENTITY_NAME, "emptyavatar");
+        }
+
+        String contentType = StringUtils.defaultString(file.getContentType());
+        if (!contentType.startsWith("image/")) {
+            throw new BadRequestAlertException("Arquivo de imagem invalido", ENTITY_NAME, "invalidavatar");
+        }
+
+        User user = getCurrentUser(currentUser);
+        String fileName = awsS3FileService.uploadFile(file, "USER_" + user.getId());
+        if (StringUtils.isBlank(fileName)) {
+            throw new BadRequestAlertException("Falha ao enviar imagem", ENTITY_NAME, "avataruploadfailed");
+        }
+
+        user.setImageUrl(fileName);
+        User savedUser = userRepository.save(user);
+        return meMapper.toDto(savedUser);
+    }
+
+    public MeResponseDTO removeAvatar(String currentUser) {
+        User user = getCurrentUser(currentUser);
+        String currentImageUrl = StringUtils.trimToNull(user.getImageUrl());
+
+        if (currentImageUrl != null) {
+            String fileName = extractFileName(currentImageUrl);
+            try {
+                awsS3FileService.deleteFile(fileName);
+            } catch (Exception ex) {
+                log.warn("Falha ao remover avatar do S3: {}", fileName, ex);
+            }
+        }
+
+        user.setImageUrl(null);
+        User savedUser = userRepository.save(user);
+        return meMapper.toDto(savedUser);
+    }
+
     private User getCurrentUser(String currentUser) {
         return userRepository
             .findOneByLogin(currentUser)
@@ -161,5 +211,16 @@ public class MeService {
             password.length() < ManagedUserVM.PASSWORD_MIN_LENGTH ||
             password.length() > ManagedUserVM.PASSWORD_MAX_LENGTH
         );
+    }
+
+    private String extractFileName(String imageUrl) {
+        if (!imageUrl.startsWith("http://") && !imageUrl.startsWith("https://")) {
+            return imageUrl;
+        }
+        int index = imageUrl.lastIndexOf('/');
+        if (index < 0 || index == imageUrl.length() - 1) {
+            return imageUrl;
+        }
+        return imageUrl.substring(index + 1);
     }
 }

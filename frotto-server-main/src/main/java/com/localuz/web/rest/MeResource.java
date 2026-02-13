@@ -10,13 +10,17 @@ import com.localuz.web.rest.errors.BadRequestAlertException;
 import java.util.Collections;
 import java.util.Map;
 import javax.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api")
@@ -49,6 +53,16 @@ public class MeResource {
     public ResponseEntity<Map<String, String>> changePassword(@Valid @RequestBody ChangePasswordDTO changePasswordDTO) {
         meService.changePassword(getCurrentUserLogin(), changePasswordDTO);
         return ResponseEntity.ok(Collections.singletonMap("message", "Senha alterada com sucesso"));
+    }
+
+    @PostMapping(value = "/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<MeResponseDTO> uploadAvatar(@RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(meService.uploadAvatar(getCurrentUserLogin(), file));
+    }
+
+    @DeleteMapping("/me/avatar")
+    public ResponseEntity<MeResponseDTO> removeAvatar() {
+        return ResponseEntity.ok(meService.removeAvatar(getCurrentUserLogin()));
     }
 
     private String getCurrentUserLogin() {
