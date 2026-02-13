@@ -134,7 +134,8 @@ public class MeService {
         }
 
         String contentType = StringUtils.defaultString(file.getContentType());
-        if (!contentType.startsWith("image/")) {
+        String originalFilename = StringUtils.defaultString(file.getOriginalFilename()).toLowerCase(Locale.ROOT);
+        if (!contentType.startsWith("image/") && !isAllowedImageFilename(originalFilename)) {
             throw new BadRequestAlertException("Arquivo de imagem invalido", ENTITY_NAME, "invalidavatar");
         }
 
@@ -222,5 +223,15 @@ public class MeService {
             return imageUrl;
         }
         return imageUrl.substring(index + 1);
+    }
+
+    private boolean isAllowedImageFilename(String filename) {
+        return (
+            filename.endsWith(".jpg") ||
+            filename.endsWith(".jpeg") ||
+            filename.endsWith(".png") ||
+            filename.endsWith(".webp") ||
+            filename.endsWith(".heic")
+        );
     }
 }

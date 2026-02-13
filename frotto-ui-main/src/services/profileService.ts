@@ -83,11 +83,7 @@ const profileService = {
     const formData = new FormData();
     formData.append("file", file);
 
-    const { data } = await api.post<MeResponseDTO>(endpoints.ME_AVATAR(), formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    const { data } = await api.post<MeResponseDTO>(endpoints.ME_AVATAR(), formData);
     return data;
   },
 
