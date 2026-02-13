@@ -21,6 +21,9 @@ const renderFieldError = (show: boolean, message?: string) =>
     </IonText>
   ) : null;
 
+const getInputValue = (event: any): string =>
+  event?.detail?.value ?? event?.target?.value ?? event?.currentTarget?.value ?? "";
+
 const FiscalTab: React.FC<FiscalTabProps> = ({ form, touched, errors, hasData, onTouch, onChange, onQuickSave }) => (
   <IonCard className="my-panel-card">
     <IonCardHeader>
@@ -69,7 +72,7 @@ const FiscalTab: React.FC<FiscalTabProps> = ({ form, touched, errors, hasData, o
               placeholder="Ex.: João Locador"
               onIonInput={(event: any) => {
                 onTouch("taxLandlordName");
-                onChange({ ...form, taxLandlordName: event.detail.value || "" });
+                onChange({ ...form, taxLandlordName: getInputValue(event) });
               }}
               onIonBlur={() => onTouch("taxLandlordName")}
             />
@@ -83,7 +86,7 @@ const FiscalTab: React.FC<FiscalTabProps> = ({ form, touched, errors, hasData, o
               placeholder="000.000.000-00"
               onIonInput={(event: any) => {
                 onTouch("taxCpf");
-                onChange({ ...form, taxCpf: maskCPF(event.detail.value || "") });
+                onChange({ ...form, taxCpf: maskCPF(getInputValue(event)) });
               }}
               onIonBlur={() => onTouch("taxCpf")}
             />
@@ -98,7 +101,7 @@ const FiscalTab: React.FC<FiscalTabProps> = ({ form, touched, errors, hasData, o
               placeholder="locador@email.com"
               onIonInput={(event: any) => {
                 onTouch("taxEmail");
-                onChange({ ...form, taxEmail: event.detail.value || "" });
+                onChange({ ...form, taxEmail: getInputValue(event) });
               }}
               onIonBlur={() => onTouch("taxEmail")}
             />
@@ -112,7 +115,7 @@ const FiscalTab: React.FC<FiscalTabProps> = ({ form, touched, errors, hasData, o
               placeholder="(11) 99999-9999"
               onIonInput={(event: any) => {
                 onTouch("taxPhone");
-                onChange({ ...form, taxPhone: maskPhone(event.detail.value || "") });
+                onChange({ ...form, taxPhone: maskPhone(getInputValue(event)) });
               }}
               onIonBlur={() => onTouch("taxPhone")}
             />
@@ -128,7 +131,7 @@ const FiscalTab: React.FC<FiscalTabProps> = ({ form, touched, errors, hasData, o
               placeholder="Ex.: Frotto Locações LTDA"
               onIonInput={(event: any) => {
                 onTouch("taxCompanyName");
-                onChange({ ...form, taxCompanyName: event.detail.value || "" });
+                onChange({ ...form, taxCompanyName: getInputValue(event) });
               }}
               onIonBlur={() => onTouch("taxCompanyName")}
             />
@@ -142,7 +145,7 @@ const FiscalTab: React.FC<FiscalTabProps> = ({ form, touched, errors, hasData, o
               placeholder="00.000.000/0000-00"
               onIonInput={(event: any) => {
                 onTouch("taxCnpj");
-                onChange({ ...form, taxCnpj: maskCNPJ(event.detail.value || "") });
+                onChange({ ...form, taxCnpj: maskCNPJ(getInputValue(event)) });
               }}
               onIonBlur={() => onTouch("taxCnpj")}
             />
@@ -156,7 +159,7 @@ const FiscalTab: React.FC<FiscalTabProps> = ({ form, touched, errors, hasData, o
               placeholder="Inscrição estadual"
               onIonInput={(event: any) => {
                 onTouch("taxIe");
-                onChange({ ...form, taxIe: event.detail.value || "" });
+                onChange({ ...form, taxIe: getInputValue(event) });
               }}
               onIonBlur={() => onTouch("taxIe")}
             />
@@ -172,7 +175,7 @@ const FiscalTab: React.FC<FiscalTabProps> = ({ form, touched, errors, hasData, o
                 onTouch("taxContactPhone");
                 onChange({
                   ...form,
-                  taxContactPhone: maskPhone(event.detail.value || ""),
+                  taxContactPhone: maskPhone(getInputValue(event)),
                 });
               }}
               onIonBlur={() => onTouch("taxContactPhone")}
@@ -189,7 +192,7 @@ const FiscalTab: React.FC<FiscalTabProps> = ({ form, touched, errors, hasData, o
               placeholder="Rua, número, bairro, cidade, estado e CEP"
               onIonInput={(event: any) => {
                 onTouch("taxAddress");
-                onChange({ ...form, taxAddress: event.detail.value || "" });
+                onChange({ ...form, taxAddress: getInputValue(event) });
               }}
               onIonBlur={() => onTouch("taxAddress")}
             />
@@ -202,3 +205,4 @@ const FiscalTab: React.FC<FiscalTabProps> = ({ form, touched, errors, hasData, o
 );
 
 export default FiscalTab;
+

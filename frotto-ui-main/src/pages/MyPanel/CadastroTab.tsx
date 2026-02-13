@@ -19,6 +19,9 @@ const renderFieldError = (show: boolean, message?: string) =>
     </IonText>
   ) : null;
 
+const getInputValue = (event: any): string =>
+  event?.detail?.value ?? event?.target?.value ?? event?.currentTarget?.value ?? "";
+
 const CadastroTab: React.FC<CadastroTabProps> = ({ form, touched, errors, hasData, onTouch, onChange, onQuickSave }) => (
   <IonCard className="my-panel-card">
     <IonCardHeader>
@@ -47,7 +50,7 @@ const CadastroTab: React.FC<CadastroTabProps> = ({ form, touched, errors, hasDat
           maxlength={50}
           onIonInput={(event: any) => {
             onTouch("firstName");
-            onChange({ ...form, firstName: event.detail.value || "" });
+            onChange({ ...form, firstName: getInputValue(event) });
           }}
           onIonBlur={() => onTouch("firstName")}
         />
@@ -62,7 +65,7 @@ const CadastroTab: React.FC<CadastroTabProps> = ({ form, touched, errors, hasDat
           maxlength={50}
           onIonInput={(event: any) => {
             onTouch("lastName");
-            onChange({ ...form, lastName: event.detail.value || "" });
+            onChange({ ...form, lastName: getInputValue(event) });
           }}
           onIonBlur={() => onTouch("lastName")}
         />
@@ -77,7 +80,7 @@ const CadastroTab: React.FC<CadastroTabProps> = ({ form, touched, errors, hasDat
           maxlength={256}
           onIonInput={(event: any) => {
             onTouch("imageUrl");
-            onChange({ ...form, imageUrl: event.detail.value || "" });
+            onChange({ ...form, imageUrl: getInputValue(event) });
           }}
           onIonBlur={() => onTouch("imageUrl")}
         />
@@ -92,7 +95,7 @@ const CadastroTab: React.FC<CadastroTabProps> = ({ form, touched, errors, hasDat
           maxlength={10}
           onIonInput={(event: any) => {
             onTouch("langKey");
-            onChange({ ...form, langKey: event.detail.value || "" });
+            onChange({ ...form, langKey: getInputValue(event) });
           }}
           onIonBlur={() => onTouch("langKey")}
         />

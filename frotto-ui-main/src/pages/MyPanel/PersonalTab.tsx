@@ -20,6 +20,9 @@ const renderFieldError = (show: boolean, message?: string) =>
     </IonText>
   ) : null;
 
+const getInputValue = (event: any): string =>
+  event?.detail?.value ?? event?.target?.value ?? event?.currentTarget?.value ?? "";
+
 const PersonalTab: React.FC<PersonalTabProps> = ({ form, touched, errors, hasData, onTouch, onChange, onQuickSave }) => (
   <IonCard className="my-panel-card">
     <IonCardHeader>
@@ -47,7 +50,7 @@ const PersonalTab: React.FC<PersonalTabProps> = ({ form, touched, errors, hasDat
           placeholder="Ex.: Matheus Silva"
           onIonInput={(event: any) => {
             onTouch("personalName");
-            onChange({ ...form, personalName: event.detail.value || "" });
+            onChange({ ...form, personalName: getInputValue(event) });
           }}
           onIonBlur={() => onTouch("personalName")}
         />
@@ -61,7 +64,7 @@ const PersonalTab: React.FC<PersonalTabProps> = ({ form, touched, errors, hasDat
           placeholder="000.000.000-00"
           onIonInput={(event: any) => {
             onTouch("personalCpf");
-            onChange({ ...form, personalCpf: maskCPF(event.detail.value || "") });
+            onChange({ ...form, personalCpf: maskCPF(getInputValue(event)) });
           }}
           onIonBlur={() => onTouch("personalCpf")}
         />
@@ -75,7 +78,7 @@ const PersonalTab: React.FC<PersonalTabProps> = ({ form, touched, errors, hasDat
           value={form.personalBirthDate}
           onIonInput={(event: any) => {
             onTouch("personalBirthDate");
-            onChange({ ...form, personalBirthDate: event.detail.value || "" });
+            onChange({ ...form, personalBirthDate: getInputValue(event) });
           }}
           onIonBlur={() => onTouch("personalBirthDate")}
         />
@@ -90,7 +93,7 @@ const PersonalTab: React.FC<PersonalTabProps> = ({ form, touched, errors, hasDat
           placeholder="voce@email.com"
           onIonInput={(event: any) => {
             onTouch("personalEmail");
-            onChange({ ...form, personalEmail: event.detail.value || "" });
+            onChange({ ...form, personalEmail: getInputValue(event) });
           }}
           onIonBlur={() => onTouch("personalEmail")}
         />
@@ -104,7 +107,7 @@ const PersonalTab: React.FC<PersonalTabProps> = ({ form, touched, errors, hasDat
           placeholder="(11) 99999-9999"
           onIonInput={(event: any) => {
             onTouch("personalPhone");
-            onChange({ ...form, personalPhone: maskPhone(event.detail.value || "") });
+            onChange({ ...form, personalPhone: maskPhone(getInputValue(event)) });
           }}
           onIonBlur={() => onTouch("personalPhone")}
         />

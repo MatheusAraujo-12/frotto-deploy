@@ -1,6 +1,21 @@
-import { IonCard, IonCardContent, IonCardHeader, IonCardSubtitle, IonCardTitle, IonIcon, IonInput, IonItem, IonLabel, IonText } from "@ionic/react";
+import {
+  IonCard,
+  IonCardContent,
+  IonCardHeader,
+  IonCardSubtitle,
+  IonCardTitle,
+  IonIcon,
+  IonInput,
+  IonItem,
+  IonLabel,
+  IonText,
+} from "@ionic/react";
 import { shieldCheckmarkOutline } from "ionicons/icons";
-import { FormErrors, PASSWORD_MIN_LENGTH, SecurityForm } from "./profilePanelUtils";
+import {
+  FormErrors,
+  PASSWORD_MIN_LENGTH,
+  SecurityForm,
+} from "./profilePanelUtils";
 
 interface SecurityTabProps {
   form: SecurityForm;
@@ -17,7 +32,16 @@ const renderFieldError = (show: boolean, message?: string) =>
     </IonText>
   ) : null;
 
-const SecurityTab: React.FC<SecurityTabProps> = ({ form, touched, errors, onTouch, onChange }) => (
+const getInputValue = (event: any): string =>
+  event?.detail?.value ?? event?.target?.value ?? "";
+
+const SecurityTab: React.FC<SecurityTabProps> = ({
+  form,
+  touched,
+  errors,
+  onTouch,
+  onChange,
+}) => (
   <IonCard className="my-panel-card">
     <IonCardHeader>
       <IonCardTitle>
@@ -33,9 +57,10 @@ const SecurityTab: React.FC<SecurityTabProps> = ({ form, touched, errors, onTouc
           type="password"
           value={form.oldPassword}
           placeholder="Digite sua senha atual"
-          onIonInput={(event: any) => {
+          autocomplete="current-password"
+          onIonChange={(event: any) => {
             onTouch("oldPassword");
-            onChange({ ...form, oldPassword: event.detail.value || "" });
+            onChange({ ...form, oldPassword: getInputValue(event) });
           }}
           onIonBlur={() => onTouch("oldPassword")}
         />
@@ -48,9 +73,10 @@ const SecurityTab: React.FC<SecurityTabProps> = ({ form, touched, errors, onTouc
           type="password"
           value={form.newPassword}
           placeholder={`Mínimo ${PASSWORD_MIN_LENGTH} caracteres`}
-          onIonInput={(event: any) => {
+          autocomplete="new-password"
+          onIonChange={(event: any) => {
             onTouch("newPassword");
-            onChange({ ...form, newPassword: event.detail.value || "" });
+            onChange({ ...form, newPassword: getInputValue(event) });
           }}
           onIonBlur={() => onTouch("newPassword")}
         />
@@ -63,9 +89,10 @@ const SecurityTab: React.FC<SecurityTabProps> = ({ form, touched, errors, onTouc
           type="password"
           value={form.confirmPassword}
           placeholder="Repita a nova senha"
-          onIonInput={(event: any) => {
+          autocomplete="new-password"
+          onIonChange={(event: any) => {
             onTouch("confirmPassword");
-            onChange({ ...form, confirmPassword: event.detail.value || "" });
+            onChange({ ...form, confirmPassword: getInputValue(event) });
           }}
           onIonBlur={() => onTouch("confirmPassword")}
         />
