@@ -167,16 +167,17 @@ const MyPanelPage: React.FC = () => {
     const fiscal = mapFiscalForm(data);
     const cadastro = mapCadastroForm(data);
 
-    if (avatarPreviewUrl.startsWith("blob:")) {
-      URL.revokeObjectURL(avatarPreviewUrl);
-    }
-
     setPersonalForm(personal);
     setFiscalForm(fiscal);
     setCadastroForm(cadastro);
     setSecurityForm(EMPTY_SECURITY_FORM);
     setAvatarFile(null);
-    setAvatarPreviewUrl(resolveProfileImageUrl(data.imageUrl));
+    setAvatarPreviewUrl((previousPreviewUrl) => {
+      if (previousPreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(previousPreviewUrl);
+      }
+      return resolveProfileImageUrl(data.imageUrl);
+    });
     setAvatarRemoved(false);
 
     setInitialPersonalForm(personal);
@@ -188,7 +189,7 @@ const MyPanelPage: React.FC = () => {
     setFiscalTouched({ ...EMPTY_FISCAL_TOUCHED });
     setSecurityTouched({ ...EMPTY_SECURITY_TOUCHED });
     setCadastroTouched({ ...EMPTY_CADASTRO_TOUCHED });
-  }, [avatarPreviewUrl]);
+  }, []);
 
   const getErrorMessage = (error: any, fallback: string): string =>
     error?.response?.data?.detail || error?.response?.data?.title || error?.message || fallback;
