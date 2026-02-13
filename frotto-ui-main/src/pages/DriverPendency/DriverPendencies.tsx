@@ -22,7 +22,11 @@ import endpoints from "../../constants/endpoints";
 import { TEXT } from "../../constants/texts";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAlert } from "../../services/hooks/useAlert";
-import { DriverPendencyModel } from "../../constants/CarModels";
+import {
+  DriverDebtSummaryModel,
+  DriverPendencyModel,
+  DriverPendencyStatus,
+} from "../../constants/CarModels";
 import { filterListObj } from "../../services/filterList";
 import ItemNotFound from "../../components/List/ItemNotFound";
 import { RouteComponentProps, useHistory, useLocation } from "react-router";
@@ -32,8 +36,9 @@ import {
 } from "../../components/List/IonLabekRight";
 import DriverPendencyAdd from "./DriverPendencyAddModal/DriverPendencyAdd";
 import { currencyFormat } from "../../services/currencyFormat";
-import { add } from "ionicons/icons";
+import { add, checkmarkDoneCircleOutline } from "ionicons/icons";
 import { formatDateView } from "../../services/dateFormat";
+
 interface DriverPendencyDetail
   extends RouteComponentProps<{
     id: string;
@@ -52,6 +57,7 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
   const [driverPendencyList, setDriverPendencyList] = useState<
     DriverPendencyModel[]
   >([]);
+  const [debtSummary, setDebtSummary] = useState<DriverDebtSummaryModel>({});
 
   useEffect(() => {
     if (!location.search.includes("modalOpened=true")) {
@@ -59,22 +65,74 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
     }
   }, [location]);
 
+  const isPaid = (status?: DriverPendencyStatus) => status === "PAID";
+
+  const getRemainingAmount = useCallback((driverPendency: DriverPendencyModel) => {
+    if (typeof driverPendency.remainingAmount === "number") {
+      return Math.max(driverPendency.remainingAmount, 0);
+    }
+    if (
+      typeof driverPendency.cost === "number" &&
+      typeof driverPendency.paidAmount === "number"
+    ) {
+      return Math.max(driverPendency.cost - driverPendency.paidAmount, 0);
+    }
+    if (typeof driverPendency.cost === "number") {
+      return driverPendency.status === "PAID" ? 0 : driverPendency.cost;
+    }
+    return 0;
+  }, []);
+
+  const buildSummaryFromList = useCallback(
+    (list: DriverPendencyModel[]): DriverDebtSummaryModel => {
+      let totalOutstanding = 0;
+      let openCount = 0;
+      list.forEach((driverPendency) => {
+        if (driverPendency.status !== "PAID") {
+          openCount += 1;
+          totalOutstanding += getRemainingAmount(driverPendency);
+        }
+      });
+      const totalPendenciesCount = list.length;
+      return {
+        driverCarId: Number(match.params.id),
+        totalOutstanding,
+        openPendenciesCount: openCount,
+        totalPendenciesCount,
+        paidPendenciesCount: Math.max(totalPendenciesCount - openCount, 0),
+      };
+    },
+    [getRemainingAmount, match.params.id]
+  );
+
   const loadDriverPendencys = async () => {
     setisLoading(true);
     try {
       const { data } = await api.get(
-        endpoints.DRIVER_PENDENCIES({
+        endpoints.DRIVER_DEBTS({
           pathVariables: {
             id: match.params.id,
           },
         })
       );
-      setisLoading(false);
       if (data) {
         setDriverPendencyList(data);
+        try {
+          const summaryResponse = await api.get(
+            endpoints.DRIVER_DEBT_SUMMARY({
+              pathVariables: {
+                id: match.params.id,
+              },
+            })
+          );
+          setDebtSummary(summaryResponse.data || buildSummaryFromList(data));
+        } catch (summaryError) {
+          setDebtSummary(buildSummaryFromList(data));
+        }
       } else {
         history.push("/menu", "none", "replace");
       }
+      setisLoading(false);
     } catch (error) {
       setisLoading(false);
       showErrorAlert(TEXT.loadPendenciesFailed);
@@ -90,15 +148,59 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
     return filterListObj(driverPendencyList, searchValue);
   }, [driverPendencyList, searchValue]);
 
-  const totalCost = useMemo(() => {
-    let cost = 0;
-    driverPendencyList.forEach((driverPendency) => {
-      if (driverPendency.cost) {
-        cost += driverPendency.cost;
-      }
-    });
-    return cost;
-  }, [driverPendencyList]);
+  const totalOutstanding = useMemo(() => {
+    if (typeof debtSummary.totalOutstanding === "number") {
+      return debtSummary.totalOutstanding;
+    }
+    return buildSummaryFromList(driverPendencyList).totalOutstanding || 0;
+  }, [buildSummaryFromList, debtSummary.totalOutstanding, driverPendencyList]);
+
+  const getStatusLabel = (status?: DriverPendencyStatus) => {
+    if (status === "PAID") {
+      return TEXT.debtPaid;
+    }
+    if (status === "PARTIALLY_PAID") {
+      return TEXT.debtPartiallyPaid;
+    }
+    return TEXT.debtOpen;
+  };
+
+  const refreshSummaryFromList = useCallback(
+    (updatedList: DriverPendencyModel[]) => {
+      const currentSummary = buildSummaryFromList(updatedList);
+      setDebtSummary(currentSummary);
+    },
+    [buildSummaryFromList]
+  );
+
+  const handleSettlePendency = async (driverPendency: DriverPendencyModel) => {
+    if (!driverPendency.id || isPaid(driverPendency.status)) {
+      return;
+    }
+    setisLoading(true);
+    try {
+      const response = await api.post(
+        endpoints.DRIVER_PENDENCIES_PAY({
+          pathVariables: {
+            id: driverPendency.id,
+          },
+        }),
+        {}
+      );
+      const updatedPendency = response.data as DriverPendencyModel;
+      setDriverPendencyList((prev) => {
+        const updatedList = prev.map((item) =>
+          item.id === updatedPendency.id ? updatedPendency : item
+        );
+        refreshSummaryFromList(updatedList);
+        return updatedList;
+      });
+      setisLoading(false);
+    } catch (error) {
+      setisLoading(false);
+      showErrorAlert(TEXT.saveFailed);
+    }
+  };
 
   const closeModal = useCallback((response?: DriverPendencyModel) => {
     setIsModalOpen(false);
@@ -108,16 +210,24 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
 
     setDriverPendencyList((prev) => {
       if (response.delete && response.id !== undefined) {
-        return prev.filter((item) => item.id !== response.id);
+        const updatedList = prev.filter((item) => item.id !== response.id);
+        refreshSummaryFromList(updatedList);
+        return updatedList;
       }
       const exists = prev.some((item) => item.id === response.id);
       if (exists) {
-        return prev.map((item) => (item.id === response.id ? response : item));
+        const updatedList = prev.map((item) =>
+          item.id === response.id ? response : item
+        );
+        refreshSummaryFromList(updatedList);
+        return updatedList;
       }
-      return [response, ...prev];
+      const updatedList = [response, ...prev];
+      refreshSummaryFromList(updatedList);
+      return updatedList;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refreshSummaryFromList]);
 
   return (
     <IonPage id="driver-pendencies-page">
@@ -156,17 +266,28 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
               <IonLabel>
                 <p>
                   <strong>
-                    {TEXT.total} {currencyFormat(totalCost)}
+                    {TEXT.totalOutstanding} {currencyFormat(totalOutstanding)}
                   </strong>
+                </p>
+                <p>
+                  {TEXT.openPendencies}: {debtSummary.openPendenciesCount || 0}
+                </p>
+                <p>
+                  {TEXT.closedPendencies}:{" "}
+                  {debtSummary.paidPendenciesCount || 0}
                 </p>
               </IonLabel>
             </IonListHeader>
             {filteredList.map((driverPendency: DriverPendencyModel, index) => {
+              const paid = isPaid(driverPendency.status);
               return (
                 <IonItem
                   key={index}
-                  button
+                  button={!paid}
                   onClick={() => {
+                    if (paid) {
+                      return;
+                    }
                     setModalDriverPendencyValue(driverPendency);
                     setIsModalOpen(true);
                     nav.push(nav.location.pathname + "?modalOpened=true");
@@ -175,9 +296,39 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                   <IonLabelLeft class="ion-text-wrap">
                     <h2>{formatDateView(driverPendency.date)}</h2>
                     <p>{driverPendency.name}</p>
+                    {driverPendency.note && <p>{driverPendency.note}</p>}
                   </IonLabelLeft>
                   <IonLabekRight>
+                    <p>{getStatusLabel(driverPendency.status)}</p>
                     <p>{currencyFormat(driverPendency.cost)}</p>
+                    {!paid && (
+                      <p>
+                        {TEXT.pendingAmount}:{" "}
+                        {currencyFormat(getRemainingAmount(driverPendency))}
+                      </p>
+                    )}
+                    {paid && (
+                      <p>
+                        {TEXT.settledAt}: {formatDateView(driverPendency.paidAt)}
+                      </p>
+                    )}
+                    {!paid && (
+                      <IonButton
+                        size="small"
+                        fill="outline"
+                        color="success"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleSettlePendency(driverPendency);
+                        }}
+                      >
+                        <IonIcon
+                          icon={checkmarkDoneCircleOutline}
+                          slot="start"
+                        />
+                        {TEXT.settleDebt}
+                      </IonButton>
+                    )}
                   </IonLabekRight>
                 </IonItem>
               );

@@ -42,6 +42,7 @@
     <include file="config/liquibase/changelog/20230120000000_add_entity_Reminder.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20230125000000_add_entity_Pendency.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20230818000000_update_entity_Pendency.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260213000000_update_entity_Pendency_payment_status.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20240214000000_update_entity_CarBodyDamage.xml" relativeToChangelogFile="false"/>
     <!-- jhipster-needle-liquibase-add-changelog - JHipster will add liquibase changelogs here -->
     <include file="config/liquibase/changelog/20220930140417_added_entity_constraints_Car.xml" relativeToChangelogFile="false"/>

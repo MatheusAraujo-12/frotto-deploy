@@ -299,15 +299,17 @@ const Car: React.FC<CarDetail> = ({ match }) => {
           >
             {TEXT.all}
           </IonButton>
-          {driver && (
-            <IonButton
-              fill="clear"
-              color="secondary"
-              routerLink={"/menu/carros/motorista/" + driver.id + "/pendencias"}
-            >
-              {TEXT.driverPendencies}
-            </IonButton>
-          )}
+          <IonButton
+            fill="clear"
+            color="secondary"
+            routerLink={
+              driver
+                ? "/menu/carros/motorista/" + driver.id + "/pendencias"
+                : "/menu/carros/" + match.params.id + "/motoristas"
+            }
+          >
+            {TEXT.driverPendencies}
+          </IonButton>
           </IonCard>
           <IonCard>
           <IonCardSubtitle className="ion-margin-horizontal ion-margin-top">

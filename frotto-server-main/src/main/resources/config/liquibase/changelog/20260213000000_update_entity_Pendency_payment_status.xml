@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+
+    <changeSet id="20260213000000-1" author="codex">
+        <addColumn tableName="pendency">
+            <column name="note" type="varchar(255)">
+                <constraints nullable="true" />
+            </column>
+            <column name="status" type="varchar(30)" defaultValue="OPEN">
+                <constraints nullable="false" />
+            </column>
+            <column name="paid_at" type="${datetimeType}">
+                <constraints nullable="true" />
+            </column>
+            <column name="paid_amount" type="decimal(21,2)" defaultValueNumeric="0">
+                <constraints nullable="false" />
+            </column>
+            <column name="remaining_amount" type="decimal(21,2)">
+                <constraints nullable="true" />
+            </column>
+            <column name="payment_method" type="varchar(60)">
+                <constraints nullable="true" />
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="20260213000000-2" author="codex">
+        <update tableName="pendency">
+            <column name="remaining_amount" valueComputed="coalesce(cost, 0)" />
+            <where>remaining_amount is null</where>
+        </update>
+    </changeSet>
+</databaseChangeLog>

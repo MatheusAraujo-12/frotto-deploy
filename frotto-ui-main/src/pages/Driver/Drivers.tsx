@@ -1,4 +1,5 @@
 import {
+  IonButton,
   IonBackButton,
   IonButtons,
   IonContent,
@@ -17,9 +18,12 @@ import {
 import api from "../../services/axios/axios";
 import endpoints from "../../constants/endpoints";
 import { TEXT } from "../../constants/texts";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { MouseEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useAlert } from "../../services/hooks/useAlert";
-import { CarDriverModel } from "../../constants/CarModels";
+import {
+  CarDriverModel,
+  DriverDebtSummaryModel,
+} from "../../constants/CarModels";
 import { filterListObj } from "../../services/filterList";
 import ItemNotFound from "../../components/List/ItemNotFound";
 import { RouteComponentProps, useHistory, useLocation } from "react-router";
@@ -47,12 +51,49 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchValue, setSearchValue] = useState<string | undefined>(undefined);
   const [driverList, setDriversList] = useState<CarDriverModel[]>([]);
+  const [debtSummaryByDriverId, setDebtSummaryByDriverId] = useState<
+    Record<number, DriverDebtSummaryModel>
+  >({});
 
   useEffect(() => {
     if (!location.search.includes("modalOpened=true")) {
       setIsModalOpen(false);
     }
   }, [location]);
+
+  const loadDebtSummaryByDrivers = async (drivers: CarDriverModel[]) => {
+    const ids = drivers
+      .map((driver) => driver.id)
+      .filter((id): id is number => typeof id === "number");
+
+    if (ids.length === 0) {
+      setDebtSummaryByDriverId({});
+      return;
+    }
+
+    const summaries = await Promise.all(
+      ids.map(async (id) => {
+        try {
+          const response = await api.get(
+            endpoints.DRIVER_DEBT_SUMMARY({
+              pathVariables: { id },
+            })
+          );
+          return { id, summary: response.data as DriverDebtSummaryModel };
+        } catch (error) {
+          return { id, summary: undefined };
+        }
+      })
+    );
+
+    const summaryMap: Record<number, DriverDebtSummaryModel> = {};
+    summaries.forEach(({ id, summary }) => {
+      if (summary) {
+        summaryMap[id] = summary;
+      }
+    });
+    setDebtSummaryByDriverId(summaryMap);
+  };
 
   const loadDrivers = async () => {
     setisLoading(true);
@@ -67,6 +108,7 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
       setisLoading(false);
       if (data) {
         setDriversList(data);
+        loadDebtSummaryByDrivers(data);
       } else {
         history.push("/menu", "none", "replace");
       }
@@ -107,12 +149,40 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
     setDriversList((prev) => {
       const exists = prev.some((item) => item.id === response.id);
       if (exists) {
-        return prev.map((item) => (item.id === response.id ? response : item));
+        const updatedList = prev.map((item) =>
+          item.id === response.id ? response : item
+        );
+        loadDebtSummaryByDrivers(updatedList);
+        return updatedList;
       }
-      return [response, ...prev];
+      const updatedList = [response, ...prev];
+      loadDebtSummaryByDrivers(updatedList);
+      return updatedList;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const getOutstandingDebt = (carDriver?: CarDriverModel) => {
+    if (!carDriver?.id) {
+      return 0;
+    }
+    const summary = debtSummaryByDriverId[carDriver.id];
+    if (summary && typeof summary.totalOutstanding === "number") {
+      return summary.totalOutstanding;
+    }
+    return carDriver.debt || 0;
+  };
+
+  const openDriverPendencies = (
+    event: MouseEvent,
+    carDriver?: CarDriverModel
+  ) => {
+    event.stopPropagation();
+    if (!carDriver?.id) {
+      return;
+    }
+    nav.push(`/menu/carros/motorista/${carDriver.id}/pendencias`);
+  };
 
   return (
     <IonPage id="car-damages-page">
@@ -158,7 +228,21 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
                 <IonLabekRight>
                   <p>{`${formatDateView(activeDoneList.active?.startDate)}`}</p>
                   <p>{currencyFormat(activeDoneList.active?.warranty)}</p>
+                  <p>
+                    {TEXT.totalOutstanding}:{" "}
+                    {currencyFormat(getOutstandingDebt(activeDoneList.active))}
+                  </p>
                   <p>{`${activeDoneList.active?.driver?.email}`}</p>
+                  <IonButton
+                    size="small"
+                    fill="outline"
+                    color="secondary"
+                    onClick={(event) =>
+                      openDriverPendencies(event, activeDoneList.active)
+                    }
+                  >
+                    {TEXT.driverPendencies}
+                  </IonButton>
                 </IonLabekRight>
               </IonItem>
             )}
@@ -191,8 +275,19 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
                     <p>{`${formatDateView(
                       carDriver?.startDate
                     )} - ${formatDateView(carDriver?.endDate)}`}</p>
-                    <p>{currencyFormat(carDriver?.debt)}</p>
+                    <p>
+                      {TEXT.totalOutstanding}:{" "}
+                      {currencyFormat(getOutstandingDebt(carDriver))}
+                    </p>
                     <p>{`${carDriver?.driver?.email}`}</p>
+                    <IonButton
+                      size="small"
+                      fill="outline"
+                      color="secondary"
+                      onClick={(event) => openDriverPendencies(event, carDriver)}
+                    >
+                      {TEXT.driverPendencies}
+                    </IonButton>
                   </IonLabekRight>
                 </IonItem>
               );

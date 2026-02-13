@@ -118,6 +118,8 @@ export interface CarDriverModel {
   warranty?: number;
   score?: number;
   debt?: number;
+  outstandingDebtTotal?: number;
+  openPendenciesCount?: number;
   concluded?: boolean;
   driver?: DriverModel;
 }
@@ -148,5 +150,21 @@ export interface DriverPendencyModel {
   date?: string;
   name?: string;
   cost?: number;
+  note?: string;
+  status?: DriverPendencyStatus;
+  paidAt?: string;
+  paidAmount?: number;
+  remainingAmount?: number;
+  paymentMethod?: string;
   delete?: boolean;
+}
+
+export type DriverPendencyStatus = "OPEN" | "PARTIALLY_PAID" | "PAID";
+
+export interface DriverDebtSummaryModel {
+  driverCarId?: number;
+  totalOutstanding?: number;
+  openPendenciesCount?: number;
+  totalPendenciesCount?: number;
+  paidPendenciesCount?: number;
 }

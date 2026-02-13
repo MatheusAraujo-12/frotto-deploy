@@ -27,6 +27,7 @@ import { DRIVER_PENDENCIES_KEY } from "../../../services/localStorage/localstora
 import FormDeleteButton from "../../../components/Form/FormDeleteButton";
 import FormCurrency from "../../../components/Form/FormCurrency";
 import FormDate from "../../../components/Form/FormDate";
+import FormInputArea from "../../../components/Form/FormInputArea";
 
 interface DriverPendencyAddModalProps {
   closeModal: (response?: DriverPendencyModel) => void;
@@ -43,6 +44,7 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
   const [isLoading, setisLoading] = useState(false);
 
   const formInitial = initialDriverPendencyValues(initialValues || {});
+  const isPaidPendency = formInitial.status === "PAID";
 
   const {
     handleSubmit,
@@ -56,6 +58,10 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
   });
 
   const onSubmit = async (newDriverPendency: DriverPendencyModel) => {
+    if (isPaidPendency) {
+      closeModal();
+      return;
+    }
     setisLoading(true);
     try {
       let responseDriverPendency: DriverPendencyModel;
@@ -117,7 +123,7 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
           <IonTitle>{TEXT.driverPendency}</IonTitle>
           <IonButtons slot="end">
             <IonButton
-              disabled={isLoading}
+              disabled={isLoading || isPaidPendency}
               strong={true}
               onClick={handleSubmit(onSubmit)}
             >
@@ -161,8 +167,18 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
             }}
             required
           />
+          <FormInputArea
+            label={TEXT.note}
+            errorsObj={errors}
+            errorName="note"
+            initialValue={watch("note") || ""}
+            maxlength={255}
+            changeCallback={(value: string) => {
+              setValue("note", value);
+            }}
+          />
         </form>
-        {formInitial.id && (
+        {formInitial.id && !isPaidPendency && (
           <FormDeleteButton
             label={`${TEXT.delete} ${TEXT.driverPendency}`}
             message={TEXT.driverPendency}

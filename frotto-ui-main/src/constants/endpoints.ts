@@ -134,6 +134,8 @@ const endpoints = {
   DRIVER_CPF: apiEndpoint("/drivers/{cpf}"),
   DRIVERS: apiEndpoint("/driver-cars/car/{id}"),
   DRIVERS_EDIT: apiEndpoint("/driver-cars/{id}"),
+  DRIVER_DEBTS: apiEndpoint("/drivers/{id}/debts"),
+  DRIVER_DEBT_SUMMARY: apiEndpoint("/drivers/{id}/debt-summary"),
 
   INSPECTIONS: apiEndpoint("/inspections/car/{id}"),
   INSPECTIONS_EDIT: apiEndpoint("/inspections/{id}"),
@@ -153,6 +155,7 @@ const endpoints = {
 
   DRIVER_PENDENCIES: apiEndpoint("/pendencies/car-driver/{id}"),
   DRIVER_PENDENCIES_EDIT: apiEndpoint("/pendencies/{id}"),
+  DRIVER_PENDENCIES_PAY: apiEndpoint("/pendencies/{id}/pay"),
 
   REPORTS: apiEndpoint("/reports"),
   REPORTS_HISTORY: apiEndpoint("/reports-history"),
