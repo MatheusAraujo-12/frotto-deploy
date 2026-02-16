@@ -413,12 +413,12 @@ const MyPanelPage: React.FC = () => {
   const onSave = async () => {
     if (activeTab === "pessoal") setPersonalTouched({ ...touchAllPersonal });
     if (activeTab === "fiscal") setFiscalTouched({ ...touchAllFiscal });
-    if (activeTab === "seguranca") setSecurityTouched({ ...touchAllSecurity });
+    if (activeTab === "segurança") setSecurityTouched({ ...touchAllSecurity });
 
     const invalid =
       (activeTab === "pessoal" && Object.keys(personalErrors).length > 0) ||
       (activeTab === "fiscal" && Object.keys(fiscalErrors).length > 0) ||
-      (activeTab === "seguranca" && Object.keys(securityErrors).length > 0);
+      (activeTab === "segurança" && Object.keys(securityErrors).length > 0);
 
     if (invalid) return;
 
@@ -426,7 +426,7 @@ const MyPanelPage: React.FC = () => {
     try {
       if (activeTab === "pessoal") await savePersonal();
       if (activeTab === "fiscal") await saveFiscal();
-      if (activeTab === "seguranca") await saveSecurity();
+      if (activeTab === "segurança") await saveSecurity();
     } catch (error: any) {
       showError(getErrorMessage(error, "Falha ao salvar os dados."));
     } finally {
@@ -480,8 +480,8 @@ const MyPanelPage: React.FC = () => {
             <IonSegmentButton value="fiscal">
               <IonLabel>Fiscal</IonLabel>
             </IonSegmentButton>
-            <IonSegmentButton value="seguranca">
-              <IonLabel>Seguranca</IonLabel>
+            <IonSegmentButton value="segurança">
+              <IonLabel>Segurança</IonLabel>
             </IonSegmentButton>
           </IonSegment>
         </IonToolbar>
@@ -531,7 +531,7 @@ const MyPanelPage: React.FC = () => {
             />
           )}
 
-          {!isLoading && activeTab === "seguranca" && (
+          {!isLoading && activeTab === "segurança" && (
             <SecurityTab
               form={securityForm}
               touched={securityTouched}
