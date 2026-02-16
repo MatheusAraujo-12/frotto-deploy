@@ -60,6 +60,11 @@ public class MeResource {
         return ResponseEntity.ok(meService.uploadAvatar(getCurrentUserLogin(), file));
     }
 
+    @PatchMapping(value = "/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<MeResponseDTO> patchAvatar(@RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(meService.uploadAvatar(getCurrentUserLogin(), file));
+    }
+
     @DeleteMapping("/me/avatar")
     public ResponseEntity<MeResponseDTO> removeAvatar() {
         return ResponseEntity.ok(meService.removeAvatar(getCurrentUserLogin()));

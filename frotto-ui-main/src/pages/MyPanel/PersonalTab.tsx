@@ -1,5 +1,18 @@
-import { IonButton, IonCard, IonCardContent, IonCardHeader, IonCardSubtitle, IonCardTitle, IonIcon, IonInput, IonItem, IonLabel, IonText } from "@ionic/react";
-import { personCircleOutline } from "ionicons/icons";
+import {
+  IonAvatar,
+  IonButton,
+  IonCard,
+  IonCardContent,
+  IonCardHeader,
+  IonCardSubtitle,
+  IonCardTitle,
+  IonIcon,
+  IonInput,
+  IonItem,
+  IonLabel,
+  IonText,
+} from "@ionic/react";
+import { imageOutline, personCircleOutline } from "ionicons/icons";
 import { maskCPF, maskPhone } from "../../services/profileFormat";
 import { FormErrors, PersonalForm } from "./profilePanelUtils";
 
@@ -8,9 +21,13 @@ interface PersonalTabProps {
   touched: Record<keyof PersonalForm, boolean>;
   errors: FormErrors<keyof PersonalForm>;
   hasData: boolean;
+  avatarPreviewUrl: string;
+  canRemoveAvatar: boolean;
   onTouch: (field: keyof PersonalForm) => void;
   onChange: (form: PersonalForm) => void;
   onQuickSave: () => void;
+  onChangeAvatar: () => void;
+  onRemoveAvatar: () => void;
 }
 
 const renderFieldError = (show: boolean, message?: string) =>
@@ -23,25 +40,60 @@ const renderFieldError = (show: boolean, message?: string) =>
 const getInputValue = (event: any): string =>
   event?.detail?.value ?? event?.target?.value ?? event?.currentTarget?.value ?? "";
 
-const PersonalTab: React.FC<PersonalTabProps> = ({ form, touched, errors, hasData, onTouch, onChange, onQuickSave }) => (
+const PersonalTab: React.FC<PersonalTabProps> = ({
+  form,
+  touched,
+  errors,
+  hasData,
+  avatarPreviewUrl,
+  canRemoveAvatar,
+  onTouch,
+  onChange,
+  onQuickSave,
+  onChangeAvatar,
+  onRemoveAvatar,
+}) => (
   <IonCard className="my-panel-card">
     <IonCardHeader>
       <IonCardTitle>
         <IonIcon icon={personCircleOutline} />
         Dados Pessoais
       </IonCardTitle>
-      <IonCardSubtitle>Mantenha suas informações básicas sempre atualizadas.</IonCardSubtitle>
+      <IonCardSubtitle>Mantenha suas informacoes basicas sempre atualizadas.</IonCardSubtitle>
     </IonCardHeader>
     <IonCardContent>
       {!hasData && (
         <div className="my-panel-empty-state">
           <h3>Nenhum dado pessoal salvo</h3>
-          <p>Preencha os campos abaixo para começar.</p>
+          <p>Preencha os campos abaixo para comecar.</p>
           <IonButton size="small" fill="outline" onClick={onQuickSave}>
             Salvar Agora
           </IonButton>
         </div>
       )}
+
+      <IonItem className="my-panel-item">
+        <IonAvatar slot="start" className="my-panel-avatar">
+          {avatarPreviewUrl ? (
+            <img src={avatarPreviewUrl} alt="Avatar do usuario" />
+          ) : (
+            <IonIcon icon={imageOutline} className="my-panel-avatar-placeholder" />
+          )}
+        </IonAvatar>
+        <IonLabel>Foto de perfil</IonLabel>
+        <IonButton slot="end" fill="outline" onClick={onChangeAvatar}>
+          Alterar foto
+        </IonButton>
+        <IonButton
+          slot="end"
+          fill="clear"
+          color="danger"
+          disabled={!canRemoveAvatar}
+          onClick={onRemoveAvatar}
+        >
+          Remover
+        </IonButton>
+      </IonItem>
 
       <IonItem className="my-panel-item">
         <IonLabel position="stacked">Nome</IonLabel>

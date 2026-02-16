@@ -83,8 +83,18 @@ const profileService = {
     const formData = new FormData();
     formData.append("file", file);
 
-    const { data } = await api.post<MeResponseDTO>(endpoints.ME_AVATAR(), formData);
-    return data;
+    try {
+      const { data } = await api.patch<MeResponseDTO>(endpoints.ME_AVATAR(), formData);
+      return data;
+    } catch (error: any) {
+      const status = error?.response?.status;
+      // Backward compatibility for environments that still expose POST.
+      if (status === 404 || status === 405) {
+        const { data } = await api.post<MeResponseDTO>(endpoints.ME_AVATAR(), formData);
+        return data;
+      }
+      throw error;
+    }
   },
 
   async removeAvatar(): Promise<MeResponseDTO> {

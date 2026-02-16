@@ -6,27 +6,25 @@ import {
   IonContent,
   IonFooter,
   IonHeader,
+  IonLabel,
   IonMenuButton,
   IonPage,
   IonSegment,
   IonSegmentButton,
   IonSkeletonText,
-  IonLabel,
   IonTitle,
   IonToolbar,
+  useIonActionSheet,
   useIonAlert,
   useIonToast,
 } from "@ionic/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePhotoGallery } from "../../services/hooks/usePhotoGallery";
 import profileService, { MeResponseDTO } from "../../services/profileService";
-import CadastroTab from "./CadastroTab";
 import FiscalTab from "./FiscalTab";
 import PersonalTab from "./PersonalTab";
 import SecurityTab from "./SecurityTab";
 import {
-  CadastroForm,
-  EMPTY_CADASTRO_FORM,
-  EMPTY_CADASTRO_TOUCHED,
   EMPTY_FISCAL_FORM,
   EMPTY_FISCAL_TOUCHED,
   EMPTY_PERSONAL_FORM,
@@ -34,26 +32,36 @@ import {
   EMPTY_SECURITY_FORM,
   EMPTY_SECURITY_TOUCHED,
   FiscalForm,
-  hasCadastroData,
   hasFiscalData,
   hasPersonalData,
-  mapCadastroForm,
   mapFiscalForm,
   mapPersonalForm,
   PanelTab,
   PersonalForm,
-  serializeCadastroForm,
+  SecurityForm,
   serializeFiscalForm,
   serializePersonalForm,
   toNullable,
   toNullableDigits,
-  validateCadastro,
   validateFiscal,
   validatePersonal,
   validateSecurity,
-  SecurityForm,
 } from "./profilePanelUtils";
 import "./MyPanelPage.css";
+
+type AccountMetaForm = {
+  firstName: string;
+  lastName: string;
+  langKey: string;
+  imageUrl: string;
+};
+
+const EMPTY_ACCOUNT_META: AccountMetaForm = {
+  firstName: "",
+  lastName: "",
+  langKey: "",
+  imageUrl: "",
+};
 
 const renderSkeleton = () => (
   <IonCard className="my-panel-card">
@@ -95,21 +103,21 @@ const touchAllSecurity: Record<keyof SecurityForm, boolean> = {
   confirmPassword: true,
 };
 
-const touchAllCadastro: Record<keyof CadastroForm, boolean> = {
-  firstName: true,
-  lastName: true,
-  imageUrl: true,
-  langKey: true,
-};
-
 const resolveProfileImageUrl = (imageUrl: string | null | undefined): string => {
   const value = `${imageUrl || ""}`.trim();
   if (!value) {
     return "";
   }
-  if (value.startsWith("http://") || value.startsWith("https://") || value.startsWith("blob:") || value.startsWith("data:")) {
+
+  if (
+    value.startsWith("http://") ||
+    value.startsWith("https://") ||
+    value.startsWith("blob:") ||
+    value.startsWith("data:")
+  ) {
     return value;
   }
+
   const s3Base = `${process.env.REACT_APP_S3_URL || ""}`.trim();
   return s3Base ? `${s3Base}${value}` : value;
 };
@@ -119,15 +127,57 @@ const splitName = (fullName: string): { firstName: string; lastName: string } =>
   if (!parts.length) {
     return { firstName: "", lastName: "" };
   }
+
   return {
     firstName: parts[0],
     lastName: parts.slice(1).join(" "),
   };
 };
 
+const mapAccountMeta = (data: MeResponseDTO): AccountMetaForm => ({
+  firstName: data.firstName ?? "",
+  lastName: data.lastName ?? "",
+  langKey: data.langKey ?? "",
+  imageUrl: data.imageUrl ?? "",
+});
+
+const deriveAccountMetaFromFiscal = (fiscalForm: FiscalForm, currentMeta: AccountMetaForm): AccountMetaForm => {
+  const baseLang = currentMeta.langKey.trim() || "pt-br";
+
+  if (fiscalForm.taxPersonType === "CPF") {
+    const sourceName = fiscalForm.taxLandlordName.trim();
+    if (!sourceName) {
+      return { ...currentMeta, langKey: baseLang };
+    }
+
+    const names = splitName(sourceName);
+    return {
+      ...currentMeta,
+      firstName: names.firstName,
+      lastName: names.lastName,
+      langKey: baseLang,
+    };
+  }
+
+  const companyName = fiscalForm.taxCompanyName.trim();
+  if (!companyName) {
+    return { ...currentMeta, langKey: baseLang };
+  }
+
+  return {
+    ...currentMeta,
+    firstName: companyName,
+    lastName: "",
+    langKey: baseLang,
+  };
+};
+
 const MyPanelPage: React.FC = () => {
   const [presentAlert] = useIonAlert();
   const [presentToast] = useIonToast();
+  const [presentActionSheet] = useIonActionSheet();
+
+  const { pickImage } = usePhotoGallery();
 
   const [activeTab, setActiveTab] = useState<PanelTab>("pessoal");
   const [isLoading, setIsLoading] = useState(true);
@@ -140,36 +190,42 @@ const MyPanelPage: React.FC = () => {
   const [personalForm, setPersonalForm] = useState<PersonalForm>(EMPTY_PERSONAL_FORM);
   const [fiscalForm, setFiscalForm] = useState<FiscalForm>(EMPTY_FISCAL_FORM);
   const [securityForm, setSecurityForm] = useState<SecurityForm>(EMPTY_SECURITY_FORM);
-  const [cadastroForm, setCadastroForm] = useState<CadastroForm>(EMPTY_CADASTRO_FORM);
+  const [accountMeta, setAccountMeta] = useState<AccountMetaForm>(EMPTY_ACCOUNT_META);
 
   const [initialPersonalForm, setInitialPersonalForm] = useState<PersonalForm>(EMPTY_PERSONAL_FORM);
   const [initialFiscalForm, setInitialFiscalForm] = useState<FiscalForm>(EMPTY_FISCAL_FORM);
   const [initialSecurityForm, setInitialSecurityForm] = useState<SecurityForm>(EMPTY_SECURITY_FORM);
-  const [initialCadastroForm, setInitialCadastroForm] = useState<CadastroForm>(EMPTY_CADASTRO_FORM);
 
   const [personalTouched, setPersonalTouched] = useState(EMPTY_PERSONAL_TOUCHED);
   const [fiscalTouched, setFiscalTouched] = useState(EMPTY_FISCAL_TOUCHED);
   const [securityTouched, setSecurityTouched] = useState(EMPTY_SECURITY_TOUCHED);
-  const [cadastroTouched, setCadastroTouched] = useState(EMPTY_CADASTRO_TOUCHED);
 
   const personalErrors = useMemo(() => validatePersonal(personalForm), [personalForm]);
   const fiscalErrors = useMemo(() => validateFiscal(fiscalForm), [fiscalForm]);
   const securityErrors = useMemo(() => validateSecurity(securityForm), [securityForm]);
-  const cadastroErrors = useMemo(() => validateCadastro(cadastroForm), [cadastroForm]);
 
-  const personalDirty = useMemo(() => serializePersonalForm(personalForm) !== serializePersonalForm(initialPersonalForm), [personalForm, initialPersonalForm]);
-  const fiscalDirty = useMemo(() => serializeFiscalForm(fiscalForm) !== serializeFiscalForm(initialFiscalForm), [fiscalForm, initialFiscalForm]);
-  const securityDirty = useMemo(() => JSON.stringify(securityForm) !== JSON.stringify(initialSecurityForm) && Object.values(securityForm).some(Boolean), [securityForm, initialSecurityForm]);
-  const cadastroDirty = useMemo(() => serializeCadastroForm(cadastroForm) !== serializeCadastroForm(initialCadastroForm), [cadastroForm, initialCadastroForm]);
+  const personalDirty = useMemo(
+    () => serializePersonalForm(personalForm) !== serializePersonalForm(initialPersonalForm),
+    [personalForm, initialPersonalForm]
+  );
+  const fiscalDirty = useMemo(
+    () => serializeFiscalForm(fiscalForm) !== serializeFiscalForm(initialFiscalForm),
+    [fiscalForm, initialFiscalForm]
+  );
+  const securityDirty = useMemo(
+    () =>
+      JSON.stringify(securityForm) !== JSON.stringify(initialSecurityForm) &&
+      Object.values(securityForm).some(Boolean),
+    [securityForm, initialSecurityForm]
+  );
 
   const hydrateForms = useCallback((data: MeResponseDTO) => {
     const personal = mapPersonalForm(data);
     const fiscal = mapFiscalForm(data);
-    const cadastro = mapCadastroForm(data);
 
     setPersonalForm(personal);
     setFiscalForm(fiscal);
-    setCadastroForm(cadastro);
+    setAccountMeta(mapAccountMeta(data));
     setSecurityForm(EMPTY_SECURITY_FORM);
     setAvatarFile(null);
     setAvatarPreviewUrl((previousPreviewUrl) => {
@@ -182,13 +238,11 @@ const MyPanelPage: React.FC = () => {
 
     setInitialPersonalForm(personal);
     setInitialFiscalForm(fiscal);
-    setInitialCadastroForm(cadastro);
     setInitialSecurityForm(EMPTY_SECURITY_FORM);
 
     setPersonalTouched({ ...EMPTY_PERSONAL_TOUCHED });
     setFiscalTouched({ ...EMPTY_FISCAL_TOUCHED });
     setSecurityTouched({ ...EMPTY_SECURITY_TOUCHED });
-    setCadastroTouched({ ...EMPTY_CADASTRO_TOUCHED });
   }, []);
 
   const getErrorMessage = (error: any, fallback: string): string =>
@@ -231,28 +285,33 @@ const MyPanelPage: React.FC = () => {
     };
   }, [avatarPreviewUrl]);
 
-  const savePersonalAndCadastro = async () => {
-    let imageUrl = toNullable(cadastroForm.imageUrl);
+  const savePersonal = async () => {
+    let imageUrl = toNullable(accountMeta.imageUrl);
     if (avatarRemoved) {
       const avatarData = await profileService.removeAvatar();
       imageUrl = avatarData.imageUrl ?? null;
     }
+
     if (avatarFile) {
       const avatarData = await profileService.uploadAvatar(avatarFile);
       imageUrl = avatarData.imageUrl ?? imageUrl;
     }
 
+    const fiscalSource = fiscalDirty ? initialFiscalForm : fiscalForm;
+    const derivedAccountMeta = deriveAccountMetaFromFiscal(fiscalSource, accountMeta);
+
     const payload = {
-      firstName: toNullable(cadastroForm.firstName),
-      lastName: toNullable(cadastroForm.lastName),
+      firstName: toNullable(derivedAccountMeta.firstName),
+      lastName: toNullable(derivedAccountMeta.lastName),
       imageUrl,
-      langKey: toNullable(cadastroForm.langKey),
+      langKey: toNullable(derivedAccountMeta.langKey),
       personalName: toNullable(personalForm.personalName),
       personalCpf: toNullableDigits(personalForm.personalCpf),
       personalBirthDate: personalForm.personalBirthDate || null,
       personalEmail: toNullable(personalForm.personalEmail),
       personalPhone: toNullableDigits(personalForm.personalPhone),
     };
+
     const data = await profileService.updatePersonal(payload);
     hydrateForms(data);
     await showSuccess("Dados salvos com sucesso.");
@@ -271,6 +330,7 @@ const MyPanelPage: React.FC = () => {
       taxContactPhone: toNullableDigits(fiscalForm.taxContactPhone),
       taxAddress: toNullable(fiscalForm.taxAddress),
     });
+
     hydrateForms(data);
     await showSuccess("Dados fiscais salvos com sucesso.");
   };
@@ -280,22 +340,27 @@ const MyPanelPage: React.FC = () => {
       oldPassword: securityForm.oldPassword,
       newPassword: securityForm.newPassword,
     });
+
     setSecurityForm(EMPTY_SECURITY_FORM);
     setInitialSecurityForm(EMPTY_SECURITY_FORM);
     setSecurityTouched({ ...EMPTY_SECURITY_TOUCHED });
     await showSuccess("Senha alterada com sucesso.");
   };
 
-  const handleAvatarSelect = (file: File, previewUrl: string) => {
-    if (avatarPreviewUrl.startsWith("blob:")) {
-      URL.revokeObjectURL(avatarPreviewUrl);
-    }
-    setAvatarFile(file);
-    setAvatarPreviewUrl(previewUrl);
-    setAvatarRemoved(false);
-  };
+  const handleAvatarSelect = useCallback(
+    (file: File, previewUrl: string) => {
+      if (avatarPreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(avatarPreviewUrl);
+      }
 
-  const handleRemoveAvatar = () => {
+      setAvatarFile(file);
+      setAvatarPreviewUrl(previewUrl);
+      setAvatarRemoved(false);
+    },
+    [avatarPreviewUrl]
+  );
+
+  const handleRemoveAvatar = useCallback(() => {
     if (avatarPreviewUrl.startsWith("blob:")) {
       URL.revokeObjectURL(avatarPreviewUrl);
     }
@@ -303,51 +368,63 @@ const MyPanelPage: React.FC = () => {
     setAvatarFile(null);
     setAvatarPreviewUrl("");
     setAvatarRemoved(true);
-    setCadastroTouched(prev => ({ ...prev, imageUrl: true }));
-  };
+  }, [avatarPreviewUrl]);
 
-  const useFiscalDataInCadastro = () => {
-    const sourceName =
-      fiscalForm.taxPersonType === "CPF" ? fiscalForm.taxLandlordName : fiscalForm.taxCompanyName;
+  const pickAvatar = useCallback(
+    async (preferCamera: boolean) => {
+      try {
+        const picked = await pickImage({ preferCamera, multiple: false });
+        if (!picked) {
+          return;
+        }
 
-    if (!sourceName || !sourceName.trim()) {
-      showError("Não há nome fiscal preenchido para copiar para o cadastro.");
-      return;
-    }
+        handleAvatarSelect(picked.file, picked.previewUrl);
+      } catch (error: any) {
+        showError(getErrorMessage(error, "Falha ao selecionar a imagem."));
+      }
+    },
+    [pickImage, handleAvatarSelect, showError]
+  );
 
-    const names = splitName(sourceName);
-    setCadastroForm(prev => ({
-      ...prev,
-      firstName: names.firstName,
-      lastName: names.lastName,
-      langKey: prev.langKey || "pt-br",
-    }));
-
-    setCadastroTouched(prev => ({
-      ...prev,
-      firstName: true,
-      lastName: true,
-      langKey: true,
-    }));
+  const openAvatarPicker = () => {
+    presentActionSheet({
+      header: "Alterar foto",
+      buttons: [
+        {
+          text: "Camera",
+          handler: () => {
+            void pickAvatar(true);
+          },
+        },
+        {
+          text: "Galeria",
+          handler: () => {
+            void pickAvatar(false);
+          },
+        },
+        {
+          text: "Cancelar",
+          role: "cancel",
+        },
+      ],
+    });
   };
 
   const onSave = async () => {
     if (activeTab === "pessoal") setPersonalTouched({ ...touchAllPersonal });
     if (activeTab === "fiscal") setFiscalTouched({ ...touchAllFiscal });
     if (activeTab === "seguranca") setSecurityTouched({ ...touchAllSecurity });
-    if (activeTab === "cadastro") setCadastroTouched({ ...touchAllCadastro });
 
     const invalid =
       (activeTab === "pessoal" && Object.keys(personalErrors).length > 0) ||
       (activeTab === "fiscal" && Object.keys(fiscalErrors).length > 0) ||
-      (activeTab === "seguranca" && Object.keys(securityErrors).length > 0) ||
-      (activeTab === "cadastro" && Object.keys(cadastroErrors).length > 0);
+      (activeTab === "seguranca" && Object.keys(securityErrors).length > 0);
 
     if (invalid) return;
 
     setIsSaving(true);
     try {
-      if (activeTab === "pessoal" || activeTab === "cadastro") await savePersonalAndCadastro();
+      if (activeTab === "pessoal") await savePersonal();
       if (activeTab === "fiscal") await saveFiscal();
       if (activeTab === "seguranca") await saveSecurity();
     } catch (error: any) {
@@ -357,15 +434,27 @@ const MyPanelPage: React.FC = () => {
     }
   };
 
-  const isDirty = activeTab === "pessoal"
-    ? personalDirty
-    : activeTab === "fiscal"
-    ? fiscalDirty
-    : activeTab === "seguranca"
-    ? securityDirty
-    : cadastroDirty || Boolean(avatarFile) || avatarRemoved;
-  const isInvalid = activeTab === "pessoal" ? Object.keys(personalErrors).length > 0 : activeTab === "fiscal" ? Object.keys(fiscalErrors).length > 0 : activeTab === "seguranca" ? Object.keys(securityErrors).length > 0 : Object.keys(cadastroErrors).length > 0;
-  const saveLabel = activeTab === "pessoal" ? "Salvar Dados Pessoais" : activeTab === "fiscal" ? "Salvar Dados Fiscais" : activeTab === "seguranca" ? "Salvar Nova Senha" : "Salvar Cadastro";
+  const avatarDirty = Boolean(avatarFile) || avatarRemoved;
+  const isDirty =
+    activeTab === "pessoal"
+      ? personalDirty || avatarDirty
+      : activeTab === "fiscal"
+      ? fiscalDirty
+      : securityDirty;
+
+  const isInvalid =
+    activeTab === "pessoal"
+      ? Object.keys(personalErrors).length > 0
+      : activeTab === "fiscal"
+      ? Object.keys(fiscalErrors).length > 0
+      : Object.keys(securityErrors).length > 0;
+
+  const saveLabel =
+    activeTab === "pessoal"
+      ? "Salvar Dados Pessoais"
+      : activeTab === "fiscal"
+      ? "Salvar Dados Fiscais"
+      : "Salvar Nova Senha";
 
   return (
     <IonPage id="my-panel-page">
@@ -376,12 +465,24 @@ const MyPanelPage: React.FC = () => {
           </IonButtons>
           <IonTitle>Meu Painel</IonTitle>
         </IonToolbar>
+
         <IonToolbar className="my-panel-segment-toolbar">
-          <IonSegment value={activeTab} className="my-panel-segment" onIonChange={(event) => setActiveTab((event.detail.value as PanelTab) || "pessoal")}>
-            <IonSegmentButton value="pessoal"><IonLabel>Pessoal</IonLabel></IonSegmentButton>
-            <IonSegmentButton value="fiscal"><IonLabel>Fiscal</IonLabel></IonSegmentButton>
-            <IonSegmentButton value="seguranca"><IonLabel>Segurança</IonLabel></IonSegmentButton>
-            <IonSegmentButton value="cadastro"><IonLabel>Cadastro</IonLabel></IonSegmentButton>
+          <IonSegment
+            value={activeTab}
+            className="my-panel-segment"
+            onIonChange={(event) =>
+              setActiveTab((event.detail.value as PanelTab) || "pessoal")
+            }
+          >
+            <IonSegmentButton value="pessoal">
+              <IonLabel>Pessoal</IonLabel>
+            </IonSegmentButton>
+            <IonSegmentButton value="fiscal">
+              <IonLabel>Fiscal</IonLabel>
+            </IonSegmentButton>
+            <IonSegmentButton value="seguranca">
+              <IonLabel>Seguranca</IonLabel>
+            </IonSegmentButton>
           </IonSegment>
         </IonToolbar>
       </IonHeader>
@@ -391,25 +492,33 @@ const MyPanelPage: React.FC = () => {
           {hasLoadError && (
             <IonCard className="my-panel-card my-panel-error-card">
               <IonCardContent>
-                <h3>Não foi possível carregar todos os dados</h3>
-                <p>Você pode tentar novamente agora ou continuar preenchendo o formulário.</p>
-                <IonButton size="small" fill="outline" onClick={loadProfile}>Tentar Novamente</IonButton>
+                <h3>Nao foi possivel carregar todos os dados</h3>
+                <p>Voce pode tentar novamente agora ou continuar preenchendo o formulario.</p>
+                <IonButton size="small" fill="outline" onClick={loadProfile}>
+                  Tentar Novamente
+                </IonButton>
               </IonCardContent>
             </IonCard>
           )}
 
           {isLoading && renderSkeleton()}
+
           {!isLoading && activeTab === "pessoal" && (
             <PersonalTab
               form={personalForm}
               touched={personalTouched}
               errors={personalErrors}
               hasData={hasPersonalData(personalForm)}
+              avatarPreviewUrl={avatarPreviewUrl}
+              canRemoveAvatar={Boolean(avatarPreviewUrl) || avatarRemoved}
               onTouch={(field) => setPersonalTouched((prev) => ({ ...prev, [field]: true }))}
               onChange={setPersonalForm}
               onQuickSave={onSave}
+              onChangeAvatar={openAvatarPicker}
+              onRemoveAvatar={handleRemoveAvatar}
             />
           )}
+
           {!isLoading && activeTab === "fiscal" && (
             <FiscalTab
               form={fiscalForm}
@@ -421,6 +530,7 @@ const MyPanelPage: React.FC = () => {
               onQuickSave={onSave}
             />
           )}
+
           {!isLoading && activeTab === "seguranca" && (
             <SecurityTab
               form={securityForm}
@@ -430,29 +540,17 @@ const MyPanelPage: React.FC = () => {
               onChange={setSecurityForm}
             />
           )}
-          {!isLoading && activeTab === "cadastro" && (
-            <CadastroTab
-              form={cadastroForm}
-              touched={cadastroTouched}
-              errors={cadastroErrors}
-              hasData={hasCadastroData(cadastroForm) || Boolean(avatarPreviewUrl)}
-              avatarPreviewUrl={avatarPreviewUrl}
-              onTouch={(field) => setCadastroTouched((prev) => ({ ...prev, [field]: true }))}
-              onChange={setCadastroForm}
-              onQuickSave={onSave}
-              onAvatarSelect={handleAvatarSelect}
-              onRemoveAvatar={handleRemoveAvatar}
-              canRemoveAvatar={Boolean(avatarPreviewUrl) || avatarRemoved}
-              onUseFiscalData={useFiscalDataInCadastro}
-            />
-          )}
         </div>
       </IonContent>
 
       <IonFooter translucent className="my-panel-footer">
         <IonToolbar>
           <div className="my-panel-footer-inner">
-            <IonButton expand="block" disabled={isLoading || isSaving || isInvalid || !isDirty} onClick={onSave}>
+            <IonButton
+              expand="block"
+              disabled={isLoading || isSaving || isInvalid || !isDirty}
+              onClick={onSave}
+            >
               {isSaving ? "Salvando..." : saveLabel}
             </IonButton>
           </div>

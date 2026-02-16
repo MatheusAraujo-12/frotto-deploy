@@ -1,4 +1,19 @@
-import { IonButton, IonCard, IonCardContent, IonCardHeader, IonCardSubtitle, IonCardTitle, IonIcon, IonInput, IonItem, IonLabel, IonSegment, IonSegmentButton, IonText, IonTextarea } from "@ionic/react";
+import {
+  IonButton,
+  IonCard,
+  IonCardContent,
+  IonCardHeader,
+  IonCardSubtitle,
+  IonCardTitle,
+  IonIcon,
+  IonInput,
+  IonItem,
+  IonLabel,
+  IonSegment,
+  IonSegmentButton,
+  IonText,
+  IonTextarea,
+} from "@ionic/react";
 import { cardOutline } from "ionicons/icons";
 import { maskCNPJ, maskCPF, maskPhone } from "../../services/profileFormat";
 import { TaxPersonType } from "../../services/profileService";
@@ -24,35 +39,68 @@ const renderFieldError = (show: boolean, message?: string) =>
 const getInputValue = (event: any): string =>
   event?.detail?.value ?? event?.target?.value ?? event?.currentTarget?.value ?? "";
 
-const FiscalTab: React.FC<FiscalTabProps> = ({ form, touched, errors, hasData, onTouch, onChange, onQuickSave }) => (
+const clearFieldsForTaxType = (form: FiscalForm, taxPersonType: TaxPersonType): FiscalForm => {
+  if (taxPersonType === "CPF") {
+    return {
+      ...form,
+      taxPersonType,
+      taxCompanyName: "",
+      taxCnpj: "",
+      taxIe: "",
+      taxContactPhone: "",
+      taxAddress: "",
+    };
+  }
+
+  return {
+    ...form,
+    taxPersonType,
+    taxLandlordName: "",
+    taxCpf: "",
+    taxEmail: "",
+    taxPhone: "",
+  };
+};
+
+const FiscalTab: React.FC<FiscalTabProps> = ({
+  form,
+  touched,
+  errors,
+  hasData,
+  onTouch,
+  onChange,
+  onQuickSave,
+}) => (
   <IonCard className="my-panel-card">
     <IonCardHeader>
       <IonCardTitle>
         <IonIcon icon={cardOutline} />
         Dados Fiscais
       </IonCardTitle>
-      <IonCardSubtitle>Defina o tipo de pessoa fiscal e os campos obrigatórios.</IonCardSubtitle>
+      <IonCardSubtitle>Defina o tipo de pessoa fiscal e os campos obrigatorios.</IonCardSubtitle>
     </IonCardHeader>
     <IonCardContent>
       {!hasData && (
         <div className="my-panel-empty-state">
           <h3>Nenhum dado fiscal salvo</h3>
-          <p>Escolha CPF ou CNPJ e preencha as informações principais.</p>
+          <p>Escolha CPF ou CNPJ e preencha as informacoes principais.</p>
           <IonButton size="small" fill="outline" onClick={onQuickSave}>
             Salvar Agora
           </IonButton>
         </div>
       )}
 
+      <IonText color="medium" className="my-panel-fiscal-note">
+        Os dados de cadastro sao derivados automaticamente destes dados fiscais.
+      </IonText>
+
       <IonSegment
         value={form.taxPersonType}
         className="my-panel-tax-switch"
         onIonChange={(event) => {
+          const nextType = (event.detail.value as TaxPersonType) || "CPF";
           onTouch("taxPersonType");
-          onChange({
-            ...form,
-            taxPersonType: (event.detail.value as TaxPersonType) || "CPF",
-          });
+          onChange(clearFieldsForTaxType(form, nextType));
         }}
       >
         <IonSegmentButton value="CPF">
@@ -69,7 +117,7 @@ const FiscalTab: React.FC<FiscalTabProps> = ({ form, touched, errors, hasData, o
             <IonLabel position="stacked">Nome do locador</IonLabel>
             <IonInput
               value={form.taxLandlordName}
-              placeholder="Ex.: João Locador"
+              placeholder="Ex.: Joao Locador"
               onIonInput={(event: any) => {
                 onTouch("taxLandlordName");
                 onChange({ ...form, taxLandlordName: getInputValue(event) });
@@ -125,10 +173,10 @@ const FiscalTab: React.FC<FiscalTabProps> = ({ form, touched, errors, hasData, o
       ) : (
         <>
           <IonItem className="my-panel-item">
-            <IonLabel position="stacked">Empresa / Razão social</IonLabel>
+            <IonLabel position="stacked">Empresa / Razao social</IonLabel>
             <IonInput
               value={form.taxCompanyName}
-              placeholder="Ex.: Frotto Locações LTDA"
+              placeholder="Ex.: Frotto Locacoes LTDA"
               onIonInput={(event: any) => {
                 onTouch("taxCompanyName");
                 onChange({ ...form, taxCompanyName: getInputValue(event) });
@@ -156,7 +204,7 @@ const FiscalTab: React.FC<FiscalTabProps> = ({ form, touched, errors, hasData, o
             <IonLabel position="stacked">IE</IonLabel>
             <IonInput
               value={form.taxIe}
-              placeholder="Inscrição estadual"
+              placeholder="Inscricao estadual"
               onIonInput={(event: any) => {
                 onTouch("taxIe");
                 onChange({ ...form, taxIe: getInputValue(event) });
@@ -184,12 +232,12 @@ const FiscalTab: React.FC<FiscalTabProps> = ({ form, touched, errors, hasData, o
           {renderFieldError(touched.taxContactPhone, errors.taxContactPhone)}
 
           <IonItem className="my-panel-item">
-            <IonLabel position="stacked">Endereço completo</IonLabel>
+            <IonLabel position="stacked">Endereco completo</IonLabel>
             <IonTextarea
               value={form.taxAddress}
               autoGrow
               rows={3}
-              placeholder="Rua, número, bairro, cidade, estado e CEP"
+              placeholder="Rua, numero, bairro, cidade, estado e CEP"
               onIonInput={(event: any) => {
                 onTouch("taxAddress");
                 onChange({ ...form, taxAddress: getInputValue(event) });
@@ -205,4 +253,3 @@ const FiscalTab: React.FC<FiscalTabProps> = ({ form, touched, errors, hasData, o
 );
 
 export default FiscalTab;
-

@@ -1,7 +1,7 @@
 import { MeResponseDTO, TaxPersonType } from "../../services/profileService";
 import { maskCNPJ, maskCPF, maskPhone, sanitizeDigits } from "../../services/profileFormat";
 
-export type PanelTab = "pessoal" | "fiscal" | "seguranca" | "cadastro";
+export type PanelTab = "pessoal" | "fiscal" | "seguranca";
 export type FormErrors<T extends string> = Partial<Record<T, string>>;
 
 export interface PersonalForm {
