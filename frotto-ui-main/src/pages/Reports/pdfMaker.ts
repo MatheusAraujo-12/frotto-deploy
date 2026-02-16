@@ -16,9 +16,7 @@ import {
 const marginTop: [number, number, number, number] = [0, 15, 0, 0];
 const marginBottom: [number, number, number, number] = [0, 0, 0, 15];
 const marginBottom30: [number, number, number, number] = [0, 0, 0, 45];
-const reportPageMargins: [number, number, number, number] = [40, 120, 40, 60];
-
-const AVATAR_CACHE_KEY_PREFIX = "frotto:reports:avatar:dataurl:";
+const reportPageMargins: [number, number, number, number] = [40, 115, 40, 60];
 const avatarMemoryCache = new Map<string, string>();
 
 const vfsFonts =
@@ -123,7 +121,7 @@ function buildReportHeader(
   const headerColumns = avatarDataUrlOrNull
     ? [
         {
-          width: 64,
+          width: 70,
           image: avatarDataUrlOrNull,
           fit: [60, 60],
         },
@@ -168,8 +166,10 @@ function buildReportHeader(
 async function loadHeaderData(): Promise<{ profile: MeResponseDTO | null; avatarDataUrl: string | null }> {
   try {
     const profile = await profileService.getMe();
+    console.log("[PDF] avatarUrl", profile?.avatarUrl || null);
     const avatarCandidates = resolveAvatarCandidates(profile);
-    const avatarDataUrl = await loadAvatarDataUrl(avatarCandidates);
+    const avatarDataUrl = await resolveAvatarDataUrl(avatarCandidates);
+    console.log("[PDF] avatarDataUrl length", avatarDataUrl?.length || 0);
     return { profile, avatarDataUrl: avatarDataUrl || null };
   } catch (_error) {
     return { profile: null, avatarDataUrl: null };
@@ -215,9 +215,9 @@ function resolveS3AvatarUrl(path: string): string {
   return `${s3Base}${normalizedPath}`;
 }
 
-async function loadAvatarDataUrl(avatarCandidates: string[]): Promise<string> {
+async function resolveAvatarDataUrl(avatarCandidates: string[]): Promise<string> {
   for (const candidate of avatarCandidates) {
-    const dataUrl = await loadSingleAvatarDataUrl(candidate);
+    const dataUrl = await loadImageAsDataUrl(candidate);
     if (dataUrl) {
       return dataUrl;
     }
@@ -226,14 +226,18 @@ async function loadAvatarDataUrl(avatarCandidates: string[]): Promise<string> {
   return "";
 }
 
-async function loadSingleAvatarDataUrl(avatarUrl: string): Promise<string> {
-  const normalizedUrl = `${avatarUrl || ""}`.trim();
+async function loadImageAsDataUrl(url: string): Promise<string> {
+  const normalizedUrl = `${url || ""}`.trim();
   if (!normalizedUrl) {
     return "";
   }
 
-  if (normalizedUrl.startsWith("data:")) {
+  if (isImageDataUrl(normalizedUrl)) {
     return normalizedUrl;
+  }
+
+  if (normalizedUrl.startsWith("data:")) {
+    return "";
   }
 
   const memoryCached = avatarMemoryCache.get(normalizedUrl);
@@ -241,40 +245,46 @@ async function loadSingleAvatarDataUrl(avatarUrl: string): Promise<string> {
     return memoryCached;
   }
 
-  const cacheKey = `${AVATAR_CACHE_KEY_PREFIX}${encodeURIComponent(normalizedUrl)}`;
-  const localCached = readAvatarCache(cacheKey);
-  if (localCached) {
-    avatarMemoryCache.set(normalizedUrl, localCached);
-    return localCached;
-  }
-
-  const downloadedDataUrl = await downloadAvatarDataUrl(normalizedUrl);
-  if (!downloadedDataUrl) {
-    return "";
-  }
-
-  avatarMemoryCache.set(normalizedUrl, downloadedDataUrl);
-  writeAvatarCache(cacheKey, downloadedDataUrl);
-  return downloadedDataUrl;
-}
-
-async function downloadAvatarDataUrl(url: string): Promise<string | null> {
   try {
-    const response = await api.get<Blob>(url, { responseType: "blob" });
-    return await blobToDataUrl(response.data);
-  } catch (_error) {
+    const response = await api.get<Blob>(normalizedUrl, { responseType: "blob" });
+    const fromApi = await blobToImageDataUrl(response.data);
+    if (fromApi) {
+      avatarMemoryCache.set(normalizedUrl, fromApi);
+      return fromApi;
+    }
+
+    throw new Error("invalid avatar image data from api");
+  } catch (apiError) {
     try {
-      const response = await fetch(url);
+      const response = await fetch(normalizedUrl);
       if (!response.ok) {
-        return null;
+        throw new Error(`status ${response.status}`);
       }
 
       const blob = await response.blob();
-      return await blobToDataUrl(blob);
-    } catch (_fetchError) {
-      return null;
+      const fromFetch = await blobToImageDataUrl(blob);
+      if (fromFetch) {
+        avatarMemoryCache.set(normalizedUrl, fromFetch);
+        return fromFetch;
+      }
+
+      throw new Error("invalid avatar image data from fetch");
+    } catch (fetchError) {
+      console.warn("[PDF] avatar load failed", fetchError || apiError);
     }
   }
+
+  return "";
+}
+
+async function blobToImageDataUrl(blob: Blob): Promise<string> {
+  const blobType = `${blob?.type || ""}`.toLowerCase();
+  if (!blobType.startsWith("image/")) {
+    return "";
+  }
+
+  const dataUrl = await blobToDataUrl(blob);
+  return isImageDataUrl(dataUrl) ? dataUrl : "";
 }
 
 function blobToDataUrl(blob: Blob): Promise<string> {
@@ -286,21 +296,8 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
-function readAvatarCache(cacheKey: string): string | null {
-  try {
-    const data = localStorage.getItem(cacheKey);
-    return data || null;
-  } catch (_error) {
-    return null;
-  }
-}
-
-function writeAvatarCache(cacheKey: string, dataUrl: string) {
-  try {
-    localStorage.setItem(cacheKey, dataUrl);
-  } catch (_error) {
-    // ignore cache write failures (quota/private mode)
-  }
+function isImageDataUrl(value: string): boolean {
+  return /^data:image\//i.test(`${value || ""}`);
 }
 
 /**
