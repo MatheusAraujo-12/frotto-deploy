@@ -33,8 +33,10 @@ import Reminders from "../../pages/Reminders/Reminders";
 import DriverPendencies from "../../pages/DriverPendency/DriverPendencies";
 import MyPanelPage from "../../pages/MyPanel/MyPanelPage";
 
+import api from "../../services/axios/axios";
 import { removeToken } from "../../services/localStorage/localstorage";
 import profileService, { MeResponseDTO } from "../../services/profileService";
+import { resolveApiUrl } from "../../services/resolveApiUrl";
 import { TEXT } from "../../constants/texts";
 
 const resolveMenuDisplayName = (profile: MeResponseDTO | null): string => {
@@ -58,27 +60,12 @@ const resolveMenuDisplayName = (profile: MeResponseDTO | null): string => {
   );
 };
 
-const resolveMenuAvatarUrl = (profile: MeResponseDTO | null): string => {
+const resolveMenuAvatarPath = (profile: MeResponseDTO | null): string => {
   if (!profile) {
     return "";
   }
 
-  const rawValue = `${(profile as any).avatarUrl ?? profile.imageUrl ?? ""}`.trim();
-  if (!rawValue) {
-    return "";
-  }
-
-  if (
-    rawValue.startsWith("http://") ||
-    rawValue.startsWith("https://") ||
-    rawValue.startsWith("blob:") ||
-    rawValue.startsWith("data:")
-  ) {
-    return rawValue;
-  }
-
-  const s3Base = `${process.env.REACT_APP_S3_URL || ""}`.trim();
-  return s3Base ? `${s3Base}${rawValue}` : rawValue;
+  return `${profile.avatarUrl ?? profile.imageUrl ?? ""}`.trim();
 };
 
 const toInitials = (name: string): string => {
@@ -103,6 +90,8 @@ const Menu: React.FC = () => {
   const [isDark, setIsDark] = useState<boolean>(false);
   const [profile, setProfile] = useState<MeResponseDTO | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState<boolean>(true);
+  const [menuAvatarSrc, setMenuAvatarSrc] = useState<string>("");
+  const [menuAvatarLoadFailed, setMenuAvatarLoadFailed] = useState<boolean>(false);
 
   useEffect(() => {
     import("../../services/theme").then((mod) => {
@@ -151,6 +140,56 @@ const Menu: React.FC = () => {
     };
   }, []);
 
+  const avatarPath = resolveMenuAvatarPath(profile);
+
+  useEffect(() => {
+    let isMounted = true;
+    let objectUrlToRevoke = "";
+
+    const loadAvatar = async () => {
+      const resolvedAvatarUrl = resolveApiUrl(avatarPath);
+      setMenuAvatarLoadFailed(false);
+
+      if (!resolvedAvatarUrl) {
+        if (isMounted) {
+          setMenuAvatarSrc("");
+        }
+        return;
+      }
+
+      if (resolvedAvatarUrl.startsWith("blob:") || resolvedAvatarUrl.startsWith("data:")) {
+        if (isMounted) {
+          setMenuAvatarSrc(resolvedAvatarUrl);
+        }
+        return;
+      }
+
+      try {
+        const response = await api.get<Blob>(resolvedAvatarUrl, { responseType: "blob" });
+        if (!isMounted) {
+          return;
+        }
+
+        objectUrlToRevoke = URL.createObjectURL(response.data);
+        setMenuAvatarSrc(objectUrlToRevoke);
+      } catch (_error) {
+        if (isMounted) {
+          // Fallback para URLs publicas que podem falhar como blob (ex.: CORS).
+          setMenuAvatarSrc(resolvedAvatarUrl);
+        }
+      }
+    };
+
+    void loadAvatar();
+
+    return () => {
+      isMounted = false;
+      if (objectUrlToRevoke) {
+        URL.revokeObjectURL(objectUrlToRevoke);
+      }
+    };
+  }, [avatarPath]);
+
   const onToggleTheme = (checked: boolean) => {
     setIsDark(checked);
     import("../../services/theme").then((mod) => {
@@ -159,7 +198,6 @@ const Menu: React.FC = () => {
   };
 
   const displayName = resolveMenuDisplayName(profile) || "Perfil";
-  const avatarUrl = resolveMenuAvatarUrl(profile);
   const initials = toInitials(displayName);
 
   return (
@@ -218,8 +256,14 @@ const Menu: React.FC = () => {
                         justifyContent: "center",
                       }}
                     >
-                      {avatarUrl ? (
-                        <img src={avatarUrl} alt={displayName} />
+                      {menuAvatarSrc && !menuAvatarLoadFailed ? (
+                        <img
+                          src={menuAvatarSrc}
+                          alt={displayName}
+                          onError={() => {
+                            setMenuAvatarLoadFailed(true);
+                          }}
+                        />
                       ) : (
                         <span
                           style={{

@@ -7,6 +7,7 @@ export interface MeResponseDTO {
   login: string | null;
   firstName: string | null;
   lastName: string | null;
+  avatarUrl?: string | null;
   imageUrl: string | null;
   langKey: string | null;
   personalName: string | null;
