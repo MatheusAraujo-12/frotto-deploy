@@ -168,28 +168,65 @@ function buildReportHeader(
 async function loadHeaderData(): Promise<{ profile: MeResponseDTO | null; avatarDataUrl: string | null }> {
   try {
     const profile = await profileService.getMe();
-    const avatarUrl = resolveAvatarUrl(profile);
-    const avatarDataUrl = await loadAvatarDataUrl(avatarUrl);
+    const avatarCandidates = resolveAvatarCandidates(profile);
+    const avatarDataUrl = await loadAvatarDataUrl(avatarCandidates);
     return { profile, avatarDataUrl: avatarDataUrl || null };
   } catch (_error) {
     return { profile: null, avatarDataUrl: null };
   }
 }
 
-function resolveAvatarUrl(profile: MeResponseDTO | null): string {
+function resolveAvatarCandidates(profile: MeResponseDTO | null): string[] {
   if (!profile) {
-    return "";
+    return [];
   }
 
-  const rawUrl = `${profile.avatarUrl ?? profile.imageUrl ?? ""}`.trim();
-  if (!rawUrl) {
-    return "";
+  const rawCandidates = [`${profile.avatarUrl || ""}`.trim(), `${profile.imageUrl || ""}`.trim()]
+    .filter((item, index, arr) => Boolean(item) && arr.indexOf(item) === index);
+  if (!rawCandidates.length) {
+    return [];
   }
 
-  return resolveApiUrl(rawUrl);
+  const candidates = rawCandidates.flatMap((rawUrl) => [resolveApiUrl(rawUrl), resolveS3AvatarUrl(rawUrl)]);
+  return candidates.filter((item, index) => Boolean(item) && candidates.indexOf(item) === index);
 }
 
-async function loadAvatarDataUrl(avatarUrl: string): Promise<string> {
+function resolveS3AvatarUrl(path: string): string {
+  const value = `${path || ""}`.trim();
+  if (!value) {
+    return "";
+  }
+
+  if (
+    value.startsWith("http://") ||
+    value.startsWith("https://") ||
+    value.startsWith("blob:") ||
+    value.startsWith("data:")
+  ) {
+    return value;
+  }
+
+  const s3Base = `${process.env.REACT_APP_S3_URL || ""}`.trim().replace(/\/$/, "");
+  if (!s3Base) {
+    return "";
+  }
+
+  const normalizedPath = value.startsWith("/") ? value : `/${value}`;
+  return `${s3Base}${normalizedPath}`;
+}
+
+async function loadAvatarDataUrl(avatarCandidates: string[]): Promise<string> {
+  for (const candidate of avatarCandidates) {
+    const dataUrl = await loadSingleAvatarDataUrl(candidate);
+    if (dataUrl) {
+      return dataUrl;
+    }
+  }
+
+  return "";
+}
+
+async function loadSingleAvatarDataUrl(avatarUrl: string): Promise<string> {
   const normalizedUrl = `${avatarUrl || ""}`.trim();
   if (!normalizedUrl) {
     return "";
@@ -226,7 +263,17 @@ async function downloadAvatarDataUrl(url: string): Promise<string | null> {
     const response = await api.get<Blob>(url, { responseType: "blob" });
     return await blobToDataUrl(response.data);
   } catch (_error) {
-    return null;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        return null;
+      }
+
+      const blob = await response.blob();
+      return await blobToDataUrl(blob);
+    } catch (_fetchError) {
+      return null;
+    }
   }
 }
 

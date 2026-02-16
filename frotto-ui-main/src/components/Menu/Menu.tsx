@@ -17,7 +17,7 @@ import {
   useIonRouter,
 } from "@ionic/react";
 import { Redirect, Route } from "react-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { car, clipboard, logOutOutline, personCircleOutline } from "ionicons/icons";
 
 import BodyDamages from "../../pages/BodyDamage/BodyDamages";
@@ -60,12 +60,89 @@ const resolveMenuDisplayName = (profile: MeResponseDTO | null): string => {
   );
 };
 
-const resolveMenuAvatarPath = (profile: MeResponseDTO | null): string => {
+const resolveMenuAvatarPaths = (profile: MeResponseDTO | null): string[] => {
   if (!profile) {
+    return [];
+  }
+
+  const values = [`${profile.avatarUrl || ""}`.trim(), `${profile.imageUrl || ""}`.trim()];
+  return values.filter((item, index) => Boolean(item) && values.indexOf(item) === index);
+};
+
+const resolveS3AvatarUrl = (path: string): string => {
+  const value = `${path || ""}`.trim();
+  if (!value) {
     return "";
   }
 
-  return `${profile.avatarUrl ?? profile.imageUrl ?? ""}`.trim();
+  if (
+    value.startsWith("http://") ||
+    value.startsWith("https://") ||
+    value.startsWith("blob:") ||
+    value.startsWith("data:")
+  ) {
+    return value;
+  }
+
+  const s3Base = `${process.env.REACT_APP_S3_URL || ""}`.trim().replace(/\/$/, "");
+  if (!s3Base) {
+    return "";
+  }
+
+  const normalizedPath = value.startsWith("/") ? value : `/${value}`;
+  return `${s3Base}${normalizedPath}`;
+};
+
+const buildAvatarCandidates = (rawPath: string): string[] => {
+  const value = `${rawPath || ""}`.trim();
+  if (!value) {
+    return [];
+  }
+
+  const candidates = [resolveApiUrl(value), resolveS3AvatarUrl(value)];
+  return candidates.filter((item, index) => Boolean(item) && candidates.indexOf(item) === index);
+};
+
+const buildAvatarCandidatesFromPaths = (paths: string[]): string[] => {
+  const allCandidates = paths.flatMap((path) => buildAvatarCandidates(path));
+  return allCandidates.filter(
+    (item, index) => Boolean(item) && allCandidates.indexOf(item) === index
+  );
+};
+
+const pickDirectAvatarCandidate = (candidates: string[]): string => {
+  if (!candidates.length) {
+    return "";
+  }
+
+  const s3Base = `${process.env.REACT_APP_S3_URL || ""}`.trim().replace(/\/$/, "");
+  if (s3Base) {
+    const s3Candidate = candidates.find((candidate) => candidate.startsWith(s3Base));
+    if (s3Candidate) {
+      return s3Candidate;
+    }
+  }
+
+  const apiBase = `${api.defaults.baseURL || ""}`.trim().replace(/\/$/, "");
+  if (apiBase) {
+    const nonApiAbsolute = candidates.find(
+      (candidate) =>
+        (candidate.startsWith("http://") || candidate.startsWith("https://")) &&
+        !candidate.startsWith(apiBase)
+    );
+    if (nonApiAbsolute) {
+      return nonApiAbsolute;
+    }
+  } else {
+    const absoluteCandidate = candidates.find(
+      (candidate) => candidate.startsWith("http://") || candidate.startsWith("https://")
+    );
+    if (absoluteCandidate) {
+      return absoluteCandidate;
+    }
+  }
+
+  return candidates[candidates.length - 1];
 };
 
 const toInitials = (name: string): string => {
@@ -140,43 +217,52 @@ const Menu: React.FC = () => {
     };
   }, []);
 
-  const avatarPath = resolveMenuAvatarPath(profile);
+  const avatarPaths = useMemo(
+    () => resolveMenuAvatarPaths(profile),
+    [profile]
+  );
 
   useEffect(() => {
     let isMounted = true;
     let objectUrlToRevoke = "";
 
     const loadAvatar = async () => {
-      const resolvedAvatarUrl = resolveApiUrl(avatarPath);
+      const avatarCandidates = buildAvatarCandidatesFromPaths(avatarPaths);
       setMenuAvatarLoadFailed(false);
 
-      if (!resolvedAvatarUrl) {
+      if (!avatarCandidates.length) {
         if (isMounted) {
           setMenuAvatarSrc("");
         }
         return;
       }
 
-      if (resolvedAvatarUrl.startsWith("blob:") || resolvedAvatarUrl.startsWith("data:")) {
+      const directFallbackCandidate = pickDirectAvatarCandidate(avatarCandidates);
+      if (directFallbackCandidate.startsWith("blob:") || directFallbackCandidate.startsWith("data:")) {
         if (isMounted) {
-          setMenuAvatarSrc(resolvedAvatarUrl);
+          setMenuAvatarSrc(directFallbackCandidate);
         }
         return;
       }
 
-      try {
-        const response = await api.get<Blob>(resolvedAvatarUrl, { responseType: "blob" });
-        if (!isMounted) {
-          return;
-        }
+      for (const candidate of avatarCandidates) {
+        try {
+          const response = await api.get<Blob>(candidate, { responseType: "blob" });
+          if (!isMounted) {
+            return;
+          }
 
-        objectUrlToRevoke = URL.createObjectURL(response.data);
-        setMenuAvatarSrc(objectUrlToRevoke);
-      } catch (_error) {
-        if (isMounted) {
-          // Fallback para URLs publicas que podem falhar como blob (ex.: CORS).
-          setMenuAvatarSrc(resolvedAvatarUrl);
+          objectUrlToRevoke = URL.createObjectURL(response.data);
+          setMenuAvatarSrc(objectUrlToRevoke);
+          return;
+        } catch (_error) {
+          // tenta o proximo candidato
         }
+      }
+
+      if (isMounted) {
+        // Fallback final para imagem publica.
+        setMenuAvatarSrc(directFallbackCandidate);
       }
     };
 
@@ -188,7 +274,7 @@ const Menu: React.FC = () => {
         URL.revokeObjectURL(objectUrlToRevoke);
       }
     };
-  }, [avatarPath]);
+  }, [avatarPaths]);
 
   const onToggleTheme = (checked: boolean) => {
     setIsDark(checked);
