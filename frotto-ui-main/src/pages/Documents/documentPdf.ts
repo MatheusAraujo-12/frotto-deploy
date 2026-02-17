@@ -88,23 +88,23 @@ function buildReciboAluguelContent(
 ) {
   const driverName = getText(payload, "driverName", document.driverName || "Motorista");
   const driverCpf = getText(payload, "driverCpf", document.driverCpf || "");
-  const vehicle = `${document.carModel || getText(payload, "carModel", "Ve\u00EDculo")} - ${document.carPlate || getText(payload, "carPlate", "-")}`;
+  const vehicle = `${document.carModel || getText(payload, "carModel", "Veículo")} - ${document.carPlate || getText(payload, "carPlate", "-")}`;
   const valorFinal = getNumber(payload, "valorFinal", 0);
 
   return [
-    { text: "RECIBO DE PAGAMENTO DE ALUGUEL DE VE\u00CDCULO", style: "title" },
+    { text: "RECIBO DE PAGAMENTO DE ALUGUEL DE VEÍCULO", style: "title" },
     {
       text:
         `Recebi de ${driverName}${driverCpf ? ` (CPF ${driverCpf})` : ""}, a quantia de ${formatCurrency(valorFinal)}, ` +
-        `referente \u00E0 loca\u00E7\u00E3o do ve\u00EDculo ${vehicle}, per\u00EDodo de ${formatDate(getText(payload, "periodoInicio"))} ` +
-        `a ${formatDate(getText(payload, "periodoFim"))}. Declaro plena quita\u00E7\u00E3o do valor ora recebido, ` +
-        `sem preju\u00EDzo das demais obriga\u00E7\u00F5es contratuais eventualmente vigentes.`,
+        `referente à locação do veículo ${vehicle}, período de ${formatDate(getText(payload, "periodoInicio"))} ` +
+        `a ${formatDate(getText(payload, "periodoFim"))}. Declaro plena quitação do valor ora recebido, ` +
+        `sem prejuízo das demais obrigações contratuais eventualmente vigentes.`,
       style: "section",
     },
     {
       text:
         `Recebedor: ${fiscal.fiscalName} - ${fiscal.documentLabel}: ${fiscal.documentValue || "-"}${
-          fiscal.address ? ` - Endere\u00E7o: ${fiscal.address}` : ""
+          fiscal.address ? ` - Endereço: ${fiscal.address}` : ""
         }`,
       style: "section",
     },
@@ -112,7 +112,7 @@ function buildReciboAluguelContent(
       text:
         `Detalhamento financeiro: Aluguel ${formatCurrency(getNumber(payload, "valorAluguel"))}; ` +
         `Descontos ${formatCurrency(getNumber(payload, "descontos"))}; ` +
-        `Acr\u00E9scimos ${formatCurrency(getNumber(payload, "acrescimos"))}; ` +
+        `Acréscimos ${formatCurrency(getNumber(payload, "acrescimos"))}; ` +
         `Valor final ${formatCurrency(valorFinal)}.`,
       style: "section",
     },
@@ -122,7 +122,7 @@ function buildReciboAluguelContent(
         `Data do pagamento: ${formatDate(getText(payload, "dataPagamento"))}.`,
       style: "section",
     },
-    { text: `Observa\u00E7\u00F5es: ${getText(payload, "observacoes", "-")}`, style: "section" },
+    { text: `Observações: ${getText(payload, "observacoes", "-")}`, style: "section" },
     ...buildSignatureBlock(fiscal.fiscalName, driverName),
   ];
 }
@@ -136,32 +136,32 @@ function buildMultaContent(
   const driverCpf = getText(payload, "driverCpf", document.driverCpf || "");
 
   return [
-    { text: "NOTIFICA\u00C7\u00C3O E TERMO DE CI\u00CANCIA E RESPONSABILIDADE POR INFRA\u00C7\u00C3O DE TR\u00C2NSITO", style: "title" },
+    { text: "NOTIFICAÇÃO E TERMO DE CIÊNCIA E RESPONSABILIDADE POR INFRAÇÃO DE TRÂNSITO", style: "title" },
     {
       text:
         `${fiscal.fiscalName} (${fiscal.documentLabel} ${fiscal.documentValue || "-"}) notifica ${driverName}${
           driverCpf ? ` (CPF ${driverCpf})` : ""
         }, ` +
-        `quanto \u00E0 infra\u00E7\u00E3o de tr\u00E2nsito vinculada ao ve\u00EDculo ${document.carPlate || getText(payload, "carPlate", "-")}, ` +
+        `quanto à infração de trânsito vinculada ao veículo ${document.carPlate || getText(payload, "carPlate", "-")}, ` +
         `ocorrida em ${formatDateTime(getText(payload, "dataHora"))}, no local ${getText(payload, "local", "-")}.`,
       style: "section",
     },
     {
       text:
-        `Dados da infra\u00E7\u00E3o: AIT ${getText(payload, "ait", "-")}; \u00D3rg\u00E3o autuador ${getText(payload, "orgao", "-")}; ` +
+        `Dados da infração: AIT ${getText(payload, "ait", "-")}; Órgão autuador ${getText(payload, "orgao", "-")}; ` +
         `Enquadramento ${getText(payload, "enquadramento", "-")}; Valor ${formatCurrency(getNumber(payload, "valor"))}; ` +
         `Vencimento ${formatDate(getText(payload, "vencimento"))}.`,
       style: "section",
     },
     {
       text:
-        "Cl\u00E1usula de responsabilidade: o condutor declara ci\u00EAncia e assume integral responsabilidade pelo pagamento da infra\u00E7\u00E3o, " +
+        "Cláusula de responsabilidade: o condutor declara ciência e assume integral responsabilidade pelo pagamento da infração, " +
         "incluindo encargos legais. Caso o pagamento inicial seja realizado pela empresa, fica o motorista obrigado ao reembolso " +
-        "integral no prazo estipulado, sob pena de registro de d\u00E9bito e demais medidas cab\u00EDveis.",
+        "integral no prazo estipulado, sob pena de registro de débito e demais medidas cabíveis.",
       style: "section",
     },
-    { text: `Respons\u00E1vel pelo pagamento: ${getText(payload, "responsavelPagamento", "-")}.`, style: "section" },
-    { text: `Observa\u00E7\u00F5es: ${getText(payload, "observacoes", "-")}`, style: "section" },
+    { text: `Responsável pelo pagamento: ${getText(payload, "responsavelPagamento", "-")}.`, style: "section" },
+    { text: `Observações: ${getText(payload, "observacoes", "-")}`, style: "section" },
     ...buildAttachmentsSection(payload.attachments || document.attachments || []),
     ...buildSignatureBlock(fiscal.fiscalName, driverName),
   ];
@@ -177,32 +177,32 @@ function buildManutencaoCompartilhadaContent(
   const parteMotorista = getNumber(payload, "parteMotoristaValor");
 
   return [
-    { text: "ACORDO DE RATEIO DE DESPESAS DE MANUTEN\u00C7\u00C3O", style: "title" },
+    { text: "ACORDO DE RATEIO DE DESPESAS DE MANUTENÇÃO", style: "title" },
     {
       text:
         `${fiscal.fiscalName}, ${fiscal.documentLabel} ${fiscal.documentValue || "-"}, e ${driverName}, ` +
-        "ajustam o rateio da manuten\u00E7\u00E3o do ve\u00EDculo nos seguintes termos.",
+        "ajustam o rateio da manutenção do veículo nos seguintes termos.",
       style: "section",
     },
     {
       text:
         `Data: ${formatDate(getText(payload, "data"))}; Oficina: ${getText(payload, "oficina", "-")}; ` +
-        `Descri\u00E7\u00E3o: ${getText(payload, "descricao", "-")}.`,
+        `Descrição: ${getText(payload, "descricao", "-")}.`,
       style: "section",
     },
     {
       text:
-        `Valor total: ${formatCurrency(valorTotal)}. Forma de divis\u00E3o: ${getText(payload, "formaDivisao", "-")}. ` +
+        `Valor total: ${formatCurrency(valorTotal)}. Forma de divisão: ${getText(payload, "formaDivisao", "-")}. ` +
         `Parcela do motorista: ${formatCurrency(parteMotorista)}.`,
       style: "section",
     },
     {
       text:
-        "O valor devido pelo motorista dever\u00E1 ser pago no prazo ajustado entre as partes. Em caso de inadimplemento, " +
-        "incidir\u00E3o multa contratual de 2% e juros simples de 1% ao m\u00EAs, sem preju\u00EDzo de atualiza\u00E7\u00E3o monet\u00E1ria e cobran\u00E7a judicial.",
+        "O valor devido pelo motorista deverá ser pago no prazo ajustado entre as partes. Em caso de inadimplemento, " +
+        "incidirão multa contratual de 2% e juros simples de 1% ao mês, sem prejuízo de atualização monetária e cobrança judicial.",
       style: "section",
     },
-    { text: `Observa\u00E7\u00F5es: ${getText(payload, "observacoes", "-")}`, style: "section" },
+    { text: `Observações: ${getText(payload, "observacoes", "-")}`, style: "section" },
     ...buildAttachmentsSection(payload.attachments || document.attachments || []),
     ...buildSignatureBlock(fiscal.fiscalName, driverName),
   ];
@@ -348,17 +348,17 @@ function buildEntregaDevolucaoChecklistContent(
   const checklistItens = Array.isArray(payload.checklistItens) ? payload.checklistItens : [];
 
   return [
-    { text: "TERMO DE ENTREGA/DEVOLU\u00C7\u00C3O DE VE\u00CDCULO COM CHECKLIST E VISTORIA", style: "title" },
+    { text: "TERMO DE ENTREGA/DEVOLUÇÃO DE VEÍCULO COM CHECKLIST E VISTORIA", style: "title" },
     {
       text:
         `Pelo presente termo, ${fiscal.fiscalName} (${fiscal.documentLabel} ${fiscal.documentValue || "-"}) e ${driverName} ` +
-        `registram a ${getText(payload, "tipo", "ENTREGA")} do ve\u00EDculo ${document.carPlate || getText(payload, "carPlate", "-")} ` +
+        `registram a ${getText(payload, "tipo", "ENTREGA")} do veículo ${document.carPlate || getText(payload, "carPlate", "-")} ` +
         `em ${formatDateTime(getText(payload, "dataHora"))}.`,
       style: "section",
     },
     {
       text:
-        `Quilometragem: ${getText(payload, "km", "-")} km. Combust\u00EDvel: ${getText(payload, "combustivel", "-")}.`,
+        `Quilometragem: ${getText(payload, "km", "-")} km. Combustível: ${getText(payload, "combustivel", "-")}.`,
       style: "section",
     },
     {
@@ -369,11 +369,11 @@ function buildEntregaDevolucaoChecklistContent(
           [
             { text: "Item", style: "tableHeader" },
             { text: "OK", style: "tableHeader" },
-            { text: "Observa\u00E7\u00E3o", style: "tableHeader" },
+            { text: "Observação", style: "tableHeader" },
           ],
           ...checklistItens.map((item: any) => [
             getText(item, "item", "-"),
-            item?.ok ? "Sim" : "N\u00E3o",
+            item?.ok ? "Sim" : "Não",
             getText(item, "observacao", "-"),
           ]),
         ],
@@ -385,8 +385,8 @@ function buildEntregaDevolucaoChecklistContent(
     ...buildAttachmentsSection(payload.fotos || payload.attachments || document.attachments || []),
     {
       text:
-        "As partes declaram ci\u00EAncia quanto ao estado do ve\u00EDculo e \u00E0 responsabilidade por danos n\u00E3o registrados neste ato, " +
-        "salvo v\u00EDcios ocultos e hip\u00F3teses legalmente excepcionadas.",
+        "As partes declaram ciência quanto ao estado do veículo e à responsabilidade por danos não registrados neste ato, " +
+        "salvo vícios ocultos e hipóteses legalmente excepcionadas.",
       style: "section",
     },
     ...buildSignatureBlock(fiscal.fiscalName, driverName),
@@ -530,4 +530,5 @@ function formatDateTime(value?: string): string {
   }
   return parsed.toLocaleString("pt-BR");
 }
+
 
