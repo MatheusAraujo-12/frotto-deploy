@@ -120,7 +120,7 @@ const DocumentsPage: React.FC = () => {
       setDebtItemTypes(data);
     } catch (_error) {
       setDebtItemTypes([]);
-      showErrorAlert("NÃ£o foi possÃ­vel carregar os tipos de dÃ­vida.");
+      showErrorAlert("N\u00E3o foi poss\u00EDvel carregar os tipos de d\u00EDvida.");
     } finally {
       setIsDebtItemTypesLoading(false);
     }
@@ -139,7 +139,7 @@ const DocumentsPage: React.FC = () => {
       });
       setDocuments(data);
     } catch (_error) {
-      showErrorAlert("NÃ£o foi possÃ­vel carregar os documentos.");
+      showErrorAlert("N\u00E3o foi poss\u00EDvel carregar os documentos.");
     } finally {
       setIsLoading(false);
     }
@@ -584,15 +584,15 @@ const DocumentsPage: React.FC = () => {
 
     if (wizardType === "CONFISSAO_DIVIDA") {
       if (!confissaoItems.length) {
-        showErrorAlert("Adicione ao menos um item da dÃ­vida.");
+        showErrorAlert("Adicione ao menos um item da d\u00EDvida.");
         return false;
       }
       if (confissaoItems.some((item) => !`${item.typeNameSnapshot || ""}`.trim())) {
-        showErrorAlert("Selecione o tipo de todos os itens da dÃ­vida.");
+        showErrorAlert("Selecione o tipo de todos os itens da d\u00EDvida.");
         return false;
       }
       if (confissaoItems.some((item) => (parseDecimal(item.valorItem) || 0) <= 0)) {
-        showErrorAlert("Informe valor maior que zero para todos os itens da dÃ­vida.");
+        showErrorAlert("Informe valor maior que zero para todos os itens da d\u00EDvida.");
         return false;
       }
     }
@@ -721,7 +721,7 @@ const DocumentsPage: React.FC = () => {
       }
       loadDocumentIntoWizard(document);
     } catch (_error) {
-      showErrorAlert("Falha ao abrir rascunho para ediÃ§Ã£o.");
+      showErrorAlert("Falha ao abrir rascunho para edi\u00E7\u00E3o.");
     } finally {
       setIsActionLoading(false);
     }
@@ -746,7 +746,7 @@ const DocumentsPage: React.FC = () => {
         closeWizard();
       }
       await loadDocuments();
-      showSuccessToast("Documento excluÃ­do.");
+      showSuccessToast("Documento exclu\u00EDdo.");
       return true;
     } catch (_error) {
       showErrorAlert("Falha ao excluir documento.");
@@ -806,7 +806,7 @@ const DocumentsPage: React.FC = () => {
           <TextField label="Data/Hora" value={wizardPayload.dataHora} onChange={(v) => setPayload("dataHora", v)} />
           <TextField label="Local" value={wizardPayload.local} onChange={(v) => setPayload("local", v)} />
           <TextField label="AIT" value={wizardPayload.ait} onChange={(v) => setPayload("ait", v)} />
-          <TextField label="Ã“rgÃ£o" value={wizardPayload.orgao} onChange={(v) => setPayload("orgao", v)} />
+          <TextField label="\u00D3rg\u00E3o" value={wizardPayload.orgao} onChange={(v) => setPayload("orgao", v)} />
           <TextField
             label="Enquadramento"
             value={wizardPayload.enquadramento}
@@ -815,7 +815,7 @@ const DocumentsPage: React.FC = () => {
           <DecimalField label="Valor" value={wizardPayload.valor} onChange={(v) => setPayload("valor", v)} />
           <TextField label="Vencimento" value={wizardPayload.vencimento} onChange={(v) => setPayload("vencimento", v)} />
           <SelectField
-            label="ResponsÃ¡vel pagamento"
+            label="Respons\u00E1vel pelo pagamento"
             value={wizardPayload.responsavelPagamento || ""}
             options={[
               { value: "MOTORISTA", label: "Motorista" },
@@ -824,7 +824,7 @@ const DocumentsPage: React.FC = () => {
             onChange={(v) => setPayload("responsavelPagamento", v)}
           />
           <AreaField
-            label="ObservaÃ§Ãµes"
+            label="Observa\u00E7\u00F5es"
             value={wizardPayload.observacoes}
             onChange={(v) => setPayload("observacoes", v)}
           />
@@ -836,7 +836,7 @@ const DocumentsPage: React.FC = () => {
       return (
         <>
           <TextField label="Data" value={wizardPayload.data} onChange={(v) => setPayload("data", v)} />
-          <TextField label="DescriÃ§Ã£o" value={wizardPayload.descricao} onChange={(v) => setPayload("descricao", v)} />
+          <TextField label="Descri\u00E7\u00E3o" value={wizardPayload.descricao} onChange={(v) => setPayload("descricao", v)} />
           <TextField label="Oficina" value={wizardPayload.oficina} onChange={(v) => setPayload("oficina", v)} />
           <DecimalField
             label="Valor total"
@@ -844,7 +844,7 @@ const DocumentsPage: React.FC = () => {
             onChange={(v) => setPayload("valorTotal", v)}
           />
           <SelectField
-            label="Forma divisÃ£o"
+            label="Forma de divis\u00E3o"
             value={wizardPayload.formaDivisao || ""}
             options={[
               { value: "PERCENTUAL", label: "Percentual" },
@@ -858,7 +858,7 @@ const DocumentsPage: React.FC = () => {
             onChange={(v) => setPayload("parteMotoristaValor", v)}
           />
           <AreaField
-            label="ObservaÃ§Ãµes"
+            label="Observa\u00E7\u00F5es"
             value={wizardPayload.observacoes}
             onChange={(v) => setPayload("observacoes", v)}
           />
@@ -869,8 +869,8 @@ const DocumentsPage: React.FC = () => {
     if (wizardType === "RECIBO_ALUGUEL") {
       return (
         <>
-          <TextField label="PerÃ­odo inÃ­cio" value={wizardPayload.periodoInicio} onChange={(v) => setPayload("periodoInicio", v)} />
-          <TextField label="PerÃ­odo fim" value={wizardPayload.periodoFim} onChange={(v) => setPayload("periodoFim", v)} />
+          <TextField label="Per\u00EDodo in\u00EDcio" value={wizardPayload.periodoInicio} onChange={(v) => setPayload("periodoInicio", v)} />
+          <TextField label="Per\u00EDodo fim" value={wizardPayload.periodoFim} onChange={(v) => setPayload("periodoFim", v)} />
           <DecimalField
             label="Valor aluguel"
             value={wizardPayload.valorAluguel}
@@ -878,15 +878,15 @@ const DocumentsPage: React.FC = () => {
           />
           <DecimalField label="Descontos" value={wizardPayload.descontos} onChange={(v) => setPayload("descontos", v)} />
           <DecimalField
-            label="AcrÃ©scimos"
+            label="Acr\u00E9scimos"
             value={wizardPayload.acrescimos}
             onChange={(v) => setPayload("acrescimos", v)}
           />
           <DecimalField label="Valor final" value={wizardPayload.valorFinal} onChange={(v) => setPayload("valorFinal", v)} />
-          <TextField label="Forma pagamento" value={wizardPayload.formaPagamento} onChange={(v) => setPayload("formaPagamento", v)} />
-          <TextField label="Data pagamento" value={wizardPayload.dataPagamento} onChange={(v) => setPayload("dataPagamento", v)} />
+          <TextField label="Forma de pagamento" value={wizardPayload.formaPagamento} onChange={(v) => setPayload("formaPagamento", v)} />
+          <TextField label="Data do pagamento" value={wizardPayload.dataPagamento} onChange={(v) => setPayload("dataPagamento", v)} />
           <AreaField
-            label="ObservaÃ§Ãµes"
+            label="Observa\u00E7\u00F5es"
             value={wizardPayload.observacoes}
             onChange={(v) => setPayload("observacoes", v)}
           />
@@ -972,7 +972,7 @@ const DocumentsPage: React.FC = () => {
             onChange={() => undefined}
           />
           <SelectField
-            label="Forma pagamento"
+            label="Forma de pagamento"
             value={wizardPayload.formaPagamento || ""}
             options={[
               { value: "A_VISTA", label: "À vista" },
@@ -1003,13 +1003,13 @@ const DocumentsPage: React.FC = () => {
           value={wizardPayload.tipo || ""}
           options={[
             { value: "ENTREGA", label: "Entrega" },
-            { value: "DEVOLUCAO", label: "DevoluÃ§Ã£o" },
+            { value: "DEVOLUCAO", label: "Devolu\u00E7\u00E3o" },
           ]}
           onChange={(v) => setPayload("tipo", v)}
         />
         <TextField label="Data/Hora" value={wizardPayload.dataHora} onChange={(v) => setPayload("dataHora", v)} />
         <TextField label="KM" value={wizardPayload.km} onChange={(v) => setPayload("km", v)} />
-        <TextField label="CombustÃ­vel" value={wizardPayload.combustivel} onChange={(v) => setPayload("combustivel", v)} />
+        <TextField label="Combust\u00EDvel" value={wizardPayload.combustivel} onChange={(v) => setPayload("combustivel", v)} />
         <AreaField
           label="Checklist (JSON)"
           value={JSON.stringify(wizardPayload.checklistItens || [], null, 2)}
@@ -1168,15 +1168,15 @@ const DocumentsPage: React.FC = () => {
               disabled={listPage === 0 || isLoading}
               onClick={() => setListPage((current) => Math.max(0, current - 1))}
             >
-              PÃ¡gina anterior
+              P\u00E1gina anterior
             </IonButton>
-            <span>PÃ¡gina {listPage + 1}</span>
+            <span>P\u00E1gina {listPage + 1}</span>
             <IonButton
               fill="outline"
               disabled={!canGoNextPage || isLoading}
               onClick={() => setListPage((current) => current + 1)}
             >
-              PrÃ³xima pÃ¡gina
+              Pr\u00F3xima p\u00E1gina
             </IonButton>
           </div>
         </div>
@@ -1266,7 +1266,7 @@ const DocumentsPage: React.FC = () => {
                     }}
                   />
                   <Autocomplete
-                    label="Carro (opcional para confissÃ£o)"
+                    label="Carro (opcional para confiss\u00E3o)"
                     value={wizardCarQuery}
                     options={wizardCarOptions}
                     getLabel={(item) => `${item.plate || ""}${item.model ? ` - ${item.model}` : ""}`}
@@ -1300,7 +1300,7 @@ const DocumentsPage: React.FC = () => {
                     onChange={(value) => setWizardType((value as DocumentType) || "")}
                   />
                   {wizardRequiresCar && !wizardCar?.id && (
-                    <p className="documents-warning">Esse tipo exige vÃ­nculo com carro.</p>
+                    <p className="documents-warning">Esse tipo exige v\u00EDnculo com carro.</p>
                   )}
                 </IonCardContent>
               </IonCard>
@@ -1309,7 +1309,7 @@ const DocumentsPage: React.FC = () => {
             {wizardStep === 3 && (
               <IonCard>
                 <IonCardContent>
-                  <h3>Passo 3 - FormulÃ¡rio</h3>
+                  <h3>Passo 3 - Formul\u00E1rio</h3>
                   {renderTypeFields()}
 
                   {showAttachmentInput && (
@@ -1345,7 +1345,7 @@ const DocumentsPage: React.FC = () => {
                 disabled={wizardStep === 3}
                 onClick={() => setWizardStep((prev) => (prev === 3 ? 3 : ((prev + 1) as 1 | 2 | 3)))}
               >
-                PrÃ³ximo
+                Pr\u00F3ximo
               </IonButton>
             </div>
           </IonToolbar>
