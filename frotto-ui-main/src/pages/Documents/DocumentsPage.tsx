@@ -504,6 +504,34 @@ const DocumentsPage: React.FC = () => {
     [applyConfissaoItems, confissaoItems]
   );
 
+  const createDebtItemTypeInline = useCallback(async () => {
+    const rawName = window.prompt("Nome do novo tipo de dívida:");
+    if (rawName === null) {
+      return;
+    }
+
+    const name = rawName.trim();
+    if (!name) {
+      showErrorAlert("Informe um nome válido para o tipo.");
+      return;
+    }
+
+    setIsActionLoading(true);
+    try {
+      await debtItemTypeService.createDebtItemType({ name, active: true });
+      await loadDebtItemTypes();
+      showSuccessToast("Tipo de dívida criado.");
+    } catch (error: any) {
+      if (error?.response?.status === 409) {
+        showErrorAlert("Já existe um tipo com esse nome.");
+      } else {
+        showErrorAlert("Falha ao criar tipo de dívida.");
+      }
+    } finally {
+      setIsActionLoading(false);
+    }
+  }, [loadDebtItemTypes, showErrorAlert, showSuccessToast]);
+
   useEffect(() => {
     if (!isWizardOpen || wizardType !== "CONFISSAO_DIVIDA") {
       return;
@@ -928,6 +956,14 @@ const DocumentsPage: React.FC = () => {
             <IonButton fill="outline" onClick={addConfissaoItem} disabled={isDebtItemTypesLoading}>
               <IonIcon icon={add} slot="start" />
               Adicionar item
+            </IonButton>
+            <IonButton
+              fill="outline"
+              onClick={() => void createDebtItemTypeInline()}
+              disabled={isDebtItemTypesLoading || isActionLoading}
+            >
+              <IonIcon icon={add} slot="start" />
+              Criar tipo
             </IonButton>
           </div>
           <DecimalField
