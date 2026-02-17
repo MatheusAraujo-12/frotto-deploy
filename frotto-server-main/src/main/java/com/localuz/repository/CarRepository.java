@@ -5,6 +5,7 @@ import com.localuz.domain.Car;
 import com.localuz.domain.User;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -39,6 +40,17 @@ public interface CarRepository extends JpaRepository<Car, Long> {
 
     @Query("select car from Car car where car.user.login = ?#{principal.username} and car.id = :id")
     Optional<Car> findByCurrentUserAndId(@Param("id") Long id);
+
+    @Query(
+        "select car from Car car " +
+        "where car.user.login = ?#{principal.username} " +
+        "and (" +
+        ":plate = '' " +
+        "or upper(replace(replace(coalesce(car.plate, ''), '-', ''), ' ', '')) like concat('%', :plate, '%')" +
+        ") " +
+        "order by car.plate asc"
+    )
+    List<Car> searchByCurrentUserAndPlate(@Param("plate") String plate, Pageable pageable);
 
     List<Car> findAllByUserId(Long userId);
 

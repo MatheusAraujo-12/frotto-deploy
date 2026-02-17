@@ -129,6 +129,7 @@ const endpoints = {
   CARS: apiEndpoint("/cars"),
   CARS_ACTIVE: apiEndpoint("/cars-drivers/active"),
   CARS_ACTIVE_GROUPS: apiEndpoint("/cars/active/groups"),
+  CARS_SEARCH: apiEndpoint("/cars/search"),
   CAR: apiEndpoint("/cars/{id}"),
 
   BODY_DAMAGE: apiEndpoint("/car-body-damages/car/{id}"),
@@ -136,6 +137,7 @@ const endpoints = {
   BODY_DAMAGE_EDIT: apiEndpoint("/car-body-damages/{id}"),
 
   DRIVER_CPF: apiEndpoint("/drivers/{cpf}"),
+  DRIVERS_SEARCH: apiEndpoint("/drivers/search"),
   DRIVERS: apiEndpoint("/driver-cars/car/{id}"),
   DRIVERS_EDIT: apiEndpoint("/driver-cars/{id}"),
   DRIVER_DEBTS: apiEndpoint("/drivers/{id}/debts"),
@@ -164,6 +166,13 @@ const endpoints = {
   REPORTS: apiEndpoint("/reports"),
   REPORTS_HISTORY: apiEndpoint("/reports-history"),
   REPORTS_MAINTENANCE: apiEndpoint("/reports/maintenance"),
+
+  DOCUMENTS: apiEndpoint("/documents"),
+  DOCUMENT: apiEndpoint("/documents/{id}"),
+  DOCUMENT_FINALIZE: apiEndpoint("/documents/{id}/finalize"),
+  DOCUMENT_GENERATE_PDF: apiEndpoint("/documents/{id}/generate-pdf"),
+  DOCUMENT_MARK_SENT: apiEndpoint("/documents/{id}/mark-sent"),
+  DOCUMENT_ATTACHMENTS: apiEndpoint("/documents/{id}/attachments"),
 };
 
 export default endpoints;

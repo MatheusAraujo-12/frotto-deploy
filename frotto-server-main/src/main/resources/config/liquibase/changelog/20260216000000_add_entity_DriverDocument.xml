@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260216000000-1" author="codex">
+        <createTable tableName="driver_document">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="type" type="varchar(60)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="driver_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="car_id" type="bigint">
+                <constraints nullable="true"/>
+            </column>
+            <column name="jhi_user_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="varchar(30)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="payload_json" type="text">
+                <constraints nullable="true"/>
+            </column>
+            <column name="attachments_json" type="text">
+                <constraints nullable="true"/>
+            </column>
+            <column name="pdf_url" type="varchar(500)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="created_at" type="datetime(6)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="datetime(6)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="20260216000000-2" author="codex">
+        <createIndex tableName="driver_document" indexName="idx_driver_document_driver_id">
+            <column name="driver_id"/>
+        </createIndex>
+        <createIndex tableName="driver_document" indexName="idx_driver_document_car_id">
+            <column name="car_id"/>
+        </createIndex>
+        <createIndex tableName="driver_document" indexName="idx_driver_document_type">
+            <column name="type"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="20260216000000-3" author="codex">
+        <addForeignKeyConstraint
+            baseTableName="driver_document"
+            baseColumnNames="driver_id"
+            constraintName="fk_driver_document_driver_id"
+            referencedTableName="driver"
+            referencedColumnNames="id"/>
+
+        <addForeignKeyConstraint
+            baseTableName="driver_document"
+            baseColumnNames="car_id"
+            constraintName="fk_driver_document_car_id"
+            referencedTableName="car"
+            referencedColumnNames="id"/>
+
+        <addForeignKeyConstraint
+            baseTableName="driver_document"
+            baseColumnNames="jhi_user_id"
+            constraintName="fk_driver_document_user_id"
+            referencedTableName="jhi_user"
+            referencedColumnNames="id"/>
+    </changeSet>
+</databaseChangeLog>

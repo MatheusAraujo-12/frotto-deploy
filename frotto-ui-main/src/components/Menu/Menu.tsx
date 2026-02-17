@@ -18,7 +18,7 @@ import {
 } from "@ionic/react";
 import { Redirect, Route } from "react-router";
 import React, { useEffect, useMemo, useState } from "react";
-import { car, clipboard, logOutOutline, personCircleOutline } from "ionicons/icons";
+import { car, clipboard, documentTextOutline, logOutOutline, personCircleOutline } from "ionicons/icons";
 
 import BodyDamages from "../../pages/BodyDamage/BodyDamages";
 import Car from "../../pages/Cars/Car";
@@ -32,6 +32,7 @@ import Reports from "../../pages/Reports/Reports";
 import Reminders from "../../pages/Reminders/Reminders";
 import DriverPendencies from "../../pages/DriverPendency/DriverPendencies";
 import MyPanelPage from "../../pages/MyPanel/MyPanelPage";
+import DocumentsPage from "../../pages/Documents/DocumentsPage";
 
 import api from "../../services/axios/axios";
 import { removeToken } from "../../services/localStorage/localstorage";
@@ -399,6 +400,12 @@ const Menu: React.FC = () => {
                 </IonItem>
               </IonMenuToggle>
               <IonMenuToggle>
+                <IonItem className="menu-item" routerLink="/documents" routerDirection="none">
+                  <IonIcon icon={documentTextOutline} slot="start"></IonIcon>
+                  Documentos
+                </IonItem>
+              </IonMenuToggle>
+              <IonMenuToggle>
                 <IonItem className="menu-item" routerLink="/meu-painel" routerDirection="none">
                   <IonIcon icon={personCircleOutline} slot="start"></IonIcon>
                   Meu Painel
@@ -441,6 +448,7 @@ const Menu: React.FC = () => {
           <Route exact path="/menu/carros/:id/lembretes" component={Reminders} />
           <Route exact path="/menu/carros/motorista/:id/pendencias" component={DriverPendencies} />
           <Route exact path="/menu/relatorios" component={Reports} />
+          <Route exact path="/documents" component={DocumentsPage} />
           <Route exact path="/menu/meu-painel" component={MyPanelPage} />
           <Route exact path="/meu-painel" component={MyPanelPage} />
           <Route exact path="/my-panel" component={MyPanelPage} />

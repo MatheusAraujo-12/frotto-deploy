@@ -2,13 +2,18 @@ package com.localuz.web.rest;
 
 import com.localuz.domain.Driver;
 import com.localuz.repository.DriverRepository;
+import com.localuz.service.dto.DriverSearchDTO;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -38,6 +43,24 @@ public class DriverResource {
             return driver.get();
         }
         return null;
+    }
+
+    @GetMapping("/drivers/search")
+    public List<DriverSearchDTO> searchDrivers(@RequestParam(name = "q", required = false, defaultValue = "") String q) {
+        String normalizedQuery = q == null ? "" : q.trim();
+        String digitsOnly = normalizedQuery.replaceAll("\\D+", "");
+        List<Driver> drivers = driverRepository.searchByCurrentUser(normalizedQuery, digitsOnly, PageRequest.of(0, 20));
+        return drivers
+            .stream()
+            .map(driver -> new DriverSearchDTO(driver.getId(), driver.getName(), driver.getCpf(), hasActiveDriverCar(driver)))
+            .collect(Collectors.toList());
+    }
+
+    private boolean hasActiveDriverCar(Driver driver) {
+        if (driver == null || driver.getDriverCars() == null) {
+            return false;
+        }
+        return driver.getDriverCars().stream().anyMatch(driverCar -> driverCar.getConcluded() == null || !driverCar.getConcluded());
     }
     //
     //  /**

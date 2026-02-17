@@ -14,6 +14,7 @@ import com.localuz.repository.InspectionRepository;
 import com.localuz.repository.MaintenanceRepository;
 import com.localuz.repository.ReminderRepository;
 import com.localuz.service.UserService;
+import com.localuz.service.dto.CarSearchDTO;
 import com.localuz.service.dto.CarDTO;
 import com.localuz.service.dto.CarFormDTO;
 import com.localuz.web.rest.errors.BadRequestAlertException;
@@ -24,6 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
 import org.slf4j.Logger;
@@ -31,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,6 +43,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import tech.jhipster.web.util.HeaderUtil;
 import tech.jhipster.web.util.ResponseUtil;
@@ -105,6 +109,16 @@ public class CarResource {
         List<String> groups = carRepository.findActiveGroupsByCurrentUser();
         groups.removeAll(Arrays.asList("", null));
         return groups;
+    }
+
+    @GetMapping("/cars/search")
+    public List<CarSearchDTO> searchCarsByPlate(@RequestParam(name = "plate", required = false, defaultValue = "") String plate) {
+        String normalizedPlate = plate == null ? "" : plate.toUpperCase().replaceAll("[^A-Z0-9]", "");
+        return carRepository
+            .searchByCurrentUserAndPlate(normalizedPlate, PageRequest.of(0, 20))
+            .stream()
+            .map(car -> new CarSearchDTO(car.getId(), car.getPlate(), car.getName(), car.getModel(), car.getActive()))
+            .collect(Collectors.toList());
     }
 
     @GetMapping("/cars/{id}")
