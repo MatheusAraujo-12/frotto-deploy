@@ -88,23 +88,23 @@ function buildReciboAluguelContent(
 ) {
   const driverName = getText(payload, "driverName", document.driverName || "Motorista");
   const driverCpf = getText(payload, "driverCpf", document.driverCpf || "");
-  const vehicle = `${document.carModel || getText(payload, "carModel", "Veículo")} - ${document.carPlate || getText(payload, "carPlate", "-")}`;
+  const vehicle = `${document.carModel || getText(payload, "carModel", "VeÃ­culo")} - ${document.carPlate || getText(payload, "carPlate", "-")}`;
   const valorFinal = getNumber(payload, "valorFinal", 0);
 
   return [
-    { text: "RECIBO DE PAGAMENTO DE ALUGUEL DE VEÍCULO", style: "title" },
+    { text: "RECIBO DE PAGAMENTO DE ALUGUEL DE VEÃCULO", style: "title" },
     {
       text:
         `Recebi de ${driverName}${driverCpf ? ` (CPF ${driverCpf})` : ""}, a quantia de ${formatCurrency(valorFinal)}, ` +
-        `referente à locação do veículo ${vehicle}, período de ${formatDate(getText(payload, "periodoInicio"))} ` +
-        `a ${formatDate(getText(payload, "periodoFim"))}. Declaro plena quitação do valor ora recebido, ` +
-        `sem prejuízo das demais obrigações contratuais eventualmente vigentes.`,
+        `referente Ã  locaÃ§Ã£o do veÃ­culo ${vehicle}, perÃ­odo de ${formatDate(getText(payload, "periodoInicio"))} ` +
+        `a ${formatDate(getText(payload, "periodoFim"))}. Declaro plena quitaÃ§Ã£o do valor ora recebido, ` +
+        `sem prejuÃ­zo das demais obrigaÃ§Ãµes contratuais eventualmente vigentes.`,
       style: "section",
     },
     {
       text:
         `Recebedor: ${fiscal.fiscalName} - ${fiscal.documentLabel}: ${fiscal.documentValue || "-"}${
-          fiscal.address ? ` - Endereço: ${fiscal.address}` : ""
+          fiscal.address ? ` - EndereÃ§o: ${fiscal.address}` : ""
         }`,
       style: "section",
     },
@@ -112,7 +112,7 @@ function buildReciboAluguelContent(
       text:
         `Detalhamento financeiro: Aluguel ${formatCurrency(getNumber(payload, "valorAluguel"))}; ` +
         `Descontos ${formatCurrency(getNumber(payload, "descontos"))}; ` +
-        `Acréscimos ${formatCurrency(getNumber(payload, "acrescimos"))}; ` +
+        `AcrÃ©scimos ${formatCurrency(getNumber(payload, "acrescimos"))}; ` +
         `Valor final ${formatCurrency(valorFinal)}.`,
       style: "section",
     },
@@ -122,7 +122,7 @@ function buildReciboAluguelContent(
         `Data do pagamento: ${formatDate(getText(payload, "dataPagamento"))}.`,
       style: "section",
     },
-    { text: `Observações: ${getText(payload, "observacoes", "-")}`, style: "section" },
+    { text: `ObservaÃ§Ãµes: ${getText(payload, "observacoes", "-")}`, style: "section" },
     ...buildSignatureBlock(fiscal.fiscalName, driverName),
   ];
 }
@@ -136,32 +136,32 @@ function buildMultaContent(
   const driverCpf = getText(payload, "driverCpf", document.driverCpf || "");
 
   return [
-    { text: "NOTIFICAÇÃO E TERMO DE CIÊNCIA E RESPONSABILIDADE POR INFRAÇÃO DE TRÂNSITO", style: "title" },
+    { text: "NOTIFICAÃ‡ÃƒO E TERMO DE CIÃŠNCIA E RESPONSABILIDADE POR INFRAÃ‡ÃƒO DE TRÃ‚NSITO", style: "title" },
     {
       text:
         `${fiscal.fiscalName} (${fiscal.documentLabel} ${fiscal.documentValue || "-"}) notifica ${driverName}${
           driverCpf ? ` (CPF ${driverCpf})` : ""
         }, ` +
-        `quanto à infração de trânsito vinculada ao veículo ${document.carPlate || getText(payload, "carPlate", "-")}, ` +
+        `quanto Ã  infraÃ§Ã£o de trÃ¢nsito vinculada ao veÃ­culo ${document.carPlate || getText(payload, "carPlate", "-")}, ` +
         `ocorrida em ${formatDateTime(getText(payload, "dataHora"))}, no local ${getText(payload, "local", "-")}.`,
       style: "section",
     },
     {
       text:
-        `Dados da infração: AIT ${getText(payload, "ait", "-")}; Órgão autuador ${getText(payload, "orgao", "-")}; ` +
+        `Dados da infraÃ§Ã£o: AIT ${getText(payload, "ait", "-")}; Ã“rgÃ£o autuador ${getText(payload, "orgao", "-")}; ` +
         `Enquadramento ${getText(payload, "enquadramento", "-")}; Valor ${formatCurrency(getNumber(payload, "valor"))}; ` +
         `Vencimento ${formatDate(getText(payload, "vencimento"))}.`,
       style: "section",
     },
     {
       text:
-        "Cláusula de responsabilidade: o condutor declara ciência e assume integral responsabilidade pelo pagamento da infração, " +
+        "ClÃ¡usula de responsabilidade: o condutor declara ciÃªncia e assume integral responsabilidade pelo pagamento da infraÃ§Ã£o, " +
         "incluindo encargos legais. Caso o pagamento inicial seja realizado pela empresa, fica o motorista obrigado ao reembolso " +
-        "integral no prazo estipulado, sob pena de registro de débito e demais medidas cabíveis.",
+        "integral no prazo estipulado, sob pena de registro de dÃ©bito e demais medidas cabÃ­veis.",
       style: "section",
     },
-    { text: `Responsável pelo pagamento: ${getText(payload, "responsavelPagamento", "-")}.`, style: "section" },
-    { text: `Observações: ${getText(payload, "observacoes", "-")}`, style: "section" },
+    { text: `ResponsÃ¡vel pelo pagamento: ${getText(payload, "responsavelPagamento", "-")}.`, style: "section" },
+    { text: `ObservaÃ§Ãµes: ${getText(payload, "observacoes", "-")}`, style: "section" },
     ...buildAttachmentsSection(payload.attachments || document.attachments || []),
     ...buildSignatureBlock(fiscal.fiscalName, driverName),
   ];
@@ -177,32 +177,32 @@ function buildManutencaoCompartilhadaContent(
   const parteMotorista = getNumber(payload, "parteMotoristaValor");
 
   return [
-    { text: "ACORDO DE RATEIO DE DESPESAS DE MANUTENÇÃO", style: "title" },
+    { text: "ACORDO DE RATEIO DE DESPESAS DE MANUTENÃ‡ÃƒO", style: "title" },
     {
       text:
         `${fiscal.fiscalName}, ${fiscal.documentLabel} ${fiscal.documentValue || "-"}, e ${driverName}, ` +
-        "ajustam o rateio da manutenção do veículo nos seguintes termos.",
+        "ajustam o rateio da manutenÃ§Ã£o do veÃ­culo nos seguintes termos.",
       style: "section",
     },
     {
       text:
         `Data: ${formatDate(getText(payload, "data"))}; Oficina: ${getText(payload, "oficina", "-")}; ` +
-        `Descrição: ${getText(payload, "descricao", "-")}.`,
+        `DescriÃ§Ã£o: ${getText(payload, "descricao", "-")}.`,
       style: "section",
     },
     {
       text:
-        `Valor total: ${formatCurrency(valorTotal)}. Forma de divisão: ${getText(payload, "formaDivisao", "-")}. ` +
+        `Valor total: ${formatCurrency(valorTotal)}. Forma de divisÃ£o: ${getText(payload, "formaDivisao", "-")}. ` +
         `Parcela do motorista: ${formatCurrency(parteMotorista)}.`,
       style: "section",
     },
     {
       text:
-        "O valor devido pelo motorista deverá ser pago no prazo ajustado entre as partes. Em caso de inadimplemento, " +
-        "incidirão multa contratual de 2% e juros simples de 1% ao mês, sem prejuízo de atualização monetária e cobrança judicial.",
+        "O valor devido pelo motorista deverÃ¡ ser pago no prazo ajustado entre as partes. Em caso de inadimplemento, " +
+        "incidirÃ£o multa contratual de 2% e juros simples de 1% ao mÃªs, sem prejuÃ­zo de atualizaÃ§Ã£o monetÃ¡ria e cobranÃ§a judicial.",
       style: "section",
     },
-    { text: `Observações: ${getText(payload, "observacoes", "-")}`, style: "section" },
+    { text: `ObservaÃ§Ãµes: ${getText(payload, "observacoes", "-")}`, style: "section" },
     ...buildAttachmentsSection(payload.attachments || document.attachments || []),
     ...buildSignatureBlock(fiscal.fiscalName, driverName),
   ];
@@ -218,6 +218,9 @@ function buildConfissaoDividaContent(
   const formaPagamento = getText(payload, "formaPagamento", "A_VISTA");
   const qtdParcelas = getNumber(payload, "parcelasQtd");
   const valorParcela = getNumber(payload, "valorParcela");
+  const itensDaDivida = resolveConfissaoDebtItems(payload);
+  const totalItens = itensDaDivida.reduce((sum, item) => sum + item.valorItem, 0);
+  const valorTotal = getNumber(payload, "valorTotal", totalItens);
 
   return [
     { text: "INSTRUMENTO PARTICULAR DE CONFISSÃO E RECONHECIMENTO DE DÍVIDA", style: "title" },
@@ -231,12 +234,13 @@ function buildConfissaoDividaContent(
     {
       text:
         `Devedor: ${driverName}${driverCpf ? `, CPF ${driverCpf}` : ""}. ` +
-        `Origem da dívida: ${getText(payload, "origemDaDivida", "-")}.`,
+        `Origem da dívida (descrição geral): ${getText(payload, "origemDaDivida", "-")}.`,
       style: "section",
     },
+    ...buildConfissaoItensTable(itensDaDivida, valorTotal),
     {
       text:
-        `Valor total reconhecido: ${formatCurrency(getNumber(payload, "valorTotal"))}. ` +
+        `Valor total reconhecido: ${formatCurrency(valorTotal)}. ` +
         `Forma de pagamento: ${formaPagamento}.`,
       style: "section",
     },
@@ -270,6 +274,71 @@ function buildConfissaoDividaContent(
   ];
 }
 
+function buildConfissaoItensTable(items: Array<{ descricao: string; valorItem: number }>, valorTotal: number) {
+  if (!items.length) {
+    return [];
+  }
+
+  return [
+    {
+      text: "Itens da dívida:",
+      style: "section",
+      margin: [0, 0, 0, 4],
+    },
+    {
+      table: {
+        headerRows: 1,
+        widths: ["*", 110],
+        body: [
+          [
+            { text: "Descrição", style: "tableHeader" },
+            { text: "Valor", style: "tableHeader", alignment: "right" },
+          ],
+          ...items.map((item) => [item.descricao, { text: formatCurrency(item.valorItem), alignment: "right" }]),
+          [
+            { text: "Total", style: "tableHeader" },
+            { text: formatCurrency(valorTotal), style: "tableHeader", alignment: "right" },
+          ],
+        ],
+      },
+      layout: "lightHorizontalLines",
+      margin: [0, 0, 0, 10],
+    },
+  ];
+}
+
+function resolveConfissaoDebtItems(payload: Record<string, any>) {
+  const rawItems = Array.isArray(payload?.itensDaDivida) ? payload.itensDaDivida : [];
+
+  const normalizedItems = rawItems
+    .map((item: any) => {
+      const typeName = getText(item, "typeNameSnapshot", getText(item, "typeName", getText(item, "tipoItem", "Outros")));
+      const descricaoItem = getText(item, "descricaoItem", "");
+      const valorItem = getNumber(item, "valorItem");
+      const descricao = descricaoItem ? `${typeName} - ${descricaoItem}` : typeName;
+      return { descricao, valorItem };
+    })
+    .filter((item) => item.descricao || item.valorItem > 0);
+
+  if (normalizedItems.length) {
+    return normalizedItems;
+  }
+
+  const legacyTypeName = getText(payload, "tipoItem", getText(payload, "origemDaDivida", "Outros"));
+  const legacyDescription = getText(payload, "descricaoItem", "");
+  const legacyValue = getNumber(payload, "valorItem", getNumber(payload, "valorTotal"));
+  if (!legacyTypeName && !legacyDescription && legacyValue <= 0) {
+    return [];
+  }
+
+  return [
+    {
+      descricao: legacyDescription ? `${legacyTypeName} - ${legacyDescription}` : legacyTypeName,
+      valorItem: legacyValue,
+    },
+  ];
+}
+
 function buildEntregaDevolucaoChecklistContent(
   document: DocumentModel,
   payload: Record<string, any>,
@@ -279,17 +348,17 @@ function buildEntregaDevolucaoChecklistContent(
   const checklistItens = Array.isArray(payload.checklistItens) ? payload.checklistItens : [];
 
   return [
-    { text: "TERMO DE ENTREGA/DEVOLUÇÃO DE VEÍCULO COM CHECKLIST E VISTORIA", style: "title" },
+    { text: "TERMO DE ENTREGA/DEVOLUÃ‡ÃƒO DE VEÃCULO COM CHECKLIST E VISTORIA", style: "title" },
     {
       text:
         `Pelo presente termo, ${fiscal.fiscalName} (${fiscal.documentLabel} ${fiscal.documentValue || "-"}) e ${driverName} ` +
-        `registram a ${getText(payload, "tipo", "ENTREGA")} do veículo ${document.carPlate || getText(payload, "carPlate", "-")} ` +
+        `registram a ${getText(payload, "tipo", "ENTREGA")} do veÃ­culo ${document.carPlate || getText(payload, "carPlate", "-")} ` +
         `em ${formatDateTime(getText(payload, "dataHora"))}.`,
       style: "section",
     },
     {
       text:
-        `Quilometragem: ${getText(payload, "km", "-")} km. Combustível: ${getText(payload, "combustivel", "-")}.`,
+        `Quilometragem: ${getText(payload, "km", "-")} km. CombustÃ­vel: ${getText(payload, "combustivel", "-")}.`,
       style: "section",
     },
     {
@@ -300,11 +369,11 @@ function buildEntregaDevolucaoChecklistContent(
           [
             { text: "Item", style: "tableHeader" },
             { text: "OK", style: "tableHeader" },
-            { text: "Observação", style: "tableHeader" },
+            { text: "ObservaÃ§Ã£o", style: "tableHeader" },
           ],
           ...checklistItens.map((item: any) => [
             getText(item, "item", "-"),
-            item?.ok ? "Sim" : "Não",
+            item?.ok ? "Sim" : "NÃ£o",
             getText(item, "observacao", "-"),
           ]),
         ],
@@ -316,8 +385,8 @@ function buildEntregaDevolucaoChecklistContent(
     ...buildAttachmentsSection(payload.fotos || payload.attachments || document.attachments || []),
     {
       text:
-        "As partes declaram ciência quanto ao estado do veículo e à responsabilidade por danos não registrados neste ato, " +
-        "salvo vícios ocultos e hipóteses legalmente excepcionadas.",
+        "As partes declaram ciÃªncia quanto ao estado do veÃ­culo e Ã  responsabilidade por danos nÃ£o registrados neste ato, " +
+        "salvo vÃ­cios ocultos e hipÃ³teses legalmente excepcionadas.",
       style: "section",
     },
     ...buildSignatureBlock(fiscal.fiscalName, driverName),
@@ -461,3 +530,4 @@ function formatDateTime(value?: string): string {
   }
   return parsed.toLocaleString("pt-BR");
 }
+

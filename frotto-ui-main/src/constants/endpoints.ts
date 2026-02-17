@@ -173,6 +173,9 @@ const endpoints = {
   DOCUMENT_GENERATE_PDF: apiEndpoint("/documents/{id}/generate-pdf"),
   DOCUMENT_MARK_SENT: apiEndpoint("/documents/{id}/mark-sent"),
   DOCUMENT_ATTACHMENTS: apiEndpoint("/documents/{id}/attachments"),
+
+  DEBT_ITEM_TYPES: apiEndpoint("/debt-item-types"),
+  DEBT_ITEM_TYPE: apiEndpoint("/debt-item-types/{id}"),
 };
 
 export default endpoints;

@@ -486,7 +486,11 @@ public class DocumentResource {
             return toBigDecimal(payload.get("parteMotoristaValor"));
         }
         if (type == DocumentType.CONFISSAO_DIVIDA) {
-            return toBigDecimal(payload.get("valorTotal"));
+            BigDecimal total = toBigDecimal(payload.get("valorTotal"));
+            if (total.compareTo(BigDecimal.ZERO) > 0) {
+                return total;
+            }
+            return sumConfissaoItens(payload);
         }
         return BigDecimal.ZERO;
     }
@@ -611,6 +615,26 @@ public class DocumentResource {
         } catch (Exception _error) {
             return BigDecimal.ZERO;
         }
+    }
+
+    private BigDecimal sumConfissaoItens(Map<String, Object> payload) {
+        if (payload == null) {
+            return BigDecimal.ZERO;
+        }
+        Object rawItens = payload.get("itensDaDivida");
+        if (!(rawItens instanceof List<?>)) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal total = BigDecimal.ZERO;
+        for (Object rawItem : (List<?>) rawItens) {
+            if (!(rawItem instanceof Map<?, ?>)) {
+                continue;
+            }
+            Object valorItem = ((Map<?, ?>) rawItem).get("valorItem");
+            total = total.add(toBigDecimal(valorItem));
+        }
+        return total;
     }
 
     private void deleteStoredFiles(List<String> files) {

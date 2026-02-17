@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260217000000-1" author="codex">
+        <createTable tableName="debt_item_type">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="varchar(120)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="active" type="boolean" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sort_order" type="int" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="datetime(6)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="datetime(6)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="20260217000000-2" author="codex">
+        <addUniqueConstraint
+            tableName="debt_item_type"
+            columnNames="name"
+            constraintName="ux_debt_item_type_name"/>
+
+        <createIndex tableName="debt_item_type" indexName="idx_debt_item_type_active">
+            <column name="active"/>
+        </createIndex>
+
+        <createIndex tableName="debt_item_type" indexName="idx_debt_item_type_sort_order">
+            <column name="sort_order"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="20260217000000-3" author="codex">
+        <insert tableName="debt_item_type">
+            <column name="name" value="Multa contratual"/>
+            <column name="active" valueBoolean="true"/>
+            <column name="sort_order" valueNumeric="10"/>
+            <column name="created_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+        </insert>
+        <insert tableName="debt_item_type">
+            <column name="name" value="Multa de trânsito"/>
+            <column name="active" valueBoolean="true"/>
+            <column name="sort_order" valueNumeric="20"/>
+            <column name="created_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+        </insert>
+        <insert tableName="debt_item_type">
+            <column name="name" value="Manutenção compartilhada"/>
+            <column name="active" valueBoolean="true"/>
+            <column name="sort_order" valueNumeric="30"/>
+            <column name="created_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+        </insert>
+        <insert tableName="debt_item_type">
+            <column name="name" value="Diárias em atraso"/>
+            <column name="active" valueBoolean="true"/>
+            <column name="sort_order" valueNumeric="40"/>
+            <column name="created_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+        </insert>
+        <insert tableName="debt_item_type">
+            <column name="name" value="Danos/Avarias"/>
+            <column name="active" valueBoolean="true"/>
+            <column name="sort_order" valueNumeric="50"/>
+            <column name="created_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+        </insert>
+        <insert tableName="debt_item_type">
+            <column name="name" value="Combustível"/>
+            <column name="active" valueBoolean="true"/>
+            <column name="sort_order" valueNumeric="60"/>
+            <column name="created_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+        </insert>
+        <insert tableName="debt_item_type">
+            <column name="name" value="Outros"/>
+            <column name="active" valueBoolean="true"/>
+            <column name="sort_order" valueNumeric="999"/>
+            <column name="created_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+        </insert>
+    </changeSet>
+</databaseChangeLog>

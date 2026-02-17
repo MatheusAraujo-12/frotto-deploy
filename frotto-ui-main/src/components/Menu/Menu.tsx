@@ -18,7 +18,7 @@ import {
 } from "@ionic/react";
 import { Redirect, Route } from "react-router";
 import React, { useEffect, useMemo, useState } from "react";
-import { car, clipboard, documentTextOutline, logOutOutline, personCircleOutline } from "ionicons/icons";
+import { car, clipboard, documentTextOutline, logOutOutline, personCircleOutline, settingsOutline } from "ionicons/icons";
 
 import BodyDamages from "../../pages/BodyDamage/BodyDamages";
 import Car from "../../pages/Cars/Car";
@@ -33,6 +33,7 @@ import Reminders from "../../pages/Reminders/Reminders";
 import DriverPendencies from "../../pages/DriverPendency/DriverPendencies";
 import MyPanelPage from "../../pages/MyPanel/MyPanelPage";
 import DocumentsPage from "../../pages/Documents/DocumentsPage";
+import DebtItemTypesPage from "../../pages/DebtItemTypes/DebtItemTypesPage";
 
 import api from "../../services/axios/axios";
 import { removeToken } from "../../services/localStorage/localstorage";
@@ -431,6 +432,12 @@ const Menu: React.FC = () => {
                 </IonItem>
               </IonMenuToggle>
               <IonMenuToggle>
+                <IonItem className="menu-item" routerLink="/debt-item-types" routerDirection="none">
+                  <IonIcon icon={settingsOutline} slot="start"></IonIcon>
+                  Tipos de Dívida
+                </IonItem>
+              </IonMenuToggle>
+              <IonMenuToggle>
                 <IonItem className="menu-item" routerLink="/meu-painel" routerDirection="none">
                   <IonIcon icon={personCircleOutline} slot="start"></IonIcon>
                   Meu Painel
@@ -474,6 +481,8 @@ const Menu: React.FC = () => {
           <Route exact path="/menu/carros/motorista/:id/pendencias" component={DriverPendencies} />
           <Route exact path="/menu/relatorios" component={Reports} />
           <Route exact path="/documents" component={DocumentsPage} />
+          <Route exact path="/debt-item-types" component={DebtItemTypesPage} />
+          <Route exact path="/menu/debt-item-types" component={DebtItemTypesPage} />
           <Route exact path="/menu/meu-painel" component={MyPanelPage} />
           <Route exact path="/meu-painel" component={MyPanelPage} />
           <Route exact path="/my-panel" component={MyPanelPage} />

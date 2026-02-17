@@ -39,6 +39,25 @@
   font-size: 13px;
 }
 
+#documents-page .documents-debt-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+#documents-page .documents-debt-item-card {
+  border: 1px solid var(--ion-border-color, #d0d7de);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+#documents-page .documents-debt-item-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 4px 0;
+}
+
 #documents-page .documents-step-footer {
   display: flex;
   justify-content: space-between;
@@ -97,5 +116,9 @@
 
   #documents-page .documents-modal-actions ion-button {
     flex: 1 1 100%;
+  }
+
+  #documents-page .documents-debt-item-actions ion-button {
+    width: 100%;
   }
 }

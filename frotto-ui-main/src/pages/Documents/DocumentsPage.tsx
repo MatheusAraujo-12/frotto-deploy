@@ -23,8 +23,9 @@ import {
   IonPage,
   useIonToast,
 } from "@ionic/react";
-import { add, closeCircleOutline, refreshOutline } from "ionicons/icons";
+import { add, closeCircleOutline, refreshOutline, trashOutline } from "ionicons/icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { DebtItemTypeModel } from "../../constants/DebtItemTypeModels";
 import {
   CarSearchModel,
   DOCUMENT_STATUSES,
@@ -35,6 +36,7 @@ import {
   DocumentType,
   DriverSearchModel,
 } from "../../constants/DocumentModels";
+import debtItemTypeService from "../../services/debtItemTypeService";
 import documentService from "../../services/documentService";
 import { useAlert } from "../../services/hooks/useAlert";
 import { formatDecimalInput, parseDecimal, sanitizeDecimalInput } from "../../services/decimalPtBr";
@@ -47,8 +49,15 @@ const DECIMAL_FIELDS_BY_TYPE: Record<DocumentType, string[]> = {
   MULTA: ["valor"],
   MANUTENCAO_COMPARTILHADA: ["valorTotal", "parteMotoristaValor"],
   RECIBO_ALUGUEL: ["valorAluguel", "descontos", "acrescimos", "valorFinal"],
-  CONFISSAO_DIVIDA: ["valorTotal", "valorParcela"],
+  CONFISSAO_DIVIDA: ["valorTotal", "valorParcela", "valorItem"],
   ENTREGA_DEVOLUCAO_CHECKLIST: [],
+};
+
+type ConfissaoDebtItem = {
+  typeId: number | null;
+  typeNameSnapshot: string;
+  descricaoItem?: string;
+  valorItem: string;
 };
 
 const DocumentsPage: React.FC = () => {
@@ -84,6 +93,8 @@ const DocumentsPage: React.FC = () => {
   const [wizardPayload, setWizardPayload] = useState<Record<string, any>>({});
   const [wizardFiles, setWizardFiles] = useState<File[]>([]);
   const [savedDocument, setSavedDocument] = useState<DocumentModel | null>(null);
+  const [debtItemTypes, setDebtItemTypes] = useState<DebtItemTypeModel[]>([]);
+  const [isDebtItemTypesLoading, setIsDebtItemTypesLoading] = useState(false);
 
   const wizardRequiresCar = useMemo(
     () => Boolean(wizardType && DOCUMENT_TYPES_REQUIRING_CAR.includes(wizardType)),
@@ -102,6 +113,19 @@ const DocumentsPage: React.FC = () => {
     [presentToast]
   );
 
+  const loadDebtItemTypes = useCallback(async () => {
+    setIsDebtItemTypesLoading(true);
+    try {
+      const data = await debtItemTypeService.listDebtItemTypes("true");
+      setDebtItemTypes(data);
+    } catch (_error) {
+      setDebtItemTypes([]);
+      showErrorAlert("NÃ£o foi possÃ­vel carregar os tipos de dÃ­vida.");
+    } finally {
+      setIsDebtItemTypesLoading(false);
+    }
+  }, [showErrorAlert]);
+
   const loadDocuments = useCallback(async (pageOverride?: number) => {
     setIsLoading(true);
     try {
@@ -115,7 +139,7 @@ const DocumentsPage: React.FC = () => {
       });
       setDocuments(data);
     } catch (_error) {
-      showErrorAlert("Não foi possível carregar os documentos.");
+      showErrorAlert("NÃ£o foi possÃ­vel carregar os documentos.");
     } finally {
       setIsLoading(false);
     }
@@ -124,6 +148,16 @@ const DocumentsPage: React.FC = () => {
   useEffect(() => {
     void loadDocuments();
   }, [loadDocuments]);
+
+  useEffect(() => {
+    if (!isWizardOpen) {
+      return;
+    }
+    if (wizardType !== "CONFISSAO_DIVIDA" && savedDocument?.type !== "CONFISSAO_DIVIDA") {
+      return;
+    }
+    void loadDebtItemTypes();
+  }, [isWizardOpen, loadDebtItemTypes, savedDocument?.type, wizardType]);
 
   useEffect(() => {
     const query = filterDriverQuery.trim();
@@ -285,26 +319,226 @@ const DocumentsPage: React.FC = () => {
     return nextPayload;
   };
 
-  const normalizePayloadForApi = useCallback((type: DocumentType, payload: Record<string, any>) => {
-    const decimalFields = DECIMAL_FIELDS_BY_TYPE[type] || [];
-    const normalizedPayload = { ...payload };
-    decimalFields.forEach((fieldName) => {
-      const parsed = parseDecimal(payload[fieldName]);
-      if (parsed !== null) {
-        normalizedPayload[fieldName] = parsed;
+  const findDebtItemTypeById = useCallback(
+    (value: any): DebtItemTypeModel | null => {
+      const id = Number(value);
+      if (!Number.isFinite(id)) {
+        return null;
       }
-    });
-    return normalizedPayload;
+      return debtItemTypes.find((item) => item.id === id) || null;
+    },
+    [debtItemTypes]
+  );
+
+  const findDebtItemTypeByName = useCallback(
+    (value: any): DebtItemTypeModel | null => {
+      const target = normalizeLookupText(value);
+      if (!target) {
+        return null;
+      }
+      return debtItemTypes.find((item) => normalizeLookupText(item.name) === target) || null;
+    },
+    [debtItemTypes]
+  );
+
+  const getFallbackDebtItemType = useCallback((): DebtItemTypeModel | null => {
+    return findDebtItemTypeByName("Outros") || debtItemTypes[0] || null;
+  }, [debtItemTypes, findDebtItemTypeByName]);
+
+  const calculateConfissaoTotal = useCallback((items: ConfissaoDebtItem[]) => {
+    const total = items.reduce((sum, item) => sum + (parseDecimal(item.valorItem) || 0), 0);
+    return formatDecimalInput(total);
   }, []);
 
-  const normalizePayloadForEditor = useCallback((type: DocumentType, payload: Record<string, any>) => {
-    const decimalFields = DECIMAL_FIELDS_BY_TYPE[type] || [];
-    const normalizedPayload = { ...(payload || {}) };
-    decimalFields.forEach((fieldName) => {
-      normalizedPayload[fieldName] = formatDecimalInput(payload?.[fieldName]);
+  const normalizeConfissaoItemsForEditor = useCallback(
+    (payload: Record<string, any>): ConfissaoDebtItem[] => {
+      const payloadItens = Array.isArray(payload?.itensDaDivida) ? payload.itensDaDivida : [];
+      let sourceItens = payloadItens;
+
+      if (!sourceItens.length) {
+        const legacyTypeName = `${payload?.tipoItem || payload?.origemDaDivida || ""}`.trim();
+        const legacyDescription = `${payload?.descricaoItem || ""}`.trim();
+        const legacyValue = payload?.valorItem ?? payload?.valorTotal;
+        if (
+          legacyTypeName ||
+          legacyDescription ||
+          (legacyValue !== null && legacyValue !== undefined && `${legacyValue}` !== "")
+        ) {
+          sourceItens = [
+            {
+              typeNameSnapshot: legacyTypeName,
+              descricaoItem: legacyDescription,
+              valorItem: legacyValue,
+            },
+          ];
+        }
+      }
+
+      return sourceItens.map((item: any) => {
+        const typeById = findDebtItemTypeById(item?.typeId);
+        const snapshotCandidate = `${item?.typeNameSnapshot || item?.typeName || item?.tipoItem || ""}`.trim();
+        const typeByName = typeById ? null : findDebtItemTypeByName(snapshotCandidate);
+        const fallbackType = getFallbackDebtItemType();
+        const selectedType = typeById || typeByName || fallbackType;
+        return {
+          typeId: selectedType?.id ?? null,
+          typeNameSnapshot: snapshotCandidate || selectedType?.name || "Outros",
+          descricaoItem: `${item?.descricaoItem || ""}`.trim(),
+          valorItem: formatDecimalInput(item?.valorItem),
+        };
+      });
+    },
+    [findDebtItemTypeById, findDebtItemTypeByName, getFallbackDebtItemType]
+  );
+
+  const normalizePayloadForApi = useCallback(
+    (type: DocumentType, payload: Record<string, any>) => {
+      const decimalFields = (DECIMAL_FIELDS_BY_TYPE[type] || []).filter((fieldName) => fieldName !== "valorItem");
+      const normalizedPayload = { ...payload };
+      decimalFields.forEach((fieldName) => {
+        const parsed = parseDecimal(payload[fieldName]);
+        if (parsed !== null) {
+          normalizedPayload[fieldName] = parsed;
+        }
+      });
+
+      if (type === "CONFISSAO_DIVIDA") {
+        const normalizedItems = normalizeConfissaoItemsForEditor(payload)
+          .map((item) => {
+            const selectedType =
+              findDebtItemTypeById(item.typeId) ||
+              findDebtItemTypeByName(item.typeNameSnapshot) ||
+              getFallbackDebtItemType();
+            const parsedTypeId = Number(item.typeId);
+            const typeId = selectedType?.id ?? (Number.isFinite(parsedTypeId) ? parsedTypeId : null);
+            const snapshot = `${item.typeNameSnapshot || selectedType?.name || ""}`.trim() || "Outros";
+            const descricaoItem = `${item.descricaoItem || ""}`.trim();
+            return {
+              typeId,
+              typeNameSnapshot: snapshot,
+              descricaoItem: descricaoItem || undefined,
+              valorItem: parseDecimal(item.valorItem) || 0,
+            };
+          })
+          .filter((item) => item.typeNameSnapshot || item.descricaoItem || item.valorItem > 0);
+
+        const total = normalizedItems.reduce((sum, item) => sum + item.valorItem, 0);
+        normalizedPayload.itensDaDivida = normalizedItems;
+        normalizedPayload.valorTotal = total;
+      }
+
+      return normalizedPayload;
+    },
+    [findDebtItemTypeById, findDebtItemTypeByName, getFallbackDebtItemType, normalizeConfissaoItemsForEditor]
+  );
+
+  const normalizePayloadForEditor = useCallback(
+    (type: DocumentType, payload: Record<string, any>) => {
+      const decimalFields = (DECIMAL_FIELDS_BY_TYPE[type] || []).filter((fieldName) => fieldName !== "valorItem");
+      const normalizedPayload = { ...(payload || {}) };
+      decimalFields.forEach((fieldName) => {
+        normalizedPayload[fieldName] = formatDecimalInput(payload?.[fieldName]);
+      });
+
+      if (type === "CONFISSAO_DIVIDA") {
+        const items = normalizeConfissaoItemsForEditor(payload || {});
+        normalizedPayload.itensDaDivida = items;
+        normalizedPayload.valorTotal = calculateConfissaoTotal(items);
+      }
+
+      return normalizedPayload;
+    },
+    [calculateConfissaoTotal, normalizeConfissaoItemsForEditor]
+  );
+
+  const confissaoItems = useMemo(() => {
+    if (wizardType !== "CONFISSAO_DIVIDA") {
+      return [];
+    }
+    return normalizeConfissaoItemsForEditor(wizardPayload);
+  }, [normalizeConfissaoItemsForEditor, wizardPayload, wizardType]);
+
+  const applyConfissaoItems = useCallback(
+    (items: ConfissaoDebtItem[]) => {
+      setWizardPayload((prev) => ({
+        ...prev,
+        itensDaDivida: items,
+        valorTotal: calculateConfissaoTotal(items),
+      }));
+    },
+    [calculateConfissaoTotal]
+  );
+
+  const addConfissaoItem = useCallback(() => {
+    const fallbackType = getFallbackDebtItemType();
+    const nextItems = [
+      ...confissaoItems,
+      {
+        typeId: fallbackType?.id ?? null,
+        typeNameSnapshot: fallbackType?.name || "Outros",
+        descricaoItem: "",
+        valorItem: "",
+      },
+    ];
+    applyConfissaoItems(nextItems);
+  }, [applyConfissaoItems, confissaoItems, getFallbackDebtItemType]);
+
+  const updateConfissaoItem = useCallback(
+    (index: number, patch: Partial<ConfissaoDebtItem>) => {
+      const nextItems = confissaoItems.map((item, currentIndex) => {
+        if (index !== currentIndex) {
+          return item;
+        }
+        return { ...item, ...patch };
+      });
+      applyConfissaoItems(nextItems);
+    },
+    [applyConfissaoItems, confissaoItems]
+  );
+
+  const removeConfissaoItem = useCallback(
+    (index: number) => {
+      const nextItems = confissaoItems.filter((_item, currentIndex) => currentIndex !== index);
+      applyConfissaoItems(nextItems);
+    },
+    [applyConfissaoItems, confissaoItems]
+  );
+
+  useEffect(() => {
+    if (!isWizardOpen || wizardType !== "CONFISSAO_DIVIDA") {
+      return;
+    }
+
+    setWizardPayload((current) => {
+      const normalized = normalizePayloadForEditor("CONFISSAO_DIVIDA", current);
+      const items = Array.isArray(normalized.itensDaDivida) ? normalized.itensDaDivida : [];
+      if (items.length > 0) {
+        return normalized;
+      }
+
+      const fallbackType = getFallbackDebtItemType();
+      const initialItems: ConfissaoDebtItem[] = [
+        {
+          typeId: fallbackType?.id ?? null,
+          typeNameSnapshot: fallbackType?.name || "Outros",
+          descricaoItem: "",
+          valorItem: "",
+        },
+      ];
+
+      return {
+        ...normalized,
+        itensDaDivida: initialItems,
+        valorTotal: calculateConfissaoTotal(initialItems),
+      };
     });
-    return normalizedPayload;
-  }, []);
+  }, [
+    calculateConfissaoTotal,
+    getFallbackDebtItemType,
+    isWizardOpen,
+    normalizePayloadForEditor,
+    wizardType,
+  ]);
 
   const validateWizard = () => {
     if (!wizardDriver?.id) {
@@ -319,6 +553,22 @@ const DocumentsPage: React.FC = () => {
       showErrorAlert("Esse tipo exige carro.");
       return false;
     }
+
+    if (wizardType === "CONFISSAO_DIVIDA") {
+      if (!confissaoItems.length) {
+        showErrorAlert("Adicione ao menos um item da dÃ­vida.");
+        return false;
+      }
+      if (confissaoItems.some((item) => !`${item.typeNameSnapshot || ""}`.trim())) {
+        showErrorAlert("Selecione o tipo de todos os itens da dÃ­vida.");
+        return false;
+      }
+      if (confissaoItems.some((item) => (parseDecimal(item.valorItem) || 0) <= 0)) {
+        showErrorAlert("Informe valor maior que zero para todos os itens da dÃ­vida.");
+        return false;
+      }
+    }
+
     return true;
   };
 
@@ -443,7 +693,7 @@ const DocumentsPage: React.FC = () => {
       }
       loadDocumentIntoWizard(document);
     } catch (_error) {
-      showErrorAlert("Falha ao abrir rascunho para edição.");
+      showErrorAlert("Falha ao abrir rascunho para ediÃ§Ã£o.");
     } finally {
       setIsActionLoading(false);
     }
@@ -468,7 +718,7 @@ const DocumentsPage: React.FC = () => {
         closeWizard();
       }
       await loadDocuments();
-      showSuccessToast("Documento excluído.");
+      showSuccessToast("Documento excluÃ­do.");
       return true;
     } catch (_error) {
       showErrorAlert("Falha ao excluir documento.");
@@ -528,7 +778,7 @@ const DocumentsPage: React.FC = () => {
           <TextField label="Data/Hora" value={wizardPayload.dataHora} onChange={(v) => setPayload("dataHora", v)} />
           <TextField label="Local" value={wizardPayload.local} onChange={(v) => setPayload("local", v)} />
           <TextField label="AIT" value={wizardPayload.ait} onChange={(v) => setPayload("ait", v)} />
-          <TextField label="Órgão" value={wizardPayload.orgao} onChange={(v) => setPayload("orgao", v)} />
+          <TextField label="Ã“rgÃ£o" value={wizardPayload.orgao} onChange={(v) => setPayload("orgao", v)} />
           <TextField
             label="Enquadramento"
             value={wizardPayload.enquadramento}
@@ -537,7 +787,7 @@ const DocumentsPage: React.FC = () => {
           <DecimalField label="Valor" value={wizardPayload.valor} onChange={(v) => setPayload("valor", v)} />
           <TextField label="Vencimento" value={wizardPayload.vencimento} onChange={(v) => setPayload("vencimento", v)} />
           <SelectField
-            label="Responsável pagamento"
+            label="ResponsÃ¡vel pagamento"
             value={wizardPayload.responsavelPagamento || ""}
             options={[
               { value: "MOTORISTA", label: "Motorista" },
@@ -546,7 +796,7 @@ const DocumentsPage: React.FC = () => {
             onChange={(v) => setPayload("responsavelPagamento", v)}
           />
           <AreaField
-            label="Observações"
+            label="ObservaÃ§Ãµes"
             value={wizardPayload.observacoes}
             onChange={(v) => setPayload("observacoes", v)}
           />
@@ -558,7 +808,7 @@ const DocumentsPage: React.FC = () => {
       return (
         <>
           <TextField label="Data" value={wizardPayload.data} onChange={(v) => setPayload("data", v)} />
-          <TextField label="Descrição" value={wizardPayload.descricao} onChange={(v) => setPayload("descricao", v)} />
+          <TextField label="DescriÃ§Ã£o" value={wizardPayload.descricao} onChange={(v) => setPayload("descricao", v)} />
           <TextField label="Oficina" value={wizardPayload.oficina} onChange={(v) => setPayload("oficina", v)} />
           <DecimalField
             label="Valor total"
@@ -566,7 +816,7 @@ const DocumentsPage: React.FC = () => {
             onChange={(v) => setPayload("valorTotal", v)}
           />
           <SelectField
-            label="Forma divisão"
+            label="Forma divisÃ£o"
             value={wizardPayload.formaDivisao || ""}
             options={[
               { value: "PERCENTUAL", label: "Percentual" },
@@ -580,7 +830,7 @@ const DocumentsPage: React.FC = () => {
             onChange={(v) => setPayload("parteMotoristaValor", v)}
           />
           <AreaField
-            label="Observações"
+            label="ObservaÃ§Ãµes"
             value={wizardPayload.observacoes}
             onChange={(v) => setPayload("observacoes", v)}
           />
@@ -591,8 +841,8 @@ const DocumentsPage: React.FC = () => {
     if (wizardType === "RECIBO_ALUGUEL") {
       return (
         <>
-          <TextField label="Período início" value={wizardPayload.periodoInicio} onChange={(v) => setPayload("periodoInicio", v)} />
-          <TextField label="Período fim" value={wizardPayload.periodoFim} onChange={(v) => setPayload("periodoFim", v)} />
+          <TextField label="PerÃ­odo inÃ­cio" value={wizardPayload.periodoInicio} onChange={(v) => setPayload("periodoInicio", v)} />
+          <TextField label="PerÃ­odo fim" value={wizardPayload.periodoFim} onChange={(v) => setPayload("periodoFim", v)} />
           <DecimalField
             label="Valor aluguel"
             value={wizardPayload.valorAluguel}
@@ -600,7 +850,7 @@ const DocumentsPage: React.FC = () => {
           />
           <DecimalField label="Descontos" value={wizardPayload.descontos} onChange={(v) => setPayload("descontos", v)} />
           <DecimalField
-            label="Acréscimos"
+            label="AcrÃ©scimos"
             value={wizardPayload.acrescimos}
             onChange={(v) => setPayload("acrescimos", v)}
           />
@@ -608,7 +858,7 @@ const DocumentsPage: React.FC = () => {
           <TextField label="Forma pagamento" value={wizardPayload.formaPagamento} onChange={(v) => setPayload("formaPagamento", v)} />
           <TextField label="Data pagamento" value={wizardPayload.dataPagamento} onChange={(v) => setPayload("dataPagamento", v)} />
           <AreaField
-            label="Observações"
+            label="ObservaÃ§Ãµes"
             value={wizardPayload.observacoes}
             onChange={(v) => setPayload("observacoes", v)}
           />
@@ -617,13 +867,73 @@ const DocumentsPage: React.FC = () => {
     }
 
     if (wizardType === "CONFISSAO_DIVIDA") {
+      const debtItemTypeOptions = debtItemTypes.map((item) => ({
+        value: `${item.id}`,
+        label: item.name,
+      }));
+
       return (
         <>
-          <DecimalField label="Valor total" value={wizardPayload.valorTotal} onChange={(v) => setPayload("valorTotal", v)} />
+          {isDebtItemTypesLoading && <p className="documents-warning">Carregando tipos de dívida...</p>}
+          {!isDebtItemTypesLoading && !debtItemTypeOptions.length && (
+            <p className="documents-warning">Nenhum tipo ativo encontrado. Cadastre em Tipos de Dívida.</p>
+          )}
           <AreaField
-            label="Origem da dívida"
+            label="Origem da dívida (descrição geral)"
             value={wizardPayload.origemDaDivida}
             onChange={(v) => setPayload("origemDaDivida", v)}
+          />
+          <div className="documents-debt-items">
+            {confissaoItems.map((item, index) => (
+              <div key={`confissao-item-${index}`} className="documents-debt-item-card">
+                <SelectField
+                  label={`Tipo do item #${index + 1}`}
+                  value={item.typeId ? `${item.typeId}` : ""}
+                  options={[{ value: "", label: "Selecione..." }, ...debtItemTypeOptions]}
+                  onChange={(value) => {
+                    const selectedType = findDebtItemTypeById(value);
+                    updateConfissaoItem(index, {
+                      typeId: selectedType?.id ?? null,
+                      typeNameSnapshot: selectedType?.name || item.typeNameSnapshot || "Outros",
+                    });
+                  }}
+                />
+                {!item.typeId && item.typeNameSnapshot ? (
+                  <p className="documents-warning">Item legado: {item.typeNameSnapshot}</p>
+                ) : null}
+                <TextField
+                  label="Descrição do item (opcional)"
+                  value={item.descricaoItem}
+                  onChange={(value) => updateConfissaoItem(index, { descricaoItem: value })}
+                />
+                <DecimalField
+                  label="Valor do item"
+                  value={item.valorItem}
+                  onChange={(value) => updateConfissaoItem(index, { valorItem: value })}
+                />
+                <div className="documents-debt-item-actions">
+                  <IonButton
+                    size="small"
+                    color="danger"
+                    fill="outline"
+                    onClick={() => removeConfissaoItem(index)}
+                    disabled={confissaoItems.length <= 1}
+                  >
+                    <IonIcon icon={trashOutline} slot="start" />
+                    Remover item
+                  </IonButton>
+                </div>
+              </div>
+            ))}
+            <IonButton fill="outline" onClick={addConfissaoItem} disabled={isDebtItemTypesLoading}>
+              <IonIcon icon={add} slot="start" />
+              Adicionar item
+            </IonButton>
+          </div>
+          <DecimalField
+            label="Valor total (soma automática)"
+            value={wizardPayload.valorTotal}
+            onChange={() => undefined}
           />
           <SelectField
             label="Forma pagamento"
@@ -657,13 +967,13 @@ const DocumentsPage: React.FC = () => {
           value={wizardPayload.tipo || ""}
           options={[
             { value: "ENTREGA", label: "Entrega" },
-            { value: "DEVOLUCAO", label: "Devolução" },
+            { value: "DEVOLUCAO", label: "DevoluÃ§Ã£o" },
           ]}
           onChange={(v) => setPayload("tipo", v)}
         />
         <TextField label="Data/Hora" value={wizardPayload.dataHora} onChange={(v) => setPayload("dataHora", v)} />
         <TextField label="KM" value={wizardPayload.km} onChange={(v) => setPayload("km", v)} />
-        <TextField label="Combustível" value={wizardPayload.combustivel} onChange={(v) => setPayload("combustivel", v)} />
+        <TextField label="CombustÃ­vel" value={wizardPayload.combustivel} onChange={(v) => setPayload("combustivel", v)} />
         <AreaField
           label="Checklist (JSON)"
           value={JSON.stringify(wizardPayload.checklistItens || [], null, 2)}
@@ -822,15 +1132,15 @@ const DocumentsPage: React.FC = () => {
               disabled={listPage === 0 || isLoading}
               onClick={() => setListPage((current) => Math.max(0, current - 1))}
             >
-              Página anterior
+              PÃ¡gina anterior
             </IonButton>
-            <span>Página {listPage + 1}</span>
+            <span>PÃ¡gina {listPage + 1}</span>
             <IonButton
               fill="outline"
               disabled={!canGoNextPage || isLoading}
               onClick={() => setListPage((current) => current + 1)}
             >
-              Próxima página
+              PrÃ³xima pÃ¡gina
             </IonButton>
           </div>
         </div>
@@ -920,7 +1230,7 @@ const DocumentsPage: React.FC = () => {
                     }}
                   />
                   <Autocomplete
-                    label="Carro (opcional para confissão)"
+                    label="Carro (opcional para confissÃ£o)"
                     value={wizardCarQuery}
                     options={wizardCarOptions}
                     getLabel={(item) => `${item.plate || ""}${item.model ? ` - ${item.model}` : ""}`}
@@ -954,7 +1264,7 @@ const DocumentsPage: React.FC = () => {
                     onChange={(value) => setWizardType((value as DocumentType) || "")}
                   />
                   {wizardRequiresCar && !wizardCar?.id && (
-                    <p className="documents-warning">Esse tipo exige vínculo com carro.</p>
+                    <p className="documents-warning">Esse tipo exige vÃ­nculo com carro.</p>
                   )}
                 </IonCardContent>
               </IonCard>
@@ -963,7 +1273,7 @@ const DocumentsPage: React.FC = () => {
             {wizardStep === 3 && (
               <IonCard>
                 <IonCardContent>
-                  <h3>Passo 3 - Formulário</h3>
+                  <h3>Passo 3 - FormulÃ¡rio</h3>
                   {renderTypeFields()}
 
                   {showAttachmentInput && (
@@ -999,7 +1309,7 @@ const DocumentsPage: React.FC = () => {
                 disabled={wizardStep === 3}
                 onClick={() => setWizardStep((prev) => (prev === 3 ? 3 : ((prev + 1) as 1 | 2 | 3)))}
               >
-                Próximo
+                PrÃ³ximo
               </IonButton>
             </div>
           </IonToolbar>
@@ -1146,6 +1456,14 @@ function resolveStatusColor(status: DocumentStatus): "warning" | "success" | "me
   return "danger";
 }
 
+function normalizeLookupText(value: any): string {
+  return `${value || ""}`
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 function formatDate(value?: string) {
   if (!value) {
     return "-";
@@ -1158,4 +1476,5 @@ function formatDate(value?: string) {
 }
 
 export default DocumentsPage;
+
 
