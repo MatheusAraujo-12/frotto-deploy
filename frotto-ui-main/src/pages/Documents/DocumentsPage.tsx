@@ -455,8 +455,20 @@ const DocumentsPage: React.FC = () => {
     if (wizardType !== "CONFISSAO_DIVIDA") {
       return [];
     }
-    return normalizeConfissaoItemsForEditor(wizardPayload);
-  }, [normalizeConfissaoItemsForEditor, wizardPayload, wizardType]);
+
+    const payloadItems = Array.isArray(wizardPayload?.itensDaDivida) ? wizardPayload.itensDaDivida : [];
+    return payloadItems.map((item: any) => {
+      const parsedTypeId = Number(item?.typeId);
+      const typeId = Number.isFinite(parsedTypeId) ? parsedTypeId : null;
+
+      return {
+        typeId,
+        typeNameSnapshot: `${item?.typeNameSnapshot || item?.typeName || item?.tipoItem || ""}`,
+        descricaoItem: `${item?.descricaoItem ?? ""}`,
+        valorItem: `${item?.valorItem ?? ""}`,
+      } as ConfissaoDebtItem;
+    });
+  }, [wizardPayload?.itensDaDivida, wizardType]);
 
   const applyConfissaoItems = useCallback(
     (items: ConfissaoDebtItem[]) => {
