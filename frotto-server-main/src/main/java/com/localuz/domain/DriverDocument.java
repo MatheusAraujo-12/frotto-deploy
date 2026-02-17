@@ -13,6 +13,7 @@ import javax.persistence.Enumerated;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.JoinColumn;
 import javax.persistence.Lob;
 import javax.persistence.ManyToOne;
 import javax.persistence.PrePersist;
@@ -39,13 +40,16 @@ public class DriverDocument implements Serializable {
     private DocumentType type;
 
     @ManyToOne
+    @JoinColumn(name = "driver_id", nullable = false)
     private Driver driver;
 
     @ManyToOne
+    @JoinColumn(name = "car_id")
     private Car car;
 
     @ManyToOne
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    @JoinColumn(name = "jhi_user_id", nullable = false)
     private User user;
 
     @Enumerated(EnumType.STRING)

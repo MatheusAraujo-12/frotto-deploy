@@ -146,6 +146,33 @@ const pickDirectAvatarCandidate = (candidates: string[]): string => {
   return candidates[candidates.length - 1];
 };
 
+const shouldLoadAvatarAsBlobWithAuth = (candidate: string): boolean => {
+  const value = `${candidate || ""}`.trim();
+  if (!value || value.startsWith("blob:") || value.startsWith("data:")) {
+    return false;
+  }
+
+  if (!value.startsWith("http://") && !value.startsWith("https://")) {
+    return false;
+  }
+
+  const apiBase = `${api.defaults.baseURL || ""}`.trim();
+  if (!apiBase) {
+    return false;
+  }
+
+  try {
+    const apiOrigin = new URL(apiBase).origin;
+    const candidateUrl = new URL(value);
+    if (candidateUrl.origin !== apiOrigin) {
+      return false;
+    }
+    return candidateUrl.pathname.startsWith("/api/");
+  } catch (_error) {
+    return false;
+  }
+};
+
 const toInitials = (name: string): string => {
   const parts = name
     .trim()
@@ -234,19 +261,21 @@ const Menu: React.FC = () => {
       if (!avatarCandidates.length) {
         if (isMounted) {
           setMenuAvatarSrc("");
+          setMenuAvatarLoadFailed(false);
         }
         return;
       }
 
       const directFallbackCandidate = pickDirectAvatarCandidate(avatarCandidates);
-      if (directFallbackCandidate.startsWith("blob:") || directFallbackCandidate.startsWith("data:")) {
-        if (isMounted) {
-          setMenuAvatarSrc(directFallbackCandidate);
-        }
-        return;
+      if (isMounted) {
+        setMenuAvatarSrc(directFallbackCandidate);
       }
 
-      for (const candidate of avatarCandidates) {
+      const protectedCandidates = avatarCandidates.filter((candidate) =>
+        shouldLoadAvatarAsBlobWithAuth(candidate)
+      );
+
+      for (const candidate of protectedCandidates) {
         try {
           const response = await api.get<Blob>(candidate, { responseType: "blob" });
           if (!isMounted) {
@@ -255,15 +284,11 @@ const Menu: React.FC = () => {
 
           objectUrlToRevoke = URL.createObjectURL(response.data);
           setMenuAvatarSrc(objectUrlToRevoke);
+          setMenuAvatarLoadFailed(false);
           return;
         } catch (_error) {
           // tenta o proximo candidato
         }
-      }
-
-      if (isMounted) {
-        // Fallback final para imagem publica.
-        setMenuAvatarSrc(directFallbackCandidate);
       }
     };
 
