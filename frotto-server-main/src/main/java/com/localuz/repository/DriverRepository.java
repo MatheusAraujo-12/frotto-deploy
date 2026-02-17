@@ -3,7 +3,6 @@ package com.localuz.repository;
 import com.localuz.domain.Driver;
 import java.util.List;
 import java.util.Optional;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -30,9 +29,9 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
         "and (" +
         ":q = '' " +
         "or lower(coalesce(driver.name, '')) like lower(concat('%', :q, '%')) " +
-        "or replace(replace(replace(replace(coalesce(driver.cpf, ''), '.', ''), '-', ''), '/', ''), ' ', '') like concat('%', :qDigits, '%')" +
+        "or (:qDigits <> '' and replace(replace(replace(replace(coalesce(driver.cpf, ''), '.', ''), '-', ''), '/', ''), ' ', '') like concat('%', :qDigits, '%'))" +
         ") " +
         "order by driver.name asc"
     )
-    List<Driver> searchByCurrentUser(@Param("q") String q, @Param("qDigits") String qDigits, Pageable pageable);
+    List<Driver> searchByCurrentUser(@Param("q") String q, @Param("qDigits") String qDigits);
 }

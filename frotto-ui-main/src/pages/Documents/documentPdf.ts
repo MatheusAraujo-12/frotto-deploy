@@ -10,6 +10,7 @@ import {
   PDF_LETTERHEAD_PAGE_MARGINS,
   resolveFiscalIdentity,
 } from "../../services/pdfLetterhead";
+import { formatCurrencyPtBr, parseDecimal } from "../../services/decimalPtBr";
 
 const vfsFonts =
   (pdfFonts as any).pdfMake?.vfs || (pdfFonts as any).default || (pdfFonts as any);
@@ -431,16 +432,12 @@ function getNumber(source: Record<string, any>, key: string, fallback = 0): numb
   if (value === null || value === undefined || value === "") {
     return fallback;
   }
-  const normalized = `${value}`.replace(/\./g, "").replace(",", ".");
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : fallback;
+  const parsed = parseDecimal(value);
+  return parsed === null ? fallback : parsed;
 }
 
 function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(Number.isFinite(value) ? value : 0);
+  return formatCurrencyPtBr(Number.isFinite(value) ? value : 0);
 }
 
 function formatDate(value?: string): string {

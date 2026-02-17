@@ -43,6 +43,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -154,6 +155,18 @@ public class DocumentResource {
     public DocumentDTO getDocumentById(@PathVariable Long id) {
         DriverDocument document = getDocumentOrThrow(id);
         return toDto(document, true);
+    }
+
+    @DeleteMapping("/documents/{id}")
+    public ResponseEntity<Void> deleteDocument(@PathVariable Long id) {
+        DriverDocument document = getDocumentOrThrow(id);
+        deleteStoredFiles(readAttachments(document.getAttachmentsJson()));
+        deleteStoredFiles(Collections.singletonList(document.getPdfUrl()));
+        documentRepository.delete(document);
+        return ResponseEntity
+            .noContent()
+            .headers(HeaderUtil.createEntityDeletionAlert(applicationName, false, ENTITY_NAME, id.toString()))
+            .build();
     }
 
     @PatchMapping("/documents/{id}")
@@ -562,14 +575,82 @@ public class DocumentResource {
             return BigDecimal.ZERO;
         }
         try {
-            String text = String.valueOf(value).trim().replace(",", ".");
+            String text = String.valueOf(value).trim();
             if (text.isEmpty()) {
                 return BigDecimal.ZERO;
             }
-            return new BigDecimal(text);
+            String cleaned = text.replaceAll("[^0-9,.-]", "");
+            if (cleaned.isEmpty()) {
+                return BigDecimal.ZERO;
+            }
+
+            int lastComma = cleaned.lastIndexOf(',');
+            int lastDot = cleaned.lastIndexOf('.');
+            int decimalSeparatorIndex = Math.max(lastComma, lastDot);
+            boolean hasBothSeparators = lastComma >= 0 && lastDot >= 0;
+            String normalized;
+
+            if (decimalSeparatorIndex >= 0) {
+                int fractionLength = cleaned.length() - decimalSeparatorIndex - 1;
+                boolean useDecimalSeparator = hasBothSeparators || fractionLength <= 2;
+                if (useDecimalSeparator) {
+                    String integerPart = cleaned.substring(0, decimalSeparatorIndex).replaceAll("[^0-9-]", "");
+                    String fractionPart = cleaned.substring(decimalSeparatorIndex + 1).replaceAll("[^0-9]", "");
+                    normalized = fractionPart.isEmpty() ? integerPart : integerPart + "." + fractionPart;
+                } else {
+                    normalized = cleaned.replaceAll("[^0-9-]", "");
+                }
+            } else {
+                normalized = cleaned.replaceAll("[^0-9-]", "");
+            }
+
+            if (normalized.isEmpty() || "-".equals(normalized)) {
+                return BigDecimal.ZERO;
+            }
+            return new BigDecimal(normalized);
         } catch (Exception _error) {
             return BigDecimal.ZERO;
         }
+    }
+
+    private void deleteStoredFiles(List<String> files) {
+        if (files == null || files.isEmpty()) {
+            return;
+        }
+        for (String fileRef : files) {
+            String normalized = normalizeText(fileRef);
+            if (normalized == null) {
+                continue;
+            }
+            try {
+                awsS3FileService.deleteFile(normalized);
+            } catch (Exception primaryError) {
+                String key = extractStorageKey(normalized);
+                if (key == null || key.equals(normalized)) {
+                    log.warn("Could not delete document file: {}", normalized, primaryError);
+                    continue;
+                }
+                try {
+                    awsS3FileService.deleteFile(key);
+                } catch (Exception fallbackError) {
+                    log.warn("Could not delete document file: {}", normalized, fallbackError);
+                }
+            }
+        }
+    }
+
+    private String extractStorageKey(String fileRef) {
+        String normalized = normalizeText(fileRef);
+        if (normalized == null) {
+            return null;
+        }
+        int queryIndex = normalized.indexOf('?');
+        String withoutQuery = queryIndex >= 0 ? normalized.substring(0, queryIndex) : normalized;
+        int slashIndex = withoutQuery.lastIndexOf('/');
+        if (slashIndex < 0 || slashIndex == withoutQuery.length() - 1) {
+            return withoutQuery;
+        }
+        return withoutQuery.substring(slashIndex + 1);
     }
 
     private LocalDate parseDate(String dateValue) {

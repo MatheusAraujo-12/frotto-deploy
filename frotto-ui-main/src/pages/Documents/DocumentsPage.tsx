@@ -5,6 +5,7 @@ import {
   IonCard,
   IonCardContent,
   IonContent,
+  IonFooter,
   IonHeader,
   IonIcon,
   IonInput,
@@ -20,6 +21,7 @@ import {
   IonTitle,
   IonToolbar,
   IonPage,
+  useIonToast,
 } from "@ionic/react";
 import { add, closeCircleOutline, refreshOutline } from "ionicons/icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -35,14 +37,23 @@ import {
 } from "../../constants/DocumentModels";
 import documentService from "../../services/documentService";
 import { useAlert } from "../../services/hooks/useAlert";
-import { createDocumentPdfBlob, generateDocumentPdf } from "./documentPdf";
+import { formatDecimalInput, parseDecimal, sanitizeDecimalInput } from "../../services/decimalPtBr";
+import { generateDocumentPdf } from "./documentPdf";
 import "./DocumentsPage.css";
 
 const AUTOCOMPLETE_DELAY = 300;
 const PAGE_SIZE = 30;
+const DECIMAL_FIELDS_BY_TYPE: Record<DocumentType, string[]> = {
+  MULTA: ["valor"],
+  MANUTENCAO_COMPARTILHADA: ["valorTotal", "parteMotoristaValor"],
+  RECIBO_ALUGUEL: ["valorAluguel", "descontos", "acrescimos", "valorFinal"],
+  CONFISSAO_DIVIDA: ["valorTotal", "valorParcela"],
+  ENTREGA_DEVOLUCAO_CHECKLIST: [],
+};
 
 const DocumentsPage: React.FC = () => {
   const { showErrorAlert } = useAlert();
+  const [presentToast] = useIonToast();
 
   const [isLoading, setIsLoading] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
@@ -79,6 +90,18 @@ const DocumentsPage: React.FC = () => {
     [wizardType]
   );
 
+  const showSuccessToast = useCallback(
+    (message: string) => {
+      presentToast({
+        message,
+        color: "success",
+        duration: 2200,
+        position: "top",
+      });
+    },
+    [presentToast]
+  );
+
   const loadDocuments = useCallback(async (pageOverride?: number) => {
     setIsLoading(true);
     try {
@@ -104,75 +127,111 @@ const DocumentsPage: React.FC = () => {
 
   useEffect(() => {
     const query = filterDriverQuery.trim();
-    if (!query || filterDriver?.name === query) {
-      setFilterDriverOptions([]);
+    setFilterDriverOptions([]);
+    if (!query) {
       return;
     }
 
+    let isActive = true;
     const handle = setTimeout(async () => {
       try {
-        setFilterDriverOptions(await documentService.searchDrivers(query));
+        const results = await documentService.searchDrivers(query);
+        if (isActive) {
+          setFilterDriverOptions(results);
+        }
       } catch (_error) {
-        setFilterDriverOptions([]);
+        if (isActive) {
+          setFilterDriverOptions([]);
+        }
       }
     }, AUTOCOMPLETE_DELAY);
 
-    return () => clearTimeout(handle);
-  }, [filterDriver?.name, filterDriverQuery]);
+    return () => {
+      isActive = false;
+      clearTimeout(handle);
+    };
+  }, [filterDriverQuery]);
 
   useEffect(() => {
     const query = filterCarQuery.trim();
-    if (!query || filterCar?.plate === query) {
-      setFilterCarOptions([]);
+    setFilterCarOptions([]);
+    if (!query) {
       return;
     }
 
+    let isActive = true;
     const handle = setTimeout(async () => {
       try {
-        setFilterCarOptions(await documentService.searchCars(query));
+        const results = await documentService.searchCars(query);
+        if (isActive) {
+          setFilterCarOptions(results);
+        }
       } catch (_error) {
-        setFilterCarOptions([]);
+        if (isActive) {
+          setFilterCarOptions([]);
+        }
       }
     }, AUTOCOMPLETE_DELAY);
 
-    return () => clearTimeout(handle);
-  }, [filterCar?.plate, filterCarQuery]);
+    return () => {
+      isActive = false;
+      clearTimeout(handle);
+    };
+  }, [filterCarQuery]);
 
   useEffect(() => {
     const query = wizardDriverQuery.trim();
-    if (!query || wizardDriver?.name === query) {
-      setWizardDriverOptions([]);
+    setWizardDriverOptions([]);
+    if (!query) {
       return;
     }
 
+    let isActive = true;
     const handle = setTimeout(async () => {
       try {
-        setWizardDriverOptions(await documentService.searchDrivers(query));
+        const results = await documentService.searchDrivers(query);
+        if (isActive) {
+          setWizardDriverOptions(results);
+        }
       } catch (_error) {
-        setWizardDriverOptions([]);
+        if (isActive) {
+          setWizardDriverOptions([]);
+        }
       }
     }, AUTOCOMPLETE_DELAY);
 
-    return () => clearTimeout(handle);
-  }, [wizardDriver?.name, wizardDriverQuery]);
+    return () => {
+      isActive = false;
+      clearTimeout(handle);
+    };
+  }, [wizardDriverQuery]);
 
   useEffect(() => {
     const query = wizardCarQuery.trim();
-    if (!query || wizardCar?.plate === query) {
-      setWizardCarOptions([]);
+    setWizardCarOptions([]);
+    if (!query) {
       return;
     }
 
+    let isActive = true;
     const handle = setTimeout(async () => {
       try {
-        setWizardCarOptions(await documentService.searchCars(query));
+        const results = await documentService.searchCars(query);
+        if (isActive) {
+          setWizardCarOptions(results);
+        }
       } catch (_error) {
-        setWizardCarOptions([]);
+        if (isActive) {
+          setWizardCarOptions([]);
+        }
       }
     }, AUTOCOMPLETE_DELAY);
 
-    return () => clearTimeout(handle);
-  }, [wizardCar?.plate, wizardCarQuery]);
+    return () => {
+      isActive = false;
+      clearTimeout(handle);
+    };
+  }, [wizardCarQuery]);
 
   const resetFilters = () => {
     setFilterType("");
@@ -192,6 +251,8 @@ const DocumentsPage: React.FC = () => {
     setWizardCar(null);
     setWizardDriverQuery("");
     setWizardCarQuery("");
+    setWizardDriverOptions([]);
+    setWizardCarOptions([]);
     setWizardPayload({});
     setWizardFiles([]);
     setSavedDocument(null);
@@ -224,6 +285,27 @@ const DocumentsPage: React.FC = () => {
     return nextPayload;
   };
 
+  const normalizePayloadForApi = useCallback((type: DocumentType, payload: Record<string, any>) => {
+    const decimalFields = DECIMAL_FIELDS_BY_TYPE[type] || [];
+    const normalizedPayload = { ...payload };
+    decimalFields.forEach((fieldName) => {
+      const parsed = parseDecimal(payload[fieldName]);
+      if (parsed !== null) {
+        normalizedPayload[fieldName] = parsed;
+      }
+    });
+    return normalizedPayload;
+  }, []);
+
+  const normalizePayloadForEditor = useCallback((type: DocumentType, payload: Record<string, any>) => {
+    const decimalFields = DECIMAL_FIELDS_BY_TYPE[type] || [];
+    const normalizedPayload = { ...(payload || {}) };
+    decimalFields.forEach((fieldName) => {
+      normalizedPayload[fieldName] = formatDecimalInput(payload?.[fieldName]);
+    });
+    return normalizedPayload;
+  }, []);
+
   const validateWizard = () => {
     if (!wizardDriver?.id) {
       showErrorAlert("Selecione um motorista.");
@@ -248,12 +330,13 @@ const DocumentsPage: React.FC = () => {
     setIsActionLoading(true);
     try {
       const payload = syncMetaPayload();
+      const normalizedPayload = normalizePayloadForApi(wizardType as DocumentType, payload);
       const request = {
         type: wizardType as DocumentType,
         status: "DRAFT" as DocumentStatus,
         driverId: wizardDriver!.id,
         carId: wizardRequiresCar ? wizardCar!.id : wizardCar?.id ?? null,
-        payload,
+        payload: normalizedPayload,
       };
 
       let response = savedDocument?.id
@@ -275,23 +358,6 @@ const DocumentsPage: React.FC = () => {
     }
   };
 
-  const finalizeDocument = async () => {
-    const draft = (await saveDraft()) || savedDocument;
-    if (!draft?.id) {
-      return;
-    }
-
-    setIsActionLoading(true);
-    try {
-      setSavedDocument(await documentService.finalizeDocument(draft.id));
-      await loadDocuments();
-    } catch (_error) {
-      showErrorAlert("Falha ao finalizar documento.");
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
-
   const generateWizardPdf = async () => {
     const draft = (await saveDraft()) || savedDocument;
     if (!draft?.id) {
@@ -300,9 +366,13 @@ const DocumentsPage: React.FC = () => {
 
     setIsActionLoading(true);
     try {
-      const detailed = await documentService.getDocument(draft.id);
+      let activeDocument = draft;
+      if (draft.status === "DRAFT") {
+        activeDocument = await documentService.finalizeDocument(draft.id);
+      }
+      const detailed = await documentService.getDocument(activeDocument.id as number);
       await generateDocumentPdf(detailed);
-      setSavedDocument(await documentService.generateDocumentPdf(draft.id));
+      setSavedDocument(await documentService.generateDocumentPdf(activeDocument.id as number));
       await loadDocuments();
     } catch (_error) {
       showErrorAlert("Falha ao gerar PDF.");
@@ -311,31 +381,109 @@ const DocumentsPage: React.FC = () => {
     }
   };
 
-  const shareAndSend = async () => {
-    const draft = (await saveDraft()) || savedDocument;
-    if (!draft?.id) {
-      return;
-    }
+  const loadDocumentIntoWizard = useCallback(
+    (document: DocumentModel) => {
+      const payload = document.payload || {};
+      const payloadDriverName = `${payload.driverName || ""}`.trim();
+      const payloadDriverCpf = `${payload.driverCpf || ""}`.trim();
+      const payloadCarPlate = `${payload.carPlate || ""}`.trim();
+      const payloadCarModel = `${payload.carModel || ""}`.trim();
 
-    setIsActionLoading(true);
-    try {
-      const detailed = await documentService.getDocument(draft.id);
-      const blob = await createDocumentPdfBlob(detailed);
-      const file = new File([blob], `documento_${draft.id}.pdf`, { type: "application/pdf" });
-      const navAny = navigator as any;
-      if (navAny.share && (!navAny.canShare || navAny.canShare({ files: [file] }))) {
-        await navAny.share({ files: [file], title: "Documento Frotto" });
+      setWizardType(document.type);
+      setWizardStep(3);
+      setSavedDocument(document);
+      setWizardPayload(normalizePayloadForEditor(document.type, payload));
+      setWizardFiles([]);
+      setWizardDriverOptions([]);
+      setWizardCarOptions([]);
+
+      if (document.driverId) {
+        const driver = {
+          id: document.driverId,
+          name: document.driverName || payloadDriverName,
+          cpf: document.driverCpf || payloadDriverCpf,
+          active: true,
+        };
+        setWizardDriver(driver);
+        setWizardDriverQuery(driver.name || "");
       } else {
-        await generateDocumentPdf(detailed);
+        setWizardDriver(null);
+        setWizardDriverQuery(payloadDriverName);
       }
 
-      setSavedDocument(await documentService.markDocumentSent(draft.id));
-      await loadDocuments();
+      if (document.carId) {
+        const car = {
+          id: document.carId,
+          plate: document.carPlate || payloadCarPlate,
+          model: document.carModel || payloadCarModel,
+          active: true,
+        };
+        setWizardCar(car);
+        setWizardCarQuery(car.plate || "");
+      } else {
+        setWizardCar(null);
+        setWizardCarQuery(payloadCarPlate);
+      }
+
+      setIsWizardOpen(true);
+    },
+    [normalizePayloadForEditor]
+  );
+
+  const openEdit = async (id?: number) => {
+    if (!id) {
+      return;
+    }
+    setIsActionLoading(true);
+    try {
+      const document = await documentService.getDocument(id);
+      if (document.status !== "DRAFT") {
+        showErrorAlert("Somente rascunhos podem ser editados.");
+        return;
+      }
+      loadDocumentIntoWizard(document);
     } catch (_error) {
-      showErrorAlert("Falha ao compartilhar/enviar.");
+      showErrorAlert("Falha ao abrir rascunho para edição.");
     } finally {
       setIsActionLoading(false);
     }
+  };
+
+  const deleteDocument = async (id?: number): Promise<boolean> => {
+    if (!id) {
+      return false;
+    }
+    const confirmed = window.confirm("Deseja excluir este documento?");
+    if (!confirmed) {
+      return false;
+    }
+    setIsActionLoading(true);
+    try {
+      await documentService.deleteDocument(id);
+      if (viewDocument?.id === id) {
+        setIsViewModalOpen(false);
+        setViewDocument(null);
+      }
+      if (savedDocument?.id === id) {
+        closeWizard();
+      }
+      await loadDocuments();
+      showSuccessToast("Documento excluído.");
+      return true;
+    } catch (_error) {
+      showErrorAlert("Falha ao excluir documento.");
+      return false;
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const deleteWizardDocument = async () => {
+    if (!savedDocument?.id) {
+      showErrorAlert("Salve o rascunho antes de excluir.");
+      return;
+    }
+    await deleteDocument(savedDocument.id);
   };
 
   const openView = async (id?: number) => {
@@ -386,7 +534,7 @@ const DocumentsPage: React.FC = () => {
             value={wizardPayload.enquadramento}
             onChange={(v) => setPayload("enquadramento", v)}
           />
-          <NumberField label="Valor" value={wizardPayload.valor} onChange={(v) => setPayload("valor", v)} />
+          <DecimalField label="Valor" value={wizardPayload.valor} onChange={(v) => setPayload("valor", v)} />
           <TextField label="Vencimento" value={wizardPayload.vencimento} onChange={(v) => setPayload("vencimento", v)} />
           <SelectField
             label="Responsável pagamento"
@@ -412,7 +560,11 @@ const DocumentsPage: React.FC = () => {
           <TextField label="Data" value={wizardPayload.data} onChange={(v) => setPayload("data", v)} />
           <TextField label="Descrição" value={wizardPayload.descricao} onChange={(v) => setPayload("descricao", v)} />
           <TextField label="Oficina" value={wizardPayload.oficina} onChange={(v) => setPayload("oficina", v)} />
-          <NumberField label="Valor total" value={wizardPayload.valorTotal} onChange={(v) => setPayload("valorTotal", v)} />
+          <DecimalField
+            label="Valor total"
+            value={wizardPayload.valorTotal}
+            onChange={(v) => setPayload("valorTotal", v)}
+          />
           <SelectField
             label="Forma divisão"
             value={wizardPayload.formaDivisao || ""}
@@ -422,7 +574,7 @@ const DocumentsPage: React.FC = () => {
             ]}
             onChange={(v) => setPayload("formaDivisao", v)}
           />
-          <NumberField
+          <DecimalField
             label="Parte motorista (valor)"
             value={wizardPayload.parteMotoristaValor}
             onChange={(v) => setPayload("parteMotoristaValor", v)}
@@ -441,10 +593,18 @@ const DocumentsPage: React.FC = () => {
         <>
           <TextField label="Período início" value={wizardPayload.periodoInicio} onChange={(v) => setPayload("periodoInicio", v)} />
           <TextField label="Período fim" value={wizardPayload.periodoFim} onChange={(v) => setPayload("periodoFim", v)} />
-          <NumberField label="Valor aluguel" value={wizardPayload.valorAluguel} onChange={(v) => setPayload("valorAluguel", v)} />
-          <NumberField label="Descontos" value={wizardPayload.descontos} onChange={(v) => setPayload("descontos", v)} />
-          <NumberField label="Acréscimos" value={wizardPayload.acrescimos} onChange={(v) => setPayload("acrescimos", v)} />
-          <NumberField label="Valor final" value={wizardPayload.valorFinal} onChange={(v) => setPayload("valorFinal", v)} />
+          <DecimalField
+            label="Valor aluguel"
+            value={wizardPayload.valorAluguel}
+            onChange={(v) => setPayload("valorAluguel", v)}
+          />
+          <DecimalField label="Descontos" value={wizardPayload.descontos} onChange={(v) => setPayload("descontos", v)} />
+          <DecimalField
+            label="Acréscimos"
+            value={wizardPayload.acrescimos}
+            onChange={(v) => setPayload("acrescimos", v)}
+          />
+          <DecimalField label="Valor final" value={wizardPayload.valorFinal} onChange={(v) => setPayload("valorFinal", v)} />
           <TextField label="Forma pagamento" value={wizardPayload.formaPagamento} onChange={(v) => setPayload("formaPagamento", v)} />
           <TextField label="Data pagamento" value={wizardPayload.dataPagamento} onChange={(v) => setPayload("dataPagamento", v)} />
           <AreaField
@@ -459,7 +619,7 @@ const DocumentsPage: React.FC = () => {
     if (wizardType === "CONFISSAO_DIVIDA") {
       return (
         <>
-          <NumberField label="Valor total" value={wizardPayload.valorTotal} onChange={(v) => setPayload("valorTotal", v)} />
+          <DecimalField label="Valor total" value={wizardPayload.valorTotal} onChange={(v) => setPayload("valorTotal", v)} />
           <AreaField
             label="Origem da dívida"
             value={wizardPayload.origemDaDivida}
@@ -474,8 +634,8 @@ const DocumentsPage: React.FC = () => {
             ]}
             onChange={(v) => setPayload("formaPagamento", v)}
           />
-          <NumberField label="Parcelas (qtd)" value={wizardPayload.parcelasQtd} onChange={(v) => setPayload("parcelasQtd", v)} />
-          <NumberField label="Valor parcela" value={wizardPayload.valorParcela} onChange={(v) => setPayload("valorParcela", v)} />
+          <IntegerField label="Parcelas (qtd)" value={wizardPayload.parcelasQtd} onChange={(v) => setPayload("parcelasQtd", v)} />
+          <DecimalField label="Valor parcela" value={wizardPayload.valorParcela} onChange={(v) => setPayload("valorParcela", v)} />
           <TextField label="Vencimento inicial" value={wizardPayload.vencimentoInicial} onChange={(v) => setPayload("vencimentoInicial", v)} />
           <TextField label="Testemunha 1 nome" value={wizardPayload.testemunha1Nome} onChange={(v) => setPayload("testemunha1Nome", v)} />
           <TextField label="Testemunha 1 CPF" value={wizardPayload.testemunha1Cpf} onChange={(v) => setPayload("testemunha1Cpf", v)} />
@@ -558,7 +718,10 @@ const DocumentsPage: React.FC = () => {
                 value={filterDriverQuery}
                 options={filterDriverOptions}
                 getLabel={(item) => `${item.name}${item.cpf ? ` (${item.cpf})` : ""}`}
-                onChange={setFilterDriverQuery}
+                onChange={(value) => {
+                  setFilterDriverQuery(value);
+                  setFilterDriver(null);
+                }}
                 onSelect={(driver) => {
                   setFilterDriver(driver);
                   setFilterDriverQuery(driver.name || "");
@@ -574,7 +737,10 @@ const DocumentsPage: React.FC = () => {
                 value={filterCarQuery}
                 options={filterCarOptions}
                 getLabel={(item) => `${item.plate || ""}${item.model ? ` - ${item.model}` : ""}`}
-                onChange={setFilterCarQuery}
+                onChange={(value) => {
+                  setFilterCarQuery(value);
+                  setFilterCar(null);
+                }}
                 onSelect={(car) => {
                   setFilterCar(car);
                   setFilterCarQuery(car.plate || "");
@@ -624,11 +790,22 @@ const DocumentsPage: React.FC = () => {
                 </IonLabel>
                 <div className="documents-item-actions">
                   <IonBadge color={resolveStatusColor(item.status)}>{resolveStatusLabel(item.status)}</IonBadge>
-                  <IonButton size="small" fill="outline" onClick={() => void openView(item.id)}>
-                    Ver
-                  </IonButton>
-                  <IonButton size="small" onClick={() => void openPdf(item.id)}>
-                    Abrir PDF
+                  {item.status === "DRAFT" ? (
+                    <IonButton size="small" fill="outline" onClick={() => void openEdit(item.id)}>
+                      Editar
+                    </IonButton>
+                  ) : (
+                    <IonButton size="small" fill="outline" onClick={() => void openView(item.id)}>
+                      Detalhes
+                    </IonButton>
+                  )}
+                  {(item.status !== "DRAFT" || !!item.pdfUrl) && (
+                    <IonButton size="small" onClick={() => void openPdf(item.id)}>
+                      Abrir PDF
+                    </IonButton>
+                  )}
+                  <IonButton size="small" color="danger" fill="outline" onClick={() => void deleteDocument(item.id)}>
+                    Excluir
                   </IonButton>
                 </div>
               </IonItem>
@@ -659,7 +836,13 @@ const DocumentsPage: React.FC = () => {
         </div>
       </IonContent>
 
-      <IonModal isOpen={isViewModalOpen} onDidDismiss={() => setIsViewModalOpen(false)}>
+      <IonModal
+        isOpen={isViewModalOpen}
+        onDidDismiss={() => {
+          setIsViewModalOpen(false);
+          setViewDocument(null);
+        }}
+      >
         <IonHeader>
           <IonToolbar>
             <IonTitle>Documento #{viewDocument?.id}</IonTitle>
@@ -679,22 +862,30 @@ const DocumentsPage: React.FC = () => {
                 <p><strong>Motorista:</strong> {viewDocument?.driverName || "-"}</p>
                 <p><strong>Carro:</strong> {viewDocument?.carPlate || "-"}</p>
                 <p><strong>Criado:</strong> {formatDate(viewDocument?.createdAt)}</p>
-              </IonCardContent>
-            </IonCard>
-            <IonCard>
-              <IonCardContent>
-                <h4>Payload</h4>
-                <pre>{JSON.stringify(viewDocument?.payload || {}, null, 2)}</pre>
+                <p><strong>Atualizado:</strong> {formatDate(viewDocument?.updatedAt)}</p>
+                <p><strong>Anexos:</strong> {viewDocument?.attachments?.length || 0}</p>
               </IonCardContent>
             </IonCard>
           </div>
         </IonContent>
+        <IonFooter>
+          <IonToolbar>
+            <div className="documents-modal-actions">
+              {(viewDocument?.status !== "DRAFT" || !!viewDocument?.pdfUrl) && (
+                <IonButton onClick={() => void openPdf(viewDocument?.id)}>Abrir PDF</IonButton>
+              )}
+              <IonButton color="danger" fill="outline" onClick={() => void deleteDocument(viewDocument?.id)}>
+                Excluir
+              </IonButton>
+            </div>
+          </IonToolbar>
+        </IonFooter>
       </IonModal>
 
       <IonModal isOpen={isWizardOpen} onDidDismiss={closeWizard}>
         <IonHeader>
           <IonToolbar>
-            <IonTitle>Novo Documento - Passo {wizardStep}/3</IonTitle>
+            <IonTitle>{savedDocument?.id ? "Editar Documento" : "Novo Documento"} - Passo {wizardStep}/3</IonTitle>
             <IonButtons slot="end">
               <IonButton onClick={closeWizard}>
                 <IonIcon icon={closeCircleOutline} slot="icon-only" />
@@ -713,7 +904,10 @@ const DocumentsPage: React.FC = () => {
                     value={wizardDriverQuery}
                     options={wizardDriverOptions}
                     getLabel={(item) => `${item.name}${item.cpf ? ` (${item.cpf})` : ""}`}
-                    onChange={setWizardDriverQuery}
+                    onChange={(value) => {
+                      setWizardDriverQuery(value);
+                      setWizardDriver(null);
+                    }}
                     onSelect={(driver) => {
                       setWizardDriver(driver);
                       setWizardDriverQuery(driver.name || "");
@@ -730,7 +924,10 @@ const DocumentsPage: React.FC = () => {
                     value={wizardCarQuery}
                     options={wizardCarOptions}
                     getLabel={(item) => `${item.plate || ""}${item.model ? ` - ${item.model}` : ""}`}
-                    onChange={setWizardCarQuery}
+                    onChange={(value) => {
+                      setWizardCarQuery(value);
+                      setWizardCar(null);
+                    }}
                     onSelect={(car) => {
                       setWizardCar(car);
                       setWizardCarQuery(car.plate || "");
@@ -783,36 +980,50 @@ const DocumentsPage: React.FC = () => {
                       />
                     </IonItem>
                   )}
-
-                  <div className="documents-wizard-actions">
-                    <IonButton fill="outline" onClick={() => void saveDraft()} disabled={isActionLoading}>
-                      Salvar rascunho
-                    </IonButton>
-                    <IonButton onClick={() => void finalizeDocument()} disabled={isActionLoading}>
-                      Finalizar
-                    </IonButton>
-                    <IonButton fill="outline" onClick={() => void generateWizardPdf()} disabled={isActionLoading}>
-                      Gerar PDF
-                    </IonButton>
-                    <IonButton color="success" onClick={() => void shareAndSend()} disabled={isActionLoading}>
-                      Compartilhar/Enviar
-                    </IonButton>
-                  </div>
                 </IonCardContent>
               </IonCard>
             )}
           </div>
         </IonContent>
-        <IonToolbar>
-          <div className="documents-step-footer">
-            <IonButton fill="outline" disabled={wizardStep === 1} onClick={() => setWizardStep((prev) => (prev === 1 ? 1 : ((prev - 1) as 1 | 2 | 3)))}>
-              Voltar
-            </IonButton>
-            <IonButton disabled={wizardStep === 3} onClick={() => setWizardStep((prev) => (prev === 3 ? 3 : ((prev + 1) as 1 | 2 | 3)))}>
-              Próximo
-            </IonButton>
-          </div>
-        </IonToolbar>
+        <IonFooter>
+          <IonToolbar>
+            <div className="documents-step-footer">
+              <IonButton
+                fill="outline"
+                disabled={wizardStep === 1}
+                onClick={() => setWizardStep((prev) => (prev === 1 ? 1 : ((prev - 1) as 1 | 2 | 3)))}
+              >
+                Voltar
+              </IonButton>
+              <IonButton
+                disabled={wizardStep === 3}
+                onClick={() => setWizardStep((prev) => (prev === 3 ? 3 : ((prev + 1) as 1 | 2 | 3)))}
+              >
+                Próximo
+              </IonButton>
+            </div>
+          </IonToolbar>
+          {wizardStep === 3 && (
+            <IonToolbar>
+              <div className="documents-editor-actions">
+                <IonButton fill="outline" onClick={() => void saveDraft()} disabled={isActionLoading}>
+                  Salvar rascunho
+                </IonButton>
+                <IonButton className="documents-generate-button" onClick={() => void generateWizardPdf()} disabled={isActionLoading}>
+                  Gerar PDF
+                </IonButton>
+                <IonButton
+                  color="danger"
+                  fill="outline"
+                  disabled={!savedDocument?.id || isActionLoading}
+                  onClick={() => void deleteWizardDocument()}
+                >
+                  Excluir
+                </IonButton>
+              </div>
+            </IonToolbar>
+          )}
+        </IonFooter>
       </IonModal>
     </IonPage>
   );
@@ -831,10 +1042,28 @@ const TextField: React.FC<FieldProps> = ({ label, value, onChange }) => (
   </IonItem>
 );
 
-const NumberField: React.FC<FieldProps> = ({ label, value, onChange }) => (
+const DecimalField: React.FC<FieldProps> = ({ label, value, onChange }) => (
   <IonItem>
     <IonLabel position="stacked">{label}</IonLabel>
-    <IonInput type="number" value={value || ""} onIonChange={(e) => onChange(e.detail.value || "")} />
+    <IonInput
+      type="text"
+      inputmode="decimal"
+      value={value || ""}
+      onIonChange={(e) => onChange(sanitizeDecimalInput(e.detail.value || ""))}
+      onIonBlur={() => onChange(formatDecimalInput(value || ""))}
+    />
+  </IonItem>
+);
+
+const IntegerField: React.FC<FieldProps> = ({ label, value, onChange }) => (
+  <IonItem>
+    <IonLabel position="stacked">{label}</IonLabel>
+    <IonInput
+      type="number"
+      inputmode="numeric"
+      value={value || ""}
+      onIonChange={(e) => onChange((e.detail.value || "").replace(/\D+/g, ""))}
+    />
   </IonItem>
 );
 

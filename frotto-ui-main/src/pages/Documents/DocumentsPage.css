@@ -16,9 +16,10 @@
 
 #documents-page .documents-item-actions {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 8px;
-  align-items: flex-end;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 #documents-page .documents-autocomplete {
@@ -38,18 +39,36 @@
   font-size: 13px;
 }
 
-#documents-page .documents-wizard-actions {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 8px;
-  margin-top: 14px;
-}
-
 #documents-page .documents-step-footer {
   display: flex;
   justify-content: space-between;
   width: 100%;
   padding: 8px 12px;
+}
+
+#documents-page .documents-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+}
+
+#documents-page .documents-editor-actions ion-button {
+  flex: 1 1 180px;
+}
+
+#documents-page .documents-editor-actions .documents-generate-button {
+  flex: 2 1 260px;
+}
+
+#documents-page .documents-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
 }
 
 #documents-page .documents-file-input {
@@ -64,4 +83,19 @@
   gap: 10px;
   padding: 10px 6px 0;
   flex-wrap: wrap;
+}
+
+@media (max-width: 700px) {
+  #documents-page .documents-editor-actions ion-button,
+  #documents-page .documents-editor-actions .documents-generate-button {
+    flex: 1 1 100%;
+  }
+
+  #documents-page .documents-modal-actions {
+    justify-content: stretch;
+  }
+
+  #documents-page .documents-modal-actions ion-button {
+    flex: 1 1 100%;
+  }
 }

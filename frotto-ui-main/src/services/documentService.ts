@@ -67,6 +67,10 @@ const documentService = {
     return data;
   },
 
+  async deleteDocument(id: number): Promise<void> {
+    await api.delete(endpoints.DOCUMENT({ pathVariables: { id } }));
+  },
+
   async createDocument(payload: DocumentSavePayload): Promise<DocumentModel> {
     const { data } = await api.post<DocumentModel>(endpoints.DOCUMENTS(), payload);
     return data;

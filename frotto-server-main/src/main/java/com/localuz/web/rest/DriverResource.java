@@ -9,7 +9,6 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -49,7 +48,7 @@ public class DriverResource {
     public List<DriverSearchDTO> searchDrivers(@RequestParam(name = "q", required = false, defaultValue = "") String q) {
         String normalizedQuery = q == null ? "" : q.trim();
         String digitsOnly = normalizedQuery.replaceAll("\\D+", "");
-        List<Driver> drivers = driverRepository.searchByCurrentUser(normalizedQuery, digitsOnly, PageRequest.of(0, 20));
+        List<Driver> drivers = driverRepository.searchByCurrentUser(normalizedQuery, digitsOnly);
         return drivers
             .stream()
             .map(driver -> new DriverSearchDTO(driver.getId(), driver.getName(), driver.getCpf(), hasActiveDriverCar(driver)))
