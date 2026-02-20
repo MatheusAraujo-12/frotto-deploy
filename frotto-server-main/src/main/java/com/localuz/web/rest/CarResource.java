@@ -7,6 +7,7 @@ import com.localuz.domain.Inspection;
 import com.localuz.domain.Maintenance;
 import com.localuz.domain.Reminder;
 import com.localuz.domain.User;
+import com.localuz.domain.enumeration.CarAdminStatus;
 import com.localuz.domain.enumeration.CommissionType;
 import com.localuz.repository.CarRepository;
 import com.localuz.repository.DriverCarRepository;
@@ -117,7 +118,7 @@ public class CarResource {
         return carRepository
             .searchByCurrentUserAndPlate(normalizedPlate, PageRequest.of(0, 20))
             .stream()
-            .map(car -> new CarSearchDTO(car.getId(), car.getPlate(), car.getName(), car.getModel(), car.getActive()))
+            .map(car -> new CarSearchDTO(car.getId(), car.getPlate(), car.getName(), car.getModel(), car.getActive(), car.getAdminStatus()))
             .collect(Collectors.toList());
     }
 
@@ -212,6 +213,7 @@ public class CarResource {
             throw new BadRequestAlertException("A new car cannot have an empty User", ENTITY_NAME, "emptyuser");
         }
         applyCommissionDefaults(car);
+        applyAdminStatusDefault(car);
         if (car.getCommissionType() == null) {
             car.setCommissionType(CommissionType.PERCENT_PROFIT);
         }
@@ -240,6 +242,7 @@ public class CarResource {
         Car existingCar = existingCarOpt.get();
         applyPartialUpdates(existingCar, car);
         applyCommissionDefaults(existingCar);
+        applyAdminStatusDefault(existingCar);
         validateCommission(existingCar);
         carRepository.save(existingCar);
 
@@ -286,6 +289,9 @@ public class CarResource {
         if (car.getActive() != null) {
             existingCar.setActive(car.getActive());
         }
+        if (car.getAdminStatus() != null) {
+            existingCar.setAdminStatus(car.getAdminStatus());
+        }
     }
 
     private void applyCommissionDefaults(Car car) {
@@ -299,6 +305,13 @@ public class CarResource {
         if (car.getCommissionPercent() != null) {
             car.setCommissionType(CommissionType.PERCENT_PROFIT);
         }
+    }
+
+    private void applyAdminStatusDefault(Car car) {
+        if (car == null || car.getAdminStatus() != null) {
+            return;
+        }
+        car.setAdminStatus(CarAdminStatus.ATIVO);
     }
 
     private void validateCommission(Car car) {

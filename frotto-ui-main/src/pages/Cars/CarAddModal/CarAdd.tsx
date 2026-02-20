@@ -21,8 +21,16 @@ import {
 import FormDate from "../../../components/Form/FormDate";
 import api from "../../../services/axios/axios";
 import endpoints from "../../../constants/endpoints";
-import { CarModel, CommissionType } from "../../../constants/CarModels";
-import { COLORS, COMMISSION_TYPES } from "../../../constants/selectOptions";
+import {
+  CarAdminStatus,
+  CarModel,
+  CommissionType,
+} from "../../../constants/CarModels";
+import {
+  CAR_ADMIN_STATUS_OPTIONS,
+  COLORS,
+  COMMISSION_TYPES,
+} from "../../../constants/selectOptions";
 import FormInput from "../../../components/Form/FormInput";
 import FormSelect from "../../../components/Form/FormSelect";
 import FormDeleteButton from "../../../components/Form/FormDeleteButton";
@@ -159,6 +167,17 @@ const CarAdd: React.FC<CarAddModalProps> = ({ closeModal, initialValues }) => {
             maxlength={20}
             changeCallback={(value: string) => {
               setValue("group", value);
+            }}
+            required
+          />
+          <FormSelect
+            label={TEXT.adminStatus}
+            options={CAR_ADMIN_STATUS_OPTIONS}
+            errorsObj={errors}
+            errorName="adminStatus"
+            initialValue={watch("adminStatus")}
+            changeCallback={(value: string) => {
+              setValue("adminStatus", value as CarAdminStatus);
             }}
             required
           />

@@ -1,0 +1,36 @@
+#drivers-page .driver-row {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  align-items: flex-start;
+}
+
+#drivers-page .driver-col-left {
+  flex: 1;
+  min-width: 0;
+}
+
+#drivers-page .driver-col-right {
+  flex: 1;
+  text-align: right;
+  min-width: 0;
+}
+
+#drivers-page .driver-col-left h2,
+#drivers-page .driver-col-right p {
+  margin: 2px 0;
+}
+
+#drivers-page .driver-col-right .driver-pendency-button {
+  margin-top: 6px;
+}
+
+@media (max-width: 768px) {
+  #drivers-page .driver-row {
+    flex-direction: column;
+  }
+
+  #drivers-page .driver-col-right {
+    text-align: left;
+  }
+}

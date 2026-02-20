@@ -1,6 +1,12 @@
 import { Url } from "url";
 
 export type CommissionType = "PERCENT_PROFIT" | "FIXED";
+export type CarAdminStatus =
+  | "ATIVO"
+  | "RETIRADO"
+  | "A_VENDA"
+  | "MANUTENCAO"
+  | "BLOQUEADO";
 
 export interface CommissionConfig {
   commissionType?: CommissionType;
@@ -21,6 +27,7 @@ export interface CarModel extends CommissionConfig {
   initialValue?: number;
   active?: boolean;
   driverName?:string;
+  adminStatus?: CarAdminStatus;
 }
 
 export interface CarBodyDamageModel {

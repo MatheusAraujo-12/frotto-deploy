@@ -554,6 +554,16 @@ ion-searchbar:focus-within {
   color: var(--app-badge-text); /* texto âmbar escuro */
 }
 
+.car-card__badge--admin {
+  background: rgba(59, 130, 246, 0.15);
+  color: #1e40af;
+}
+
+.dark .car-card__badge--admin {
+  background: rgba(59, 130, 246, 0.25);
+  color: #bfdbfe;
+}
+
 /* Coluna direita (pressão + ícones) */
 .car-card__aside {
   min-width: 120px;

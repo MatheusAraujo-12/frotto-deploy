@@ -1,6 +1,7 @@
 package com.localuz.service.dto;
 
 import com.localuz.domain.Car;
+import com.localuz.domain.enumeration.CarAdminStatus;
 import com.localuz.domain.enumeration.CommissionType;
 import java.math.BigDecimal;
 
@@ -20,6 +21,7 @@ public class CarFormDTO {
     private Integer year;
     private String group;
     private Boolean active;
+    private CarAdminStatus adminStatus;
 
     public Long getId() {
         return id;
@@ -133,6 +135,14 @@ public class CarFormDTO {
         this.active = active;
     }
 
+    public CarAdminStatus getAdminStatus() {
+        return adminStatus;
+    }
+
+    public void setAdminStatus(CarAdminStatus adminStatus) {
+        this.adminStatus = adminStatus;
+    }
+
     public Car toCar() {
         Car car = new Car();
         car.setId(id);
@@ -148,6 +158,7 @@ public class CarFormDTO {
         car.setYear(year);
         car.setGroup(group);
         car.setActive(active);
+        car.setAdminStatus(adminStatus);
         return car;
     }
 }

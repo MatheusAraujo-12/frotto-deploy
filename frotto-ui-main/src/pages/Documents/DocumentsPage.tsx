@@ -4,6 +4,7 @@ import {
   IonButtons,
   IonCard,
   IonCardContent,
+  IonCheckbox,
   IonContent,
   IonFooter,
   IonHeader,
@@ -41,6 +42,12 @@ import documentService from "../../services/documentService";
 import { useAlert } from "../../services/hooks/useAlert";
 import { formatDecimalInput, parseDecimal, sanitizeDecimalInput } from "../../services/decimalPtBr";
 import { generateDocumentPdf } from "./documentPdf";
+import {
+  ChecklistItem,
+  hydrateChecklistItems,
+  isChecklistDefaultKey,
+  serializeChecklistItems,
+} from "./checklistUtils";
 import "./DocumentsPage.css";
 
 const AUTOCOMPLETE_DELAY = 300;
@@ -93,6 +100,7 @@ const DocumentsPage: React.FC = () => {
   const [wizardPayload, setWizardPayload] = useState<Record<string, any>>({});
   const [wizardFiles, setWizardFiles] = useState<File[]>([]);
   const [savedDocument, setSavedDocument] = useState<DocumentModel | null>(null);
+  const [newChecklistLabel, setNewChecklistLabel] = useState("");
   const [debtItemTypes, setDebtItemTypes] = useState<DebtItemTypeModel[]>([]);
   const [isDebtItemTypesLoading, setIsDebtItemTypesLoading] = useState(false);
 
@@ -427,6 +435,11 @@ const DocumentsPage: React.FC = () => {
         normalizedPayload.valorTotal = total;
       }
 
+      if (type === "ENTREGA_DEVOLUCAO_CHECKLIST") {
+        normalizedPayload.checklistItens = serializeChecklistItems(payload || {});
+        delete normalizedPayload.checklistItensJson;
+      }
+
       return normalizedPayload;
     },
     [findDebtItemTypeById, findDebtItemTypeByName, getFallbackDebtItemType, normalizeConfissaoItemsForEditor]
@@ -444,6 +457,11 @@ const DocumentsPage: React.FC = () => {
         const items = normalizeConfissaoItemsForEditor(payload || {});
         normalizedPayload.itensDaDivida = items;
         normalizedPayload.valorTotal = calculateConfissaoTotal(items);
+      }
+
+      if (type === "ENTREGA_DEVOLUCAO_CHECKLIST") {
+        normalizedPayload.checklistItens = hydrateChecklistItems(payload || {});
+        delete normalizedPayload.checklistItensJson;
       }
 
       return normalizedPayload;
@@ -516,6 +534,95 @@ const DocumentsPage: React.FC = () => {
     [applyConfissaoItems, confissaoItems]
   );
 
+  const checklistItems = useMemo<ChecklistItem[]>(() => {
+    if (wizardType !== "ENTREGA_DEVOLUCAO_CHECKLIST") {
+      return [];
+    }
+    return hydrateChecklistItems(wizardPayload || {});
+  }, [wizardPayload, wizardType]);
+
+  const applyChecklistItems = useCallback((items: ChecklistItem[]) => {
+    const normalizedItems = items.map((item) => ({
+      key: item.key,
+      label: item.label,
+      ok: Boolean(item.ok),
+      note: item.ok ? undefined : `${item.note || ""}`.trim() || undefined,
+    }));
+
+    setWizardPayload((prev) => {
+      const { checklistItensJson: _legacyChecklistJson, ...rest } = prev;
+      return {
+        ...rest,
+        checklistItens: normalizedItems,
+      };
+    });
+  }, []);
+
+  const updateChecklistItem = useCallback(
+    (index: number, patch: Partial<ChecklistItem>) => {
+      const nextItems = checklistItems.map((item, currentIndex) => {
+        if (currentIndex !== index) {
+          return item;
+        }
+
+        const updatedItem = { ...item, ...patch };
+        return {
+          ...updatedItem,
+          note: updatedItem.ok ? undefined : updatedItem.note,
+        };
+      });
+
+      applyChecklistItems(nextItems);
+    },
+    [applyChecklistItems, checklistItems]
+  );
+
+  const removeCustomChecklistItem = useCallback(
+    (index: number) => {
+      const target = checklistItems[index];
+      if (!target || isChecklistDefaultKey(target.key)) {
+        return;
+      }
+      const nextItems = checklistItems.filter((_item, currentIndex) => currentIndex !== index);
+      applyChecklistItems(nextItems);
+    },
+    [applyChecklistItems, checklistItems]
+  );
+
+  const addCustomChecklistItem = useCallback(() => {
+    const label = `${newChecklistLabel || ""}`.trim();
+    if (!label) {
+      return;
+    }
+
+    const hasDuplicatedLabel = checklistItems.some(
+      (item) => normalizeLookupText(item.label) === normalizeLookupText(label)
+    );
+    if (hasDuplicatedLabel) {
+      showErrorAlert("Item do checklist já existe.");
+      return;
+    }
+
+    const baseKey = sanitizeChecklistCustomKey(label) || "item";
+    let customKey = `custom_${baseKey}`;
+    let suffix = 1;
+    const existingKeys = new Set(checklistItems.map((item) => item.key));
+    while (existingKeys.has(customKey)) {
+      customKey = `custom_${baseKey}_${suffix}`;
+      suffix += 1;
+    }
+
+    applyChecklistItems([
+      ...checklistItems,
+      {
+        key: customKey,
+        label,
+        ok: true,
+      },
+    ]);
+    setNewChecklistLabel("");
+  }, [applyChecklistItems, checklistItems, newChecklistLabel, showErrorAlert]);
+
   const createDebtItemTypeInline = useCallback(async () => {
     const rawName = window.prompt("Nome do novo tipo de dívida:");
     if (rawName === null) {
@@ -579,6 +686,16 @@ const DocumentsPage: React.FC = () => {
     normalizePayloadForEditor,
     wizardType,
   ]);
+
+  useEffect(() => {
+    if (!isWizardOpen || wizardType !== "ENTREGA_DEVOLUCAO_CHECKLIST") {
+      return;
+    }
+
+    setWizardPayload((current) =>
+      normalizePayloadForEditor("ENTREGA_DEVOLUCAO_CHECKLIST", current)
+    );
+  }, [isWizardOpen, normalizePayloadForEditor, wizardType]);
 
   const validateWizard = () => {
     if (!wizardDriver?.id) {
@@ -1022,17 +1139,62 @@ const DocumentsPage: React.FC = () => {
         <TextField label="Data/Hora" value={wizardPayload.dataHora} onChange={(v) => setPayload("dataHora", v)} />
         <TextField label="KM" value={wizardPayload.km} onChange={(v) => setPayload("km", v)} />
         <TextField label="Combustível" value={wizardPayload.combustivel} onChange={(v) => setPayload("combustivel", v)} />
-        <AreaField
-          label="Checklist (JSON)"
-          value={JSON.stringify(wizardPayload.checklistItens || [], null, 2)}
-          onChange={(v) => {
-            try {
-              setPayload("checklistItens", JSON.parse(v));
-            } catch (_error) {
-              setPayload("checklistItens", []);
-            }
-          }}
-        />
+        <div className="documents-checklist">
+          <p className="documents-checklist-title">Checklist do veículo</p>
+          {checklistItems.map((item, index) => (
+            <div key={item.key} className="documents-checklist-item-card">
+              <div className="documents-checklist-item-row">
+                <IonCheckbox
+                  checked={item.ok}
+                  onIonChange={(event) =>
+                    updateChecklistItem(index, {
+                      ok: event.detail.checked,
+                    })
+                  }
+                />
+                <span className="documents-checklist-item-label">{item.label}</span>
+                {!isChecklistDefaultKey(item.key) && (
+                  <IonButton
+                    size="small"
+                    color="danger"
+                    fill="outline"
+                    onClick={() => removeCustomChecklistItem(index)}
+                  >
+                    <IonIcon icon={trashOutline} slot="start" />
+                    Remover
+                  </IonButton>
+                )}
+              </div>
+
+              {!item.ok && (
+                <IonItem lines="none" className="documents-checklist-note">
+                  <IonLabel position="stacked">Observação (opcional)</IonLabel>
+                  <IonTextarea
+                    autoGrow
+                    value={item.note || ""}
+                    onIonChange={(event) =>
+                      updateChecklistItem(index, {
+                        note: event.detail.value || undefined,
+                      })
+                    }
+                  />
+                </IonItem>
+              )}
+            </div>
+          ))}
+
+          <IonItem className="documents-checklist-add" lines="none">
+            <IonLabel position="stacked">Adicionar item personalizado</IonLabel>
+            <IonInput
+              value={newChecklistLabel}
+              onIonChange={(event) => setNewChecklistLabel(event.detail.value || "")}
+            />
+            <IonButton slot="end" fill="outline" onClick={addCustomChecklistItem}>
+              <IonIcon icon={add} slot="start" />
+              Adicionar item
+            </IonButton>
+          </IonItem>
+        </div>
         <AreaField
           label="Avarias"
           value={wizardPayload.avariasTexto}
@@ -1502,6 +1664,16 @@ function resolveStatusColor(status: DocumentStatus): "warning" | "success" | "me
   if (status === "FINAL") return "success";
   if (status === "SENT") return "medium";
   return "danger";
+}
+
+function sanitizeChecklistCustomKey(value: any): string {
+  return `${value || ""}`
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 function normalizeLookupText(value: any): string {

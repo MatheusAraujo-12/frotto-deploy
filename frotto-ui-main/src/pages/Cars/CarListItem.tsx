@@ -1,7 +1,7 @@
 // src/pages/Cars/CarListItem.tsx
 import React from "react";
 import { IonCard, IonIcon } from "@ionic/react";
-import { CarModel } from "../../constants/CarModels";
+import { CarAdminStatus, CarModel } from "../../constants/CarModels";
 import { createOutline, trashOutline } from "ionicons/icons";
 import { useHistory } from "react-router";
 import api from "../../services/axios/axios";
@@ -21,6 +21,7 @@ const CarListItem: React.FC<CarListItemProps> = ({
   group,        // Proprietário
   driverName,
   odometer,
+  adminStatus,
   onDeleted,
 }) => {
   const history = useHistory();
@@ -30,6 +31,8 @@ const CarListItem: React.FC<CarListItemProps> = ({
   const title = [name || model].filter(Boolean).join(" - ") || "Veículo";
 
   const isRented = !!driverName;
+  const effectiveAdminStatus: CarAdminStatus = adminStatus || "ATIVO";
+  const hasAdminStatusOverride = effectiveAdminStatus !== "ATIVO";
   const kmValue =
     typeof odometer === "number"
       ? odometer.toLocaleString("pt-BR")
@@ -86,15 +89,23 @@ const CarListItem: React.FC<CarListItemProps> = ({
           </div>
 
           <div className="car-card__line">
-            Motorista:{" "}
-            {isRented ? (
-              <span className="car-card__driver car-card__driver--rented">
-                {driverName}
+            {hasAdminStatusOverride ? "Status: " : "Motorista: "}
+            {hasAdminStatusOverride ? (
+              <span className="car-card__badge car-card__badge--admin">
+                {resolveAdminStatusLabel(effectiveAdminStatus)}
               </span>
             ) : (
-              <span className="car-card__badge car-card__badge--available">
-                Disponível
-              </span>
+              <>
+                {isRented ? (
+                  <span className="car-card__driver car-card__driver--rented">
+                    {driverName}
+                  </span>
+                ) : (
+                  <span className="car-card__badge car-card__badge--available">
+                    Disponível
+                  </span>
+                )}
+              </>
             )}
           </div>
 
@@ -124,5 +135,13 @@ const CarListItem: React.FC<CarListItemProps> = ({
     </IonCard>
   );
 };
+
+function resolveAdminStatusLabel(status: CarAdminStatus): string {
+  if (status === "RETIRADO") return "Retirado";
+  if (status === "A_VENDA") return "À venda";
+  if (status === "MANUTENCAO") return "Manutenção";
+  if (status === "BLOQUEADO") return "Bloqueado";
+  return "Ativo";
+}
 
 export default CarListItem;

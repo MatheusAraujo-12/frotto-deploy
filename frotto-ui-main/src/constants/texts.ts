@@ -75,6 +75,7 @@ export const TEXT = {
   initialValue: "Valor Inicial",
   group: "Dono/Grupo",
   year: "Ano",
+  adminStatus: "Status administrativo",
   date: "Data",
   dateStart: "Data de Início",
   dateEnd: "Data de Fim",

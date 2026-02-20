@@ -1,6 +1,18 @@
-import { CarModel, CommissionType } from "../../../constants/CarModels";
+import {
+  CarAdminStatus,
+  CarModel,
+  CommissionType,
+} from "../../../constants/CarModels";
 import * as Yup from "yup";
 import { TEXT } from "../../../constants/texts";
+
+const CAR_ADMIN_STATUS_VALUES: CarAdminStatus[] = [
+  "ATIVO",
+  "RETIRADO",
+  "A_VENDA",
+  "MANUTENCAO",
+  "BLOQUEADO",
+];
 
 export const initialCarValues = (initialValues: CarModel) => {
   const commissionPercent =
@@ -30,6 +42,7 @@ export const initialCarValues = (initialValues: CarModel) => {
     year: initialValues.year || 2021,
     group: initialValues.group || "",
     active: initialValues.active || true,
+    adminStatus: initialValues.adminStatus || "ATIVO",
   };
 };
 
@@ -68,4 +81,7 @@ export const carAddValidationSchema = Yup.object().shape({
   year: Yup.number(),
   group: Yup.string().required(TEXT.requiredField),
   active: Yup.boolean(),
+  adminStatus: Yup.mixed<CarAdminStatus>()
+    .oneOf(CAR_ADMIN_STATUS_VALUES)
+    .required(TEXT.requiredField),
 });

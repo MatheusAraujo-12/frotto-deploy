@@ -29,12 +29,9 @@ import ItemNotFound from "../../components/List/ItemNotFound";
 import { RouteComponentProps, useHistory, useLocation } from "react-router";
 import DriverAdd from "./DriverAddModal/DriverAdd";
 import { formatDateView } from "../../services/dateFormat";
-import {
-  IonLabelLeft,
-  IonLabekRight,
-} from "../../components/List/IonLabekRight";
 import { currencyFormat } from "../../services/currencyFormat";
 import { formatCPF, formatTel } from "../../services/iMaskFormat";
+import "./Drivers.css";
 
 interface DriverDetail
   extends RouteComponentProps<{
@@ -185,7 +182,7 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
   };
 
   return (
-    <IonPage id="car-damages-page">
+    <IonPage id="drivers-page">
       <IonHeader>
         <IonToolbar>
           <IonButtons slot="start">
@@ -220,30 +217,33 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
                   nav.push(nav.location.pathname + "?modalOpened=true");
                 }}
               >
-                <IonLabelLeft class="ion-text-wrap">
-                  <h2>{activeDoneList.active?.driver?.name}</h2>
-                  <p>{formatCPF(activeDoneList.active?.driver?.cpf)}</p>
-                  <p>{formatTel(activeDoneList.active?.driver?.contact)}</p>
-                </IonLabelLeft>
-                <IonLabekRight>
-                  <p>{`${formatDateView(activeDoneList.active?.startDate)}`}</p>
-                  <p>{currencyFormat(activeDoneList.active?.warranty)}</p>
-                  <p>
-                    {TEXT.totalOutstanding}:{" "}
-                    {currencyFormat(getOutstandingDebt(activeDoneList.active))}
-                  </p>
-                  <p>{`${activeDoneList.active?.driver?.email}`}</p>
-                  <IonButton
-                    size="small"
-                    fill="outline"
-                    color="secondary"
-                    onClick={(event) =>
-                      openDriverPendencies(event, activeDoneList.active)
-                    }
-                  >
-                    {TEXT.driverPendencies}
-                  </IonButton>
-                </IonLabekRight>
+                <div className="driver-row">
+                  <div className="driver-col-left">
+                    <h2>{activeDoneList.active?.driver?.name}</h2>
+                    <p>{formatCPF(activeDoneList.active?.driver?.cpf)}</p>
+                    <p>{formatTel(activeDoneList.active?.driver?.contact)}</p>
+                  </div>
+                  <div className="driver-col-right">
+                    <p>{`${formatDateView(activeDoneList.active?.startDate)}`}</p>
+                    <p>{currencyFormat(activeDoneList.active?.warranty)}</p>
+                    <p>
+                      {TEXT.totalOutstanding}:{" "}
+                      {currencyFormat(getOutstandingDebt(activeDoneList.active))}
+                    </p>
+                    <p>{`${activeDoneList.active?.driver?.email}`}</p>
+                    <IonButton
+                      className="driver-pendency-button"
+                      size="small"
+                      fill="outline"
+                      color="secondary"
+                      onClick={(event) =>
+                        openDriverPendencies(event, activeDoneList.active)
+                      }
+                    >
+                      {TEXT.driverPendencies}
+                    </IonButton>
+                  </div>
+                </div>
               </IonItem>
             )}
             {!isLoading && !activeDoneList.active && <ItemNotFound />}
@@ -266,29 +266,34 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
                     nav.push(nav.location.pathname + "?modalOpened=true");
                   }}
                 >
-                  <IonLabelLeft class="ion-text-wrap">
-                    <h2>{carDriver?.driver?.name}</h2>
-                    <p>{formatCPF(carDriver?.driver?.cpf)}</p>
-                    <p>{formatTel(carDriver?.driver?.contact)}</p>
-                  </IonLabelLeft>
-                  <IonLabekRight>
-                    <p>{`${formatDateView(
-                      carDriver?.startDate
-                    )} - ${formatDateView(carDriver?.endDate)}`}</p>
-                    <p>
-                      {TEXT.totalOutstanding}:{" "}
-                      {currencyFormat(getOutstandingDebt(carDriver))}
-                    </p>
-                    <p>{`${carDriver?.driver?.email}`}</p>
-                    <IonButton
-                      size="small"
-                      fill="outline"
-                      color="secondary"
-                      onClick={(event) => openDriverPendencies(event, carDriver)}
-                    >
-                      {TEXT.driverPendencies}
-                    </IonButton>
-                  </IonLabekRight>
+                  <div className="driver-row">
+                    <div className="driver-col-left">
+                      <h2>{carDriver?.driver?.name}</h2>
+                      <p>{formatCPF(carDriver?.driver?.cpf)}</p>
+                      <p>{formatTel(carDriver?.driver?.contact)}</p>
+                    </div>
+                    <div className="driver-col-right">
+                      <p>{`${formatDateView(
+                        carDriver?.startDate
+                      )} - ${formatDateView(carDriver?.endDate)}`}</p>
+                      <p>
+                        {TEXT.totalOutstanding}:{" "}
+                        {currencyFormat(getOutstandingDebt(carDriver))}
+                      </p>
+                      <p>{`${carDriver?.driver?.email}`}</p>
+                      <IonButton
+                        className="driver-pendency-button"
+                        size="small"
+                        fill="outline"
+                        color="secondary"
+                        onClick={(event) =>
+                          openDriverPendencies(event, carDriver)
+                        }
+                      >
+                        {TEXT.driverPendencies}
+                      </IonButton>
+                    </div>
+                  </div>
                 </IonItem>
               );
             })}

@@ -12,6 +12,14 @@ export const COMMISSION_TYPES = [
   { value: "FIXED", label: "Comissao fixa (R$)" },
 ];
 
+export const CAR_ADMIN_STATUS_OPTIONS = [
+  { value: "ATIVO", label: "Ativo" },
+  { value: "RETIRADO", label: "Retirado" },
+  { value: "A_VENDA", label: "À venda" },
+  { value: "MANUTENCAO", label: "Manutenção" },
+  { value: "BLOQUEADO", label: "Bloqueado" },
+];
+
 export const STATES_BR = [
   "AC",
   "AL",

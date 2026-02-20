@@ -2,6 +2,7 @@ package com.localuz.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.localuz.domain.enumeration.CarAdminStatus;
 import com.localuz.domain.enumeration.CommissionType;
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -65,6 +66,10 @@ public class Car implements Serializable {
 
     @Column(name = "active")
     private Boolean active;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "admin_status", length = 32)
+    private CarAdminStatus adminStatus;
 
     @ManyToOne
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
@@ -226,6 +231,14 @@ public class Car implements Serializable {
         this.active = active;
     }
 
+    public CarAdminStatus getAdminStatus() {
+        return adminStatus;
+    }
+
+    public void setAdminStatus(CarAdminStatus adminStatus) {
+        this.adminStatus = adminStatus;
+    }
+
     public User getUser() {
         return this.user;
     }
@@ -285,6 +298,9 @@ public class Car implements Serializable {
         + getYear()
         + ", group='"
         + getGroup()
+        + "'"
+        + ", adminStatus='"
+        + getAdminStatus()
         + "'"
         + "}";
   }

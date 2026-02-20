@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog-ext.xsd">
+
+    <!--
+        Update the entity Car: administrative status.
+    -->
+    <changeSet id="20260220000000-1" author="codex">
+        <addColumn tableName="car">
+            <column name="admin_status" type="varchar(32)" defaultValue="ATIVO">
+                <constraints nullable="true" />
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="20260220000000-2" author="codex">
+        <update tableName="car">
+            <column name="admin_status" value="ATIVO" />
+            <where>admin_status IS NULL OR admin_status = ''</where>
+        </update>
+    </changeSet>
+
+</databaseChangeLog>

@@ -11,6 +11,7 @@ import {
   resolveFiscalIdentity,
 } from "../../services/pdfLetterhead";
 import { formatCurrencyPtBr, parseDecimal } from "../../services/decimalPtBr";
+import { serializeChecklistItems } from "./checklistUtils";
 
 const vfsFonts =
   (pdfFonts as any).pdfMake?.vfs || (pdfFonts as any).default || (pdfFonts as any);
@@ -345,7 +346,28 @@ function buildEntregaDevolucaoChecklistContent(
   fiscal: ReturnType<typeof resolveFiscalIdentity>
 ) {
   const driverName = getText(payload, "driverName", document.driverName || "Motorista");
-  const checklistItens = Array.isArray(payload.checklistItens) ? payload.checklistItens : [];
+  const checklistItens = serializeChecklistItems(payload || {});
+  const checklistLines = checklistItens.length
+    ? checklistItens.flatMap((item) => {
+        const note = `${item.note || ""}`.trim();
+        const lines: any[] = [
+          {
+            text: `${item.ok ? "[✓]" : "[ ]"} ${item.label}`,
+            margin: [0, 0, 0, note ? 2 : 4],
+          },
+        ];
+
+        if (note) {
+          lines.push({
+            text: `Observação: ${note}`,
+            style: "small",
+            margin: [16, 0, 0, 4],
+          });
+        }
+
+        return lines;
+      })
+    : [{ text: "[ ] Nenhum item informado", margin: [0, 0, 0, 4] }];
 
   return [
     { text: "TERMO DE ENTREGA/DEVOLUÇÃO DE VEÍCULO COM CHECKLIST E VISTORIA", style: "title" },
@@ -362,23 +384,12 @@ function buildEntregaDevolucaoChecklistContent(
       style: "section",
     },
     {
-      table: {
-        headerRows: 1,
-        widths: ["*", 60, "*"],
-        body: [
-          [
-            { text: "Item", style: "tableHeader" },
-            { text: "OK", style: "tableHeader" },
-            { text: "Observação", style: "tableHeader" },
-          ],
-          ...checklistItens.map((item: any) => [
-            getText(item, "item", "-"),
-            item?.ok ? "Sim" : "Não",
-            getText(item, "observacao", "-"),
-          ]),
-        ],
-      },
-      layout: "lightHorizontalLines",
+      text: "Checklist:",
+      style: "section",
+      margin: [0, 0, 0, 4],
+    },
+    {
+      stack: checklistLines,
       margin: [0, 0, 0, 10],
     },
     { text: `Avarias registradas: ${getText(payload, "avariasTexto", "-")}`, style: "section" },

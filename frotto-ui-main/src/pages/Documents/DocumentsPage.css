@@ -95,6 +95,48 @@
   margin-top: 8px;
 }
 
+#documents-page .documents-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0 4px;
+}
+
+#documents-page .documents-checklist-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#documents-page .documents-checklist-item-card {
+  border: 1px solid var(--ion-border-color, #d0d7de);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+#documents-page .documents-checklist-item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+#documents-page .documents-checklist-item-label {
+  flex: 1;
+  min-width: 0;
+}
+
+#documents-page .documents-checklist-note {
+  --padding-start: 0;
+  --inner-padding-end: 0;
+  margin-top: 8px;
+}
+
+#documents-page .documents-checklist-add {
+  --padding-start: 0;
+  --inner-padding-end: 0;
+}
+
 #documents-page .documents-pagination {
   display: flex;
   align-items: center;
@@ -119,6 +161,19 @@
   }
 
   #documents-page .documents-debt-item-actions ion-button {
+    width: 100%;
+  }
+
+  #documents-page .documents-checklist-item-row {
+    flex-wrap: wrap;
+  }
+
+  #documents-page .documents-checklist-item-row ion-button {
+    width: 100%;
+  }
+
+  #documents-page .documents-checklist-add ion-button {
+    margin-top: 10px;
     width: 100%;
   }
 }
