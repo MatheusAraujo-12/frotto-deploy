@@ -48,6 +48,9 @@ import {
   isChecklistDefaultKey,
   serializeChecklistItems,
 } from "./checklistUtils";
+import { maskPhone, sanitizeDigits } from "../../services/profileFormat";
+import endpoints from "../../constants/endpoints";
+import api from "../../services/axios/axios";
 import "./DocumentsPage.css";
 
 const AUTOCOMPLETE_DELAY = 300;
@@ -66,6 +69,30 @@ type ConfissaoDebtItem = {
   descricaoItem?: string;
   valorItem: string;
 };
+
+type ChecklistEmergencyContact = {
+  nome: string;
+  telefone: string;
+};
+
+type ChecklistTireCondition = "" | "BOM" | "MEIA_VIDA" | "RUIM";
+
+type ChecklistTirePosition = {
+  posicao: string;
+  marca?: string;
+  estado?: string;
+};
+
+type ChecklistTires = {
+  marca?: string;
+  estado?: ChecklistTireCondition;
+  observacoes?: string;
+  source?: "MANUAL" | "LAST_INSPECTION";
+  positions?: ChecklistTirePosition[];
+};
+
+const MIN_EMERGENCY_CONTACTS = 2;
+const DOCUMENTS_DEV_LOG = process.env.NODE_ENV === "development";
 
 const DocumentsPage: React.FC = () => {
   const { showErrorAlert } = useAlert();
@@ -99,10 +126,22 @@ const DocumentsPage: React.FC = () => {
   const [wizardCar, setWizardCar] = useState<CarSearchModel | null>(null);
   const [wizardPayload, setWizardPayload] = useState<Record<string, any>>({});
   const [wizardFiles, setWizardFiles] = useState<File[]>([]);
+  const [checklistNewPhotos, setChecklistNewPhotos] = useState<File[]>([]);
   const [savedDocument, setSavedDocument] = useState<DocumentModel | null>(null);
   const [newChecklistLabel, setNewChecklistLabel] = useState("");
   const [debtItemTypes, setDebtItemTypes] = useState<DebtItemTypeModel[]>([]);
   const [isDebtItemTypesLoading, setIsDebtItemTypesLoading] = useState(false);
+
+  const logDocumentsDebug = useCallback((message: string, extra?: Record<string, any>) => {
+    if (!DOCUMENTS_DEV_LOG) {
+      return;
+    }
+    if (extra) {
+      console.log(`[DocumentsWizard] ${message}`, extra);
+      return;
+    }
+    console.log(`[DocumentsWizard] ${message}`);
+  }, []);
 
   const wizardRequiresCar = useMemo(
     () => Boolean(wizardType && DOCUMENT_TYPES_REQUIRING_CAR.includes(wizardType)),
@@ -128,7 +167,7 @@ const DocumentsPage: React.FC = () => {
       setDebtItemTypes(data);
     } catch (_error) {
       setDebtItemTypes([]);
-      showErrorAlert("Não foi possível carregar os tipos de dívida.");
+      showErrorAlert("NÃ£o foi possÃ­vel carregar os tipos de dÃ­vida.");
     } finally {
       setIsDebtItemTypesLoading(false);
     }
@@ -147,7 +186,7 @@ const DocumentsPage: React.FC = () => {
       });
       setDocuments(data);
     } catch (_error) {
-      showErrorAlert("Não foi possível carregar os documentos.");
+      showErrorAlert("NÃ£o foi possÃ­vel carregar os documentos.");
     } finally {
       setIsLoading(false);
     }
@@ -297,6 +336,7 @@ const DocumentsPage: React.FC = () => {
     setWizardCarOptions([]);
     setWizardPayload({});
     setWizardFiles([]);
+    setChecklistNewPhotos([]);
     setSavedDocument(null);
   };
 
@@ -436,7 +476,12 @@ const DocumentsPage: React.FC = () => {
       }
 
       if (type === "ENTREGA_DEVOLUCAO_CHECKLIST") {
+        const checklistRefs = resolveChecklistPhotoRefsFromSource(payload);
         normalizedPayload.checklistItens = serializeChecklistItems(payload || {});
+        normalizedPayload.emergencyContacts = serializeChecklistEmergencyContacts(payload?.emergencyContacts);
+        normalizedPayload.checklistPhotoRefs = checklistRefs;
+        normalizedPayload.attachmentsChecklist = checklistRefs;
+        normalizedPayload.tires = normalizeChecklistTiresForApi(payload?.tires);
         delete normalizedPayload.checklistItensJson;
       }
 
@@ -446,7 +491,7 @@ const DocumentsPage: React.FC = () => {
   );
 
   const normalizePayloadForEditor = useCallback(
-    (type: DocumentType, payload: Record<string, any>) => {
+    (type: DocumentType, payload: Record<string, any>, attachments: string[] = []) => {
       const decimalFields = (DECIMAL_FIELDS_BY_TYPE[type] || []).filter((fieldName) => fieldName !== "valorItem");
       const normalizedPayload = { ...(payload || {}) };
       decimalFields.forEach((fieldName) => {
@@ -460,7 +505,12 @@ const DocumentsPage: React.FC = () => {
       }
 
       if (type === "ENTREGA_DEVOLUCAO_CHECKLIST") {
+        const checklistRefs = resolveChecklistPhotoRefsFromSource(payload, attachments);
         normalizedPayload.checklistItens = hydrateChecklistItems(payload || {});
+        normalizedPayload.emergencyContacts = hydrateChecklistEmergencyContacts(payload?.emergencyContacts);
+        normalizedPayload.checklistPhotoRefs = checklistRefs;
+        normalizedPayload.attachmentsChecklist = checklistRefs;
+        normalizedPayload.tires = normalizeChecklistTiresForEditor(payload?.tires);
         delete normalizedPayload.checklistItensJson;
       }
 
@@ -558,32 +608,43 @@ const DocumentsPage: React.FC = () => {
     });
   }, []);
 
-  const updateChecklistItem = useCallback(
-    (index: number, patch: Partial<ChecklistItem>) => {
-      const nextItems = checklistItems.map((item, currentIndex) => {
-        if (currentIndex !== index) {
-          return item;
-        }
+  const toggleChecklistItem = useCallback(
+    (key: string, checked: boolean) => {
+      const nextItems = checklistItems.map((item) =>
+        item.key === key
+          ? {
+              ...item,
+              ok: checked,
+              note: checked ? undefined : item.note || "",
+            }
+          : item
+      );
+      applyChecklistItems(nextItems);
+    },
+    [applyChecklistItems, checklistItems]
+  );
 
-        const updatedItem = { ...item, ...patch };
-        return {
-          ...updatedItem,
-          note: updatedItem.ok ? undefined : updatedItem.note,
-        };
-      });
-
+  const updateChecklistItemNote = useCallback(
+    (key: string, note: string) => {
+      const nextItems = checklistItems.map((item) =>
+        item.key === key
+          ? {
+              ...item,
+              note,
+            }
+          : item
+      );
       applyChecklistItems(nextItems);
     },
     [applyChecklistItems, checklistItems]
   );
 
   const removeCustomChecklistItem = useCallback(
-    (index: number) => {
-      const target = checklistItems[index];
-      if (!target || isChecklistDefaultKey(target.key)) {
+    (key: string) => {
+      if (!key || isChecklistDefaultKey(key)) {
         return;
       }
-      const nextItems = checklistItems.filter((_item, currentIndex) => currentIndex !== index);
+      const nextItems = checklistItems.filter((item) => item.key !== key);
       applyChecklistItems(nextItems);
     },
     [applyChecklistItems, checklistItems]
@@ -599,16 +660,16 @@ const DocumentsPage: React.FC = () => {
       (item) => normalizeLookupText(item.label) === normalizeLookupText(label)
     );
     if (hasDuplicatedLabel) {
-      showErrorAlert("Item do checklist já existe.");
+      showErrorAlert("Item do checklist jÃ¡ existe.");
       return;
     }
 
-    const baseKey = sanitizeChecklistCustomKey(label) || "item";
-    let customKey = `custom_${baseKey}`;
+    const baseKey = sanitizeChecklistCustomKey(label) || "custom_item";
+    let customKey = baseKey;
     let suffix = 1;
     const existingKeys = new Set(checklistItems.map((item) => item.key));
     while (existingKeys.has(customKey)) {
-      customKey = `custom_${baseKey}_${suffix}`;
+      customKey = `${baseKey}_${suffix}`;
       suffix += 1;
     }
 
@@ -623,15 +684,101 @@ const DocumentsPage: React.FC = () => {
     setNewChecklistLabel("");
   }, [applyChecklistItems, checklistItems, newChecklistLabel, showErrorAlert]);
 
+  const checklistEmergencyContacts = useMemo<ChecklistEmergencyContact[]>(() => {
+    if (wizardType !== "ENTREGA_DEVOLUCAO_CHECKLIST") {
+      return [];
+    }
+    return hydrateChecklistEmergencyContacts(wizardPayload?.emergencyContacts);
+  }, [wizardPayload?.emergencyContacts, wizardType]);
+
+  const applyChecklistEmergencyContacts = useCallback((contacts: ChecklistEmergencyContact[]) => {
+    setWizardPayload((prev) => ({
+      ...prev,
+      emergencyContacts: hydrateChecklistEmergencyContacts(contacts),
+    }));
+  }, []);
+
+  const updateChecklistEmergencyContact = useCallback(
+    (index: number, patch: Partial<ChecklistEmergencyContact>) => {
+      const next = checklistEmergencyContacts.map((item, currentIndex) =>
+        currentIndex === index ? { ...item, ...patch } : item
+      );
+      applyChecklistEmergencyContacts(next);
+    },
+    [applyChecklistEmergencyContacts, checklistEmergencyContacts]
+  );
+
+  const addChecklistEmergencyContact = useCallback(() => {
+    applyChecklistEmergencyContacts([...checklistEmergencyContacts, { nome: "", telefone: "" }]);
+  }, [applyChecklistEmergencyContacts, checklistEmergencyContacts]);
+
+  const removeChecklistEmergencyContact = useCallback(
+    (index: number) => {
+      if (checklistEmergencyContacts.length <= MIN_EMERGENCY_CONTACTS) {
+        return;
+      }
+      const next = checklistEmergencyContacts.filter((_item, currentIndex) => currentIndex !== index);
+      applyChecklistEmergencyContacts(next);
+    },
+    [applyChecklistEmergencyContacts, checklistEmergencyContacts]
+  );
+
+  const checklistPhotoRefs = useMemo<string[]>(() => {
+    if (wizardType !== "ENTREGA_DEVOLUCAO_CHECKLIST") {
+      return [];
+    }
+    return resolveChecklistPhotoRefsFromSource(wizardPayload);
+  }, [wizardPayload, wizardType]);
+
+  const applyChecklistPhotoRefs = useCallback((refs: string[]) => {
+    setWizardPayload((prev) => ({
+      ...prev,
+      checklistPhotoRefs: dedupeStringList(refs),
+    }));
+  }, []);
+
+  const removeChecklistPhotoRef = useCallback(
+    (ref: string) => {
+      applyChecklistPhotoRefs(checklistPhotoRefs.filter((item) => item !== ref));
+    },
+    [applyChecklistPhotoRefs, checklistPhotoRefs]
+  );
+
+  const removeChecklistNewPhoto = useCallback((index: number) => {
+    setChecklistNewPhotos((current) => current.filter((_item, currentIndex) => currentIndex !== index));
+  }, []);
+
+  const checklistTires = useMemo<ChecklistTires>(() => {
+    if (wizardType !== "ENTREGA_DEVOLUCAO_CHECKLIST") {
+      return {};
+    }
+    return normalizeChecklistTiresForEditor(wizardPayload?.tires);
+  }, [wizardPayload?.tires, wizardType]);
+
+  const patchChecklistTires = useCallback((patch: Partial<ChecklistTires>) => {
+    setWizardPayload((prev) => {
+      const currentTires = normalizeChecklistTiresForEditor(prev?.tires);
+      const next = normalizeChecklistTiresForEditor({
+        ...currentTires,
+        ...patch,
+        source: patch.source || "MANUAL",
+      });
+      return {
+        ...prev,
+        tires: next,
+      };
+    });
+  }, []);
+
   const createDebtItemTypeInline = useCallback(async () => {
-    const rawName = window.prompt("Nome do novo tipo de dívida:");
+    const rawName = window.prompt("Nome do novo tipo de dÃ­vida:");
     if (rawName === null) {
       return;
     }
 
     const name = rawName.trim();
     if (!name) {
-      showErrorAlert("Informe um nome válido para o tipo.");
+      showErrorAlert("Informe um nome vÃ¡lido para o tipo.");
       return;
     }
 
@@ -639,12 +786,12 @@ const DocumentsPage: React.FC = () => {
     try {
       await debtItemTypeService.createDebtItemType({ name, active: true });
       await loadDebtItemTypes();
-      showSuccessToast("Tipo de dívida criado.");
+      showSuccessToast("Tipo de dÃ­vida criado.");
     } catch (error: any) {
       if (error?.response?.status === 409) {
-        showErrorAlert("Já existe um tipo com esse nome.");
+        showErrorAlert("JÃ¡ existe um tipo com esse nome.");
       } else {
-        showErrorAlert("Falha ao criar tipo de dívida.");
+        showErrorAlert("Falha ao criar tipo de dÃ­vida.");
       }
     } finally {
       setIsActionLoading(false);
@@ -697,6 +844,57 @@ const DocumentsPage: React.FC = () => {
     );
   }, [isWizardOpen, normalizePayloadForEditor, wizardType]);
 
+  useEffect(() => {
+    if (!isWizardOpen || wizardType !== "ENTREGA_DEVOLUCAO_CHECKLIST" || !wizardCar?.id) {
+      return;
+    }
+
+    let active = true;
+    const loadLastInspectionSuggestion = async () => {
+      try {
+        const { data } = await api.get(
+          endpoints.CAR({
+            pathVariables: { id: wizardCar.id },
+          })
+        );
+        if (!active) {
+          return;
+        }
+
+        const tiresSuggestion = buildChecklistTiresFromInspection(data?.lastInspection);
+        if (!tiresSuggestion) {
+          logDocumentsDebug("checklist tires suggestion not found", { carId: wizardCar.id });
+          return;
+        }
+
+        setWizardPayload((current) => {
+          const currentTires = normalizeChecklistTiresForEditor(current?.tires);
+          if (hasChecklistTiresData(currentTires)) {
+            return current;
+          }
+          logDocumentsDebug("checklist tires suggestion applied", {
+            carId: wizardCar.id,
+            source: tiresSuggestion.source,
+          });
+          return {
+            ...current,
+            tires: tiresSuggestion,
+          };
+        });
+      } catch (error) {
+        logDocumentsDebug("checklist tires suggestion failed", {
+          carId: wizardCar.id,
+          error: String(error),
+        });
+      }
+    };
+
+    void loadLastInspectionSuggestion();
+    return () => {
+      active = false;
+    };
+  }, [isWizardOpen, logDocumentsDebug, wizardCar?.id, wizardType]);
+
   const validateWizard = () => {
     if (!wizardDriver?.id) {
       showErrorAlert("Selecione um motorista.");
@@ -713,15 +911,44 @@ const DocumentsPage: React.FC = () => {
 
     if (wizardType === "CONFISSAO_DIVIDA") {
       if (!confissaoItems.length) {
-        showErrorAlert("Adicione ao menos um item da dívida.");
+        showErrorAlert("Adicione ao menos um item da dÃ­vida.");
         return false;
       }
       if (confissaoItems.some((item) => !`${item.typeNameSnapshot || ""}`.trim())) {
-        showErrorAlert("Selecione o tipo de todos os itens da dívida.");
+        showErrorAlert("Selecione o tipo de todos os itens da dÃ­vida.");
         return false;
       }
       if (confissaoItems.some((item) => (parseDecimal(item.valorItem) || 0) <= 0)) {
-        showErrorAlert("Informe valor maior que zero para todos os itens da dívida.");
+        showErrorAlert("Informe valor maior que zero para todos os itens da dÃ­vida.");
+        return false;
+      }
+    }
+
+    if (wizardType === "ENTREGA_DEVOLUCAO_CHECKLIST") {
+      const contacts = serializeChecklistEmergencyContacts(wizardPayload?.emergencyContacts);
+      const completeContacts = contacts.filter((contact) =>
+        isChecklistEmergencyContactComplete(contact)
+      );
+      const hasPartial = contacts.some((contact) =>
+        isChecklistEmergencyContactPartial(contact)
+      );
+
+      if (hasPartial) {
+        showErrorAlert("Preencha nome e telefone em cada contato de emergÃƒÂªncia.");
+        return false;
+      }
+
+      if (completeContacts.length < MIN_EMERGENCY_CONTACTS) {
+        showErrorAlert("Informe ao menos 2 contatos de emergÃƒÂªncia (nome e telefone).");
+        return false;
+      }
+
+      const hasInvalidPhone = completeContacts.some((contact) => {
+        const digits = sanitizeDigits(contact.telefone || "");
+        return digits.length < 10 || digits.length > 11;
+      });
+      if (hasInvalidPhone) {
+        showErrorAlert("Telefone de emergÃƒÂªncia deve conter 10 ou 11 dÃƒÂ­gitos.");
         return false;
       }
     }
@@ -746,18 +973,102 @@ const DocumentsPage: React.FC = () => {
         payload: normalizedPayload,
       };
 
+      logDocumentsDebug("saveDraft started", {
+        mode: savedDocument?.id ? "update" : "create",
+        type: wizardType,
+        wizardFilesCount: wizardFiles.length,
+        checklistNewPhotosCount: checklistNewPhotos.length,
+      });
+
       let response = savedDocument?.id
         ? await documentService.updateDocument(savedDocument.id, request)
         : await documentService.createDocument(request);
 
+      logDocumentsDebug("saveDraft persisted draft", {
+        documentId: response?.id,
+        attachmentsCount: response?.attachments?.length || 0,
+      });
+
+      let attachmentsAfterGenericUpload = response.attachments || [];
       if (wizardFiles.length && response.id) {
         response = await documentService.uploadDocumentAttachments(response.id, wizardFiles);
+        attachmentsAfterGenericUpload = response.attachments || [];
+        logDocumentsDebug("saveDraft uploaded generic attachments", {
+          documentId: response.id,
+          uploadedCount: wizardFiles.length,
+          attachmentsCount: attachmentsAfterGenericUpload.length,
+        });
       }
 
-      setSavedDocument(response);
+      let checklistUploadedRefs: string[] = [];
+      if (
+        wizardType === "ENTREGA_DEVOLUCAO_CHECKLIST" &&
+        checklistNewPhotos.length &&
+        response.id
+      ) {
+        response = await documentService.uploadDocumentAttachments(response.id, checklistNewPhotos);
+        checklistUploadedRefs = resolveAttachmentDiff(
+          response.attachments || [],
+          attachmentsAfterGenericUpload
+        );
+        logDocumentsDebug("saveDraft uploaded checklist photos", {
+          documentId: response.id,
+          uploadedCount: checklistNewPhotos.length,
+          newRefs: checklistUploadedRefs,
+        });
+      }
+
+      let detailed = response;
+      if (response.id) {
+        detailed = await documentService.getDocument(response.id);
+        logDocumentsDebug("saveDraft refreshed document", {
+          documentId: detailed.id,
+          attachmentsCount: detailed.attachments?.length || 0,
+          payloadChecklistRefs: resolveChecklistPhotoRefsFromSource(detailed.payload || {}),
+        });
+      }
+
+      if (wizardType === "ENTREGA_DEVOLUCAO_CHECKLIST" && detailed.id) {
+        const currentPayload = detailed.payload || {};
+        const refsStored = resolveChecklistPhotoRefsFromSource(currentPayload, detailed.attachments || []);
+        const refsFromEditor = resolveChecklistPhotoRefsFromSource(normalizedPayload);
+        const refsMerged = dedupeStringList([
+          ...refsStored,
+          ...refsFromEditor,
+          ...checklistUploadedRefs,
+        ]);
+
+        if (!areStringListsEqual(refsStored, refsMerged)) {
+          const payloadWithRefs = normalizePayloadForApi("ENTREGA_DEVOLUCAO_CHECKLIST", {
+            ...currentPayload,
+            checklistPhotoRefs: refsMerged,
+            attachmentsChecklist: refsMerged,
+          });
+          detailed = await documentService.updateDocument(detailed.id, {
+            payload: payloadWithRefs,
+          });
+          detailed = await documentService.getDocument(detailed.id as number);
+          logDocumentsDebug("saveDraft persisted checklist photo refs", {
+            documentId: detailed.id,
+            refsMerged,
+          });
+        }
+      }
+
+      setSavedDocument(detailed);
+      setWizardPayload(
+        normalizePayloadForEditor(
+          detailed.type,
+          detailed.payload || normalizedPayload,
+          detailed.attachments || []
+        )
+      );
+      setWizardFiles([]);
+      setChecklistNewPhotos([]);
       await loadDocuments();
-      return response;
-    } catch (_error) {
+      return detailed;
+    } catch (error) {
+      logDocumentsDebug("saveDraft failed", { error: String(error) });
       showErrorAlert("Falha ao salvar rascunho.");
       return null;
     } finally {
@@ -799,10 +1110,17 @@ const DocumentsPage: React.FC = () => {
       setWizardType(document.type);
       setWizardStep(3);
       setSavedDocument(document);
-      setWizardPayload(normalizePayloadForEditor(document.type, payload));
+      setWizardPayload(normalizePayloadForEditor(document.type, payload, document.attachments || []));
       setWizardFiles([]);
+      setChecklistNewPhotos([]);
       setWizardDriverOptions([]);
       setWizardCarOptions([]);
+      logDocumentsDebug("wizard hydrated from draft", {
+        documentId: document.id,
+        type: document.type,
+        attachmentsCount: document.attachments?.length || 0,
+        checklistRefs: resolveChecklistPhotoRefsFromSource(payload, document.attachments || []),
+      });
 
       if (document.driverId) {
         const driver = {
@@ -834,7 +1152,7 @@ const DocumentsPage: React.FC = () => {
 
       setIsWizardOpen(true);
     },
-    [normalizePayloadForEditor]
+    [logDocumentsDebug, normalizePayloadForEditor]
   );
 
   const openEdit = async (id?: number) => {
@@ -850,7 +1168,7 @@ const DocumentsPage: React.FC = () => {
       }
       loadDocumentIntoWizard(document);
     } catch (_error) {
-      showErrorAlert("Falha ao abrir rascunho para edição.");
+      showErrorAlert("Falha ao abrir rascunho para ediÃ§Ã£o.");
     } finally {
       setIsActionLoading(false);
     }
@@ -875,7 +1193,7 @@ const DocumentsPage: React.FC = () => {
         closeWizard();
       }
       await loadDocuments();
-      showSuccessToast("Documento excluído.");
+      showSuccessToast("Documento excluÃ­do.");
       return true;
     } catch (_error) {
       showErrorAlert("Falha ao excluir documento.");
@@ -935,7 +1253,7 @@ const DocumentsPage: React.FC = () => {
           <TextField label="Data/Hora" value={wizardPayload.dataHora} onChange={(v) => setPayload("dataHora", v)} />
           <TextField label="Local" value={wizardPayload.local} onChange={(v) => setPayload("local", v)} />
           <TextField label="AIT" value={wizardPayload.ait} onChange={(v) => setPayload("ait", v)} />
-          <TextField label="Órgão" value={wizardPayload.orgao} onChange={(v) => setPayload("orgao", v)} />
+          <TextField label="Ã“rgÃ£o" value={wizardPayload.orgao} onChange={(v) => setPayload("orgao", v)} />
           <TextField
             label="Enquadramento"
             value={wizardPayload.enquadramento}
@@ -944,7 +1262,7 @@ const DocumentsPage: React.FC = () => {
           <DecimalField label="Valor" value={wizardPayload.valor} onChange={(v) => setPayload("valor", v)} />
           <TextField label="Vencimento" value={wizardPayload.vencimento} onChange={(v) => setPayload("vencimento", v)} />
           <SelectField
-            label="Responsável pelo pagamento"
+            label="ResponsÃ¡vel pelo pagamento"
             value={wizardPayload.responsavelPagamento || ""}
             options={[
               { value: "MOTORISTA", label: "Motorista" },
@@ -953,7 +1271,7 @@ const DocumentsPage: React.FC = () => {
             onChange={(v) => setPayload("responsavelPagamento", v)}
           />
           <AreaField
-            label="Observações"
+            label="ObservaÃ§Ãµes"
             value={wizardPayload.observacoes}
             onChange={(v) => setPayload("observacoes", v)}
           />
@@ -965,7 +1283,7 @@ const DocumentsPage: React.FC = () => {
       return (
         <>
           <TextField label="Data" value={wizardPayload.data} onChange={(v) => setPayload("data", v)} />
-          <TextField label="Descrição" value={wizardPayload.descricao} onChange={(v) => setPayload("descricao", v)} />
+          <TextField label="DescriÃ§Ã£o" value={wizardPayload.descricao} onChange={(v) => setPayload("descricao", v)} />
           <TextField label="Oficina" value={wizardPayload.oficina} onChange={(v) => setPayload("oficina", v)} />
           <DecimalField
             label="Valor total"
@@ -973,7 +1291,7 @@ const DocumentsPage: React.FC = () => {
             onChange={(v) => setPayload("valorTotal", v)}
           />
           <SelectField
-            label="Forma de divisão"
+            label="Forma de divisÃ£o"
             value={wizardPayload.formaDivisao || ""}
             options={[
               { value: "PERCENTUAL", label: "Percentual" },
@@ -987,7 +1305,7 @@ const DocumentsPage: React.FC = () => {
             onChange={(v) => setPayload("parteMotoristaValor", v)}
           />
           <AreaField
-            label="Observações"
+            label="ObservaÃ§Ãµes"
             value={wizardPayload.observacoes}
             onChange={(v) => setPayload("observacoes", v)}
           />
@@ -998,8 +1316,8 @@ const DocumentsPage: React.FC = () => {
     if (wizardType === "RECIBO_ALUGUEL") {
       return (
         <>
-          <TextField label="Período início" value={wizardPayload.periodoInicio} onChange={(v) => setPayload("periodoInicio", v)} />
-          <TextField label="Período fim" value={wizardPayload.periodoFim} onChange={(v) => setPayload("periodoFim", v)} />
+          <TextField label="PerÃ­odo inÃ­cio" value={wizardPayload.periodoInicio} onChange={(v) => setPayload("periodoInicio", v)} />
+          <TextField label="PerÃ­odo fim" value={wizardPayload.periodoFim} onChange={(v) => setPayload("periodoFim", v)} />
           <DecimalField
             label="Valor aluguel"
             value={wizardPayload.valorAluguel}
@@ -1007,7 +1325,7 @@ const DocumentsPage: React.FC = () => {
           />
           <DecimalField label="Descontos" value={wizardPayload.descontos} onChange={(v) => setPayload("descontos", v)} />
           <DecimalField
-            label="Acréscimos"
+            label="AcrÃ©scimos"
             value={wizardPayload.acrescimos}
             onChange={(v) => setPayload("acrescimos", v)}
           />
@@ -1015,7 +1333,7 @@ const DocumentsPage: React.FC = () => {
           <TextField label="Forma de pagamento" value={wizardPayload.formaPagamento} onChange={(v) => setPayload("formaPagamento", v)} />
           <TextField label="Data do pagamento" value={wizardPayload.dataPagamento} onChange={(v) => setPayload("dataPagamento", v)} />
           <AreaField
-            label="Observações"
+            label="ObservaÃ§Ãµes"
             value={wizardPayload.observacoes}
             onChange={(v) => setPayload("observacoes", v)}
           />
@@ -1031,12 +1349,12 @@ const DocumentsPage: React.FC = () => {
 
       return (
         <>
-          {isDebtItemTypesLoading && <p className="documents-warning">Carregando tipos de dívida...</p>}
+          {isDebtItemTypesLoading && <p className="documents-warning">Carregando tipos de dÃ­vida...</p>}
           {!isDebtItemTypesLoading && !debtItemTypeOptions.length && (
-            <p className="documents-warning">Nenhum tipo ativo encontrado. Cadastre em Tipos de Dívida.</p>
+            <p className="documents-warning">Nenhum tipo ativo encontrado. Cadastre em Tipos de DÃ­vida.</p>
           )}
           <AreaField
-            label="Origem da dívida (descrição geral)"
+            label="Origem da dÃ­vida (descriÃ§Ã£o geral)"
             value={wizardPayload.origemDaDivida}
             onChange={(v) => setPayload("origemDaDivida", v)}
           />
@@ -1059,7 +1377,7 @@ const DocumentsPage: React.FC = () => {
                   <p className="documents-warning">Item legado: {item.typeNameSnapshot}</p>
                 ) : null}
                 <TextField
-                  label="Descrição do item (opcional)"
+                  label="DescriÃ§Ã£o do item (opcional)"
                   value={item.descricaoItem}
                   onChange={(value) => updateConfissaoItem(index, { descricaoItem: value })}
                 />
@@ -1096,7 +1414,7 @@ const DocumentsPage: React.FC = () => {
             </IonButton>
           </div>
           <DecimalField
-            label="Valor total (soma automática)"
+            label="Valor total (soma automÃ¡tica)"
             value={wizardPayload.valorTotal}
             onChange={() => undefined}
           />
@@ -1104,7 +1422,7 @@ const DocumentsPage: React.FC = () => {
             label="Forma de pagamento"
             value={wizardPayload.formaPagamento || ""}
             options={[
-              { value: "A_VISTA", label: "À vista" },
+              { value: "A_VISTA", label: "Ã€ vista" },
               { value: "PARCELADO", label: "Parcelado" },
             ]}
             onChange={(v) => setPayload("formaPagamento", v)}
@@ -1117,7 +1435,7 @@ const DocumentsPage: React.FC = () => {
           <TextField label="Testemunha 2 nome" value={wizardPayload.testemunha2Nome} onChange={(v) => setPayload("testemunha2Nome", v)} />
           <TextField label="Testemunha 2 CPF" value={wizardPayload.testemunha2Cpf} onChange={(v) => setPayload("testemunha2Cpf", v)} />
           <AreaField
-            label="Observações"
+            label="ObservaÃ§Ãµes"
             value={wizardPayload.observacoes}
             onChange={(v) => setPayload("observacoes", v)}
           />
@@ -1132,68 +1450,215 @@ const DocumentsPage: React.FC = () => {
           value={wizardPayload.tipo || ""}
           options={[
             { value: "ENTREGA", label: "Entrega" },
-            { value: "DEVOLUCAO", label: "Devolução" },
+            { value: "DEVOLUCAO", label: "DevoluÃ§Ã£o" },
           ]}
           onChange={(v) => setPayload("tipo", v)}
         />
         <TextField label="Data/Hora" value={wizardPayload.dataHora} onChange={(v) => setPayload("dataHora", v)} />
         <TextField label="KM" value={wizardPayload.km} onChange={(v) => setPayload("km", v)} />
-        <TextField label="Combustível" value={wizardPayload.combustivel} onChange={(v) => setPayload("combustivel", v)} />
+        <TextField label="CombustÃ­vel" value={wizardPayload.combustivel} onChange={(v) => setPayload("combustivel", v)} />
         <div className="documents-checklist">
-          <p className="documents-checklist-title">Checklist do veículo</p>
-          {checklistItems.map((item, index) => (
-            <div key={item.key} className="documents-checklist-item-card">
-              <div className="documents-checklist-item-row">
-                <IonCheckbox
-                  checked={item.ok}
+          <p className="documents-checklist-title">Checklist do veÃ­culo</p>
+          <div className="documents-checklist-builder">
+            {checklistItems.map((item) => (
+              <div key={item.key} className="documents-checklist-row">
+                <IonItem>
+                  <IonCheckbox
+                    slot="start"
+                    checked={Boolean(item.ok)}
+                    onIonChange={(event) =>
+                      toggleChecklistItem(item.key, Boolean(event.detail.checked))
+                    }
+                  />
+                  <IonLabel>{item.label}</IonLabel>
+                  {!isChecklistDefaultKey(item.key) && (
+                    <IonButton
+                      slot="end"
+                      fill="clear"
+                      size="small"
+                      color="danger"
+                      onClick={() => removeCustomChecklistItem(item.key)}
+                    >
+                      Remover
+                    </IonButton>
+                  )}
+                </IonItem>
+
+                {!item.ok && (
+                  <IonItem className="documents-checklist-note">
+                    <IonLabel position="stacked">ObservaÃ§Ã£o (opcional)</IonLabel>
+                    <IonInput
+                      value={item.note || ""}
+                      onIonChange={(event) =>
+                        updateChecklistItemNote(item.key, `${event.detail.value || ""}`)
+                      }
+                    />
+                  </IonItem>
+                )}
+              </div>
+            ))}
+
+            <IonItem>
+              <IonLabel position="stacked">Adicionar item personalizado</IonLabel>
+              <IonInput
+                value={newChecklistLabel}
+                onIonChange={(event) => setNewChecklistLabel(`${event.detail.value || ""}`)}
+              />
+            </IonItem>
+            <IonItem className="documents-checklist-add" lines="none">
+              <IonButton fill="outline" size="small" onClick={addCustomChecklistItem}>
+                <IonIcon icon={add} slot="start" />
+                Adicionar item
+              </IonButton>
+            </IonItem>
+          </div>
+        </div>
+        <div className="documents-checklist-section">
+          <p className="documents-checklist-title">Contatos de emergÃƒÂªncia</p>
+          {checklistEmergencyContacts.map((contact, index) => (
+            <div key={`checklist-contact-${index}`} className="documents-checklist-contact-card">
+              <IonItem>
+                <IonLabel position="stacked">Contato {index + 1} - Nome *</IonLabel>
+                <IonInput
+                  value={contact.nome || ""}
                   onIonChange={(event) =>
-                    updateChecklistItem(index, {
-                      ok: event.detail.checked,
+                    updateChecklistEmergencyContact(index, {
+                      nome: `${event.detail.value || ""}`,
                     })
                   }
                 />
-                <span className="documents-checklist-item-label">{item.label}</span>
-                {!isChecklistDefaultKey(item.key) && (
+              </IonItem>
+              <IonItem>
+                <IonLabel position="stacked">Contato {index + 1} - Telefone *</IonLabel>
+                <IonInput
+                  type="tel"
+                  inputmode="numeric"
+                  value={maskPhone(contact.telefone || "")}
+                  onIonChange={(event) =>
+                    updateChecklistEmergencyContact(index, {
+                      telefone: sanitizeDigits(`${event.detail.value || ""}`).slice(0, 11),
+                    })
+                  }
+                />
+              </IonItem>
+              {checklistEmergencyContacts.length > MIN_EMERGENCY_CONTACTS && (
+                <div className="documents-checklist-contact-actions">
                   <IonButton
                     size="small"
                     color="danger"
                     fill="outline"
-                    onClick={() => removeCustomChecklistItem(index)}
+                    onClick={() => removeChecklistEmergencyContact(index)}
                   >
                     <IonIcon icon={trashOutline} slot="start" />
-                    Remover
+                    Remover contato
                   </IonButton>
-                )}
-              </div>
-
-              {!item.ok && (
-                <IonItem lines="none" className="documents-checklist-note">
-                  <IonLabel position="stacked">Observação (opcional)</IonLabel>
-                  <IonTextarea
-                    autoGrow
-                    value={item.note || ""}
-                    onIonChange={(event) =>
-                      updateChecklistItem(index, {
-                        note: event.detail.value || undefined,
-                      })
-                    }
-                  />
-                </IonItem>
+                </div>
               )}
             </div>
           ))}
+          <IonButton fill="outline" onClick={addChecklistEmergencyContact}>
+            <IonIcon icon={add} slot="start" />
+            Adicionar contato
+          </IonButton>
+        </div>
 
-          <IonItem className="documents-checklist-add" lines="none">
-            <IonLabel position="stacked">Adicionar item personalizado</IonLabel>
-            <IonInput
-              value={newChecklistLabel}
-              onIonChange={(event) => setNewChecklistLabel(event.detail.value || "")}
+        <div className="documents-checklist-section">
+          <p className="documents-checklist-title">Fotos do checklist</p>
+          <IonItem lines="none">
+            <IonLabel position="stacked">Adicionar fotos</IonLabel>
+            <input
+              className="documents-file-input"
+              type="file"
+              multiple
+              accept="image/*"
+              onChange={(event) => {
+                const files = Array.from(event.target.files || []);
+                setChecklistNewPhotos((current) => appendUniqueFiles(current, files));
+                logDocumentsDebug("checklist photos selected", {
+                  selectedCount: files.length,
+                  names: files.map((file) => file.name),
+                });
+              }}
             />
-            <IonButton slot="end" fill="outline" onClick={addCustomChecklistItem}>
-              <IonIcon icon={add} slot="start" />
-              Adicionar item
-            </IonButton>
           </IonItem>
+
+          {checklistNewPhotos.length > 0 && (
+            <div className="documents-checklist-files">
+              <p className="documents-checklist-subtitle">Fotos novas (ainda nÃƒÂ£o enviadas)</p>
+              {checklistNewPhotos.map((file, index) => (
+                <div key={`checklist-new-photo-${index}`} className="documents-checklist-file-row">
+                  <span>{file.name}</span>
+                  <IonButton
+                    size="small"
+                    color="danger"
+                    fill="clear"
+                    onClick={() => removeChecklistNewPhoto(index)}
+                  >
+                    Remover
+                  </IonButton>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {checklistPhotoRefs.length > 0 && (
+            <div className="documents-checklist-files">
+              <p className="documents-checklist-subtitle">Fotos jÃƒÂ¡ salvas</p>
+              {checklistPhotoRefs.map((ref, index) => (
+                <div key={`checklist-photo-ref-${index}`} className="documents-checklist-file-row">
+                  <span>{ref}</span>
+                  <IonButton
+                    size="small"
+                    color="danger"
+                    fill="clear"
+                    onClick={() => removeChecklistPhotoRef(ref)}
+                  >
+                    Remover
+                  </IonButton>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="documents-checklist-section">
+          <p className="documents-checklist-title">Vistoria dos pneus</p>
+          {checklistTires.source === "LAST_INSPECTION" && (
+            <p className="documents-warning">Dados sugeridos a partir da ÃƒÂºltima inspeÃƒÂ§ÃƒÂ£o do carro.</p>
+          )}
+          <TextField
+            label="Marca dos pneus"
+            value={checklistTires.marca || ""}
+            onChange={(value) => patchChecklistTires({ marca: value })}
+          />
+          <SelectField
+            label="Estado dos pneus"
+            value={checklistTires.estado || ""}
+            options={[
+              { value: "", label: "Selecione..." },
+              { value: "BOM", label: "Bom" },
+              { value: "MEIA_VIDA", label: "Meia vida" },
+              { value: "RUIM", label: "Ruim" },
+            ]}
+            onChange={(value) =>
+              patchChecklistTires({ estado: (value as ChecklistTireCondition) || "" })
+            }
+          />
+          <AreaField
+            label="ObservaÃƒÂ§ÃƒÂµes dos pneus"
+            value={checklistTires.observacoes || ""}
+            onChange={(value) => patchChecklistTires({ observacoes: value })}
+          />
+          {Array.isArray(checklistTires.positions) && checklistTires.positions.length > 0 && (
+            <div className="documents-checklist-tire-positions">
+              <p className="documents-checklist-subtitle">Resumo da ÃƒÂºltima inspeÃƒÂ§ÃƒÂ£o</p>
+              {checklistTires.positions.map((position, index) => (
+                <p key={`checklist-tire-position-${index}`}>
+                  {position.posicao}: {position.marca || "-"} ({position.estado || "-"})
+                </p>
+              ))}
+            </div>
+          )}
         </div>
         <AreaField
           label="Avarias"
@@ -1204,10 +1669,7 @@ const DocumentsPage: React.FC = () => {
     );
   };
 
-  const showAttachmentInput =
-    wizardType === "MULTA" ||
-    wizardType === "MANUTENCAO_COMPARTILHADA" ||
-    wizardType === "ENTREGA_DEVOLUCAO_CHECKLIST";
+  const showAttachmentInput = supportsAttachments(wizardType);
   const canGoNextPage = documents.length >= PAGE_SIZE;
 
   return (
@@ -1342,15 +1804,15 @@ const DocumentsPage: React.FC = () => {
               disabled={listPage === 0 || isLoading}
               onClick={() => setListPage((current) => Math.max(0, current - 1))}
             >
-              Página anterior
+              PÃ¡gina anterior
             </IonButton>
-            <span>Página {listPage + 1}</span>
+            <span>PÃ¡gina {listPage + 1}</span>
             <IonButton
               fill="outline"
               disabled={!canGoNextPage || isLoading}
               onClick={() => setListPage((current) => current + 1)}
             >
-              Próxima página
+              PrÃ³xima pÃ¡gina
             </IonButton>
           </div>
         </div>
@@ -1440,7 +1902,7 @@ const DocumentsPage: React.FC = () => {
                     }}
                   />
                   <Autocomplete
-                    label="Carro (opcional para confissão)"
+                    label="Carro (opcional para confissÃ£o)"
                     value={wizardCarQuery}
                     options={wizardCarOptions}
                     getLabel={(item) => `${item.plate || ""}${item.model ? ` - ${item.model}` : ""}`}
@@ -1474,7 +1936,7 @@ const DocumentsPage: React.FC = () => {
                     onChange={(value) => setWizardType((value as DocumentType) || "")}
                   />
                   {wizardRequiresCar && !wizardCar?.id && (
-                    <p className="documents-warning">Esse tipo exige vínculo com carro.</p>
+                    <p className="documents-warning">Esse tipo exige vÃ­nculo com carro.</p>
                   )}
                 </IonCardContent>
               </IonCard>
@@ -1483,19 +1945,28 @@ const DocumentsPage: React.FC = () => {
             {wizardStep === 3 && (
               <IonCard>
                 <IonCardContent>
-                  <h3>Passo 3 - Formulário</h3>
+                  <h3>Passo 3 - FormulÃ¡rio</h3>
                   {renderTypeFields()}
 
                   {showAttachmentInput && (
                     <IonItem lines="none">
-                      <IonLabel position="stacked">Anexos (imagens/PDF)</IonLabel>
+                      <IonLabel position="stacked">
+                        {wizardType === "ENTREGA_DEVOLUCAO_CHECKLIST"
+                          ? "Anexos gerais (opcional)"
+                          : "Anexos (imagens/PDF)"}
+                      </IonLabel>
                       <input
                         className="documents-file-input"
                         type="file"
                         multiple
                         accept="image/*,application/pdf"
                         onChange={(event) => {
-                          setWizardFiles(Array.from(event.target.files || []));
+                          const files = Array.from(event.target.files || []);
+                          setWizardFiles(files);
+                          logDocumentsDebug("generic attachments selected", {
+                            selectedCount: files.length,
+                            names: files.map((file) => file.name),
+                          });
                         }}
                       />
                     </IonItem>
@@ -1519,7 +1990,7 @@ const DocumentsPage: React.FC = () => {
                 disabled={wizardStep === 3}
                 onClick={() => setWizardStep((prev) => (prev === 3 ? 3 : ((prev + 1) as 1 | 2 | 3)))}
               >
-                Próximo
+                PrÃ³ximo
               </IonButton>
             </div>
           </IonToolbar>
@@ -1693,6 +2164,264 @@ function formatDate(value?: string) {
     return value;
   }
   return parsed.toLocaleString("pt-BR");
+}
+
+function supportsAttachments(type: DocumentType | ""): boolean {
+  return (
+    type === "MULTA" ||
+    type === "MANUTENCAO_COMPARTILHADA" ||
+    type === "ENTREGA_DEVOLUCAO_CHECKLIST"
+  );
+}
+
+function dedupeStringList(values: any[]): string[] {
+  const unique: string[] = [];
+  values.forEach((value) => {
+    const normalized = `${value || ""}`.trim();
+    if (!normalized || unique.includes(normalized)) {
+      return;
+    }
+    unique.push(normalized);
+  });
+  return unique;
+}
+
+function appendUniqueFiles(current: File[], incoming: File[]): File[] {
+  const existing = new Set(
+    current.map((file) => `${file.name}|${file.size}|${file.lastModified}`)
+  );
+  const next = [...current];
+  incoming.forEach((file) => {
+    const signature = `${file.name}|${file.size}|${file.lastModified}`;
+    if (existing.has(signature)) {
+      return;
+    }
+    existing.add(signature);
+    next.push(file);
+  });
+  return next;
+}
+
+function resolveAttachmentDiff(after: string[] = [], before: string[] = []): string[] {
+  const counter = new Map<string, number>();
+  before.forEach((item) => {
+    const key = `${item || ""}`.trim();
+    if (!key) {
+      return;
+    }
+    counter.set(key, (counter.get(key) || 0) + 1);
+  });
+
+  const diff: string[] = [];
+  after.forEach((item) => {
+    const key = `${item || ""}`.trim();
+    if (!key) {
+      return;
+    }
+    const available = counter.get(key) || 0;
+    if (available > 0) {
+      counter.set(key, available - 1);
+      return;
+    }
+    diff.push(key);
+  });
+
+  return dedupeStringList(diff);
+}
+
+function areStringListsEqual(a: string[] = [], b: string[] = []): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  return a.every((value, index) => value === b[index]);
+}
+
+function resolveChecklistPhotoRefsFromSource(
+  source: any,
+  fallbackAttachments: string[] = []
+): string[] {
+  if (Array.isArray(source)) {
+    return dedupeStringList(source);
+  }
+  if (!source || typeof source !== "object") {
+    return dedupeStringList(fallbackAttachments);
+  }
+
+  const payload = source as Record<string, any>;
+  if (Array.isArray(payload.attachmentsChecklist)) {
+    return dedupeStringList(payload.attachmentsChecklist);
+  }
+  if (Array.isArray(payload.checklistPhotoRefs)) {
+    return dedupeStringList(payload.checklistPhotoRefs);
+  }
+  if (Array.isArray(payload.fotosChecklist)) {
+    return dedupeStringList(payload.fotosChecklist);
+  }
+  if (Array.isArray(payload.fotos)) {
+    return dedupeStringList(payload.fotos);
+  }
+  if (Array.isArray(payload.attachments)) {
+    return dedupeStringList(payload.attachments);
+  }
+  return dedupeStringList(fallbackAttachments);
+}
+
+function normalizeChecklistContact(source: any): ChecklistEmergencyContact {
+  return {
+    nome: `${source?.nome || source?.name || ""}`.trim(),
+    telefone: sanitizeDigits(`${source?.telefone || source?.phone || ""}`).slice(0, 11),
+  };
+}
+
+function serializeChecklistEmergencyContacts(source: any): ChecklistEmergencyContact[] {
+  if (!Array.isArray(source)) {
+    return [];
+  }
+  return source
+    .map((item) => normalizeChecklistContact(item))
+    .filter((item) => Boolean(item.nome || item.telefone));
+}
+
+function hydrateChecklistEmergencyContacts(source: any): ChecklistEmergencyContact[] {
+  const contacts = serializeChecklistEmergencyContacts(source);
+  while (contacts.length < MIN_EMERGENCY_CONTACTS) {
+    contacts.push({ nome: "", telefone: "" });
+  }
+  return contacts;
+}
+
+function isChecklistEmergencyContactComplete(contact: ChecklistEmergencyContact): boolean {
+  return Boolean(`${contact.nome || ""}`.trim()) && Boolean(`${contact.telefone || ""}`.trim());
+}
+
+function isChecklistEmergencyContactPartial(contact: ChecklistEmergencyContact): boolean {
+  const hasName = Boolean(`${contact.nome || ""}`.trim());
+  const hasPhone = Boolean(`${contact.telefone || ""}`.trim());
+  return hasName !== hasPhone;
+}
+
+function normalizeChecklistTireCondition(value: any): ChecklistTireCondition {
+  const normalized = normalizeLookupText(value).replace(/_/g, " ");
+  if (!normalized) {
+    return "";
+  }
+  if (normalized.includes("ruim") || normalized.includes("careca")) {
+    return "RUIM";
+  }
+  if (normalized.includes("meia") || normalized.includes("regular")) {
+    return "MEIA_VIDA";
+  }
+  if (normalized.includes("bom") || normalized.includes("otimo") || normalized.includes("novo")) {
+    return "BOM";
+  }
+  return "";
+}
+
+function normalizeChecklistTirePositions(source: any): ChecklistTirePosition[] {
+  if (!Array.isArray(source)) {
+    return [];
+  }
+  return source
+    .map((item) => ({
+      posicao: `${item?.posicao || item?.position || ""}`.trim(),
+      marca: `${item?.marca || item?.brand || item?.model || ""}`.trim() || undefined,
+      estado: `${item?.estado || item?.condition || item?.integrity || ""}`.trim() || undefined,
+    }))
+    .filter((item) => item.posicao || item.marca || item.estado);
+}
+
+function normalizeChecklistTiresForEditor(source: any): ChecklistTires {
+  if (!source || typeof source !== "object") {
+    return {};
+  }
+
+  const raw = source as Record<string, any>;
+  const sourceFlag =
+    `${raw.source || ""}`.toUpperCase() === "LAST_INSPECTION"
+      ? "LAST_INSPECTION"
+      : "MANUAL";
+  const positions = normalizeChecklistTirePositions(raw.positions);
+  const marca = `${raw.marca || raw.brand || raw.model || ""}`.trim();
+  const estado = normalizeChecklistTireCondition(raw.estado || raw.condition || raw.integrity);
+  const observacoes = `${raw.observacoes || raw.notes || ""}`.trim();
+
+  return {
+    marca: marca || undefined,
+    estado,
+    observacoes: observacoes || undefined,
+    source: sourceFlag,
+    positions: positions.length ? positions : undefined,
+  };
+}
+
+function hasChecklistTiresData(tires: ChecklistTires | undefined): boolean {
+  if (!tires) {
+    return false;
+  }
+  return Boolean(
+    `${tires.marca || ""}`.trim() ||
+      `${tires.estado || ""}`.trim() ||
+      `${tires.observacoes || ""}`.trim() ||
+      (Array.isArray(tires.positions) && tires.positions.length)
+  );
+}
+
+function normalizeChecklistTiresForApi(source: any): ChecklistTires | undefined {
+  const normalized = normalizeChecklistTiresForEditor(source);
+  if (!hasChecklistTiresData(normalized)) {
+    return undefined;
+  }
+  return normalized;
+}
+
+function buildChecklistTiresFromInspection(inspection: any): ChecklistTires | null {
+  if (!inspection || typeof inspection !== "object") {
+    return null;
+  }
+
+  const source = inspection as Record<string, any>;
+  const positionsMap = [
+    { key: "leftFront", label: "Dianteiro esquerdo" },
+    { key: "rightFront", label: "Dianteiro direito" },
+    { key: "leftBack", label: "Traseiro esquerdo" },
+    { key: "rightBack", label: "Traseiro direito" },
+    { key: "spare", label: "Estepe" },
+  ];
+
+  const positions = positionsMap
+    .map((item) => {
+      const tire = source[item.key] || {};
+      const marca = `${tire?.model || ""}`.trim();
+      const estado = `${tire?.integrity || ""}`.trim();
+      if (!marca && !estado) {
+        return null;
+      }
+      return {
+        posicao: item.label,
+        marca: marca || undefined,
+        estado: estado || undefined,
+      } as ChecklistTirePosition;
+    })
+    .filter((item): item is ChecklistTirePosition => Boolean(item));
+
+  if (!positions.length) {
+    return null;
+  }
+
+  const marcas = dedupeStringList(positions.map((item) => item.marca || "").filter(Boolean));
+  const estados = positions
+    .map((item) => normalizeChecklistTireCondition(item.estado))
+    .filter((item) => Boolean(item)) as ChecklistTireCondition[];
+  const estadoPrincipal = estados[0] || "";
+  const estadoVariado = dedupeStringList(estados).length > 1;
+
+  return normalizeChecklistTiresForEditor({
+    marca: marcas.join(" / "),
+    estado: estadoPrincipal,
+    observacoes: estadoVariado ? "Estados variam por posicao (ver resumo)." : "",
+    source: "LAST_INSPECTION",
+    positions,
+  });
 }
 
 export default DocumentsPage;

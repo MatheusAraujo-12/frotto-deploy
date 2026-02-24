@@ -21,6 +21,25 @@ type DocumentFilters = {
 const normalizeDigits = (value: string): string => `${value || ""}`.replace(/\D+/g, "");
 const normalizePlate = (value: string): string => `${value || ""}`.toUpperCase().replace(/[^A-Z0-9]/g, "");
 
+const shouldRetryLegacyAttachmentField = (error: unknown): boolean => {
+  const status = (error as any)?.response?.status;
+  return status === 400 || status === 404 || status === 415 || status === 422;
+};
+
+const uploadWithFieldName = async (
+  id: number,
+  files: File[],
+  fieldName: "file" | "files"
+): Promise<DocumentModel> => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append(fieldName, file));
+  const { data } = await api.post<DocumentModel>(
+    endpoints.DOCUMENT_ATTACHMENTS({ pathVariables: { id } }),
+    formData
+  );
+  return data;
+};
+
 const documentService = {
   async searchDrivers(query: string): Promise<DriverSearchModel[]> {
     const normalized = `${query || ""}`.trim();
@@ -113,17 +132,14 @@ const documentService = {
       return this.getDocument(id);
     }
 
-    let current = await this.getDocument(id);
-    for (const file of files) {
-      const formData = new FormData();
-      formData.append("file", file);
-      const { data } = await api.post<DocumentModel>(
-        endpoints.DOCUMENT_ATTACHMENTS({ pathVariables: { id } }),
-        formData
-      );
-      current = data;
+    try {
+      return await uploadWithFieldName(id, files, "file");
+    } catch (error) {
+      if (!shouldRetryLegacyAttachmentField(error)) {
+        throw error;
+      }
+      return uploadWithFieldName(id, files, "files");
     }
-    return current;
   },
 };
 

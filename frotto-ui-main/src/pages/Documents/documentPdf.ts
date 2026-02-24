@@ -6,16 +6,20 @@ import {
 } from "../../constants/DocumentModels";
 import {
   buildPdfLetterhead,
+  loadImageAsDataUrl,
   loadPdfLetterheadData,
   PDF_LETTERHEAD_PAGE_MARGINS,
   resolveFiscalIdentity,
 } from "../../services/pdfLetterhead";
 import { formatCurrencyPtBr, parseDecimal } from "../../services/decimalPtBr";
 import { serializeChecklistItems } from "./checklistUtils";
+import { resolveApiUrl } from "../../services/resolveApiUrl";
+import { maskPhone } from "../../services/profileFormat";
 
 const vfsFonts =
   (pdfFonts as any).pdfMake?.vfs || (pdfFonts as any).default || (pdfFonts as any);
 (pdfMake as any).vfs = vfsFonts;
+const DOCUMENT_PDF_DEV_LOG = process.env.NODE_ENV === "development";
 
 export async function generateDocumentPdf(document: DocumentModel): Promise<void> {
   const blob = await createDocumentPdfBlob(document);
@@ -26,7 +30,7 @@ export async function createDocumentPdfBlob(document: DocumentModel): Promise<Bl
   const letterheadData = await loadPdfLetterheadData();
   const fiscal = resolveFiscalIdentity(letterheadData.profile);
   const payload = document.payload || {};
-  const content = buildDocumentContent(document.type, document, payload, fiscal);
+  const content = await buildDocumentContent(document.type, document, payload, fiscal);
 
   const docDefinition: any = {
     pageMargins: PDF_LETTERHEAD_PAGE_MARGINS,
@@ -61,7 +65,7 @@ export async function createDocumentPdfBlob(document: DocumentModel): Promise<Bl
   });
 }
 
-function buildDocumentContent(
+async function buildDocumentContent(
   type: DocumentType,
   document: DocumentModel,
   payload: Record<string, any>,
@@ -340,13 +344,15 @@ function resolveConfissaoDebtItems(payload: Record<string, any>) {
   ];
 }
 
-function buildEntregaDevolucaoChecklistContent(
+async function buildEntregaDevolucaoChecklistContent(
   document: DocumentModel,
   payload: Record<string, any>,
   fiscal: ReturnType<typeof resolveFiscalIdentity>
 ) {
   const driverName = getText(payload, "driverName", document.driverName || "Motorista");
   const checklistItens = serializeChecklistItems(payload || {});
+  const checklistPhotoRefs = resolveChecklistPhotoRefsFromPayload(payload, document.attachments || []);
+  const checklistPhotosSection = await buildChecklistPhotosSection(checklistPhotoRefs);
   const checklistLines = checklistItens.length
     ? checklistItens.flatMap((item) => {
         const note = `${item.note || ""}`.trim();
@@ -368,6 +374,7 @@ function buildEntregaDevolucaoChecklistContent(
         return lines;
       })
     : [{ text: "[ ] Nenhum item informado", margin: [0, 0, 0, 4] }];
+  void checklistLines;
 
   return [
     { text: "TERMO DE ENTREGA/DEVOLUÇÃO DE VEÍCULO COM CHECKLIST E VISTORIA", style: "title" },
@@ -383,17 +390,11 @@ function buildEntregaDevolucaoChecklistContent(
         `Quilometragem: ${getText(payload, "km", "-")} km. Combustível: ${getText(payload, "combustivel", "-")}.`,
       style: "section",
     },
-    {
-      text: "Checklist:",
-      style: "section",
-      margin: [0, 0, 0, 4],
-    },
-    {
-      stack: checklistLines,
-      margin: [0, 0, 0, 10],
-    },
+    ...buildChecklistItemsTwoColumns(checklistItens),
+    ...buildEmergencyContactsSection(payload),
+    ...buildChecklistTiresSection(payload),
     { text: `Avarias registradas: ${getText(payload, "avariasTexto", "-")}`, style: "section" },
-    ...buildAttachmentsSection(payload.fotos || payload.attachments || document.attachments || []),
+    ...checklistPhotosSection,
     {
       text:
         "As partes declaram ciência quanto ao estado do veículo e à responsabilidade por danos não registrados neste ato, " +
@@ -402,6 +403,351 @@ function buildEntregaDevolucaoChecklistContent(
     },
     ...buildSignatureBlock(fiscal.fiscalName, driverName),
   ];
+}
+
+function buildChecklistItemsTwoColumns(items: ReturnType<typeof serializeChecklistItems>) {
+  const safeItems = Array.isArray(items) ? items : [];
+  const midpoint = Math.ceil(safeItems.length / 2);
+  const leftColumn = safeItems.slice(0, midpoint);
+  const rightColumn = safeItems.slice(midpoint);
+  const rowsCount = Math.max(leftColumn.length, rightColumn.length, 1);
+
+  const rows = Array.from({ length: rowsCount }, (_value, index) => {
+    const left = leftColumn[index];
+    const right = rightColumn[index];
+    return [buildChecklistItemCell(left), buildChecklistItemCell(right)];
+  });
+
+  return [
+    {
+      text: "Checklist:",
+      style: "section",
+      margin: [0, 0, 0, 4],
+    },
+    {
+      table: {
+        widths: ["*", "*"],
+        body: rows,
+      },
+      layout: "noBorders",
+      margin: [0, 0, 0, 10],
+    },
+  ];
+}
+
+function buildChecklistItemCell(item?: { label?: string; ok?: boolean; note?: string }) {
+  if (!item) {
+    return { text: "", margin: [0, 0, 8, 4] };
+  }
+
+  const note = `${item.note || ""}`.trim();
+  const stack: any[] = [
+    {
+      text: `${item.ok ? "[x]" : "[ ]"} ${item.label || "Item"}`,
+      margin: [0, 0, 0, note ? 2 : 4],
+    },
+  ];
+
+  if (note) {
+    stack.push({
+      text: `ObservaÃ§Ã£o: ${note}`,
+      style: "small",
+      margin: [14, 0, 0, 4],
+    });
+  }
+
+  return {
+    stack,
+    margin: [0, 0, 8, 4],
+  };
+}
+
+function resolveEmergencyContactsFromPayload(payload: Record<string, any>) {
+  const source = Array.isArray(payload?.emergencyContacts) ? payload.emergencyContacts : [];
+  return source
+    .map((item: any) => ({
+      nome: `${item?.nome || item?.name || ""}`.trim(),
+      telefone: `${item?.telefone || item?.phone || ""}`.replace(/\D+/g, ""),
+    }))
+    .filter((item) => item.nome || item.telefone);
+}
+
+function buildEmergencyContactsSection(payload: Record<string, any>) {
+  const contacts = resolveEmergencyContactsFromPayload(payload);
+  if (!contacts.length) {
+    return [];
+  }
+
+  return [
+    {
+      text: "Contatos de emergÃªncia:",
+      style: "section",
+      margin: [0, 0, 0, 4],
+    },
+    {
+      ul: contacts.map(
+        (item, index) =>
+          `${index + 1}) ${item.nome || "-"} - ${maskPhone(item.telefone || "") || item.telefone || "-"}`
+      ),
+      margin: [0, 0, 0, 10],
+      fontSize: 9,
+    },
+  ];
+}
+
+function resolveChecklistTires(payload: Record<string, any>) {
+  const source = payload?.tires;
+  if (!source || typeof source !== "object") {
+    return null;
+  }
+
+  const tires = source as Record<string, any>;
+  const marca = `${tires.marca || tires.brand || tires.model || ""}`.trim();
+  const estado = `${tires.estado || tires.condition || tires.integrity || ""}`.trim();
+  const observacoes = `${tires.observacoes || tires.notes || ""}`.trim();
+  const positions = Array.isArray(tires.positions)
+    ? tires.positions
+        .map((item: any) => ({
+          posicao: `${item?.posicao || item?.position || ""}`.trim(),
+          marca: `${item?.marca || item?.brand || item?.model || ""}`.trim(),
+          estado: `${item?.estado || item?.condition || item?.integrity || ""}`.trim(),
+        }))
+        .filter((item: any) => item.posicao || item.marca || item.estado)
+    : [];
+
+  if (!marca && !estado && !observacoes && !positions.length) {
+    return null;
+  }
+
+  return {
+    marca,
+    estado,
+    observacoes,
+    positions,
+  };
+}
+
+function resolveChecklistTireConditionLabel(value: string): string {
+  const normalized = `${value || ""}`.trim().toUpperCase();
+  if (normalized === "BOM") {
+    return "Bom";
+  }
+  if (normalized === "MEIA_VIDA") {
+    return "Meia vida";
+  }
+  if (normalized === "RUIM") {
+    return "Ruim";
+  }
+  return value || "-";
+}
+
+function buildChecklistTiresSection(payload: Record<string, any>) {
+  const tires = resolveChecklistTires(payload);
+  if (!tires) {
+    return [];
+  }
+
+  const positionRows = tires.positions.length
+    ? [
+        {
+          text: "Detalhamento por posiÃ§Ã£o:",
+          style: "small",
+          margin: [0, 6, 0, 2],
+        },
+        {
+          table: {
+            headerRows: 1,
+            widths: ["*", "*", "*"],
+            body: [
+              [
+                { text: "PosiÃ§Ã£o", style: "tableHeader" },
+                { text: "Marca", style: "tableHeader" },
+                { text: "Estado", style: "tableHeader" },
+              ],
+              ...tires.positions.map((item: any) => [
+                item.posicao || "-",
+                item.marca || "-",
+                resolveChecklistTireConditionLabel(item.estado || "-"),
+              ]),
+            ],
+          },
+          layout: "lightHorizontalLines",
+          margin: [0, 0, 0, 2],
+        },
+      ]
+    : [];
+
+  return [
+    {
+      text: "Vistoria dos pneus:",
+      style: "section",
+      margin: [0, 0, 0, 4],
+    },
+    {
+      stack: [
+        { text: `Marca: ${tires.marca || "-"}` },
+        { text: `Estado: ${resolveChecklistTireConditionLabel(tires.estado || "")}` },
+        { text: `ObservaÃ§Ãµes: ${tires.observacoes || "-"}` },
+        ...positionRows,
+      ],
+      margin: [0, 0, 0, 10],
+    },
+  ];
+}
+
+function resolveChecklistPhotoRefsFromPayload(payload: Record<string, any>, fallback: string[] = []) {
+  const checklistAttachmentRefs = Array.isArray(payload?.attachmentsChecklist)
+    ? payload.attachmentsChecklist
+    : [];
+  const dedicatedRefs = Array.isArray(payload?.checklistPhotoRefs) ? payload.checklistPhotoRefs : [];
+  const checklistLegacyRefs = Array.isArray(payload?.fotosChecklist) ? payload.fotosChecklist : [];
+  const legacyRefs = Array.isArray(payload?.fotos) ? payload.fotos : [];
+  const fallbackRefs = Array.isArray(fallback) ? fallback : [];
+  const refs = [
+    ...dedupeStrings(checklistAttachmentRefs),
+    ...dedupeStrings(dedicatedRefs),
+    ...dedupeStrings(checklistLegacyRefs),
+    ...dedupeStrings(legacyRefs),
+  ];
+  if (refs.length) {
+    return dedupeStrings(refs);
+  }
+  return dedupeStrings(fallbackRefs);
+}
+
+async function buildChecklistPhotosSection(photoRefs: string[]) {
+  if (!photoRefs.length) {
+    return [];
+  }
+
+  const refs = dedupeStrings(photoRefs);
+  const loaded: Array<{ ref: string; dataUrl: string }> = [];
+  const missing: string[] = [];
+
+  for (const ref of refs) {
+    const dataUrl = await loadChecklistPhotoDataUrl(ref);
+    if (dataUrl) {
+      loaded.push({ ref, dataUrl });
+    } else {
+      missing.push(ref);
+    }
+  }
+
+  const section: any[] = [
+    {
+      text: "Fotos do checklist:",
+      style: "section",
+      margin: [0, 0, 0, 4],
+    },
+  ];
+
+  if (loaded.length) {
+    const rows: any[] = [];
+    for (let index = 0; index < loaded.length; index += 2) {
+      rows.push([
+        buildChecklistPhotoCell(loaded[index]),
+        loaded[index + 1]
+          ? buildChecklistPhotoCell(loaded[index + 1])
+          : { text: "", border: [false, false, false, false] },
+      ]);
+    }
+
+    section.push({
+      table: {
+        widths: ["*", "*"],
+        body: rows,
+      },
+      layout: "noBorders",
+      margin: [0, 0, 0, 8],
+    });
+  }
+
+  if (missing.length) {
+    section.push({
+      text: `NÃ£o foi possÃ­vel carregar ${missing.length} foto(s): ${missing.join(", ")}`,
+      style: "small",
+      margin: [0, 0, 0, 8],
+    });
+  }
+
+  return section;
+}
+
+function buildChecklistPhotoCell(item: { ref: string; dataUrl: string }) {
+  return {
+    stack: [
+      {
+        image: item.dataUrl,
+        fit: [220, 150],
+        margin: [0, 0, 0, 4],
+      },
+      {
+        text: item.ref,
+        style: "small",
+      },
+    ],
+    margin: [0, 0, 8, 8],
+  };
+}
+
+async function loadChecklistPhotoDataUrl(ref: string): Promise<string> {
+  const candidates = resolveChecklistAttachmentUrls(ref);
+  for (const candidate of candidates) {
+    const dataUrl = await loadImageAsDataUrl(candidate);
+    if (dataUrl) {
+      return dataUrl;
+    }
+  }
+
+  if (DOCUMENT_PDF_DEV_LOG) {
+    console.log("[DocumentsPDF] checklist image not loaded", { ref, candidates });
+  }
+  return "";
+}
+
+function resolveChecklistAttachmentUrls(ref: string): string[] {
+  const value = `${ref || ""}`.trim();
+  if (!value) {
+    return [];
+  }
+
+  if (/^(https?:|blob:|data:)/i.test(value)) {
+    return [value];
+  }
+
+  const candidates = [
+    resolveApiUrl(value),
+    resolveApiUrl(value.startsWith("/") ? value : `/${value}`),
+    resolveS3AssetUrl(value),
+  ];
+  return dedupeStrings(candidates.filter(Boolean));
+}
+
+function resolveS3AssetUrl(path: string): string {
+  const value = `${path || ""}`.trim();
+  if (!value) {
+    return "";
+  }
+
+  const s3Base = `${process.env.REACT_APP_S3_URL || ""}`.trim().replace(/\/$/, "");
+  if (!s3Base) {
+    return "";
+  }
+
+  const normalizedPath = value.startsWith("/") ? value : `/${value}`;
+  return `${s3Base}${normalizedPath}`;
+}
+
+function dedupeStrings(values: string[]) {
+  const unique: string[] = [];
+  values.forEach((value) => {
+    const normalized = `${value || ""}`.trim();
+    if (!normalized || unique.includes(normalized)) {
+      return;
+    }
+    unique.push(normalized);
+  });
+  return unique;
 }
 
 function buildSignatureBlock(fiscalName: string, driverName: string) {

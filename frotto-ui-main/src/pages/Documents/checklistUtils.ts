@@ -67,7 +67,40 @@ function sanitizeChecklistKey(value: unknown): string {
     .replace(/^_+|_+$/g, "");
 }
 
+function parseChecklistBoolean(value: unknown, fallback = true): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = sanitizeChecklistKey(value);
+    if (!normalized) return fallback;
+    if (["false", "nao", "no", "off", "unchecked", "0"].includes(normalized)) {
+      return false;
+    }
+    if (["true", "sim", "yes", "on", "checked", "ok", "1"].includes(normalized)) {
+      return true;
+    }
+  }
+  return fallback;
+}
+
 function normalizeChecklistItem(raw: unknown, index: number): ChecklistItem | null {
+  if (typeof raw === "string") {
+    const label = `${raw || ""}`.trim();
+    if (!label) {
+      return null;
+    }
+    const defaultKey = CHECKLIST_DEFAULT_KEY_BY_LABEL.get(normalizeLookupText(label));
+    const fallbackKey = sanitizeChecklistKey(label) || `item_${index + 1}`;
+    const key = defaultKey || fallbackKey;
+    const defaultItem = key ? CHECKLIST_DEFAULT_BY_KEY.get(key) : undefined;
+    return {
+      key: defaultItem?.key || key,
+      label: defaultItem?.label || label,
+      ok: true,
+      note: undefined,
+    };
+  }
+
   if (!raw || typeof raw !== "object") {
     return null;
   }
@@ -90,13 +123,7 @@ function normalizeChecklistItem(raw: unknown, index: number): ChecklistItem | nu
     CHECKLIST_DEFAULT_BY_KEY.get(resolvedKey) ||
     (labelKey ? CHECKLIST_DEFAULT_BY_KEY.get(labelKey) : undefined);
 
-  const rawOk = source.ok;
-  const ok =
-    typeof rawOk === "boolean"
-      ? rawOk
-      : typeof rawOk === "number"
-        ? rawOk !== 0
-        : `${rawOk || ""}`.toLowerCase() !== "false";
+  const ok = parseChecklistBoolean(source.ok, true);
 
   const note =
     normalizeChecklistNote(source.note) ||
@@ -120,8 +147,16 @@ function resolveChecklistSource(payload: Record<string, any>): unknown[] {
     return payload.checklistItens;
   }
 
+  if (Array.isArray(payload.checklist)) {
+    return payload.checklist;
+  }
+
   if (typeof payload.checklistItens === "string") {
     return parseChecklistItemsJson(payload.checklistItens);
+  }
+
+  if (typeof payload.checklist === "string") {
+    return parseChecklistItemsJson(payload.checklist);
   }
 
   if (typeof payload.checklistItensJson === "string") {

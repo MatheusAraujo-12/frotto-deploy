@@ -102,16 +102,54 @@
   margin: 10px 0 4px;
 }
 
+#documents-page .documents-checklist-builder {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+#documents-page .documents-checklist-row {
+  border: 1px solid var(--ion-border-color, #d0d7de);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+#documents-page .documents-checklist-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0 4px;
+}
+
 #documents-page .documents-checklist-title {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
 }
 
+#documents-page .documents-checklist-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: #475569;
+}
+
 #documents-page .documents-checklist-item-card {
   border: 1px solid var(--ion-border-color, #d0d7de);
   border-radius: 10px;
   padding: 10px;
+}
+
+#documents-page .documents-checklist-contact-card {
+  border: 1px solid var(--ion-border-color, #d0d7de);
+  border-radius: 10px;
+  padding: 4px;
+}
+
+#documents-page .documents-checklist-contact-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 2px 8px 8px;
 }
 
 #documents-page .documents-checklist-item-row {
@@ -127,14 +165,44 @@
 }
 
 #documents-page .documents-checklist-note {
+  --background: transparent;
   --padding-start: 0;
   --inner-padding-end: 0;
-  margin-top: 8px;
 }
 
 #documents-page .documents-checklist-add {
   --padding-start: 0;
   --inner-padding-end: 0;
+}
+
+#documents-page .documents-checklist-files {
+  border: 1px dashed var(--ion-border-color, #d0d7de);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#documents-page .documents-checklist-file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+#documents-page .documents-checklist-file-row span {
+  word-break: break-word;
+}
+
+#documents-page .documents-checklist-tire-positions {
+  border: 1px solid var(--ion-border-color, #d0d7de);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+#documents-page .documents-checklist-tire-positions p {
+  margin: 4px 0;
 }
 
 #documents-page .documents-pagination {
@@ -175,5 +243,14 @@
   #documents-page .documents-checklist-add ion-button {
     margin-top: 10px;
     width: 100%;
+  }
+
+  #documents-page .documents-checklist-contact-actions ion-button {
+    width: 100%;
+  }
+
+  #documents-page .documents-checklist-file-row {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
