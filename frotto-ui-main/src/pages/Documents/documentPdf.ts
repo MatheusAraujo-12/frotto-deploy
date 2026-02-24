@@ -450,7 +450,7 @@ function buildChecklistItemCell(item?: { label?: string; ok?: boolean; note?: st
 
   if (note) {
     stack.push({
-      text: `ObservaÃ§Ã£o: ${note}`,
+      text: `Observação: ${note}`,
       style: "small",
       margin: [14, 0, 0, 4],
     });
@@ -480,7 +480,7 @@ function buildEmergencyContactsSection(payload: Record<string, any>) {
 
   return [
     {
-      text: "Contatos de emergÃªncia:",
+      text: "Contatos de emergência:",
       style: "section",
       margin: [0, 0, 0, 4],
     },
@@ -550,7 +550,7 @@ function buildChecklistTiresSection(payload: Record<string, any>) {
   const positionRows = tires.positions.length
     ? [
         {
-          text: "Detalhamento por posiÃ§Ã£o:",
+          text: "Detalhamento por posição:",
           style: "small",
           margin: [0, 6, 0, 2],
         },
@@ -560,7 +560,7 @@ function buildChecklistTiresSection(payload: Record<string, any>) {
             widths: ["*", "*", "*"],
             body: [
               [
-                { text: "PosiÃ§Ã£o", style: "tableHeader" },
+                { text: "Posição", style: "tableHeader" },
                 { text: "Marca", style: "tableHeader" },
                 { text: "Estado", style: "tableHeader" },
               ],
@@ -587,7 +587,7 @@ function buildChecklistTiresSection(payload: Record<string, any>) {
       stack: [
         { text: `Marca: ${tires.marca || "-"}` },
         { text: `Estado: ${resolveChecklistTireConditionLabel(tires.estado || "")}` },
-        { text: `ObservaÃ§Ãµes: ${tires.observacoes || "-"}` },
+        { text: `Observações: ${tires.observacoes || "-"}` },
         ...positionRows,
       ],
       margin: [0, 0, 0, 10],
@@ -664,7 +664,7 @@ async function buildChecklistPhotosSection(photoRefs: string[]) {
 
   if (missing.length) {
     section.push({
-      text: `NÃ£o foi possÃ­vel carregar ${missing.length} foto(s): ${missing.join(", ")}`,
+      text: `Não foi possível carregar ${missing.length} foto(s): ${missing.join(", ")}`,
       style: "small",
       margin: [0, 0, 0, 8],
     });
