@@ -7,6 +7,8 @@ WORKDIR /app
 ENV CI=false
 # Cap Node memory to avoid OOM when backend/frontend build in parallel.
 ENV NODE_OPTIONS=--max-old-space-size=512
+# CRA sourcemap generation increases memory usage significantly during build.
+ENV GENERATE_SOURCEMAP=false
 
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
