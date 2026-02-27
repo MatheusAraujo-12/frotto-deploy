@@ -65,7 +65,9 @@ const Cars: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isAddCarModalOpen, setIsAddCarModalOpen] = useState(false);
   const [isActionPickerOpen, setIsActionPickerOpen] = useState(false);
+  const [isActionSelectorModalOpen, setIsActionSelectorModalOpen] = useState(false);
   const [isActionModalOpen, setIsActionModalOpen] = useState(false);
+  const [pendingQuickAction, setPendingQuickAction] = useState<QuickAction["key"] | null>(null);
   const [selectedAction, setSelectedAction] = useState<ActionType>(null);
   const [selectedCar, setSelectedCar] = useState<CarModel | null>(null);
   const [searchValue, setSearchValue] = useState("");
@@ -178,75 +180,73 @@ const Cars: React.FC = () => {
     [history, location]
   );
 
-  const handleOpenActionModal = useCallback((action: ActionType) => {
+  const handleOpenActionSelectorModal = useCallback((action: ActionType) => {
     setSelectedAction(action);
-    setIsActionModalOpen(true);
+    setSelectedCar(null);
+    setIsActionSelectorModalOpen(true);
   }, []);
 
   const handleCloseActionModal = useCallback((response?: QuickActionResponse) => {
     setIsActionModalOpen(false);
-    setSelectedAction(null);
-    setSelectedCar(null);
 
     if (!response) return;
   }, []);
 
+  const handleCloseActionSelectorModal = useCallback(() => {
+    setIsActionSelectorModalOpen(false);
+  }, []);
+
+  const handleActionModalDidDismiss = useCallback(() => {
+    setIsActionModalOpen(false);
+    setSelectedAction(null);
+    setSelectedCar(null);
+  }, []);
+
+  const handleActionSelectorModalDidDismiss = useCallback(() => {
+    setIsActionSelectorModalOpen(false);
+
+    if (selectedAction && selectedCar) {
+      setIsActionModalOpen(true);
+      return;
+    }
+
+    setSelectedAction(null);
+    setSelectedCar(null);
+  }, [selectedAction, selectedCar]);
+
+  const handleActionPickerDidDismiss = useCallback(() => {
+    setIsActionPickerOpen(false);
+
+    if (!pendingQuickAction) {
+      return;
+    }
+
+    if (pendingQuickAction === "car") {
+      const searchParams = new URLSearchParams(location.search);
+      searchParams.set("modalOpened", "true");
+      history.push({
+        pathname: location.pathname,
+        search: searchParams.toString(),
+      });
+      setIsAddCarModalOpen(true);
+      setPendingQuickAction(null);
+      return;
+    }
+
+    handleOpenActionSelectorModal(pendingQuickAction);
+    setPendingQuickAction(null);
+  }, [handleOpenActionSelectorModal, history, location, pendingQuickAction]);
+
   const handleSelectQuickAction = useCallback(
     (action: ActionType | "car") => {
+      setPendingQuickAction(action);
       setIsActionPickerOpen(false);
-
-      if (action === "car") {
-        const searchParams = new URLSearchParams(location.search);
-        searchParams.set("modalOpened", "true");
-        history.push({
-          pathname: location.pathname,
-          search: searchParams.toString(),
-        });
-        setIsAddCarModalOpen(true);
-        return;
-      }
-
-      handleOpenActionModal(action);
     },
-    [history, location, handleOpenActionModal]
+    []
   );
 
   const renderActionModalContent = () => {
-    if (!selectedAction) return null;
-
-    if (!selectedCar) {
-      return (
-        <>
-          <IonHeader>
-            <IonToolbar>
-              <IonButtons slot="start">
-                <IonButton onClick={() => handleCloseActionModal()}>
-                  {TEXT.cancel}
-                </IonButton>
-              </IonButtons>
-
-              <IonTitle>
-                {selectedAction === "maintenance" && TEXT.addCarMaintenance}
-                {selectedAction === "reminder" && TEXT.reminder}
-                {selectedAction === "expense" && TEXT.carExpense}
-                {selectedAction === "income" && TEXT.income}
-              </IonTitle>
-            </IonToolbar>
-          </IonHeader>
-          <IonContent>
-            <div style={{ padding: 16 }}>
-              <h3 style={{ marginTop: 0, marginBottom: 16 }}>
-                {`${TEXT.select} ${TEXT.car}`}
-              </h3>
-              <CarSelector
-                cars={carList}
-                onSelect={(car) => setSelectedCar(car)}
-              />
-            </div>
-          </IonContent>
-        </>
-      );
-    }
+    if (!selectedAction || !selectedCar) return null;
 
     const selectedCarId = selectedCar.id;
     const modalProps = {
@@ -269,6 +269,45 @@ const Cars: React.FC = () => {
       default:
         return null;
     }
+  };
+
+  const renderActionSelectorModalContent = () => {
+    if (!selectedAction) return null;
+
+    return (
+      <IonPage id="cars-action-select-page">
+        <IonHeader>
+          <IonToolbar>
+            <IonButtons slot="start">
+              <IonButton onClick={handleCloseActionSelectorModal}>
+                {TEXT.cancel}
+              </IonButton>
+            </IonButtons>
+
+            <IonTitle>
+              {selectedAction === "maintenance" && TEXT.addCarMaintenance}
+              {selectedAction === "reminder" && TEXT.reminder}
+              {selectedAction === "expense" && TEXT.carExpense}
+              {selectedAction === "income" && TEXT.income}
+            </IonTitle>
+          </IonToolbar>
+        </IonHeader>
+        <IonContent>
+          <div style={{ padding: 16 }}>
+            <h3 style={{ marginTop: 0, marginBottom: 16 }}>
+              {`${TEXT.select} ${TEXT.car}`}
+            </h3>
+            <CarSelector
+              cars={carList}
+              onSelect={(car) => {
+                setSelectedCar(car);
+                setIsActionSelectorModalOpen(false);
+              }}
+            />
+          </div>
+        </IonContent>
+      </IonPage>
+    );
   };
 
   const quickActions = useMemo<QuickAction[]>(
@@ -332,7 +371,7 @@ const Cars: React.FC = () => {
 
       <IonPopover
         isOpen={isActionPickerOpen}
-        onDidDismiss={() => setIsActionPickerOpen(false)}
+        onDidDismiss={handleActionPickerDidDismiss}
         trigger="cars-action-trigger"
         triggerAction="click"
         side="bottom"
@@ -359,8 +398,15 @@ const Cars: React.FC = () => {
       </IonModal>
 
       <IonModal
+        isOpen={isActionSelectorModalOpen}
+        onDidDismiss={handleActionSelectorModalDidDismiss}
+      >
+        {renderActionSelectorModalContent()}
+      </IonModal>
+
+      <IonModal
         isOpen={isActionModalOpen}
-        onDidDismiss={() => handleCloseActionModal()}
+        onDidDismiss={handleActionModalDidDismiss}
       >
         {renderActionModalContent()}
       </IonModal>
