@@ -18,15 +18,12 @@ import "@ionic/react/css/display.css";
 import "./theme/variables.css";
 import "./theme/global.css";
 
-import { Suspense, lazy, useEffect } from "react";
-import type { ComponentType, FC } from "react";
-import { Route } from "react-router-dom";
+import { useEffect } from "react";
+import type { FC } from "react";
+import { Redirect, Route } from "react-router-dom";
 import {
   IonApp,
-  IonContent,
-  IonPage,
   IonRouterOutlet,
-  IonSpinner,
   setupIonicReact,
   useIonRouter,
 } from "@ionic/react";
@@ -35,34 +32,22 @@ import { getToken, removeToken } from "./services/localStorage/localstorage";
 import api from "./services/axios/axios";
 import Login from "./pages/Login/Login";
 import Register from "./pages/Register/Register";
-const Menu = lazy(() => import("./components/Menu/Menu"));
+import Menu from "./components/Menu/Menu";
+import BodyDamages from "./pages/BodyDamage/BodyDamages";
+import Car from "./pages/Cars/Car";
+import Cars from "./pages/Cars/Cars";
+import CarExpenses from "./pages/CarExpense/CarExpenses";
+import DocumentsPage from "./pages/Documents/DocumentsPage";
+import Drivers from "./pages/Driver/Drivers";
+import DriverPendencies from "./pages/DriverPendency/DriverPendencies";
+import Incomes from "./pages/Income/Incomes";
+import Inspections from "./pages/Inspection/Inspections";
+import Maintenances from "./pages/Maintenance/Maintenances";
+import MyPanelPage from "./pages/MyPanel/MyPanelPage";
+import Reminders from "./pages/Reminders/Reminders";
+import Reports from "./pages/Reports/Reports";
 
 setupIonicReact();
-
-const PageFallback: FC = () => (
-  <IonPage>
-    <IonContent>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100%",
-        }}
-      >
-        <IonSpinner name="crescent" />
-      </div>
-    </IonContent>
-  </IonPage>
-);
-
-const renderWithSuspense =
-  (Component: ComponentType<any>) =>
-  (props: any) => (
-    <Suspense fallback={<PageFallback />}>
-      <Component {...props} />
-    </Suspense>
-  );
 
 /**
  * Componente auxiliar para lidar com lógica que precisa do Contexto do Roteador.
@@ -117,14 +102,30 @@ const App: FC = () => {
       <IonReactRouter>
         {/* AppSetup deve estar DENTRO do IonReactRouter para acessar o useIonRouter */}
         <AppSetup />
-        
-        <IonRouterOutlet>
+
+        <Menu />
+
+        <IonRouterOutlet id="main">
           <Route exact path="/" component={Login} />
           <Route exact path="/cadastro" component={Register} />
-          <Route path="/menu" render={renderWithSuspense(Menu)} />
-          <Route path="/documents" render={renderWithSuspense(Menu)} />
-          <Route path="/meu-painel" render={renderWithSuspense(Menu)} />
-          <Route path="/my-panel" render={renderWithSuspense(Menu)} />
+          <Route exact path="/menu/carros" component={Cars} />
+          <Route exact path="/menu/carros/:id" component={Car} />
+          <Route exact path="/menu/carros/:id/danos" component={BodyDamages} />
+          <Route exact path="/menu/carros/:id/motoristas" component={Drivers} />
+          <Route exact path="/menu/carros/:id/receitas" component={Incomes} />
+          <Route exact path="/menu/carros/:id/despesas" component={CarExpenses} />
+          <Route exact path="/menu/carros/:id/inspecoes" component={Inspections} />
+          <Route exact path="/menu/carros/:id/manutencoes" component={Maintenances} />
+          <Route exact path="/menu/carros/:id/lembretes" component={Reminders} />
+          <Route exact path="/menu/carros/motorista/:id/pendencias" component={DriverPendencies} />
+          <Route exact path="/menu/relatorios" component={Reports} />
+          <Route exact path="/documents" component={DocumentsPage} />
+          <Route exact path="/menu/meu-painel" component={MyPanelPage} />
+          <Route exact path="/meu-painel" component={MyPanelPage} />
+          <Route exact path="/my-panel" component={MyPanelPage} />
+          <Route exact path="/menu">
+            <Redirect to="/menu/carros" />
+          </Route>
         </IonRouterOutlet>
       </IonReactRouter>
     </IonApp>

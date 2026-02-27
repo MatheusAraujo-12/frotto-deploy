@@ -51,6 +51,7 @@ import {
 import { maskPhone, sanitizeDigits } from "../../services/profileFormat";
 import endpoints from "../../constants/endpoints";
 import api from "../../services/axios/axios";
+import { resolveApiUrl } from "../../services/resolveApiUrl";
 import "./DocumentsPage.css";
 
 const AUTOCOMPLETE_DELAY = 300;
@@ -131,6 +132,9 @@ const DocumentsPage: React.FC = () => {
   const [newChecklistLabel, setNewChecklistLabel] = useState("");
   const [debtItemTypes, setDebtItemTypes] = useState<DebtItemTypeModel[]>([]);
   const [isDebtItemTypesLoading, setIsDebtItemTypesLoading] = useState(false);
+  const [checklistPhotoCandidateIndexByRef, setChecklistPhotoCandidateIndexByRef] = useState<
+    Record<string, number>
+  >({});
 
   const logDocumentsDebug = useCallback((message: string, extra?: Record<string, any>) => {
     if (!DOCUMENTS_DEV_LOG) {
@@ -746,6 +750,60 @@ const DocumentsPage: React.FC = () => {
 
   const removeChecklistNewPhoto = useCallback((index: number) => {
     setChecklistNewPhotos((current) => current.filter((_item, currentIndex) => currentIndex !== index));
+  }, []);
+
+  const checklistNewPhotoPreviews = useMemo(
+    () =>
+      checklistNewPhotos.map((file) => ({
+        file,
+        previewUrl: URL.createObjectURL(file),
+      })),
+    [checklistNewPhotos]
+  );
+
+  useEffect(() => {
+    return () => {
+      checklistNewPhotoPreviews.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+    };
+  }, [checklistNewPhotoPreviews]);
+
+  const checklistSavedPhotoItems = useMemo(
+    () =>
+      checklistPhotoRefs.map((ref) => {
+        const candidates = buildChecklistPhotoPreviewCandidates(ref);
+        const index = checklistPhotoCandidateIndexByRef[ref] ?? 0;
+        const boundedIndex = index < 0 ? -1 : Math.min(index, Math.max(0, candidates.length - 1));
+        const previewUrl = boundedIndex >= 0 ? candidates[boundedIndex] || "" : "";
+        return {
+          ref,
+          candidates,
+          previewUrl,
+        };
+      }),
+    [checklistPhotoCandidateIndexByRef, checklistPhotoRefs]
+  );
+
+  useEffect(() => {
+    setChecklistPhotoCandidateIndexByRef({});
+  }, [checklistPhotoRefs]);
+
+  const handleChecklistSavedPhotoLoadError = useCallback((ref: string, candidates: string[]) => {
+    setChecklistPhotoCandidateIndexByRef((current) => {
+      const currentIndex = current[ref] ?? 0;
+      if (currentIndex < candidates.length - 1) {
+        return {
+          ...current,
+          [ref]: currentIndex + 1,
+        };
+      }
+      if (currentIndex >= 0) {
+        return {
+          ...current,
+          [ref]: -1,
+        };
+      }
+      return current;
+    });
   }, []);
 
   const checklistTires = useMemo<ChecklistTires>(() => {
@@ -1585,9 +1643,18 @@ const DocumentsPage: React.FC = () => {
           {checklistNewPhotos.length > 0 && (
             <div className="documents-checklist-files">
               <p className="documents-checklist-subtitle">Fotos novas (ainda não enviadas)</p>
-              {checklistNewPhotos.map((file, index) => (
+              {checklistNewPhotoPreviews.map(({ file, previewUrl }, index) => (
                 <div key={`checklist-new-photo-${index}`} className="documents-checklist-file-row">
-                  <span>{file.name}</span>
+                  <div className="documents-checklist-file-main">
+                    <img
+                      className="documents-checklist-file-thumb"
+                      src={previewUrl}
+                      alt={`Pré-visualização ${file.name}`}
+                    />
+                    <div className="documents-checklist-file-meta">
+                      <span className="documents-checklist-file-name">{file.name}</span>
+                    </div>
+                  </div>
                   <IonButton
                     size="small"
                     color="danger"
@@ -1604,9 +1671,30 @@ const DocumentsPage: React.FC = () => {
           {checklistPhotoRefs.length > 0 && (
             <div className="documents-checklist-files">
               <p className="documents-checklist-subtitle">Fotos já salvas</p>
-              {checklistPhotoRefs.map((ref, index) => (
+              {checklistSavedPhotoItems.map(({ ref, candidates, previewUrl }, index) => (
                 <div key={`checklist-photo-ref-${index}`} className="documents-checklist-file-row">
-                  <span>{ref}</span>
+                  <div className="documents-checklist-file-main">
+                    {previewUrl ? (
+                      <img
+                        className="documents-checklist-file-thumb"
+                        src={previewUrl}
+                        alt={`Foto do checklist ${index + 1}`}
+                        onError={() => handleChecklistSavedPhotoLoadError(ref, candidates)}
+                      />
+                    ) : (
+                      <div className="documents-checklist-file-thumb documents-checklist-file-thumb-placeholder">
+                        Sem preview
+                      </div>
+                    )}
+                    <div className="documents-checklist-file-meta">
+                      <span className="documents-checklist-file-name">{ref}</span>
+                      {!previewUrl && (
+                        <span className="documents-checklist-file-hint">
+                          Não foi possível carregar a imagem
+                        </span>
+                      )}
+                    </div>
+                  </div>
                   <IonButton
                     size="small"
                     color="danger"
@@ -1677,7 +1765,7 @@ const DocumentsPage: React.FC = () => {
       <IonHeader>
         <IonToolbar>
           <IonButtons slot="start">
-            <IonMenuButton menu="main-menu" />
+            <IonMenuButton menu="main-menu" autoHide={false} />
           </IonButtons>
           <IonTitle>Documentos</IonTitle>
           <IonButtons slot="end">
@@ -2264,6 +2352,38 @@ function resolveChecklistPhotoRefsFromSource(
     return dedupeStringList(payload.attachments);
   }
   return dedupeStringList(fallbackAttachments);
+}
+
+function buildChecklistPhotoPreviewCandidates(ref: string): string[] {
+  const value = `${ref || ""}`.trim();
+  if (!value) {
+    return [];
+  }
+
+  if (/^(https?:|blob:|data:)/i.test(value)) {
+    return [value];
+  }
+
+  return dedupeStringList([
+    resolveApiUrl(value),
+    resolveApiUrl(value.startsWith("/") ? value : `/${value}`),
+    resolveS3AssetUrl(value),
+  ]);
+}
+
+function resolveS3AssetUrl(path: string): string {
+  const value = `${path || ""}`.trim();
+  if (!value) {
+    return "";
+  }
+
+  const s3Base = `${process.env.REACT_APP_S3_URL || ""}`.trim().replace(/\/$/, "");
+  if (!s3Base) {
+    return "";
+  }
+
+  const normalizedPath = value.startsWith("/") ? value : `/${value}`;
+  return `${s3Base}${normalizedPath}`;
 }
 
 function normalizeChecklistContact(source: any): ChecklistEmergencyContact {

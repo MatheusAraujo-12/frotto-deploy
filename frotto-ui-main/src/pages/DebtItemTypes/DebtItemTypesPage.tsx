@@ -188,7 +188,7 @@ const DebtItemTypesPage: React.FC = () => {
       <IonHeader>
         <IonToolbar>
           <IonButtons slot="start">
-            <IonMenuButton menu="main-menu" />
+            <IonMenuButton menu="main-menu" autoHide={false} />
           </IonButtons>
           <IonTitle>Tipos de Dívida</IonTitle>
           <IonButtons slot="end">

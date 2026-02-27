@@ -287,7 +287,7 @@ const Cars: React.FC = () => {
       <IonHeader>
         <IonToolbar>
           <IonButtons slot="start">
-            <IonMenuButton menu="main-menu" />
+            <IonMenuButton menu="main-menu" autoHide={false} />
           </IonButtons>
 
           <IonTitle>{TEXT.cars}</IonTitle>

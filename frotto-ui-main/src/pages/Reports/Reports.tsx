@@ -127,10 +127,8 @@ const Reports: React.FC<IncomeDetail> = () => {
     <IonPage id="reports-page">
       <IonHeader>
         <IonToolbar>
-          <IonButtons slot="secondary">
-            <IonButton>
-              <IonMenuButton menu="main-menu"></IonMenuButton>
-            </IonButton>
+          <IonButtons slot="start">
+            <IonMenuButton menu="main-menu" autoHide={false}></IonMenuButton>
           </IonButtons>
           <IonTitle>{TEXT.reports}</IonTitle>
           {isLoading && <IonProgressBar type="indeterminate"></IonProgressBar>}
