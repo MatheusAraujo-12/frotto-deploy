@@ -1,12 +1,12 @@
-/* CSS Principal necessário para os componentes Ionic funcionarem corretamente */
+/* CSS Principal necessÃ¡rio para os componentes Ionic funcionarem corretamente */
 import "@ionic/react/css/core.css";
 
-/* CSS Básico para aplicativos construídos com Ionic */
+/* CSS BÃ¡sico para aplicativos construÃ­dos com Ionic */
 import "@ionic/react/css/normalize.css";
 import "@ionic/react/css/structure.css";
 import "@ionic/react/css/typography.css";
 
-/* Utilitários CSS opcionais que podem ser comentados */
+/* UtilitÃ¡rios CSS opcionais que podem ser comentados */
 import "@ionic/react/css/padding.css";
 import "@ionic/react/css/float-elements.css";
 import "@ionic/react/css/text-alignment.css";
@@ -14,13 +14,13 @@ import "@ionic/react/css/text-transformation.css";
 import "@ionic/react/css/flex-utils.css";
 import "@ionic/react/css/display.css";
 
-/* Variáveis de tema */
+/* VariÃ¡veis de tema */
 import "./theme/variables.css";
 import "./theme/global.css";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { FC } from "react";
-import { Redirect, Route } from "react-router-dom";
+import { Redirect, Route, useLocation } from "react-router-dom";
 import {
   IonApp,
   IonRouterOutlet,
@@ -46,18 +46,16 @@ import Maintenances from "./pages/Maintenance/Maintenances";
 import MyPanelPage from "./pages/MyPanel/MyPanelPage";
 import Reminders from "./pages/Reminders/Reminders";
 import Reports from "./pages/Reports/Reports";
+import { dismissAllOverlays } from "./services/overlayManager";
 
 setupIonicReact();
 
-/**
- * Componente auxiliar para lidar com lógica que precisa do Contexto do Roteador.
- * Isso evita erro de "useIonRouter must be used within an IonRouterContext".
- */
 const AppSetup: FC = () => {
   const router = useIonRouter();
+  const location = useLocation();
+  const previousPathnameRef = useRef(location.pathname);
 
   useEffect(() => {
-    // Configura interceptador do Axios
     const interceptorId = api.interceptors.response.use(
       (config) => {
         return config;
@@ -67,40 +65,45 @@ const AppSetup: FC = () => {
 
         if (status === 401) {
           removeToken();
-          // Redireciona para login, limpando o histórico
           router.push("/", "none", "replace");
         } else if (error?.code === "ERR_CANCELED") {
-          // Ignora requisições canceladas para evitar erros no console
           return Promise.reject(error);
         }
+
         return Promise.reject(error);
       }
     );
 
-    // Configura token inicial se existir
     const token = getToken();
     if (token) {
       api.defaults.headers.common["Authorization"] = token;
     }
 
-    // Inicializa o tema (persistido ou preferência do sistema)
     import("./services/theme").then((mod) => mod.initTheme());
 
-    // Cleanup do interceptor ao desmontar (boa prática)
     return () => {
       api.interceptors.response.eject(interceptorId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return null; // Este componente não renderiza nada visualmente
+  useEffect(() => {
+    const previousPathname = previousPathnameRef.current;
+
+    if (previousPathname !== location.pathname) {
+      void dismissAllOverlays(`route-change:${previousPathname}->${location.pathname}`);
+    }
+
+    previousPathnameRef.current = location.pathname;
+  }, [location.pathname]);
+
+  return null;
 };
 
 const App: FC = () => {
   return (
     <IonApp>
       <IonReactRouter>
-        {/* AppSetup deve estar DENTRO do IonReactRouter para acessar o useIonRouter */}
         <AppSetup />
 
         <Menu />

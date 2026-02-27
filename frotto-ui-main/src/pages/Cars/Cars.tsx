@@ -43,6 +43,7 @@ import {
   MaintenanceModel,
   ReminderModel,
 } from "../../constants/CarModels";
+import { dismissAllOverlays } from "../../services/overlayManager";
 
 type ActionType = "maintenance" | "reminder" | "expense" | "income" | null;
 type QuickAction = {
@@ -71,6 +72,7 @@ const Cars: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isAddCarModalOpen, setIsAddCarModalOpen] = useState(false);
   const [isActionPickerOpen, setIsActionPickerOpen] = useState(false);
+  const [actionPickerEvent, setActionPickerEvent] = useState<Event | undefined>(undefined);
   const [actionPickerKey, setActionPickerKey] = useState(0);
   const [addCarModalKey, setAddCarModalKey] = useState(0);
   const [isActionSelectorModalOpen, setIsActionSelectorModalOpen] = useState(false);
@@ -131,6 +133,7 @@ const Cars: React.FC = () => {
   const resetCarsOverlayState = useCallback(() => {
     setIsAddCarModalOpen(false);
     setIsActionPickerOpen(false);
+    setActionPickerEvent(undefined);
     setIsActionSelectorModalOpen(false);
     setIsActionModalOpen(false);
     setIsOverlaySafetyModalOpen(false);
@@ -179,6 +182,7 @@ const Cars: React.FC = () => {
       clearScheduledActionOpen();
       clearOverlaySafetyPulse();
       logBackdropCount(`${reason}:before`);
+      void dismissAllOverlays(reason);
       dismissOverlayElement(actionPickerRef.current);
       dismissOverlayElement(actionSelectorModalRef.current);
       dismissOverlayElement(actionModalRef.current);
@@ -277,7 +281,7 @@ const Cars: React.FC = () => {
     setCarList((prev) => prev.filter((car) => car.id !== deletedCarId));
   }, []);
 
-  const handleOpenActionPicker = useCallback(() => {
+  const handleOpenActionPicker = useCallback((event?: Event) => {
     if (!isCarsActiveRef.current) {
       return;
     }
@@ -289,6 +293,7 @@ const Cars: React.FC = () => {
       pulseOverlaySafetyModal("cars-picker-pre-open");
     }
 
+    setActionPickerEvent(event);
     setActionPickerKey((prev) => prev + 1);
     setIsActionPickerOpen(true);
     logBackdropCount("popover-open");
@@ -395,6 +400,7 @@ const Cars: React.FC = () => {
 
   const handleActionPickerDidDismiss = useCallback(() => {
     setIsActionPickerOpen(false);
+    setActionPickerEvent(undefined);
     logBackdropCount("popover-dismissed");
 
     const nextAction = pendingQuickActionRef.current;
@@ -555,7 +561,10 @@ const Cars: React.FC = () => {
           <IonTitle>{TEXT.cars}</IonTitle>
 
           <IonButtons slot="end">
-            <IonButton id="cars-action-trigger" onClick={handleOpenActionPicker}>
+            <IonButton
+              id="cars-action-trigger"
+              onClick={(event) => handleOpenActionPicker(event.nativeEvent)}
+            >
               <IonIcon slot="icon-only" icon={add} />
             </IonButton>
           </IonButtons>
@@ -596,6 +605,7 @@ const Cars: React.FC = () => {
         key={`cars-action-picker-${actionPickerKey}`}
         ref={actionPickerRef}
         isOpen={isActionPickerOpen}
+        event={actionPickerEvent}
         onDidDismiss={handleActionPickerDidDismiss}
         side="bottom"
         alignment="end"
