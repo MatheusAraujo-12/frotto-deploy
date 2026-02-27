@@ -37,7 +37,6 @@ import {
   maintenanceAddValidationSchema,
 } from "./maintenanceValidationSchema";
 import ServiceAddModal from "../ServiceAddModal/ServiceAddModal";
-import { useHistory, useLocation } from "react-router-dom";
 import { currencyFormat } from "../../../services/currencyFormat";
 import FormDeleteButton from "../../../components/Form/FormDeleteButton";
 import ReminderAdd from "../../Reminders/ReminderAddModal/reminderAdd";
@@ -49,8 +48,6 @@ interface MaintenanceAddModalProps {
 }
 
 const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initialValues, carId }) => {
-  const history = useHistory();
-  const location = useLocation();
   const { showErrorAlert } = useAlert();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -147,19 +144,9 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
     if (initialValues) reset(initialMaintenanceValues(initialValues));
   }, [initialValues, reset]);
 
-  useEffect(() => {
-    const searchParams = new URLSearchParams(location.search);
-    setIsServiceModalOpen(searchParams.get("modalServiceOpened") === "true");
-    setIsReminderModalOpen(searchParams.get("modalReminderOpened") === "true");
-  }, [location.search]);
-
   const closeServiceModal = useCallback(
     (newServices?: MaintenanceServiceModel[]) => {
       setIsServiceModalOpen(false);
-
-      const searchParams = new URLSearchParams(location.search);
-      searchParams.delete("modalServiceOpened");
-      history.replace({ pathname: location.pathname, search: searchParams.toString() });
 
       if (!newServices) return;
 
@@ -169,7 +156,7 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
         shouldTouch: true,
       });
     },
-    [history, location, setValue]
+    [setValue]
   );
 
   const closeReminderModal = useCallback(
@@ -177,33 +164,23 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
       setIsReminderModalOpen(false);
       setActiveReminder(null);
 
-      const searchParams = new URLSearchParams(location.search);
-      searchParams.delete("modalReminderOpened");
-      history.replace({ pathname: location.pathname, search: searchParams.toString() });
-
       if (!reminder) return;
 
       if (!formInitial.id) loadReminders();
     },
-    [history, location, formInitial.id, loadReminders]
+    [formInitial.id, loadReminders]
   );
 
   const openServiceModal = useCallback(() => {
-    const searchParams = new URLSearchParams(location.search);
-    searchParams.set("modalServiceOpened", "true");
-    history.push({ pathname: location.pathname, search: searchParams.toString() });
     setIsServiceModalOpen(true);
-  }, [history, location]);
+  }, []);
 
   const openReminderModal = useCallback(
     (reminder?: ReminderModel) => {
       setActiveReminder(reminder || null);
-      const searchParams = new URLSearchParams(location.search);
-      searchParams.set("modalReminderOpened", "true");
-      history.push({ pathname: location.pathname, search: searchParams.toString() });
       setIsReminderModalOpen(true);
     },
-    [history, location]
+    []
   );
 
   const onSubmit = useCallback(
