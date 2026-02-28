@@ -19,7 +19,24 @@ export const dismissAllOverlays = async (reason = "overlay-manager") => {
 
   const overlays = Array.from(
     document.querySelectorAll(OVERLAY_SELECTOR)
-  ) as DismissibleOverlayElement[];
+  )
+    .filter((overlay) => {
+      const element = overlay as DismissibleOverlayElement;
+
+      if (!element.isConnected) {
+        return false;
+      }
+
+      if (element.classList.contains("overlay-hidden")) {
+        return false;
+      }
+
+      if (element.getAttribute("aria-hidden") === "true") {
+        return false;
+      }
+
+      return typeof element.dismiss === "function";
+    }) as DismissibleOverlayElement[];
 
   if (!overlays.length) {
     return;
@@ -33,12 +50,6 @@ export const dismissAllOverlays = async (reason = "overlay-manager") => {
   }
 
   await Promise.allSettled(
-    overlays.map((overlay) => {
-      if (typeof overlay.dismiss !== "function") {
-        return Promise.resolve(false);
-      }
-
-      return overlay.dismiss().catch(() => false);
-    })
+    overlays.map((overlay) => overlay.dismiss!().catch(() => false))
   );
 };
