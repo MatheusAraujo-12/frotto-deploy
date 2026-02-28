@@ -13,6 +13,8 @@
   --app-badge-bg: #fef3c7;
   --app-badge-text: #92400e;
   --app-modal-backdrop: rgba(15, 23, 42, 0.4);
+  --app-page-surface: linear-gradient(180deg, #eef2f7 0%, #e1e7ef 100%);
+  --app-page-surface-solid: #e1e7ef;
 }
 
 .dark {
@@ -64,6 +66,8 @@
   --app-badge-text: #E9EEF1;
 
   --app-modal-backdrop: rgba(6, 10, 12, 0.72);
+  --app-page-surface: linear-gradient(180deg, #153138 0%, #10262c 100%);
+  --app-page-surface-solid: #10262c;
 }
 
 body,
@@ -81,12 +85,20 @@ body.dark,
   background-image: var(--app-gradient);
 }
 
-ion-content {
-  --background: transparent;
+ion-router-outlet > ion-page,
+ion-router-outlet > .ion-page {
+  background: var(--app-page-surface-solid);
 }
 
-ion-page {
-  background: transparent;
+ion-router-outlet > ion-page ion-content,
+ion-router-outlet > .ion-page ion-content {
+  --background: var(--app-page-surface);
+  background: var(--app-page-surface-solid);
+}
+
+ion-router-outlet > ion-page ion-content::part(background),
+ion-router-outlet > .ion-page ion-content::part(background) {
+  background: var(--app-page-surface);
 }
 
 ion-toolbar {
