@@ -21,7 +21,6 @@ import {
 } from "@ionic/react";
 import { add } from "ionicons/icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties } from "react";
 import { useLocation } from "react-router-dom";
 import api from "../../services/axios/axios";
 import endpoints from "../../constants/endpoints";
@@ -79,8 +78,6 @@ const Cars: React.FC = () => {
   const [isActionModalOpen, setIsActionModalOpen] = useState(false);
   const [actionSelectorModalKey, setActionSelectorModalKey] = useState(0);
   const [actionModalKey, setActionModalKey] = useState(0);
-  const [isOverlaySafetyModalOpen, setIsOverlaySafetyModalOpen] = useState(false);
-  const [overlaySafetyModalKey, setOverlaySafetyModalKey] = useState(0);
   const [selectedAction, setSelectedAction] = useState<ActionType>(null);
   const [selectedCar, setSelectedCar] = useState<CarModel | null>(null);
   const [searchValue, setSearchValue] = useState("");
@@ -88,7 +85,6 @@ const Cars: React.FC = () => {
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const actionOpenTimerRef = useRef<number | null>(null);
-  const overlaySafetyTimerRef = useRef<number | null>(null);
   const pendingQuickActionRef = useRef<QuickAction["key"] | null>(null);
   const isCarsActiveRef = useRef(location.pathname === "/menu/carros");
   const previousPathnameRef = useRef(location.pathname);
@@ -115,13 +111,6 @@ const Cars: React.FC = () => {
     }
   }, []);
 
-  const clearOverlaySafetyPulse = useCallback(() => {
-    if (overlaySafetyTimerRef.current !== null) {
-      window.clearTimeout(overlaySafetyTimerRef.current);
-      overlaySafetyTimerRef.current = null;
-    }
-  }, []);
-
   const dismissOverlayElement = useCallback((overlay: DismissibleOverlay | null) => {
     if (!overlay) {
       return;
@@ -136,51 +125,14 @@ const Cars: React.FC = () => {
     setActionPickerEvent(undefined);
     setIsActionSelectorModalOpen(false);
     setIsActionModalOpen(false);
-    setIsOverlaySafetyModalOpen(false);
     pendingQuickActionRef.current = null;
     setSelectedAction(null);
     setSelectedCar(null);
   }, []);
 
-  const hasManagedOverlayState = useCallback(() => {
-    return (
-      isAddCarModalOpen ||
-      isActionPickerOpen ||
-      isActionSelectorModalOpen ||
-      isActionModalOpen ||
-      pendingQuickActionRef.current !== null
-    );
-  }, [
-    isAddCarModalOpen,
-    isActionPickerOpen,
-    isActionSelectorModalOpen,
-    isActionModalOpen,
-  ]);
-
-  const pulseOverlaySafetyModal = useCallback(
-    (reason: string) => {
-      if (!isCarsActiveRef.current) {
-        return;
-      }
-
-      clearOverlaySafetyPulse();
-      setOverlaySafetyModalKey((prev) => prev + 1);
-      setIsOverlaySafetyModalOpen(true);
-      logBackdropCount(`${reason}:safety-open`);
-
-      overlaySafetyTimerRef.current = window.setTimeout(() => {
-        setIsOverlaySafetyModalOpen(false);
-        overlaySafetyTimerRef.current = null;
-        logBackdropCount(`${reason}:safety-close`);
-      }, 32);
-    },
-    [clearOverlaySafetyPulse, logBackdropCount]
-  );
-
   const dismissCarsOverlays = useCallback(
     (reason: string) => {
       clearScheduledActionOpen();
-      clearOverlaySafetyPulse();
       logBackdropCount(`${reason}:before`);
       void dismissAllOverlays(reason);
       dismissOverlayElement(actionPickerRef.current);
@@ -189,24 +141,15 @@ const Cars: React.FC = () => {
       dismissOverlayElement(addCarModalRef.current);
       logBackdropCount(`${reason}:after`);
     },
-    [
-      clearOverlaySafetyPulse,
-      clearScheduledActionOpen,
-      dismissOverlayElement,
-      logBackdropCount,
-    ]
+    [clearScheduledActionOpen, dismissOverlayElement, logBackdropCount]
   );
 
   const cleanupCarsOverlays = useCallback(
-    (reason: string, useSafetyModal = false) => {
-      const hadActiveOverlays = hasManagedOverlayState();
+    (reason: string) => {
       dismissCarsOverlays(reason);
       resetCarsOverlayState();
-      if (useSafetyModal && hadActiveOverlays) {
-        pulseOverlaySafetyModal(reason);
-      }
     },
-    [dismissCarsOverlays, hasManagedOverlayState, pulseOverlaySafetyModal, resetCarsOverlayState]
+    [dismissCarsOverlays, resetCarsOverlayState]
   );
 
   const loadCars = useCallback(
@@ -286,24 +229,23 @@ const Cars: React.FC = () => {
       return;
     }
 
-    const hadActiveOverlays = hasManagedOverlayState();
-    dismissCarsOverlays("cars-picker-pre-open");
-    resetCarsOverlayState();
-    if (hadActiveOverlays) {
-      pulseOverlaySafetyModal("cars-picker-pre-open");
-    }
+    clearScheduledActionOpen();
+    pendingQuickActionRef.current = null;
+    dismissOverlayElement(actionPickerRef.current);
+    dismissOverlayElement(actionSelectorModalRef.current);
+    dismissOverlayElement(actionModalRef.current);
+    dismissOverlayElement(addCarModalRef.current);
+    setIsAddCarModalOpen(false);
+    setIsActionSelectorModalOpen(false);
+    setIsActionModalOpen(false);
+    setSelectedAction(null);
+    setSelectedCar(null);
 
     setActionPickerEvent(event);
     setActionPickerKey((prev) => prev + 1);
     setIsActionPickerOpen(true);
     logBackdropCount("popover-open");
-  }, [
-    dismissCarsOverlays,
-    hasManagedOverlayState,
-    logBackdropCount,
-    pulseOverlaySafetyModal,
-    resetCarsOverlayState,
-  ]);
+  }, [clearScheduledActionOpen, dismissOverlayElement, logBackdropCount]);
 
   const handleOpenAddCarModal = useCallback(() => {
     clearScheduledActionOpen();
@@ -337,11 +279,6 @@ const Cars: React.FC = () => {
     pendingQuickActionRef.current = null;
     logBackdropCount("add-car-dismissed");
   }, [logBackdropCount]);
-
-  const handleOverlaySafetyModalDidDismiss = useCallback(() => {
-    clearOverlaySafetyPulse();
-    setIsOverlaySafetyModalOpen(false);
-  }, [clearOverlaySafetyPulse]);
 
   const handleOpenActionSelectorModal = useCallback((action: ActionType) => {
     clearScheduledActionOpen();
@@ -541,14 +478,13 @@ const Cars: React.FC = () => {
   useEffect(() => {
     return () => {
       clearScheduledActionOpen();
-      clearOverlaySafetyPulse();
       isCarsActiveRef.current = false;
       dismissCarsOverlays("cars-unmount");
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
-  }, [clearOverlaySafetyPulse, clearScheduledActionOpen, dismissCarsOverlays]);
+  }, [clearScheduledActionOpen, dismissCarsOverlays]);
 
   return (
     <IonPage id="cars-page">
@@ -657,34 +593,6 @@ const Cars: React.FC = () => {
         keepContentsMounted={false}
       >
         {renderActionModalContent()}
-      </IonModal>
-
-      <IonModal
-        key={`cars-overlay-safety-${overlaySafetyModalKey}`}
-        isOpen={isOverlaySafetyModalOpen}
-        onDidDismiss={handleOverlaySafetyModalDidDismiss}
-        showBackdrop={false}
-        backdropDismiss={false}
-        animated={false}
-        keepContentsMounted={false}
-      >
-        <IonContent
-          style={
-            {
-              "--background": "transparent",
-            } as CSSProperties
-          }
-        >
-          <div
-            aria-hidden="true"
-            style={{
-              width: 1,
-              height: 1,
-              opacity: 0,
-              pointerEvents: "none",
-            }}
-          />
-        </IonContent>
       </IonModal>
     </IonPage>
   );

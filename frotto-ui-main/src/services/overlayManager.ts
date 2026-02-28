@@ -1,5 +1,6 @@
 type DismissibleOverlayElement = HTMLElement & {
   dismiss?: () => Promise<boolean>;
+  presented?: boolean;
 };
 
 const OVERLAY_SELECTOR = [
@@ -32,6 +33,10 @@ export const dismissAllOverlays = async (reason = "overlay-manager") => {
       }
 
       if (element.getAttribute("aria-hidden") === "true") {
+        return false;
+      }
+
+      if (element.presented !== true && !element.classList.contains("overlay-presented")) {
         return false;
       }
 
