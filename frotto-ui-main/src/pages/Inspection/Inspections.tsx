@@ -12,6 +12,7 @@ import {
   IonTitle,
   IonToolbar,
   useIonRouter,
+  useIonViewWillLeave,
 } from "@ionic/react";
 import api from "../../services/axios/axios";
 import endpoints from "../../constants/endpoints";
@@ -21,7 +22,7 @@ import { useAlert } from "../../services/hooks/useAlert";
 import { InspectionModel } from "../../constants/CarModels";
 import { filterListObj } from "../../services/filterList";
 import ItemNotFound from "../../components/List/ItemNotFound";
-import { RouteComponentProps, useHistory, useLocation } from "react-router";
+import { RouteComponentProps } from "react-router";
 import InspectionAdd from "./InspectionAddModal/InspectionAdd";
 import { formatDateView } from "../../services/dateFormat";
 import {
@@ -36,8 +37,6 @@ interface InspectionDetail
   }> {}
 
 const Inspections: React.FC<InspectionDetail> = ({ match }) => {
-  const location = useLocation();
-  const nav = useHistory();
   const history = useIonRouter();
   const { showErrorAlert } = useAlert();
   const [isLoading, setisLoading] = useState(false);
@@ -45,12 +44,6 @@ const Inspections: React.FC<InspectionDetail> = ({ match }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchValue, setSearchValue] = useState<string | undefined>(undefined);
   const [inspectionList, setInspectionsList] = useState<InspectionModel[]>([]);
-
-  useEffect(() => {
-    if (!location.search.includes("modalOpened=true")) {
-      setIsModalOpen(false);
-    }
-  }, [location]);
 
   const loadInspections = async () => {
     setisLoading(true);
@@ -79,13 +72,16 @@ const Inspections: React.FC<InspectionDetail> = ({ match }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useIonViewWillLeave(() => {
+    setIsModalOpen(false);
+  }, []);
+
   const filteredList = useMemo(() => {
     return filterListObj(inspectionList, searchValue);
   }, [inspectionList, searchValue]);
 
   const closeModal = useCallback((response?: InspectionModel) => {
     setIsModalOpen(false);
-    nav.goBack();
 
     if (!response) return;
 
@@ -131,7 +127,6 @@ const Inspections: React.FC<InspectionDetail> = ({ match }) => {
                   onClick={() => {
                     setModalInspection(inspection);
                     setIsModalOpen(true);
-                    nav.push(nav.location.pathname + "?modalOpened=true");
                   }}
                 >
                   <IonLabelLeft class="ion-text-wrap">

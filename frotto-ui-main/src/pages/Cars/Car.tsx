@@ -17,10 +17,11 @@ import {
   IonTitle,
   IonToolbar,
   useIonRouter,
+  useIonViewWillLeave,
   useIonViewWillEnter,
 } from "@ionic/react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { RouteComponentProps, useHistory, useLocation } from "react-router";
+import { useCallback, useMemo, useState } from "react";
+import { RouteComponentProps } from "react-router";
 import endpoints from "../../constants/endpoints";
 import { TEXT } from "../../constants/texts";
 import api from "../../services/axios/axios";
@@ -50,8 +51,6 @@ interface CarDetail
   }> {}
 
 const Car: React.FC<CarDetail> = ({ match }) => {
-  const location = useLocation();
-  const nav = useHistory();
   const history = useIonRouter();
   const { showErrorAlert } = useAlert();
   const [isLoading, setisLoading] = useState(false);
@@ -67,15 +66,6 @@ const Car: React.FC<CarDetail> = ({ match }) => {
   const [maintenance, setMaintenance] = useState<MaintenanceModel | undefined>(
     undefined
   );
-
-  useEffect(() => {
-    if (!location.search.includes("modalOpened=true")) {
-      setEditCarModalOpen(false);
-      setEditDriverModalOpen(false);
-      setAddInspectionModalOpen(false);
-      setAddMaintenanceModalOpen(false);
-    }
-  }, [location]);
 
   const loadCar = async () => {
     setisLoading(true);
@@ -103,14 +93,18 @@ const Car: React.FC<CarDetail> = ({ match }) => {
   };
 
   useIonViewWillEnter(() => {
-    if (!location.search.includes("modalOpened=true")) {
-      loadCar();
-    }
-  }, [location]);
+    loadCar();
+  }, []);
+
+  useIonViewWillLeave(() => {
+    setEditCarModalOpen(false);
+    setEditDriverModalOpen(false);
+    setAddInspectionModalOpen(false);
+    setAddMaintenanceModalOpen(false);
+  }, []);
 
   const closeEditCarModal = useCallback((response?: CarModel) => {
     setEditCarModalOpen(false);
-    nav.goBack();
 
     if (!response) return;
 
@@ -120,7 +114,6 @@ const Car: React.FC<CarDetail> = ({ match }) => {
 
   const closeEditDriverModal = useCallback((response?: CarDriverModel) => {
     setEditDriverModalOpen(false);
-    nav.goBack();
 
     if (!response) return;
 
@@ -175,7 +168,6 @@ const Car: React.FC<CarDetail> = ({ match }) => {
   const closeAddInspectionModal = useCallback(
     (response?: InspectionModel) => {
       setAddInspectionModalOpen(false);
-      nav.goBack();
 
       if (!response) return;
 
@@ -188,7 +180,6 @@ const Car: React.FC<CarDetail> = ({ match }) => {
   const closeAddMaintenanceModal = useCallback(
     (response?: MaintenanceModel) => {
       setAddMaintenanceModalOpen(false);
-      nav.goBack();
 
       if (!response) return;
 
@@ -233,10 +224,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
           </IonList>
           <IonButton
             fill="clear"
-            onClick={() => {
-              nav.push(nav.location.pathname + "?modalOpened=true");
-              setEditCarModalOpen(true);
-            }}
+            onClick={() => setEditCarModalOpen(true)}
           >
             {TEXT.edit}
           </IonButton>
@@ -286,10 +274,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
           </IonList>
           <IonButton
             fill="clear"
-            onClick={() => {
-              nav.push(nav.location.pathname + "?modalOpened=true");
-              setEditDriverModalOpen(true);
-            }}
+            onClick={() => setEditDriverModalOpen(true)}
           >
             {driver ? TEXT.edit : TEXT.new}
           </IonButton>
@@ -339,10 +324,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
           </IonList>
           <IonButton
             fill="clear"
-            onClick={() => {
-              nav.push(nav.location.pathname + "?modalOpened=true");
-              setAddInspectionModalOpen(true);
-            }}
+            onClick={() => setAddInspectionModalOpen(true)}
           >
             {TEXT.new}
           </IonButton>
@@ -391,10 +373,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
           </IonList>
           <IonButton
             fill="clear"
-            onClick={() => {
-              nav.push(nav.location.pathname + "?modalOpened=true");
-              setAddMaintenanceModalOpen(true);
-            }}
+            onClick={() => setAddMaintenanceModalOpen(true)}
           >
             {TEXT.new}
           </IonButton>
