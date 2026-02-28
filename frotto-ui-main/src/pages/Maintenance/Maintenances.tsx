@@ -89,6 +89,10 @@ const Maintenances: React.FC<MaintenanceDetail> = ({ match }) => {
     if (!response) return;
 
     setMaintenanceList((prev) => {
+      if (response.delete && response.id !== undefined) {
+        return prev.filter((item) => item.id !== response.id);
+      }
+
       const exists = prev.some((item) => item.id === response.id);
       if (exists) {
         return prev.map((item) => (item.id === response.id ? response : item));

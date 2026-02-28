@@ -41,7 +41,9 @@ import DocumentsPage from "./pages/Documents/DocumentsPage";
 import Drivers from "./pages/Driver/Drivers";
 import DriverPendencies from "./pages/DriverPendency/DriverPendencies";
 import Incomes from "./pages/Income/Incomes";
+import InspectionCreatePage from "./pages/Inspection/InspectionCreatePage";
 import Inspections from "./pages/Inspection/Inspections";
+import MaintenanceCreatePage from "./pages/Maintenance/MaintenanceCreatePage";
 import Maintenances from "./pages/Maintenance/Maintenances";
 import MyPanelPage from "./pages/MyPanel/MyPanelPage";
 import Reminders from "./pages/Reminders/Reminders";
@@ -104,7 +106,9 @@ const App: FC = () => {
           <Route exact path="/menu/carros/:id/motoristas" component={Drivers} />
           <Route exact path="/menu/carros/:id/receitas" component={Incomes} />
           <Route exact path="/menu/carros/:id/despesas" component={CarExpenses} />
+          <Route exact path="/menu/carros/:id/inspecoes/nova" component={InspectionCreatePage} />
           <Route exact path="/menu/carros/:id/inspecoes" component={Inspections} />
+          <Route exact path="/menu/carros/:id/manutencoes/nova" component={MaintenanceCreatePage} />
           <Route exact path="/menu/carros/:id/manutencoes" component={Maintenances} />
           <Route exact path="/menu/carros/:id/lembretes" component={Reminders} />
           <Route exact path="/menu/carros/motorista/:id/pendencias" component={DriverPendencies} />

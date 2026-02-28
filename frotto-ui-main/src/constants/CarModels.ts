@@ -55,6 +55,7 @@ export interface MaintenanceModel {
   odometer?: number;
   cost?: number;
   services?: MaintenanceServiceModel[];
+  delete?: boolean;
 }
 
 export interface TireModel {

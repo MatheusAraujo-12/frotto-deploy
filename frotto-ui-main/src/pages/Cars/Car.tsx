@@ -21,7 +21,7 @@ import {
   useIonViewWillEnter,
 } from "@ionic/react";
 import { useCallback, useMemo, useState } from "react";
-import { RouteComponentProps } from "react-router";
+import { RouteComponentProps, useHistory } from "react-router";
 import endpoints from "../../constants/endpoints";
 import { TEXT } from "../../constants/texts";
 import api from "../../services/axios/axios";
@@ -34,13 +34,11 @@ import {
   MaintenanceModel,
 } from "../../constants/CarModels";
 import DriverAdd from "../Driver/DriverAddModal/DriverAdd";
-import InspectionAdd from "../Inspection/InspectionAddModal/InspectionAdd";
 import { formatDateView } from "../../services/dateFormat";
 import {
   IonLabekRight,
   IonLabelLeft,
 } from "../../components/List/IonLabekRight";
-import MaintenanceAdd from "../Maintenance/MaintenanceAddModal/MaintenanceAdd";
 import { currencyFormat } from "../../services/currencyFormat";
 import { servicesToString } from "../../services/toString";
 import { formatCPF, formatTel } from "../../services/iMaskFormat";
@@ -51,14 +49,13 @@ interface CarDetail
   }> {}
 
 const Car: React.FC<CarDetail> = ({ match }) => {
+  const nav = useHistory();
   const history = useIonRouter();
   const { showErrorAlert } = useAlert();
   const [isLoading, setisLoading] = useState(false);
   const [car, setCar] = useState<CarModel>({});
   const [editCarModalOpen, setEditCarModalOpen] = useState(false);
   const [editDriverModalOpen, setEditDriverModalOpen] = useState(false);
-  const [addInspectionModalOpen, setAddInspectionModalOpen] = useState(false);
-  const [addMaintenanceModalOpen, setAddMaintenanceModalOpen] = useState(false);
   const [driver, setDriver] = useState<CarDriverModel | undefined>(undefined);
   const [inspection, setInspection] = useState<InspectionModel | undefined>(
     undefined
@@ -99,8 +96,6 @@ const Car: React.FC<CarDetail> = ({ match }) => {
   useIonViewWillLeave(() => {
     setEditCarModalOpen(false);
     setEditDriverModalOpen(false);
-    setAddInspectionModalOpen(false);
-    setAddMaintenanceModalOpen(false);
   }, []);
 
   const closeEditCarModal = useCallback((response?: CarModel) => {
@@ -165,29 +160,27 @@ const Car: React.FC<CarDetail> = ({ match }) => {
     [car.odometer]
   );
 
-  const closeAddInspectionModal = useCallback(
-    (response?: InspectionModel) => {
-      setAddInspectionModalOpen(false);
+  const openNewInspectionPage = useCallback(() => {
+    nav.push({
+      pathname: `/menu/carros/${match.params.id}/inspecoes/nova`,
+      state: {
+        initialInspectionValues: {
+          ...newInspection,
+          odometer: car.odometer,
+          driverName: driver?.driver?.name,
+        },
+      },
+    });
+  }, [nav, match.params.id, newInspection, car.odometer, driver]);
 
-      if (!response) return;
-
-      loadCar();
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [car]
-  );
-
-  const closeAddMaintenanceModal = useCallback(
-    (response?: MaintenanceModel) => {
-      setAddMaintenanceModalOpen(false);
-
-      if (!response) return;
-
-      loadCar();
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [car]
-  );
+  const openNewMaintenancePage = useCallback(() => {
+    nav.push({
+      pathname: `/menu/carros/${match.params.id}/manutencoes/nova`,
+      state: {
+        initialMaintenanceValues: maintenanceInitialValues,
+      },
+    });
+  }, [nav, match.params.id, maintenanceInitialValues]);
 
   return (
     <IonPage id="car-page">
@@ -324,7 +317,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
           </IonList>
           <IonButton
             fill="clear"
-            onClick={() => setAddInspectionModalOpen(true)}
+            onClick={openNewInspectionPage}
           >
             {TEXT.new}
           </IonButton>
@@ -373,7 +366,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
           </IonList>
           <IonButton
             fill="clear"
-            onClick={() => setAddMaintenanceModalOpen(true)}
+            onClick={openNewMaintenancePage}
           >
             {TEXT.new}
           </IonButton>
@@ -401,24 +394,6 @@ const Car: React.FC<CarDetail> = ({ match }) => {
           carId={match.params.id}
           closeModal={closeEditDriverModal}
           initialValues={driver}
-        />
-      </IonModal>
-      <IonModal isOpen={addInspectionModalOpen} backdropDismiss={false}>
-        <InspectionAdd
-          carId={match.params.id}
-          closeModal={closeAddInspectionModal}
-          initialValues={{
-            ...newInspection,
-            odometer: car.odometer,
-            driverName: driver?.driver?.name,
-          }}
-        />
-      </IonModal>
-      <IonModal isOpen={addMaintenanceModalOpen} backdropDismiss={false}>
-        <MaintenanceAdd
-          carId={match.params.id}
-          closeModal={closeAddMaintenanceModal}
-          initialValues={maintenanceInitialValues}
         />
       </IonModal>
     </IonPage>

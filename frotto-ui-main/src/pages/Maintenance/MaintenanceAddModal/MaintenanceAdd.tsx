@@ -230,7 +230,7 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
     try {
       await api.delete(endpoints.MAINTENANCES_EDIT({ pathVariables: { id: formInitial.id } }));
       setIsLoading(false);
-      closeModal();
+      closeModal({ id: formInitial.id, delete: true });
     } catch (error: any) {
       setIsLoading(false);
       // eslint-disable-next-line no-console
