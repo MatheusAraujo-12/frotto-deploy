@@ -42,7 +42,6 @@ import {
   MaintenanceModel,
   ReminderModel,
 } from "../../constants/CarModels";
-import { dismissAllOverlays } from "../../services/overlayManager";
 
 type ActionType = "maintenance" | "reminder" | "expense" | "income" | null;
 type QuickAction = {
@@ -58,10 +57,6 @@ type QuickActionResponse =
 type CarListItemData = CarModel & {
   car?: CarModel;
   carId?: number;
-};
-
-type DismissibleOverlay = {
-  dismiss: () => Promise<boolean>;
 };
 
 const Cars: React.FC = () => {
@@ -88,10 +83,6 @@ const Cars: React.FC = () => {
   const pendingQuickActionRef = useRef<QuickAction["key"] | null>(null);
   const isCarsActiveRef = useRef(location.pathname === "/menu/carros");
   const previousPathnameRef = useRef(location.pathname);
-  const addCarModalRef = useRef<HTMLIonModalElement | null>(null);
-  const actionPickerRef = useRef<HTMLIonPopoverElement | null>(null);
-  const actionSelectorModalRef = useRef<HTMLIonModalElement | null>(null);
-  const actionModalRef = useRef<HTMLIonModalElement | null>(null);
 
   const logBackdropCount = useCallback((label: string) => {
     if (process.env.NODE_ENV !== "development" || typeof document === "undefined") {
@@ -111,14 +102,6 @@ const Cars: React.FC = () => {
     }
   }, []);
 
-  const dismissOverlayElement = useCallback((overlay: DismissibleOverlay | null) => {
-    if (!overlay) {
-      return;
-    }
-
-    void overlay.dismiss().catch(() => undefined);
-  }, []);
-
   const resetCarsOverlayState = useCallback(() => {
     setIsAddCarModalOpen(false);
     setIsActionPickerOpen(false);
@@ -130,26 +113,13 @@ const Cars: React.FC = () => {
     setSelectedCar(null);
   }, []);
 
-  const dismissCarsOverlays = useCallback(
-    (reason: string) => {
-      clearScheduledActionOpen();
-      logBackdropCount(`${reason}:before`);
-      void dismissAllOverlays(reason);
-      dismissOverlayElement(actionPickerRef.current);
-      dismissOverlayElement(actionSelectorModalRef.current);
-      dismissOverlayElement(actionModalRef.current);
-      dismissOverlayElement(addCarModalRef.current);
-      logBackdropCount(`${reason}:after`);
-    },
-    [clearScheduledActionOpen, dismissOverlayElement, logBackdropCount]
-  );
-
   const cleanupCarsOverlays = useCallback(
     (reason: string) => {
-      dismissCarsOverlays(reason);
+      clearScheduledActionOpen();
+      logBackdropCount(`${reason}:cleanup`);
       resetCarsOverlayState();
     },
-    [dismissCarsOverlays, resetCarsOverlayState]
+    [clearScheduledActionOpen, logBackdropCount, resetCarsOverlayState]
   );
 
   const loadCars = useCallback(
@@ -231,21 +201,11 @@ const Cars: React.FC = () => {
 
     clearScheduledActionOpen();
     pendingQuickActionRef.current = null;
-    dismissOverlayElement(actionPickerRef.current);
-    dismissOverlayElement(actionSelectorModalRef.current);
-    dismissOverlayElement(actionModalRef.current);
-    dismissOverlayElement(addCarModalRef.current);
-    setIsAddCarModalOpen(false);
-    setIsActionSelectorModalOpen(false);
-    setIsActionModalOpen(false);
-    setSelectedAction(null);
-    setSelectedCar(null);
-
     setActionPickerEvent(event);
     setActionPickerKey((prev) => prev + 1);
     setIsActionPickerOpen(true);
     logBackdropCount("popover-open");
-  }, [clearScheduledActionOpen, dismissOverlayElement, logBackdropCount]);
+  }, [clearScheduledActionOpen, logBackdropCount]);
 
   const handleOpenAddCarModal = useCallback(() => {
     clearScheduledActionOpen();
@@ -479,12 +439,12 @@ const Cars: React.FC = () => {
     return () => {
       clearScheduledActionOpen();
       isCarsActiveRef.current = false;
-      dismissCarsOverlays("cars-unmount");
+      resetCarsOverlayState();
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
-  }, [clearScheduledActionOpen, dismissCarsOverlays]);
+  }, [clearScheduledActionOpen, resetCarsOverlayState]);
 
   return (
     <IonPage id="cars-page">
@@ -539,7 +499,6 @@ const Cars: React.FC = () => {
 
       <IonPopover
         key={`cars-action-picker-${actionPickerKey}`}
-        ref={actionPickerRef}
         isOpen={isActionPickerOpen}
         event={actionPickerEvent}
         onDidDismiss={handleActionPickerDidDismiss}
@@ -564,7 +523,6 @@ const Cars: React.FC = () => {
 
       <IonModal
         key={`cars-add-${addCarModalKey}`}
-        ref={addCarModalRef}
         isOpen={isAddCarModalOpen}
         onDidDismiss={handleAddCarModalDidDismiss}
         backdropDismiss={false}
@@ -575,7 +533,6 @@ const Cars: React.FC = () => {
 
       <IonModal
         key={`cars-action-selector-${actionSelectorModalKey}`}
-        ref={actionSelectorModalRef}
         isOpen={isActionSelectorModalOpen}
         onDidDismiss={handleActionSelectorModalDidDismiss}
         backdropDismiss={false}
@@ -586,7 +543,6 @@ const Cars: React.FC = () => {
 
       <IonModal
         key={`cars-action-${actionModalKey}`}
-        ref={actionModalRef}
         isOpen={isActionModalOpen}
         onDidDismiss={handleActionModalDidDismiss}
         backdropDismiss={false}

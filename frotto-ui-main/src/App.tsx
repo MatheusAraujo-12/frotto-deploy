@@ -18,9 +18,9 @@ import "@ionic/react/css/display.css";
 import "./theme/variables.css";
 import "./theme/global.css";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import type { FC } from "react";
-import { Redirect, Route, useLocation } from "react-router-dom";
+import { Redirect, Route } from "react-router-dom";
 import {
   IonApp,
   IonRouterOutlet,
@@ -46,14 +46,11 @@ import Maintenances from "./pages/Maintenance/Maintenances";
 import MyPanelPage from "./pages/MyPanel/MyPanelPage";
 import Reminders from "./pages/Reminders/Reminders";
 import Reports from "./pages/Reports/Reports";
-import { dismissAllOverlays } from "./services/overlayManager";
 
 setupIonicReact();
 
 const AppSetup: FC = () => {
   const router = useIonRouter();
-  const location = useLocation();
-  const previousPathnameRef = useRef(location.pathname);
 
   useEffect(() => {
     const interceptorId = api.interceptors.response.use(
@@ -86,16 +83,6 @@ const AppSetup: FC = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    const previousPathname = previousPathnameRef.current;
-
-    if (previousPathname !== location.pathname) {
-      void dismissAllOverlays(`route-change:${previousPathname}->${location.pathname}`);
-    }
-
-    previousPathnameRef.current = location.pathname;
-  }, [location.pathname]);
 
   return null;
 };
