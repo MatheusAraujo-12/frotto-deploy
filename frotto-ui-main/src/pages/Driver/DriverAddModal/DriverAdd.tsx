@@ -12,7 +12,7 @@ import {
   IonToolbar,
 } from "@ionic/react";
 import { TEXT } from "../../../constants/texts";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAlert } from "../../../services/hooks/useAlert";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -54,12 +54,19 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
     handleSubmit,
     watch,
     setValue,
+    reset,
     formState: { errors },
   } = useForm({
     reValidateMode: "onBlur",
     resolver: yupResolver(driverAddValidationSchema),
     defaultValues: formInitial,
   });
+
+  useEffect(() => {
+    const nextValues = initialDriverValues(initialValues || {});
+    reset(nextValues);
+    setShowConcluded(Boolean(nextValues.concluded));
+  }, [initialValues, reset]);
 
   const updateDriver = (driver: DriverModel) => {
     setValue("driverId", driver.id);
@@ -190,11 +197,15 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
           </IonItem>
           <FormDate
             id="start-date-driver-add"
-            initialValue={watch("startDate").toString()}
+            initialValue={watch("startDate") ?? ""}
             label={TEXT.dateStart}
             presentation="date"
             formCallBack={(value: string) => {
-              setValue("startDate", value);
+              setValue("startDate", value, {
+                shouldValidate: true,
+                shouldDirty: true,
+                shouldTouch: true,
+              });
             }}
           />
           <FormCurrency
@@ -212,7 +223,11 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             label={TEXT.resolved}
             initialValue={watch("concluded")}
             changeCallback={(value: boolean) => {
-              setValue("concluded", value);
+              setValue("concluded", value, {
+                shouldValidate: true,
+                shouldDirty: true,
+                shouldTouch: true,
+              });
               setShowConcluded(value);
             }}
           />
@@ -221,11 +236,15 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             <>
               <FormDate
                 id="end-date-driver-add"
-                initialValue={watch("endDate").toString()}
+                initialValue={watch("endDate") ?? ""}
                 label={TEXT.dateEnd}
                 presentation="date"
                 formCallBack={(value: string) => {
-                  setValue("endDate", value);
+                  setValue("endDate", value, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                    shouldTouch: true,
+                  });
                 }}
               />
               <FormCurrency

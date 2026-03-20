@@ -180,11 +180,20 @@ public class DriverCarResource {
             }
         }
 
-        driverCar.setCar(existingCarOpt.get().getCar());
+        DriverCar existingDriverCar = existingCarOpt.get();
 
         addressRepository.save(driverCar.getDriver().getAddress());
-        driverRepository.save(driverCar.getDriver());
-        DriverCar result = driverCarRepository.save(driverCar);
+        Driver savedDriver = driverRepository.save(driverCar.getDriver());
+
+        existingDriverCar.setStartDate(driverCar.getStartDate());
+        existingDriverCar.setEndDate(driverCar.getEndDate());
+        existingDriverCar.setWarranty(driverCar.getWarranty());
+        existingDriverCar.setScore(driverCar.getScore());
+        existingDriverCar.setDebt(driverCar.getDebt());
+        existingDriverCar.setConcluded(driverCar.getConcluded());
+        existingDriverCar.setDriver(savedDriver);
+
+        DriverCar result = driverCarRepository.save(existingDriverCar);
         return ResponseEntity
             .ok()
             .headers(HeaderUtil.createEntityUpdateAlert(applicationName, false, ENTITY_NAME, driverCar.getId().toString()))
