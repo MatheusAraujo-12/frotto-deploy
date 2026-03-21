@@ -23,6 +23,7 @@ import { TEXT } from "../../constants/texts";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAlert } from "../../services/hooks/useAlert";
 import {
+  CarDriverModel,
   DriverDebtSummaryModel,
   DriverPendencyModel,
   DriverPendencyStatus,
@@ -108,10 +109,26 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
   const loadDriverPendencys = async () => {
     setisLoading(true);
     try {
+      const driverCarResponse = await api.get(
+        endpoints.DRIVERS_EDIT({
+          pathVariables: {
+            id: match.params.id,
+          },
+        })
+      );
+      const driverCar = driverCarResponse.data as CarDriverModel;
+      const driverId = driverCar?.driver?.id;
+
+      if (!driverId) {
+        history.push("/menu", "none", "replace");
+        setisLoading(false);
+        return;
+      }
+
       const { data } = await api.get(
         endpoints.DRIVER_DEBTS({
           pathVariables: {
-            id: match.params.id,
+            id: driverId,
           },
         })
       );
@@ -121,7 +138,7 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
           const summaryResponse = await api.get(
             endpoints.DRIVER_DEBT_SUMMARY({
               pathVariables: {
-                id: match.params.id,
+                id: driverId,
               },
             })
           );

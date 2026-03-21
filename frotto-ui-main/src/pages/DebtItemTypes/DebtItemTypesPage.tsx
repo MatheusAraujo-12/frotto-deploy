@@ -241,9 +241,10 @@ const DebtItemTypesPage: React.FC = () => {
                   </IonItem>
                 ))}
                 {!isLoading && !types.length && (
-                  <IonItem>
-                    <IonLabel>Nenhum tipo encontrado.</IonLabel>
-                  </IonItem>
+                  <div className="app-empty-state">
+                    <strong>Nenhum tipo encontrado.</strong>
+                    <span>Crie o primeiro tipo para começar a organizar as pendências.</span>
+                  </div>
                 )}
               </IonList>
             </IonCardContent>
@@ -277,7 +278,7 @@ const DebtItemTypesPage: React.FC = () => {
           <div className="section-shell">
             <IonCard>
               <IonCardContent>
-                <IonItem>
+                <IonItem className="app-form-item">
                   <IonLabel position="stacked">Nome</IonLabel>
                   <IonInput
                     value={formName}
@@ -285,7 +286,7 @@ const DebtItemTypesPage: React.FC = () => {
                     onIonChange={(event) => setFormName(event.detail.value || "")}
                   />
                 </IonItem>
-                <IonItem>
+                <IonItem className="app-form-item">
                   <IonLabel position="stacked">Ordem</IonLabel>
                   <IonInput
                     type="number"
@@ -296,7 +297,7 @@ const DebtItemTypesPage: React.FC = () => {
                     }
                   />
                 </IonItem>
-                <IonItem lines="none">
+                <IonItem className="app-form-item app-form-item--toggle" lines="none">
                   <IonLabel>Ativo</IonLabel>
                   <IonToggle checked={formActive} onIonChange={(event) => setFormActive(event.detail.checked)} />
                 </IonItem>

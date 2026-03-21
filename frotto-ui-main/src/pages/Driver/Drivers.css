@@ -1,6 +1,6 @@
 #drivers-page .driver-row {
   display: flex;
-  gap: 12px;
+  gap: 18px;
   width: 100%;
   align-items: flex-start;
 }
@@ -14,15 +14,26 @@
   flex: 1;
   text-align: right;
   min-width: 0;
+  display: grid;
+  gap: 4px;
+  justify-items: end;
 }
 
-#drivers-page .driver-col-left h2,
+#drivers-page .driver-col-left h2 {
+  margin: 0 0 4px;
+  font-size: 0.96rem;
+  font-weight: 700;
+}
+
+#drivers-page .driver-col-left p,
 #drivers-page .driver-col-right p {
-  margin: 2px 0;
+  margin: 0;
+  color: var(--ion-color-medium);
+  line-height: 1.45;
 }
 
 #drivers-page .driver-col-right .driver-pendency-button {
-  margin-top: 6px;
+  margin-top: 8px;
 }
 
 @media (max-width: 768px) {
@@ -32,5 +43,6 @@
 
   #drivers-page .driver-col-right {
     text-align: left;
+    justify-items: start;
   }
 }

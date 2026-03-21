@@ -23,7 +23,7 @@ const FormInput: React.FC<FormInputProps> = ({
 }) => {
   return (
     <FormItemWrapper errorsObj={errorsObj} errorName={errorName}>
-      <IonItem>
+      <IonItem className="app-form-item">
         <FormInputLabel name={label} required={required} />
         <IonInput
           value={initialValue}

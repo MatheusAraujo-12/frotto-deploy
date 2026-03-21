@@ -114,7 +114,7 @@ const CarSelector: React.FC<Props> = ({ cars = [], onSelect }) => {
 
   if (loading) {
     return (
-      <div style={{ textAlign: "center", padding: "20px" }}>
+      <div className="car-selector__feedback">
         <IonSpinner />
         <p>Carregando veículos...</p>
       </div>
@@ -123,20 +123,14 @@ const CarSelector: React.FC<Props> = ({ cars = [], onSelect }) => {
 
   if (error) {
     return (
-      <div
-        style={{
-          textAlign: "center",
-          padding: "20px",
-          color: "var(--ion-color-danger)",
-        }}
-      >
+      <div className="car-selector__feedback car-selector__feedback--error">
         {error}
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="car-selector">
       <IonSearchbar
         debounce={300}
         placeholder={TEXT.search}
@@ -154,14 +148,15 @@ const CarSelector: React.FC<Props> = ({ cars = [], onSelect }) => {
 
       {filtered.map((car: CarModel, index) => (
         <IonItem
+          className="car-selector__item"
           button
           key={car.id ?? `car-${index}`}
           onClick={() => handleSelect(car)}
           detail={false}
         >
           <IonLabel>
-            <div style={{ fontWeight: 600 }}>{car.name}</div>
-            <div style={{ fontSize: 12, color: "var(--ion-color-medium)" }}>
+            <div className="car-selector__title">{car.name}</div>
+            <div className="car-selector__meta">
               {car.plate || "Sem placa"}
             </div>
           </IonLabel>

@@ -218,7 +218,7 @@ const BodyDamageAdd: React.FC<CarDamageAddModalProps> = ({
           />
 
           {/* Foto 1 */}
-          <IonItem>
+          <IonItem className="app-form-item">
             {bodyFilePath && (
               <IonThumbnail slot="start">
                 <IonPhotoViewer title={TEXT.photo} src={bodyFilePath}>
@@ -237,7 +237,7 @@ const BodyDamageAdd: React.FC<CarDamageAddModalProps> = ({
           </IonItem>
 
           {/* Foto 2 */}
-          <IonItem>
+          <IonItem className="app-form-item">
             {bodyFilePath2 && (
               <IonThumbnail slot="start">
                 <IonPhotoViewer title={TEXT.photo2} src={bodyFilePath2}>

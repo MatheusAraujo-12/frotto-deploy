@@ -27,11 +27,43 @@ public interface PendencyRepository extends JpaRepository<Pendency, Long> {
         "select pendency from Pendency pendency " +
         "join pendency.driverCar driverCar " +
         "join driverCar.car car " +
+        "where car.user.login = ?#{principal.username} and driverCar.driver.id = :driverId " +
+        "order by pendency.date desc, pendency.id desc"
+    )
+    List<Pendency> findByCurrentUserAndDriverIdOrderByDateDesc(@Param("driverId") Long driverId);
+
+    @Query(
+        "select pendency from Pendency pendency " +
+        "join pendency.driverCar driverCar " +
+        "join driverCar.car car " +
+        "where car.user.login = ?#{principal.username} " +
+        "and driverCar.driver.id = :driverId " +
+        "and (pendency.status is null or pendency.status <> com.localuz.domain.enumeration.PendencyStatus.PAID) " +
+        "order by pendency.date desc, pendency.id desc"
+    )
+    List<Pendency> findOpenByCurrentUserAndDriverIdOrderByDateDesc(@Param("driverId") Long driverId);
+
+    @Query(
+        "select pendency from Pendency pendency " +
+        "join pendency.driverCar driverCar " +
+        "join driverCar.car car " +
         "where car.user.login = ?#{principal.username} and driverCar.id = :driverCarId and pendency.status in :statuses " +
         "order by pendency.date desc, pendency.id desc"
     )
     List<Pendency> findByCurrentUserAndDriverCarIdAndStatusInOrderByDateDesc(
         @Param("driverCarId") Long driverCarId,
+        @Param("statuses") List<PendencyStatus> statuses
+    );
+
+    @Query(
+        "select pendency from Pendency pendency " +
+        "join pendency.driverCar driverCar " +
+        "join driverCar.car car " +
+        "where car.user.login = ?#{principal.username} and driverCar.driver.id = :driverId and pendency.status in :statuses " +
+        "order by pendency.date desc, pendency.id desc"
+    )
+    List<Pendency> findByCurrentUserAndDriverIdAndStatusInOrderByDateDesc(
+        @Param("driverId") Long driverId,
         @Param("statuses") List<PendencyStatus> statuses
     );
 
@@ -72,6 +104,16 @@ public interface PendencyRepository extends JpaRepository<Pendency, Long> {
     BigDecimal findOutstandingTotalByCurrentUserAndDriverCarId(@Param("driverCarId") Long driverCarId);
 
     @Query(
+        "select coalesce(sum(case when pendency.status is null or pendency.status <> com.localuz.domain.enumeration.PendencyStatus.PAID " +
+        "then coalesce(pendency.remainingAmount, pendency.cost, 0) else 0 end), 0) " +
+        "from Pendency pendency " +
+        "join pendency.driverCar driverCar " +
+        "join driverCar.car car " +
+        "where car.user.login = ?#{principal.username} and driverCar.driver.id = :driverId"
+    )
+    BigDecimal findOutstandingTotalByCurrentUserAndDriverId(@Param("driverId") Long driverId);
+
+    @Query(
         "select count(pendency) from Pendency pendency " +
         "join pendency.driverCar driverCar " +
         "join driverCar.car car " +
@@ -84,7 +126,24 @@ public interface PendencyRepository extends JpaRepository<Pendency, Long> {
         "select count(pendency) from Pendency pendency " +
         "join pendency.driverCar driverCar " +
         "join driverCar.car car " +
+        "where car.user.login = ?#{principal.username} and driverCar.driver.id = :driverId " +
+        "and (pendency.status is null or pendency.status <> com.localuz.domain.enumeration.PendencyStatus.PAID)"
+    )
+    long countOpenByCurrentUserAndDriverId(@Param("driverId") Long driverId);
+
+    @Query(
+        "select count(pendency) from Pendency pendency " +
+        "join pendency.driverCar driverCar " +
+        "join driverCar.car car " +
         "where car.user.login = ?#{principal.username} and driverCar.id = :driverCarId"
     )
     long countByCurrentUserAndDriverCarId(@Param("driverCarId") Long driverCarId);
+
+    @Query(
+        "select count(pendency) from Pendency pendency " +
+        "join pendency.driverCar driverCar " +
+        "join driverCar.car car " +
+        "where car.user.login = ?#{principal.username} and driverCar.driver.id = :driverId"
+    )
+    long countByCurrentUserAndDriverId(@Param("driverId") Long driverId);
 }

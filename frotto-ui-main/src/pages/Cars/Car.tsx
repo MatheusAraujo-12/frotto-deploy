@@ -202,13 +202,13 @@ const Car: React.FC<CarDetail> = ({ match }) => {
       </IonHeader>
       <IonContent>
         <div className="section-shell">
-          <IonCard>
-          <IonCardSubtitle className="ion-margin-horizontal ion-margin-top">
+          <IonCard className="car-page__card">
+          <IonCardSubtitle className="car-page__eyebrow ion-margin-horizontal ion-margin-top">
             <IonText color="medium">
               <strong>{TEXT.carData}</strong>
             </IonText>
           </IonCardSubtitle>
-          <IonList lines="none">
+          <IonList lines="none" className="car-page__list">
             <IonItem>
               <IonLabelLeft class="ion-text-wrap">
                 <h2>{`${car?.name}`}</h2>
@@ -222,34 +222,36 @@ const Car: React.FC<CarDetail> = ({ match }) => {
               </IonLabekRight>
             </IonItem>
           </IonList>
-          <IonButton
-            fill="clear"
-            onClick={() => setEditCarModalOpen(true)}
-          >
-            {TEXT.edit}
-          </IonButton>
-          <IonButton
-            fill="clear"
-            color="success"
-            routerLink={"/menu/carros/" + match.params.id + "/receitas"}
-          >
-            {TEXT.incomes}
-          </IonButton>
-          <IonButton
-            fill="clear"
-            color="danger"
-            routerLink={"/menu/carros/" + match.params.id + "/despesas"}
-          >
-            {TEXT.carExpenses}
-          </IonButton>
+          <div className="app-actions-row car-page__actions">
+            <IonButton
+              fill="clear"
+              onClick={() => setEditCarModalOpen(true)}
+            >
+              {TEXT.edit}
+            </IonButton>
+            <IonButton
+              fill="clear"
+              color="success"
+              routerLink={"/menu/carros/" + match.params.id + "/receitas"}
+            >
+              {TEXT.incomes}
+            </IonButton>
+            <IonButton
+              fill="clear"
+              color="danger"
+              routerLink={"/menu/carros/" + match.params.id + "/despesas"}
+            >
+              {TEXT.carExpenses}
+            </IonButton>
+          </div>
           </IonCard>
-          <IonCard>
-          <IonCardSubtitle className="ion-margin-horizontal ion-margin-top">
+          <IonCard className="car-page__card">
+          <IonCardSubtitle className="car-page__eyebrow ion-margin-horizontal ion-margin-top">
             <IonText color="medium">
               <strong>{TEXT.driver}</strong>
             </IonText>
           </IonCardSubtitle>
-          <IonList lines="none">
+          <IonList lines="none" className="car-page__list">
             {driver && (
               <IonItem>
                 <IonLabelLeft class="ion-text-wrap">
@@ -272,37 +274,39 @@ const Car: React.FC<CarDetail> = ({ match }) => {
               </IonItem>
             )}
           </IonList>
-          <IonButton
-            fill="clear"
-            onClick={() => setEditDriverModalOpen(true)}
-          >
-            {driver ? TEXT.edit : TEXT.new}
-          </IonButton>
-          <IonButton
-            fill="clear"
-            routerLink={"/menu/carros/" + match.params.id + "/motoristas"}
-          >
-            {TEXT.all}
-          </IonButton>
-          <IonButton
-            fill="clear"
-            color="secondary"
-            routerLink={
-              driver
-                ? "/menu/carros/motorista/" + driver.id + "/pendencias"
-                : "/menu/carros/" + match.params.id + "/motoristas"
-            }
-          >
-            {TEXT.driverPendencies}
-          </IonButton>
+          <div className="app-actions-row car-page__actions">
+            <IonButton
+              fill="clear"
+              onClick={() => setEditDriverModalOpen(true)}
+            >
+              {driver ? TEXT.edit : TEXT.new}
+            </IonButton>
+            <IonButton
+              fill="clear"
+              routerLink={"/menu/carros/" + match.params.id + "/motoristas"}
+            >
+              {TEXT.all}
+            </IonButton>
+            <IonButton
+              fill="clear"
+              color="secondary"
+              routerLink={
+                driver
+                  ? "/menu/carros/motorista/" + driver.id + "/pendencias"
+                  : "/menu/carros/" + match.params.id + "/motoristas"
+              }
+            >
+              {TEXT.driverPendencies}
+            </IonButton>
+          </div>
           </IonCard>
-          <IonCard>
-          <IonCardSubtitle className="ion-margin-horizontal ion-margin-top">
+          <IonCard className="car-page__card">
+          <IonCardSubtitle className="car-page__eyebrow ion-margin-horizontal ion-margin-top">
             <IonText color="medium">
               <strong>{TEXT.lastInspection}</strong>
             </IonText>
           </IonCardSubtitle>
-          <IonList lines="none">
+          <IonList lines="none" className="car-page__list">
             {inspection && (
               <IonItem>
                 <IonLabelLeft class="ion-text-wrap">
@@ -322,33 +326,35 @@ const Car: React.FC<CarDetail> = ({ match }) => {
               </IonItem>
             )}
           </IonList>
-          <IonButton
-            fill="clear"
-            onClick={() => setAddInspectionModalOpen(true)}
-          >
-            {TEXT.new}
-          </IonButton>
-          <IonButton
-            fill="clear"
-            routerLink={"/menu/carros/" + match.params.id + "/inspecoes"}
-          >
-            {TEXT.all}
-          </IonButton>
-          <IonButton
-            fill="clear"
-            color="secondary"
-            routerLink={"/menu/carros/" + match.params.id + "/danos"}
-          >
-            {TEXT.damage}
-          </IonButton>
+          <div className="app-actions-row car-page__actions">
+            <IonButton
+              fill="clear"
+              onClick={() => setAddInspectionModalOpen(true)}
+            >
+              {TEXT.new}
+            </IonButton>
+            <IonButton
+              fill="clear"
+              routerLink={"/menu/carros/" + match.params.id + "/inspecoes"}
+            >
+              {TEXT.all}
+            </IonButton>
+            <IonButton
+              fill="clear"
+              color="secondary"
+              routerLink={"/menu/carros/" + match.params.id + "/danos"}
+            >
+              {TEXT.damage}
+            </IonButton>
+          </div>
           </IonCard>
-          <IonCard>
-          <IonCardSubtitle className="ion-margin-horizontal ion-margin-top">
+          <IonCard className="car-page__card">
+          <IonCardSubtitle className="car-page__eyebrow ion-margin-horizontal ion-margin-top">
             <IonText color="medium">
               <strong>{TEXT.lastMaintenance}</strong>
             </IonText>
           </IonCardSubtitle>
-          <IonList lines="none">
+          <IonList lines="none" className="car-page__list">
             {maintenance && (
               <IonItem>
                 <IonLabel class="ion-text-wrap">
@@ -359,7 +365,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                     {currencyFormat(maintenance.cost)}
                   </p>
                   <p>{maintenance.local}</p>
-                  <IonNote>{servicesToString(maintenance.services)}</IonNote>
+                  <IonNote className="car-page__note">{servicesToString(maintenance.services)}</IonNote>
                 </IonLabel>
               </IonItem>
             )}
@@ -371,25 +377,27 @@ const Car: React.FC<CarDetail> = ({ match }) => {
               </IonItem>
             )}
           </IonList>
-          <IonButton
-            fill="clear"
-            onClick={() => setAddMaintenanceModalOpen(true)}
-          >
-            {TEXT.new}
-          </IonButton>
-          <IonButton
-            fill="clear"
-            routerLink={"/menu/carros/" + match.params.id + "/manutencoes"}
-          >
-            {TEXT.all}
-          </IonButton>
-          <IonButton
-            fill="clear"
-            color="secondary"
-            routerLink={"/menu/carros/" + match.params.id + "/lembretes"}
-          >
-            {TEXT.reminders}
-          </IonButton>
+          <div className="app-actions-row car-page__actions">
+            <IonButton
+              fill="clear"
+              onClick={() => setAddMaintenanceModalOpen(true)}
+            >
+              {TEXT.new}
+            </IonButton>
+            <IonButton
+              fill="clear"
+              routerLink={"/menu/carros/" + match.params.id + "/manutencoes"}
+            >
+              {TEXT.all}
+            </IonButton>
+            <IonButton
+              fill="clear"
+              color="secondary"
+              routerLink={"/menu/carros/" + match.params.id + "/lembretes"}
+            >
+              {TEXT.reminders}
+            </IonButton>
+          </div>
           </IonCard>
         </div>
       </IonContent>

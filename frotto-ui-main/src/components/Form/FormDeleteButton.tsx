@@ -20,7 +20,7 @@ const FormDeleteButton: React.FC<DeleteButtoProps> = ({
     <IonButton
       color="danger"
       expand="block"
-      class="ion-margin-top"
+      className="app-danger-btn app-form-delete-btn"
       disabled={disabled}
       onClick={() =>
         present({

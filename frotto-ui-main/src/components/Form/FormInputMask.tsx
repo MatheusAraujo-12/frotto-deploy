@@ -31,7 +31,7 @@ const FormInputMask: React.FC<FormInputMaskProps> = ({
 
   return (
     <FormItemWrapper errorsObj={errorsObj} errorName={errorName}>
-      <IonItem>
+      <IonItem className="app-form-item">
         <FormInputLabel name={label} required={required} />
         <IonInput
           value={masked.value}

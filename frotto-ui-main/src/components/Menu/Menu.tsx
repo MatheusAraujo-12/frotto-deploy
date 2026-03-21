@@ -315,50 +315,15 @@ const Menu: React.FC = () => {
 
       <IonContent className="menu-content">
         <div className="menu-inner">
-          <div
-            className="menu-hero"
-            style={{
-              paddingTop: 18,
-              paddingBottom: 14,
-              textAlign: "center",
-            }}
-          >
+          <div className="menu-hero">
             {isProfileLoading ? (
               <>
-                <IonSkeletonText
-                  animated
-                  style={{
-                    width: 92,
-                    height: 92,
-                    borderRadius: "50%",
-                    margin: "0 auto",
-                  }}
-                />
-                <IonSkeletonText
-                  animated
-                  style={{
-                    width: "74%",
-                    maxWidth: 220,
-                    height: 18,
-                    margin: "12px auto 0",
-                    borderRadius: 8,
-                  }}
-                />
+                <IonSkeletonText animated className="menu-hero__avatar-skeleton" />
+                <IonSkeletonText animated className="menu-hero__name-skeleton" />
               </>
             ) : (
               <>
-                <IonAvatar
-                  style={{
-                    width: 92,
-                    height: 92,
-                    margin: "0 auto",
-                    background: "var(--ion-color-step-150, var(--ion-color-light))",
-                    color: "var(--ion-color-step-750, var(--ion-color-medium-shade))",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
+                <IonAvatar className="menu-hero__avatar">
                   {menuAvatarSrc && !menuAvatarLoadFailed ? (
                     <img
                       src={menuAvatarSrc}
@@ -368,40 +333,20 @@ const Menu: React.FC = () => {
                       }}
                     />
                   ) : (
-                    <span
-                      style={{
-                        fontSize: 30,
-                        fontWeight: 600,
-                        letterSpacing: 0.4,
-                      }}
-                    >
+                    <span className="menu-hero__initials">
                       {initials}
                     </span>
                   )}
                 </IonAvatar>
 
-                <div
-                  style={{
-                    marginTop: 12,
-                    fontSize: 17,
-                    fontWeight: 600,
-                    lineHeight: 1.3,
-                    color: "var(--ion-text-color)",
-                    wordBreak: "break-word",
-                  }}
-                >
+                <div className="menu-hero__name">
                   {displayName}
                 </div>
               </>
             )}
           </div>
 
-          <div
-            style={{
-              borderTop: "1px solid var(--ion-border-color)",
-              margin: "0 0 8px",
-            }}
-          />
+          <div className="menu-hero__divider" />
 
           <IonMenuToggle>
             <IonItem className="menu-item" routerLink="/menu/carros" routerDirection="none">
@@ -429,7 +374,7 @@ const Menu: React.FC = () => {
           </IonMenuToggle>
 
           <div className="menu-footer">
-            <IonItem lines="none">
+            <IonItem lines="none" className="menu-theme-toggle">
               <IonLabel>{TEXT.theme}</IonLabel>
               <IonToggle checked={isDark} onIonChange={(e) => onToggleTheme(e.detail.checked)} />
             </IonItem>

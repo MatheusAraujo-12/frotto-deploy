@@ -33,7 +33,7 @@ const FormSelect: React.FC<FormSelectProps> = ({
 }) => {
   return (
     <FormItemWrapper errorsObj={errorsObj} errorName={errorName}>
-      <IonItem>
+      <IonItem className="app-form-item">
         <FormInputLabel name={label} header={header} required={required} />
         <MyIonSelect
           value={initialValue}

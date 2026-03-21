@@ -280,8 +280,8 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
       <IonContent>
         <form onSubmit={(e) => e.preventDefault()}>
           {!selectedCar && !carId && (
-            <div style={{ padding: 16 }}>
-              <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: 16, fontWeight: 600 }}>
+            <div className="app-form-page__panel">
+              <h3 className="app-form-page__title">
                 {`${TEXT.select} ${TEXT.car}`}
               </h3>
               <CarSelector onSelect={handleSelectCar} />
@@ -289,18 +289,16 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
           )}
 
           {selectedCar && !carId && (
-            <div style={{ padding: 16, backgroundColor: "var(--app-card)", marginBottom: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <strong style={{ fontSize: 16, display: "block" }}>{selectedCar.name}</strong>
-                  <div style={{ fontSize: 14, color: "var(--ion-color-medium)", marginTop: 4 }}>
-                    {selectedCar.plate || "Sem placa"}
-                  </div>
+            <div className="app-selected-car">
+              <div>
+                <strong className="app-selected-car__title">{selectedCar.name}</strong>
+                <div className="app-selected-car__meta">
+                  {selectedCar.plate || "Sem placa"}
                 </div>
-                <IonButton size="small" fill="clear" color="medium" onClick={handleResetCar}>
-                  Trocar
-                </IonButton>
               </div>
+              <IonButton size="small" fill="clear" color="medium" onClick={handleResetCar}>
+                Trocar
+              </IonButton>
             </div>
           )}
 
@@ -401,13 +399,11 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
         </form>
 
         {formInitial.id && (
-          <div style={{ padding: 16, marginTop: 24 }}>
-            <FormDeleteButton
-              label={`${TEXT.delete} ${String(TEXT.maintenance).toLowerCase()}`}
-              message={TEXT.maintenance}
-              callBackFunc={onDelete}
-            />
-          </div>
+          <FormDeleteButton
+            label={`${TEXT.delete} ${String(TEXT.maintenance).toLowerCase()}`}
+            message={TEXT.maintenance}
+            callBackFunc={onDelete}
+          />
         )}
 
         {!formInitial.id && reminderList.length > 0 && (
@@ -445,8 +441,8 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
         )}
 
         {!formInitial.id && reminderList.length === 0 && (
-          <div style={{ padding: 16, textAlign: "center" }}>
-            <p style={{ color: "var(--ion-color-medium)" }}>{TEXT.noReminders}</p>
+          <div className="app-item-not-found">
+            <p>{TEXT.noReminders}</p>
           </div>
         )}
       </IonContent>

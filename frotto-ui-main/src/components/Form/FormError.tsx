@@ -6,7 +6,7 @@ export interface ErrorProps {
 
 const FormError: React.FC<ErrorProps> = ({ message }) => {
   return (
-    <IonText color="danger" className="ion-padding-start">
+    <IonText color="danger" className="app-form-error">
       {message}
     </IonText>
   );

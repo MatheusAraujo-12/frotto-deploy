@@ -284,38 +284,29 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
               />
 
               {!replicateForAllCars && (
-                <div style={{ padding: 12 }}>
+                <div className="app-form-page__panel">
                   {fetchError && (
-                    <div
-                      style={{
-                        color: "var(--ion-color-danger)",
-                        marginBottom: 12,
-                      }}
-                    >
+                    <div className="app-inline-alert app-inline-alert--danger">
                       {fetchError}
                     </div>
                   )}
 
                   {!selectedCar && !carId ? (
                     <>
-                      <h3 style={{ marginTop: 0, marginBottom: 12 }}>
+                      <h3 className="app-form-page__title">
                         {selectVehicleText}
                       </h3>
                       <CarSelector onSelect={handleCarSelect} />
                     </>
                   ) : (
-                    <div>
-                      <strong>
+                    <div className="app-selected-car">
+                      <div>
+                        <strong className="app-selected-car__title">
                         {selectedCar?.name || "Veículo selecionado"}
-                      </strong>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "var(--ion-color-medium)",
-                          marginBottom: 8,
-                        }}
-                      >
+                        </strong>
+                      <div className="app-selected-car__meta">
                         {selectedCar?.plate || carId || "ID do veículo"}
+                      </div>
                       </div>
 
                       {!carId && (
@@ -336,16 +327,14 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
         </form>
 
         {formInitial.id && (
-          <div style={{ padding: 16 }}>
-            <FormDeleteButton
-              label={`${TEXT.delete} ${String(
-                TEXT.carExpense
-              ).toLowerCase()}`}
-              message={confirmDeleteMessage}
-              callBackFunc={onDelete}
-              disabled={isLoading}
-            />
-          </div>
+          <FormDeleteButton
+            label={`${TEXT.delete} ${String(
+              TEXT.carExpense
+            ).toLowerCase()}`}
+            message={confirmDeleteMessage}
+            callBackFunc={onDelete}
+            disabled={isLoading}
+          />
         )}
       </IonContent>
     </IonPage>

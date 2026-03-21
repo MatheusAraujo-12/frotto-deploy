@@ -59,34 +59,40 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
   }, [location]);
 
   const loadDebtSummaryByDrivers = async (drivers: CarDriverModel[]) => {
-    const ids = drivers
-      .map((driver) => driver.id)
-      .filter((id): id is number => typeof id === "number");
+    const items = drivers
+      .map((driver) => ({
+        carDriverId: driver.id,
+        driverId: driver.driver?.id,
+      }))
+      .filter(
+        (item): item is { carDriverId: number; driverId: number } =>
+          typeof item.carDriverId === "number" && typeof item.driverId === "number"
+      );
 
-    if (ids.length === 0) {
+    if (items.length === 0) {
       setDebtSummaryByDriverId({});
       return;
     }
 
     const summaries = await Promise.all(
-      ids.map(async (id) => {
+      items.map(async ({ carDriverId, driverId }) => {
         try {
           const response = await api.get(
             endpoints.DRIVER_DEBT_SUMMARY({
-              pathVariables: { id },
+              pathVariables: { id: driverId },
             })
           );
-          return { id, summary: response.data as DriverDebtSummaryModel };
+          return { carDriverId, summary: response.data as DriverDebtSummaryModel };
         } catch (error) {
-          return { id, summary: undefined };
+          return { carDriverId, summary: undefined };
         }
       })
     );
 
     const summaryMap: Record<number, DriverDebtSummaryModel> = {};
-    summaries.forEach(({ id, summary }) => {
+    summaries.forEach(({ carDriverId, summary }) => {
       if (summary) {
-        summaryMap[id] = summary;
+        summaryMap[carDriverId] = summary;
       }
     });
     setDebtSummaryByDriverId(summaryMap);

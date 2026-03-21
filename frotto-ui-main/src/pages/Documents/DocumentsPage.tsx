@@ -25,7 +25,8 @@ import {
   useIonToast,
 } from "@ionic/react";
 import { add, closeCircleOutline, refreshOutline, trashOutline } from "ionicons/icons";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DriverPendencyModel } from "../../constants/CarModels";
 import { DebtItemTypeModel } from "../../constants/DebtItemTypeModels";
 import {
   CarSearchModel,
@@ -39,6 +40,7 @@ import {
 } from "../../constants/DocumentModels";
 import debtItemTypeService from "../../services/debtItemTypeService";
 import documentService from "../../services/documentService";
+import { currencyFormat } from "../../services/currencyFormat";
 import { useAlert } from "../../services/hooks/useAlert";
 import { formatDecimalInput, parseDecimal, sanitizeDecimalInput } from "../../services/decimalPtBr";
 import { generateDocumentPdf } from "./documentPdf";
@@ -132,9 +134,13 @@ const DocumentsPage: React.FC = () => {
   const [newChecklistLabel, setNewChecklistLabel] = useState("");
   const [debtItemTypes, setDebtItemTypes] = useState<DebtItemTypeModel[]>([]);
   const [isDebtItemTypesLoading, setIsDebtItemTypesLoading] = useState(false);
+  const [isConfissaoPendenciesLoading, setIsConfissaoPendenciesLoading] = useState(false);
+  const [confissaoImportFeedback, setConfissaoImportFeedback] = useState("");
+  const [confissaoAutoImportedDriverId, setConfissaoAutoImportedDriverId] = useState<number | null>(null);
   const [checklistPhotoCandidateIndexByRef, setChecklistPhotoCandidateIndexByRef] = useState<
     Record<string, number>
   >({});
+  const confissaoImportRequestIdRef = useRef(0);
 
   const logDocumentsDebug = useCallback((message: string, extra?: Record<string, any>) => {
     if (!DOCUMENTS_DEV_LOG) {
@@ -330,6 +336,7 @@ const DocumentsPage: React.FC = () => {
   };
 
   const resetWizard = () => {
+    confissaoImportRequestIdRef.current += 1;
     setWizardStep(1);
     setWizardType("");
     setWizardDriver(null);
@@ -342,6 +349,9 @@ const DocumentsPage: React.FC = () => {
     setWizardFiles([]);
     setChecklistNewPhotos([]);
     setSavedDocument(null);
+    setIsConfissaoPendenciesLoading(false);
+    setConfissaoImportFeedback("");
+    setConfissaoAutoImportedDriverId(null);
   };
 
   const closeWizard = () => {
@@ -397,10 +407,112 @@ const DocumentsPage: React.FC = () => {
     return findDebtItemTypeByName("Outros") || debtItemTypes[0] || null;
   }, [debtItemTypes, findDebtItemTypeByName]);
 
+  const buildEmptyConfissaoItem = useCallback((): ConfissaoDebtItem => {
+    const fallbackType = getFallbackDebtItemType();
+    return {
+      typeId: fallbackType?.id ?? null,
+      typeNameSnapshot: fallbackType?.name || "Outros",
+      descricaoItem: "",
+      valorItem: "",
+    };
+  }, [getFallbackDebtItemType]);
+
   const calculateConfissaoTotal = useCallback((items: ConfissaoDebtItem[]) => {
     const total = items.reduce((sum, item) => sum + (parseDecimal(item.valorItem) || 0), 0);
     return formatDecimalInput(total);
   }, []);
+
+  const findDebtItemTypeByPendency = useCallback(
+    (pendency: DriverPendencyModel): DebtItemTypeModel | null => {
+      const haystack = normalizeLookupText(`${pendency.name || ""} ${pendency.note || ""}`);
+      if (haystack) {
+        const matchedType =
+          debtItemTypes.find((item) => {
+            const typeName = normalizeLookupText(item.name);
+            return Boolean(typeName && (haystack.includes(typeName) || typeName.includes(haystack)));
+          }) || null;
+        if (matchedType) {
+          return matchedType;
+        }
+      }
+      return getFallbackDebtItemType();
+    },
+    [debtItemTypes, getFallbackDebtItemType]
+  );
+
+  const importDriverPendenciesToConfissao = useCallback(
+    async (driver: DriverSearchModel | null, force = false) => {
+      if (!driver?.id) {
+        return;
+      }
+      if (!force && confissaoAutoImportedDriverId === driver.id) {
+        return;
+      }
+
+      const requestId = confissaoImportRequestIdRef.current + 1;
+      confissaoImportRequestIdRef.current = requestId;
+      setIsConfissaoPendenciesLoading(true);
+
+      try {
+        const pendencies = await documentService.listOpenPendenciesByDriver(driver.id);
+        if (confissaoImportRequestIdRef.current !== requestId) {
+          return;
+        }
+
+        const importedItems = pendencies
+          .map((pendency) => {
+            const amount = getDriverPendencyOutstandingAmount(pendency);
+            if (amount <= 0) {
+              return null;
+            }
+
+            const selectedType = findDebtItemTypeByPendency(pendency);
+            return {
+              typeId: selectedType?.id ?? null,
+              typeNameSnapshot: selectedType?.name || "Outros",
+              descricaoItem: buildConfissaoItemDescriptionFromPendency(pendency),
+              valorItem: formatDecimalInput(amount),
+            } as ConfissaoDebtItem;
+          })
+          .filter((item): item is ConfissaoDebtItem => Boolean(item));
+
+        const nextItems = importedItems.length ? importedItems : [buildEmptyConfissaoItem()];
+        const totalImported = importedItems.reduce((sum, item) => sum + (parseDecimal(item.valorItem) || 0), 0);
+
+        setWizardPayload((current) => ({
+          ...current,
+          origemDaDivida:
+            `${current?.origemDaDivida || ""}`.trim() ||
+            "Pendências em aberto importadas automaticamente do motorista selecionado.",
+          itensDaDivida: nextItems,
+          valorTotal: calculateConfissaoTotal(nextItems),
+        }));
+        setConfissaoAutoImportedDriverId(driver.id);
+        setConfissaoImportFeedback(
+          importedItems.length
+            ? `${importedItems.length} pendência(s) em aberto importada(s), total ${currencyFormat(totalImported)}.`
+            : "Nenhuma pendência em aberto encontrada para o motorista selecionado."
+        );
+      } catch (_error) {
+        if (confissaoImportRequestIdRef.current !== requestId) {
+          return;
+        }
+        setConfissaoImportFeedback("");
+        showErrorAlert("Não foi possível carregar as pendências do motorista selecionado.");
+      } finally {
+        if (confissaoImportRequestIdRef.current === requestId) {
+          setIsConfissaoPendenciesLoading(false);
+        }
+      }
+    },
+    [
+      buildEmptyConfissaoItem,
+      calculateConfissaoTotal,
+      confissaoAutoImportedDriverId,
+      findDebtItemTypeByPendency,
+      showErrorAlert,
+    ]
+  );
 
   const normalizeConfissaoItemsForEditor = useCallback(
     (payload: Record<string, any>): ConfissaoDebtItem[] => {
@@ -554,18 +666,12 @@ const DocumentsPage: React.FC = () => {
   );
 
   const addConfissaoItem = useCallback(() => {
-    const fallbackType = getFallbackDebtItemType();
     const nextItems = [
       ...confissaoItems,
-      {
-        typeId: fallbackType?.id ?? null,
-        typeNameSnapshot: fallbackType?.name || "Outros",
-        descricaoItem: "",
-        valorItem: "",
-      },
+      buildEmptyConfissaoItem(),
     ];
     applyConfissaoItems(nextItems);
-  }, [applyConfissaoItems, confissaoItems, getFallbackDebtItemType]);
+  }, [applyConfissaoItems, buildEmptyConfissaoItem, confissaoItems]);
 
   const updateConfissaoItem = useCallback(
     (index: number, patch: Partial<ConfissaoDebtItem>) => {
@@ -868,15 +974,7 @@ const DocumentsPage: React.FC = () => {
         return normalized;
       }
 
-      const fallbackType = getFallbackDebtItemType();
-      const initialItems: ConfissaoDebtItem[] = [
-        {
-          typeId: fallbackType?.id ?? null,
-          typeNameSnapshot: fallbackType?.name || "Outros",
-          descricaoItem: "",
-          valorItem: "",
-        },
-      ];
+      const initialItems: ConfissaoDebtItem[] = [buildEmptyConfissaoItem()];
 
       return {
         ...normalized,
@@ -885,12 +983,19 @@ const DocumentsPage: React.FC = () => {
       };
     });
   }, [
+    buildEmptyConfissaoItem,
     calculateConfissaoTotal,
-    getFallbackDebtItemType,
     isWizardOpen,
     normalizePayloadForEditor,
     wizardType,
   ]);
+
+  useEffect(() => {
+    if (!isWizardOpen || wizardType !== "CONFISSAO_DIVIDA" || !wizardDriver?.id) {
+      return;
+    }
+    void importDriverPendenciesToConfissao(wizardDriver);
+  }, [importDriverPendenciesToConfissao, isWizardOpen, wizardDriver, wizardType]);
 
   useEffect(() => {
     if (!isWizardOpen || wizardType !== "ENTREGA_DEVOLUCAO_CHECKLIST") {
@@ -1165,12 +1270,16 @@ const DocumentsPage: React.FC = () => {
       const payloadCarPlate = `${payload.carPlate || ""}`.trim();
       const payloadCarModel = `${payload.carModel || ""}`.trim();
 
+      confissaoImportRequestIdRef.current += 1;
       setWizardType(document.type);
       setWizardStep(3);
       setSavedDocument(document);
       setWizardPayload(normalizePayloadForEditor(document.type, payload, document.attachments || []));
       setWizardFiles([]);
       setChecklistNewPhotos([]);
+      setIsConfissaoPendenciesLoading(false);
+      setConfissaoImportFeedback("");
+      setConfissaoAutoImportedDriverId(document.type === "CONFISSAO_DIVIDA" ? document.driverId : null);
       setWizardDriverOptions([]);
       setWizardCarOptions([]);
       logDocumentsDebug("wizard hydrated from draft", {
@@ -1408,6 +1517,10 @@ const DocumentsPage: React.FC = () => {
       return (
         <>
           {isDebtItemTypesLoading && <p className="documents-warning">Carregando tipos de dívida...</p>}
+          {isConfissaoPendenciesLoading && (
+            <p className="documents-warning">Carregando pendências em aberto do motorista...</p>
+          )}
+          {!!confissaoImportFeedback && <p className="documents-warning">{confissaoImportFeedback}</p>}
           {!isDebtItemTypesLoading && !debtItemTypeOptions.length && (
             <p className="documents-warning">Nenhum tipo ativo encontrado. Cadastre em Tipos de Dívida.</p>
           )}
@@ -1469,6 +1582,14 @@ const DocumentsPage: React.FC = () => {
             >
               <IonIcon icon={add} slot="start" />
               Criar tipo
+            </IonButton>
+            <IonButton
+              fill="outline"
+              onClick={() => void importDriverPendenciesToConfissao(wizardDriver, true)}
+              disabled={!wizardDriver?.id || isDebtItemTypesLoading || isConfissaoPendenciesLoading}
+            >
+              <IonIcon icon={refreshOutline} slot="start" />
+              Atualizar pendências
             </IonButton>
           </div>
           <DecimalField
@@ -1982,11 +2103,22 @@ const DocumentsPage: React.FC = () => {
                       setWizardDriver(driver);
                       setWizardDriverQuery(driver.name || "");
                       setWizardDriverOptions([]);
-                      syncMetaPayload();
+                      setConfissaoImportFeedback("");
+                      syncMetaPayload({
+                        driverName: driver.name || "",
+                        driverCpf: driver.cpf || "",
+                      });
                     }}
                     onClear={() => {
+                      confissaoImportRequestIdRef.current += 1;
                       setWizardDriver(null);
                       setWizardDriverQuery("");
+                      setConfissaoAutoImportedDriverId(null);
+                      setConfissaoImportFeedback("");
+                      syncMetaPayload({
+                        driverName: "",
+                        driverCpf: "",
+                      });
                     }}
                   />
                   <Autocomplete
@@ -2002,11 +2134,18 @@ const DocumentsPage: React.FC = () => {
                       setWizardCar(car);
                       setWizardCarQuery(car.plate || "");
                       setWizardCarOptions([]);
-                      syncMetaPayload();
+                      syncMetaPayload({
+                        carPlate: car.plate || "",
+                        carModel: car.model || "",
+                      });
                     }}
                     onClear={() => {
                       setWizardCar(null);
                       setWizardCarQuery("");
+                      syncMetaPayload({
+                        carPlate: "",
+                        carModel: "",
+                      });
                     }}
                   />
                 </IonCardContent>
@@ -2241,6 +2380,28 @@ function normalizeLookupText(value: any): string {
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase();
+}
+
+function getDriverPendencyOutstandingAmount(pendency: DriverPendencyModel): number {
+  if (typeof pendency.remainingAmount === "number") {
+    return Math.max(pendency.remainingAmount, 0);
+  }
+  if (typeof pendency.cost === "number" && typeof pendency.paidAmount === "number") {
+    return Math.max(pendency.cost - pendency.paidAmount, 0);
+  }
+  if (typeof pendency.cost === "number") {
+    return pendency.status === "PAID" ? 0 : pendency.cost;
+  }
+  return 0;
+}
+
+function buildConfissaoItemDescriptionFromPendency(pendency: DriverPendencyModel): string {
+  const name = `${pendency.name || ""}`.trim();
+  const note = `${pendency.note || ""}`.trim();
+  if (name && note) {
+    return `${name}. ${note}`;
+  }
+  return name || note;
 }
 
 function formatDate(value?: string) {

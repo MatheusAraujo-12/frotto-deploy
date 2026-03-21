@@ -227,27 +227,14 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
         <form onSubmit={(e) => e.preventDefault()}>
           {/* Seletor de Carro (apenas se não veio com carId) */}
           {!selectedCar && !carId && (
-            <div style={{ padding: 16 }}>
+            <div className="app-form-page__panel">
               {fetchError && (
-                <div
-                  style={{
-                    color: "var(--ion-color-danger)",
-                    marginBottom: 12,
-                    fontSize: 14,
-                  }}
-                >
+                <div className="app-inline-alert app-inline-alert--danger">
                   {fetchError}
                 </div>
               )}
 
-              <h3
-                style={{
-                  marginTop: 0,
-                  marginBottom: 16,
-                  fontSize: 16,
-                  fontWeight: 600,
-                }}
-              >
+              <h3 className="app-form-page__title">
                 {selectVehicleText}
               </h3>
 
@@ -257,46 +244,26 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
 
           {/* Info do Carro Selecionado */}
           {selectedCar && (
-            <div
-              style={{
-                padding: 16,
-                backgroundColor: "var(--app-card)",
-                marginBottom: 16,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <div>
-                  <strong style={{ fontSize: 16, display: "block" }}>
+            <div className="app-selected-car">
+              <div>
+                  <strong className="app-selected-car__title">
                     {selectedCar.name}
                   </strong>
-                  <div
-                    style={{
-                      fontSize: 14,
-                      color: "var(--ion-color-medium)",
-                      marginTop: 4,
-                    }}
-                  >
+                  <div className="app-selected-car__meta">
                     {selectedCar.plate || "Sem placa"}
                   </div>
                 </div>
 
-                {!carId && (
-                  <IonButton
-                    size="small"
-                    fill="clear"
-                    color="medium"
-                    onClick={handleResetCar}
-                  >
-                    Trocar
-                  </IonButton>
-                )}
-              </div>
+              {!carId && (
+                <IonButton
+                  size="small"
+                  fill="clear"
+                  color="medium"
+                  onClick={handleResetCar}
+                >
+                  Trocar
+                </IonButton>
+              )}
             </div>
           )}
 
@@ -323,37 +290,19 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
 
         {/* Botão de deletar (apenas para edição) */}
         {formInitial.id && (
-          <div style={{ padding: 16, marginTop: 24 }}>
-            <FormDeleteButton
-              label={`${TEXT.delete} ${String(TEXT.reminder).toLowerCase()}`}
-              message={confirmDeleteMessage}
-              callBackFunc={onDelete}
-              disabled={isLoading}
-            />
-          </div>
+          <FormDeleteButton
+            label={`${TEXT.delete} ${String(TEXT.reminder).toLowerCase()}`}
+            message={confirmDeleteMessage}
+            callBackFunc={onDelete}
+            disabled={isLoading}
+          />
         )}
 
         {/* Dicas */}
         {!formInitial.id && (selectedCar || carId) && (
-          <div
-            style={{
-              padding: 16,
-              marginTop: 24,
-              backgroundColor: "var(--app-card)",
-              borderRadius: 8,
-            }}
-          >
-            <p style={{ fontSize: 14, color: "var(--ion-color-medium)", margin: 0 }}>
-              <strong>Dicas para lembrete:</strong>
-            </p>
-            <ul
-              style={{
-                fontSize: 12,
-                color: "var(--ion-color-medium)",
-                margin: "8px 0 0 16px",
-                padding: 0,
-              }}
-            >
+          <div className="app-help-card">
+            <p className="app-help-card__title">Dicas para lembrete:</p>
+            <ul className="app-help-card__list">
               <li>Troca de óleo a cada 10.000km</li>
               <li>Calibragem de pneus semanal</li>
               <li>Revisão anual obrigatória</li>

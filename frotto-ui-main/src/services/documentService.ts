@@ -1,4 +1,5 @@
 import endpoints from "../constants/endpoints";
+import { DriverPendencyModel } from "../constants/CarModels";
 import {
   CarSearchModel,
   DocumentModel,
@@ -59,6 +60,17 @@ const documentService = {
     }
     const { data } = await api.get<CarSearchModel[]>(
       endpoints.CARS_SEARCH({ query: { plate: normalized } })
+    );
+    return Array.isArray(data) ? data : [];
+  },
+
+  async listOpenPendenciesByDriver(driverId: number): Promise<DriverPendencyModel[]> {
+    if (!driverId) {
+      return [];
+    }
+
+    const { data } = await api.get<DriverPendencyModel[]>(
+      endpoints.DRIVER_OPEN_PENDENCIES({ pathVariables: { id: driverId } })
     );
     return Array.isArray(data) ? data : [];
   },

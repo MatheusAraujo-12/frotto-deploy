@@ -381,14 +381,14 @@ const Cars: React.FC = () => {
           </IonToolbar>
         </IonHeader>
         <IonContent>
-          <div style={{ padding: 16 }}>
-            <h3 style={{ marginTop: 0, marginBottom: 16 }}>
-              {`${TEXT.select} ${TEXT.car}`}
-            </h3>
-            <CarSelector
-              cars={carList}
-              onSelect={handleSelectActionCar}
-            />
+          <div className="app-form-page__body">
+            <div className="app-form-page__panel">
+              <h3 className="app-form-page__title">{`${TEXT.select} ${TEXT.car}`}</h3>
+              <CarSelector
+                cars={carList}
+                onSelect={handleSelectActionCar}
+              />
+            </div>
           </div>
         </IonContent>
       </IonPage>
@@ -478,7 +478,7 @@ const Cars: React.FC = () => {
       </IonHeader>
 
       <IonContent scrollY forceOverscroll={true}>
-        <div className="section-shell">
+        <div className="section-shell cars-shell">
           <div className="cards-grid">
             {filteredList.map((car: CarModel, index) => (
               <CarListItem
@@ -512,8 +512,8 @@ const Cars: React.FC = () => {
             {quickActions.map((action) => (
               <IonItem button key={action.key} onClick={() => handleSelectQuickAction(action.key)}>
                 <IonLabel>
-                  <h3 style={{ margin: 0 }}>{action.title}</h3>
-                  <p style={{ margin: 0, color: "var(--ion-color-medium)" }}>{action.description}</p>
+                  <h3 className="cars-action-picker__title">{action.title}</h3>
+                  <p className="cars-action-picker__description">{action.description}</p>
                 </IonLabel>
               </IonItem>
             ))}

@@ -4,7 +4,9 @@ const THEME_KEY = "app-theme";
 
 export const applyTheme = (theme: Theme) => {
   const enableDark = theme === "dark";
+  const enableLight = theme === "light";
   document.body.classList.toggle("dark", enableDark);
+  document.body.classList.toggle("light", enableLight);
   document.documentElement.style.colorScheme = enableDark ? "dark" : "light";
 };
 

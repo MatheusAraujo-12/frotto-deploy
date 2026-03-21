@@ -1,9 +1,11 @@
 package com.localuz.web.rest;
 
 import com.localuz.domain.DriverCar;
+import com.localuz.domain.Driver;
 import com.localuz.domain.Pendency;
 import com.localuz.domain.enumeration.PendencyStatus;
 import com.localuz.repository.DriverCarRepository;
+import com.localuz.repository.DriverRepository;
 import com.localuz.repository.PendencyRepository;
 import com.localuz.service.dto.DebtSummaryDTO;
 import com.localuz.service.dto.PendencyPaymentDTO;
@@ -51,9 +53,16 @@ public class PendencyResource {
 
     private final DriverCarRepository driverCarRepository;
 
-    public PendencyResource(PendencyRepository pendencyRepository, DriverCarRepository driverCarRepository) {
+    private final DriverRepository driverRepository;
+
+    public PendencyResource(
+        PendencyRepository pendencyRepository,
+        DriverCarRepository driverCarRepository,
+        DriverRepository driverRepository
+    ) {
         this.pendencyRepository = pendencyRepository;
         this.driverCarRepository = driverCarRepository;
+        this.driverRepository = driverRepository;
     }
 
     @GetMapping("/pendencies/car-driver/{carDriverId}")
@@ -66,14 +75,21 @@ public class PendencyResource {
         return findDebtsByDriverAndStatus(carDriverId, statuses);
     }
 
+    @GetMapping("/drivers/{driverId}/open-pendencies")
+    public List<Pendency> getOpenPendenciesByDriver(@PathVariable Long driverId) {
+        log.debug("REST request to get open pendencies by driverId : {}", driverId);
+        getDriverOrThrow(driverId);
+        return pendencyRepository.findOpenByCurrentUserAndDriverIdOrderByDateDesc(driverId);
+    }
+
     @GetMapping("/drivers/{driverId}/debts")
     public List<Pendency> getDebtsByDriver(
-        @PathVariable(value = "driverId") Long driverCarId,
+        @PathVariable(value = "driverId") Long driverId,
         @RequestParam(name = "status", required = false) List<PendencyStatus> statuses
     ) {
-        log.debug("REST request to get debts by driverCarId : {}", driverCarId);
-        getDriverCarOrThrow(driverCarId);
-        return findDebtsByDriverAndStatus(driverCarId, statuses);
+        log.debug("REST request to get debts by driverId : {}", driverId);
+        getDriverOrThrow(driverId);
+        return findDebtsByDriverIdAndStatus(driverId, statuses);
     }
 
     @GetMapping("/debts")
@@ -93,14 +109,14 @@ public class PendencyResource {
     }
 
     @GetMapping("/drivers/{driverId}/debt-summary")
-    public DebtSummaryDTO getDriverDebtSummary(@PathVariable(value = "driverId") Long driverCarId) {
-        log.debug("REST request to get debt summary by driverCarId : {}", driverCarId);
-        getDriverCarOrThrow(driverCarId);
-        BigDecimal totalOutstanding = pendencyRepository.findOutstandingTotalByCurrentUserAndDriverCarId(driverCarId);
-        long openCount = pendencyRepository.countOpenByCurrentUserAndDriverCarId(driverCarId);
-        long totalCount = pendencyRepository.countByCurrentUserAndDriverCarId(driverCarId);
+    public DebtSummaryDTO getDriverDebtSummary(@PathVariable(value = "driverId") Long driverId) {
+        log.debug("REST request to get debt summary by driverId : {}", driverId);
+        getDriverOrThrow(driverId);
+        BigDecimal totalOutstanding = pendencyRepository.findOutstandingTotalByCurrentUserAndDriverId(driverId);
+        long openCount = pendencyRepository.countOpenByCurrentUserAndDriverId(driverId);
+        long totalCount = pendencyRepository.countByCurrentUserAndDriverId(driverId);
         long paidCount = Math.max(totalCount - openCount, 0);
-        return new DebtSummaryDTO(driverCarId, totalOutstanding, openCount, totalCount, paidCount);
+        return new DebtSummaryDTO(driverId, totalOutstanding, openCount, totalCount, paidCount);
     }
 
     @GetMapping("/pendencies/{id}")
@@ -233,6 +249,12 @@ public class PendencyResource {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found for current user"));
     }
 
+    private Driver getDriverOrThrow(Long driverId) {
+        return driverRepository
+            .findByCurrentUserAndId(driverId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver not found for current user"));
+    }
+
     private Pendency getPendencyOrThrow(Long pendencyId) {
         return pendencyRepository
             .findByCurrentUserAndPendencyId(pendencyId)
@@ -248,6 +270,13 @@ public class PendencyResource {
             return pendencyRepository.findByCurrentUserAndDriverCarIdAndStatusInOrderByDateDesc(driverCarId, statuses);
         }
         return pendencyRepository.findByCurrentUserAndDriverCarIdOrderByDateDesc(driverCarId);
+    }
+
+    private List<Pendency> findDebtsByDriverIdAndStatus(Long driverId, List<PendencyStatus> statuses) {
+        if (hasStatuses(statuses)) {
+            return pendencyRepository.findByCurrentUserAndDriverIdAndStatusInOrderByDateDesc(driverId, statuses);
+        }
+        return pendencyRepository.findByCurrentUserAndDriverIdOrderByDateDesc(driverId);
     }
 
     private void initializePendencyForCreate(Pendency pendency) {

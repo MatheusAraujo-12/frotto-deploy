@@ -23,7 +23,7 @@ const FormToggle: React.FC<FormToggleProps> = ({
 }) => {
   return (
     <FormItemWrapper errorsObj={errorsObj} errorName={errorName}>
-      <IonItem>
+      <IonItem className="app-form-item app-form-item--toggle">
         <FormInputLabel name={label} required={required} />
         <IonToggle
           checked={initialValue}

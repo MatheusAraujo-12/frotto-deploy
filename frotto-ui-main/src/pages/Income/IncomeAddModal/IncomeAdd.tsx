@@ -189,16 +189,14 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
       <IonContent>
         <form onSubmit={(e) => e.preventDefault()}>
           {!selectedCar && !carId && (
-            <div style={{ padding: 16 }}>
+            <div className="app-form-page__panel">
               {fetchError && (
-                <div style={{ color: "var(--ion-color-danger)", marginBottom: 12, fontSize: 14 }}>
+                <div className="app-inline-alert app-inline-alert--danger">
                   {fetchError}
                 </div>
               )}
 
-              <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: 16, fontWeight: 600 }}>
-                {`${TEXT.select} ${TEXT.car}`}
-              </h3>
+              <h3 className="app-form-page__title">{`${TEXT.select} ${TEXT.car}`}</h3>
 
               <CarSelector onSelect={handleCarSelect} />
             </div>
@@ -258,13 +256,11 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
         </form>
 
         {formInitial.id && (
-          <div style={{ padding: 16, marginTop: 24 }}>
-            <FormDeleteButton
-              label={`${TEXT.delete} ${String(TEXT.income).toLowerCase()}`}
-              message={confirmDeleteMessage}
-              callBackFunc={onDelete}
-            />
-          </div>
+          <FormDeleteButton
+            label={`${TEXT.delete} ${String(TEXT.income).toLowerCase()}`}
+            message={confirmDeleteMessage}
+            callBackFunc={onDelete}
+          />
         )}
       </IonContent>
     </IonPage>

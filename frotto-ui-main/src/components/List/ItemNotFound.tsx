@@ -10,9 +10,9 @@ const ItemNotFound: React.FC<ItemNotFoundProps> = ({
   message = "Nenhum item encontrado",
 }) => {
   return (
-    <div style={{ textAlign: "center", padding: 16, opacity: 0.85 }}>
-      <IonIcon icon={searchOutline} style={{ fontSize: 34, marginBottom: 8 }} />
-      <div style={{ fontWeight: 600 }}>{message}</div>
+    <div className="app-item-not-found">
+      <IonIcon icon={searchOutline} className="app-item-not-found__icon" />
+      <div className="app-item-not-found__text">{message}</div>
     </div>
   );
 };

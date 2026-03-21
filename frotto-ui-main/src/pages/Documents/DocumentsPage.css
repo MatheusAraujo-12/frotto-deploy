@@ -1,17 +1,58 @@
 #documents-page .documents-shell {
-  padding-bottom: 18px;
+  max-width: 1060px;
+}
+
+#documents-page ion-card {
+  margin: 0;
+}
+
+#documents-page ion-card-content {
+  display: grid;
+  gap: 12px;
+}
+
+#documents-page ion-card-content > h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 #documents-page .documents-filter-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 4px;
+}
+
+#documents-page .documents-filter-actions ion-button,
+#documents-page .documents-step-footer ion-button,
+#documents-page .documents-editor-actions ion-button,
+#documents-page .documents-modal-actions ion-button {
+  margin: 0;
 }
 
 #documents-page .documents-list-item {
-  --padding-top: 12px;
-  --padding-bottom: 12px;
+  --padding-top: 14px;
+  --padding-bottom: 14px;
+  margin-bottom: 10px;
+  border: 1px solid var(--ion-border-color);
+  border-radius: 14px;
+}
+
+#documents-page .documents-list-item:last-child {
+  margin-bottom: 0;
+}
+
+#documents-page .documents-list-item h2 {
+  margin: 0 0 4px;
+  font-size: 0.96rem;
+  font-weight: 700;
+}
+
+#documents-page .documents-list-item p {
+  margin: 0;
+  color: var(--ion-color-medium);
+  line-height: 1.45;
 }
 
 #documents-page .documents-item-actions {
@@ -20,6 +61,7 @@
   gap: 8px;
   align-items: center;
   justify-content: flex-end;
+  padding-left: 12px;
 }
 
 #documents-page .documents-autocomplete {
@@ -27,40 +69,53 @@
 }
 
 #documents-page .documents-autocomplete-list {
-  border: 1px solid var(--ion-border-color, #d0d7de);
-  border-top: 0;
-  border-radius: 0 0 10px 10px;
-  margin-top: -2px;
+  margin: 4px 0 8px;
+  padding: 8px;
+  border: 1px solid var(--ion-border-color);
+  border-radius: 16px;
+  background: var(--app-card);
+  box-shadow: var(--app-shadow);
+}
+
+#documents-page .documents-autocomplete-list ion-item {
   margin-bottom: 8px;
 }
 
+#documents-page .documents-autocomplete-list ion-item:last-child {
+  margin-bottom: 0;
+}
+
 #documents-page .documents-warning {
-  color: #b45309;
-  font-size: 13px;
+  margin: 0;
+  color: #a16207;
+  font-size: 0.84rem;
+  line-height: 1.45;
 }
 
 #documents-page .documents-debt-items {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin: 10px 0;
+  gap: 12px;
+  margin: 4px 0 0;
 }
 
 #documents-page .documents-debt-item-card {
-  border: 1px solid var(--ion-border-color, #d0d7de);
-  border-radius: 10px;
-  padding: 8px;
+  padding: 12px;
+  border: 1px solid var(--ion-border-color);
+  border-radius: 16px;
+  background: var(--app-card-strong);
 }
 
 #documents-page .documents-debt-item-actions {
   display: flex;
   justify-content: flex-end;
-  padding: 6px 4px 0;
+  padding: 6px 0 0;
 }
 
 #documents-page .documents-step-footer {
   display: flex;
   justify-content: space-between;
+  gap: 10px;
   width: 100%;
   padding: 8px 12px;
 }
@@ -93,6 +148,11 @@
 #documents-page .documents-file-input {
   width: 100%;
   margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px dashed var(--ion-border-color);
+  border-radius: 12px;
+  background: var(--app-card-soft);
+  color: var(--ion-color-medium);
 }
 
 #documents-page .documents-checklist {
@@ -105,14 +165,15 @@
 #documents-page .documents-checklist-builder {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 10px;
+  margin-top: 4px;
 }
 
 #documents-page .documents-checklist-row {
-  border: 1px solid var(--ion-border-color, #d0d7de);
-  border-radius: 10px;
+  border: 1px solid var(--ion-border-color);
+  border-radius: 14px;
   overflow: hidden;
+  background: var(--app-card-strong);
 }
 
 #documents-page .documents-checklist-section {
@@ -124,26 +185,28 @@
 
 #documents-page .documents-checklist-title {
   margin: 0;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 0.94rem;
+  font-weight: 700;
 }
 
 #documents-page .documents-checklist-subtitle {
   margin: 0;
-  font-size: 13px;
-  color: #475569;
+  font-size: 0.83rem;
+  color: var(--ion-color-medium);
 }
 
 #documents-page .documents-checklist-item-card {
-  border: 1px solid var(--ion-border-color, #d0d7de);
-  border-radius: 10px;
-  padding: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--ion-border-color);
+  border-radius: 14px;
+  background: var(--app-card-strong);
 }
 
 #documents-page .documents-checklist-contact-card {
-  border: 1px solid var(--ion-border-color, #d0d7de);
-  border-radius: 10px;
   padding: 4px;
+  border: 1px solid var(--ion-border-color);
+  border-radius: 14px;
+  background: var(--app-card-strong);
 }
 
 #documents-page .documents-checklist-contact-actions {
@@ -176,19 +239,20 @@
 }
 
 #documents-page .documents-checklist-files {
-  border: 1px dashed var(--ion-border-color, #d0d7de);
-  border-radius: 10px;
-  padding: 10px;
+  padding: 12px;
+  border: 1px dashed var(--ion-border-color);
+  border-radius: 14px;
+  background: var(--app-card-strong);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 #documents-page .documents-checklist-file-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
 }
 
 #documents-page .documents-checklist-file-main {
@@ -203,9 +267,9 @@
   width: 84px;
   height: 64px;
   object-fit: cover;
-  border-radius: 8px;
-  border: 1px solid var(--ion-border-color, #d0d7de);
-  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid var(--ion-border-color);
+  background: var(--app-card);
   flex-shrink: 0;
 }
 
@@ -213,7 +277,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #64748b;
+  color: var(--ion-color-medium);
   font-size: 11px;
   padding: 4px;
 }
@@ -227,17 +291,20 @@
 
 #documents-page .documents-checklist-file-name {
   word-break: break-word;
+  color: var(--ion-text-color);
+  font-weight: 600;
 }
 
 #documents-page .documents-checklist-file-hint {
   font-size: 12px;
-  color: #64748b;
+  color: var(--ion-color-medium);
 }
 
 #documents-page .documents-checklist-tire-positions {
-  border: 1px solid var(--ion-border-color, #d0d7de);
-  border-radius: 10px;
-  padding: 10px;
+  padding: 12px;
+  border: 1px solid var(--ion-border-color);
+  border-radius: 14px;
+  background: var(--app-card-strong);
 }
 
 #documents-page .documents-checklist-tire-positions p {
@@ -249,41 +316,33 @@
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-  padding: 10px 6px 0;
+  padding: 0 6px 0;
   flex-wrap: wrap;
 }
 
 @media (max-width: 700px) {
-  #documents-page .documents-editor-actions ion-button,
-  #documents-page .documents-editor-actions .documents-generate-button {
-    flex: 1 1 100%;
-  }
-
-  #documents-page .documents-modal-actions {
+  #documents-page .documents-item-actions,
+  #documents-page .documents-step-footer,
+  #documents-page .documents-filter-actions {
     justify-content: stretch;
+    padding-left: 0;
   }
 
-  #documents-page .documents-modal-actions ion-button {
-    flex: 1 1 100%;
-  }
-
+  #documents-page .documents-filter-actions ion-button,
+  #documents-page .documents-step-footer ion-button,
+  #documents-page .documents-editor-actions ion-button,
+  #documents-page .documents-editor-actions .documents-generate-button,
+  #documents-page .documents-modal-actions ion-button,
   #documents-page .documents-debt-item-actions ion-button {
-    width: 100%;
+    flex: 1 1 100%;
   }
 
   #documents-page .documents-checklist-item-row {
     flex-wrap: wrap;
   }
 
-  #documents-page .documents-checklist-item-row ion-button {
-    width: 100%;
-  }
-
-  #documents-page .documents-checklist-add ion-button {
-    margin-top: 10px;
-    width: 100%;
-  }
-
+  #documents-page .documents-checklist-item-row ion-button,
+  #documents-page .documents-checklist-add ion-button,
   #documents-page .documents-checklist-contact-actions ion-button {
     width: 100%;
   }

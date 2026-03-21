@@ -1,4 +1,5 @@
 import { IonItem, IonTextarea } from "@ionic/react";
+import FormInputLabel from "./FormInputLabel";
 import FormItemWrapper from "./FormItemWrapper";
 
 interface FormInputAreaProps {
@@ -24,7 +25,8 @@ const FormInputArea: React.FC<FormInputAreaProps> = ({
 }) => {
   return (
     <FormItemWrapper errorsObj={errorsObj} errorName={errorName}>
-      <IonItem counter={true}>
+      <IonItem counter={true} className="app-form-item app-form-item--textarea">
+        <FormInputLabel name={label} required={required} />
         <IonTextarea
           value={initialValue}
           placeholder={label}

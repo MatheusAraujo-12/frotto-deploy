@@ -90,6 +90,7 @@ const FormSelectFilterAdd: React.FC<SelectFilterAddProps> = ({
   return (
     <FormItemWrapper errorsObj={errorsObj} errorName={errorName}>
       <IonItem
+        className="app-form-item app-form-item--button"
         button
         detail={false}
         id="open-modal"
@@ -103,7 +104,7 @@ const FormSelectFilterAdd: React.FC<SelectFilterAddProps> = ({
         <IonButton
           slot="end"
           fill="clear"
-          class="ion-no-padding ion-no-marging"
+          className="app-form-select-value ion-no-padding ion-no-margin"
           color={selectValue ? "primary" : "medium"}
         >
           {selectValue && <>{selectValue}</>}
@@ -126,11 +127,12 @@ const FormSelectFilterAdd: React.FC<SelectFilterAddProps> = ({
             ></IonSearchbar>
           </IonToolbar>
         </IonHeader>
-        <IonContent>
+        <IonContent className="app-picker-modal__content">
           <IonList>
             {filteredList.map((item: string, index) => {
               return (
                 <IonItem
+                  className="app-picker-modal__item"
                   button
                   key={index}
                   onClick={() => {
@@ -149,7 +151,7 @@ const FormSelectFilterAdd: React.FC<SelectFilterAddProps> = ({
             {filteredList.length === 0 && (
               <>
                 <ItemNotFound />
-                <IonItem>
+                <IonItem className="app-picker-modal__item">
                   <IonButton
                     slot="end"
                     onClick={() => {

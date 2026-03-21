@@ -12,7 +12,7 @@ import {
   IonToolbar,
 } from "@ionic/react";
 import { TEXT } from "../../../constants/texts";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAlert } from "../../../services/hooks/useAlert";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -25,7 +25,11 @@ import {
 import FormDate from "../../../components/Form/FormDate";
 import api from "../../../services/axios/axios";
 import endpoints from "../../../constants/endpoints";
-import { CarDriverModel, DriverModel } from "../../../constants/CarModels";
+import {
+  CarDriverModel,
+  DriverDebtSummaryModel,
+  DriverModel,
+} from "../../../constants/CarModels";
 import FormInput from "../../../components/Form/FormInput";
 import FormSelect from "../../../components/Form/FormSelect";
 import { STATES_BR } from "../../../constants/selectOptions";
@@ -33,6 +37,7 @@ import FormToggle from "../../../components/Form/FormToggle";
 import FormCurrency from "../../../components/Form/FormCurrency";
 import FormInputMask from "../../../components/Form/FormInputMask";
 import FormInputLabel from "../../../components/Form/FormInputLabel";
+import { currencyFormat } from "../../../services/currencyFormat";
 
 interface DriverAddModalProps {
   closeModal: (response?: CarDriverModel) => void;
@@ -47,6 +52,8 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
 }) => {
   const { showErrorAlert } = useAlert();
   const [isLoading, setisLoading] = useState(false);
+  const [driverDebtSummary, setDriverDebtSummary] =
+    useState<DriverDebtSummaryModel>();
   const formInitial = initialDriverValues(initialValues || {});
   const [showConcluded, setShowConcluded] = useState(formInitial.concluded);
 
@@ -68,7 +75,12 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
     setShowConcluded(Boolean(nextValues.concluded));
   }, [initialValues, reset]);
 
-  const updateDriver = (driver: DriverModel) => {
+  const watchedFormId = watch("id");
+  const watchedDriverId = watch("driverId");
+  const watchedDriverName = watch("driverName");
+  const watchedDebt = watch("debt");
+
+  const updateDriver = useCallback((driver: DriverModel) => {
     setValue("driverId", driver.id);
     setValue("driverName", driver.name ? driver.name : "");
     setValue("driverCpf", driver.cpf ? driver.cpf : "");
@@ -105,32 +117,115 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
       "driverAddressName",
       driver.address?.name ? driver.address?.name : ""
     );
-  };
+  }, [setValue]);
 
-  const loadDriverByCpf = async (cpf: string | undefined | null | number) => {
-    if (typeof cpf === "string" && cpf.length === 11) {
-      setisLoading(true);
-      try {
-        const urlGet = endpoints.DRIVER_CPF({
-          pathVariables: {
-            cpf: cpf,
-          },
-        });
-        const { data } = await api.get(urlGet);
-        if (data) {
-          updateDriver(data);
-        } else {
-          setValue("driverId", undefined);
-          setValue("driverAddressId", undefined);
-        }
-        setisLoading(false);
-      } catch (e) {
-        setisLoading(false);
-        setValue("driverId", undefined);
-        setValue("driverAddressId", undefined);
-      }
+  const clearDriverLookupState = useCallback(() => {
+    setValue("driverId", undefined);
+    setValue("driverAddressId", undefined);
+    setDriverDebtSummary(undefined);
+  }, [setValue]);
+
+  const loadDriverByCpf = useCallback(async (cpf: string | undefined | null | number) => {
+    if (!(typeof cpf === "string" && cpf.length === 11)) {
+      clearDriverLookupState();
+      return;
     }
-  };
+
+    setisLoading(true);
+    try {
+      const urlGet = endpoints.DRIVER_CPF({
+        pathVariables: {
+          cpf: cpf,
+        },
+      });
+      const { data } = await api.get(urlGet);
+      if (data) {
+        updateDriver(data);
+      } else {
+        clearDriverLookupState();
+      }
+    } catch (e) {
+      clearDriverLookupState();
+    } finally {
+      setisLoading(false);
+    }
+  }, [clearDriverLookupState, updateDriver]);
+
+  useEffect(() => {
+    if (!watchedDriverId) {
+      setDriverDebtSummary(undefined);
+      return;
+    }
+
+    let active = true;
+    const loadDriverDebtSummary = async () => {
+      try {
+        const response = await api.get(
+          endpoints.DRIVER_DEBT_SUMMARY({
+            pathVariables: {
+              id: watchedDriverId,
+            },
+          })
+        );
+        if (!active) {
+          return;
+        }
+        const summary = response.data as DriverDebtSummaryModel;
+        setDriverDebtSummary(summary);
+        if (!watchedFormId && !(watchedDebt || 0)) {
+          setValue("debt", summary?.totalOutstanding || 0);
+        }
+      } catch (_error) {
+        if (active) {
+          setDriverDebtSummary(undefined);
+        }
+      }
+    };
+
+    void loadDriverDebtSummary();
+    return () => {
+      active = false;
+    };
+  }, [setValue, watchedDebt, watchedDriverId, watchedFormId]);
+
+  useEffect(() => {
+    const name = `${watchedDriverName || ""}`.trim();
+    if (!name || name.length < 3 || watchedDriverId) {
+      return;
+    }
+
+    let active = true;
+    const handle = setTimeout(async () => {
+      try {
+        const { data } = await api.get(
+          endpoints.DRIVERS_SEARCH({
+            query: {
+              q: name,
+            },
+          })
+        );
+        if (!active || !Array.isArray(data)) {
+          return;
+        }
+
+        const exactMatches = data.filter(
+          (item: { name?: string; cpf?: string }) =>
+            normalizeLookupText(item?.name) === normalizeLookupText(name)
+        );
+
+        if (exactMatches.length === 1 && exactMatches[0]?.cpf) {
+          await loadDriverByCpf(exactMatches[0].cpf);
+        }
+      } catch (_error) {
+        // ignore silent lookup failures while typing
+      }
+    }, 350);
+
+    return () => {
+      active = false;
+      clearTimeout(handle);
+    };
+  }, [loadDriverByCpf, watchedDriverId, watchedDriverName]);
 
   const onSubmit = async (newCarDriverForm: DriverForm) => {
     const newCarDriver = driverFormtoDriver(newCarDriverForm);
@@ -190,7 +285,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
       </IonHeader>
       <IonContent>
         <form>
-          <IonItem>
+          <IonItem className="app-form-section-title">
             <IonLabel>
               <h1>{TEXT.driverContract}</h1>
             </IonLabel>
@@ -258,7 +353,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
                 }}
                 required
               />
-              <IonItem>
+              <IonItem className="app-form-item">
                 <FormInputLabel name={TEXT.score}></FormInputLabel>
                 <IonRange
                   value={watch("score")}
@@ -274,7 +369,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
               </IonItem>
             </>
           )}
-          <IonItem>
+          <IonItem className="app-form-section-title">
             <IonLabel>
               <h1>{TEXT.driver}</h1>
             </IonLabel>
@@ -303,6 +398,20 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             }}
             required
           />
+          {watch("driverId") && (
+            <IonItem className="app-form-item">
+              <IonLabel className="ion-text-wrap">
+                <p>
+                  <strong>{TEXT.totalOutstanding}:</strong>{" "}
+                  {currencyFormat(driverDebtSummary?.totalOutstanding)}
+                </p>
+                <p>
+                  {TEXT.openPendencies}:{" "}
+                  {driverDebtSummary?.openPendenciesCount || 0}
+                </p>
+              </IonLabel>
+            </IonItem>
+          )}
           <FormInputMask
             label={TEXT.contact}
             errorsObj={errors}
@@ -461,3 +570,11 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
 };
 
 export default DriverAdd;
+
+function normalizeLookupText(value?: string): string {
+  return `${value || ""}`
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}

@@ -33,7 +33,7 @@ const FormCurrency: React.FC<FormCurrencyProps> = ({
 }) => {
   return (
     <FormItemWrapper errorsObj={errorsObj} errorName={errorName}>
-      <IonItem>
+      <IonItem className="app-form-item">
         <FormInputLabel name={label} required={required} />
         <CurrencyInput
           value={currencyFormat(initialValue)}

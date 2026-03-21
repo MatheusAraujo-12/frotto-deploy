@@ -61,8 +61,8 @@ const FormDate: React.FC<DateProps> = ({
   };
 
   return (
-    <div style={{ padding: "8px 0" }}>
-      <IonItem>
+    <div className="app-form-date-field">
+      <IonItem className="app-form-item app-form-item--date">
         <FormInputLabel name={label} required={required} />
         <IonDatetimeButton datetime={id} slot="end" />
         <MyIonModal keepContentsMounted={true}>
@@ -77,8 +77,8 @@ const FormDate: React.FC<DateProps> = ({
       </IonItem>
 
       {!!error && (
-        <div style={{ padding: "6px 16px 0 16px" }}>
-          <IonText color="danger" style={{ fontSize: 12 }}>
+        <div className="app-form-date-field__error">
+          <IonText color="danger" className="app-form-error">
             {error}
           </IonText>
         </div>
