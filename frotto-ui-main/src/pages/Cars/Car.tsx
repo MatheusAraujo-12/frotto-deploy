@@ -3,17 +3,13 @@ import {
   IonButton,
   IonButtons,
   IonCard,
+  IonCardContent,
   IonCardSubtitle,
   IonContent,
   IonHeader,
-  IonItem,
-  IonLabel,
-  IonList,
   IonModal,
-  IonNote,
   IonPage,
   IonProgressBar,
-  IonText,
   IonTitle,
   IonToolbar,
   useIonRouter,
@@ -36,14 +32,11 @@ import {
 import DriverAdd from "../Driver/DriverAddModal/DriverAdd";
 import InspectionAdd from "../Inspection/InspectionAddModal/InspectionAdd";
 import { formatDateView } from "../../services/dateFormat";
-import {
-  IonLabekRight,
-  IonLabelLeft,
-} from "../../components/List/IonLabekRight";
 import MaintenanceAdd from "../Maintenance/MaintenanceAddModal/MaintenanceAdd";
 import { currencyFormat } from "../../services/currencyFormat";
 import { servicesToString } from "../../services/toString";
 import { formatCPF, formatTel } from "../../services/iMaskFormat";
+import "./Car.css";
 
 interface CarDetail
   extends RouteComponentProps<{
@@ -201,203 +194,225 @@ const Car: React.FC<CarDetail> = ({ match }) => {
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <div className="section-shell">
+        <div className="section-shell car-page-shell">
           <IonCard className="car-page__card">
-          <IonCardSubtitle className="car-page__eyebrow ion-margin-horizontal ion-margin-top">
-            <IonText color="medium">
-              <strong>{TEXT.carData}</strong>
-            </IonText>
-          </IonCardSubtitle>
-          <IonList lines="none" className="car-page__list">
-            <IonItem>
-              <IonLabelLeft class="ion-text-wrap">
-                <h2>{`${car?.name}`}</h2>
-                <p>{car?.color}</p>
-                <p>{`${car?.odometer} ${TEXT.km}`}</p>
-              </IonLabelLeft>
-              <IonLabekRight>
-                <p>{`${car?.year}`}</p>
-                <p>{car?.plate}</p>
-                <p>{car?.group}</p>
-              </IonLabekRight>
-            </IonItem>
-          </IonList>
-          <div className="app-actions-row car-page__actions">
-            <IonButton
-              fill="clear"
-              onClick={() => setEditCarModalOpen(true)}
-            >
-              {TEXT.edit}
-            </IonButton>
-            <IonButton
-              fill="clear"
-              color="success"
-              routerLink={"/menu/carros/" + match.params.id + "/receitas"}
-            >
-              {TEXT.incomes}
-            </IonButton>
-            <IonButton
-              fill="clear"
-              color="danger"
-              routerLink={"/menu/carros/" + match.params.id + "/despesas"}
-            >
-              {TEXT.carExpenses}
-            </IonButton>
-          </div>
+            <IonCardSubtitle className="car-page__eyebrow">
+              {TEXT.carData}
+            </IonCardSubtitle>
+            <IonCardContent className="car-page__content">
+              <div className="car-page__headline-block">
+                <h2 className="car-page__headline">
+                  {car?.name || car?.model || "Veículo"}
+                </h2>
+                <p className="car-page__subheadline">
+                  {[car?.model, car?.plate].filter(Boolean).join(" • ") ||
+                    "Sem dados principais do veículo"}
+                </p>
+              </div>
+              <div className="car-page__detail-grid">
+                <DetailField label={TEXT.color} value={car?.color} />
+                <DetailField label={TEXT.year} value={car?.year} />
+                <DetailField label={TEXT.group} value={car?.group} />
+                <DetailField label={TEXT.odometer} value={formatKm(car?.odometer)} />
+                <DetailField
+                  label={TEXT.adminStatus}
+                  value={resolveAdminStatusLabel(car?.adminStatus)}
+                />
+              </div>
+              <div className="app-actions-row car-page__actions">
+                <IonButton
+                  size="small"
+                  fill="outline"
+                  onClick={() => setEditCarModalOpen(true)}
+                >
+                  {TEXT.edit}
+                </IonButton>
+                <IonButton
+                  size="small"
+                  fill="outline"
+                  color="success"
+                  routerLink={"/menu/carros/" + match.params.id + "/receitas"}
+                >
+                  {TEXT.incomes}
+                </IonButton>
+                <IonButton
+                  size="small"
+                  fill="outline"
+                  color="danger"
+                  routerLink={"/menu/carros/" + match.params.id + "/despesas"}
+                >
+                  {TEXT.carExpenses}
+                </IonButton>
+              </div>
+            </IonCardContent>
           </IonCard>
           <IonCard className="car-page__card">
-          <IonCardSubtitle className="car-page__eyebrow ion-margin-horizontal ion-margin-top">
-            <IonText color="medium">
-              <strong>{TEXT.driver}</strong>
-            </IonText>
-          </IonCardSubtitle>
-          <IonList lines="none" className="car-page__list">
-            {driver && (
-              <IonItem>
-                <IonLabelLeft class="ion-text-wrap">
-                  <h2>{driver?.driver?.name}</h2>
-                  <p>{formatCPF(driver?.driver?.cpf)}</p>
-                  <p>{formatTel(driver?.driver?.contact)}</p>
-                </IonLabelLeft>
-                <IonLabekRight>
-                  <p>{`${formatDateView(driver?.startDate)}`}</p>
-                  <p>{currencyFormat(driver?.warranty)}</p>
-                  <p>{`${driver?.driver?.email}`}</p>
-                </IonLabekRight>
-              </IonItem>
-            )}
-            {!driver && (
-              <IonItem>
-                <IonLabel class="ion-text-wrap">
-                  <h2>{TEXT.noDriver}</h2>
-                </IonLabel>
-              </IonItem>
-            )}
-          </IonList>
-          <div className="app-actions-row car-page__actions">
-            <IonButton
-              fill="clear"
-              onClick={() => setEditDriverModalOpen(true)}
-            >
-              {driver ? TEXT.edit : TEXT.new}
-            </IonButton>
-            <IonButton
-              fill="clear"
-              routerLink={"/menu/carros/" + match.params.id + "/motoristas"}
-            >
-              {TEXT.all}
-            </IonButton>
-            <IonButton
-              fill="clear"
-              color="secondary"
-              routerLink={
-                driver
-                  ? "/menu/carros/motorista/" + driver.id + "/pendencias"
-                  : "/menu/carros/" + match.params.id + "/motoristas"
-              }
-            >
-              {TEXT.driverPendencies}
-            </IonButton>
-          </div>
+            <IonCardSubtitle className="car-page__eyebrow">
+              {TEXT.driver}
+            </IonCardSubtitle>
+            <IonCardContent className="car-page__content">
+              {driver ? (
+                <>
+                  <div className="car-page__headline-block">
+                    <h2 className="car-page__headline">
+                      {driver?.driver?.name || TEXT.driver}
+                    </h2>
+                    <p className="car-page__subheadline">
+                      {[formatCPF(driver?.driver?.cpf), formatTel(driver?.driver?.contact)]
+                        .filter(Boolean)
+                        .join(" • ") || "Sem contatos adicionais"}
+                    </p>
+                  </div>
+                  <div className="car-page__detail-grid">
+                    <DetailField
+                      label={TEXT.dateStart}
+                      value={formatDateView(driver?.startDate)}
+                    />
+                    <DetailField
+                      label={TEXT.warranty}
+                      value={currencyFormat(driver?.warranty)}
+                    />
+                    <DetailField label={TEXT.email} value={driver?.driver?.email} />
+                  </div>
+                </>
+              ) : (
+                <div className="car-page__empty">{TEXT.noDriver}</div>
+              )}
+              <div className="app-actions-row car-page__actions">
+                <IonButton
+                  size="small"
+                  fill="outline"
+                  onClick={() => setEditDriverModalOpen(true)}
+                >
+                  {driver ? TEXT.edit : TEXT.new}
+                </IonButton>
+                <IonButton
+                  size="small"
+                  fill="outline"
+                  routerLink={"/menu/carros/" + match.params.id + "/motoristas"}
+                >
+                  {TEXT.all}
+                </IonButton>
+                <IonButton
+                  size="small"
+                  fill="outline"
+                  color="secondary"
+                  routerLink={
+                    driver
+                      ? "/menu/carros/motorista/" + driver.id + "/pendencias"
+                      : "/menu/carros/" + match.params.id + "/motoristas"
+                  }
+                >
+                  {TEXT.driverPendencies}
+                </IonButton>
+              </div>
+            </IonCardContent>
           </IonCard>
           <IonCard className="car-page__card">
-          <IonCardSubtitle className="car-page__eyebrow ion-margin-horizontal ion-margin-top">
-            <IonText color="medium">
-              <strong>{TEXT.lastInspection}</strong>
-            </IonText>
-          </IonCardSubtitle>
-          <IonList lines="none" className="car-page__list">
-            {inspection && (
-              <IonItem>
-                <IonLabelLeft class="ion-text-wrap">
-                  <h2>{formatDateView(inspection.date)}</h2>
-                  <p>{`${inspection?.odometer} ${TEXT.km}`}</p>
-                </IonLabelLeft>
-                <IonLabekRight>
-                  <p>{currencyFormat(inspection.cost)}</p>
-                </IonLabekRight>
-              </IonItem>
-            )}
-            {!inspection && (
-              <IonItem>
-                <IonLabel class="ion-text-wrap">
-                  <h2>{TEXT.noInspection}</h2>
-                </IonLabel>
-              </IonItem>
-            )}
-          </IonList>
-          <div className="app-actions-row car-page__actions">
-            <IonButton
-              fill="clear"
-              onClick={() => setAddInspectionModalOpen(true)}
-            >
-              {TEXT.new}
-            </IonButton>
-            <IonButton
-              fill="clear"
-              routerLink={"/menu/carros/" + match.params.id + "/inspecoes"}
-            >
-              {TEXT.all}
-            </IonButton>
-            <IonButton
-              fill="clear"
-              color="secondary"
-              routerLink={"/menu/carros/" + match.params.id + "/danos"}
-            >
-              {TEXT.damage}
-            </IonButton>
-          </div>
+            <IonCardSubtitle className="car-page__eyebrow">
+              {TEXT.lastInspection}
+            </IonCardSubtitle>
+            <IonCardContent className="car-page__content">
+              {inspection ? (
+                <div className="car-page__detail-grid">
+                  <DetailField
+                    label={TEXT.date}
+                    value={formatDateView(inspection.date)}
+                    strong
+                  />
+                  <DetailField
+                    label={TEXT.odometer}
+                    value={formatKm(inspection?.odometer)}
+                  />
+                  <DetailField
+                    label={TEXT.cost}
+                    value={currencyFormat(inspection.cost)}
+                  />
+                </div>
+              ) : (
+                <div className="car-page__empty">{TEXT.noInspection}</div>
+              )}
+              <div className="app-actions-row car-page__actions">
+                <IonButton
+                  size="small"
+                  fill="outline"
+                  onClick={() => setAddInspectionModalOpen(true)}
+                >
+                  {TEXT.new}
+                </IonButton>
+                <IonButton
+                  size="small"
+                  fill="outline"
+                  routerLink={"/menu/carros/" + match.params.id + "/inspecoes"}
+                >
+                  {TEXT.all}
+                </IonButton>
+                <IonButton
+                  size="small"
+                  fill="outline"
+                  color="secondary"
+                  routerLink={"/menu/carros/" + match.params.id + "/danos"}
+                >
+                  {TEXT.damage}
+                </IonButton>
+              </div>
+            </IonCardContent>
           </IonCard>
           <IonCard className="car-page__card">
-          <IonCardSubtitle className="car-page__eyebrow ion-margin-horizontal ion-margin-top">
-            <IonText color="medium">
-              <strong>{TEXT.lastMaintenance}</strong>
-            </IonText>
-          </IonCardSubtitle>
-          <IonList lines="none" className="car-page__list">
-            {maintenance && (
-              <IonItem>
-                <IonLabel class="ion-text-wrap">
-                  <h2>{formatDateView(maintenance.date)}</h2>
-                  <p>
-                    {`${maintenance.odometer} ${TEXT.km}`}
-                    &nbsp;&nbsp;&nbsp;-&nbsp;&nbsp;&nbsp;
-                    {currencyFormat(maintenance.cost)}
+            <IonCardSubtitle className="car-page__eyebrow">
+              {TEXT.lastMaintenance}
+            </IonCardSubtitle>
+            <IonCardContent className="car-page__content">
+              {maintenance ? (
+                <>
+                  <div className="car-page__detail-grid">
+                    <DetailField
+                      label={TEXT.date}
+                      value={formatDateView(maintenance.date)}
+                      strong
+                    />
+                    <DetailField
+                      label={TEXT.odometer}
+                      value={formatKm(maintenance?.odometer)}
+                    />
+                    <DetailField
+                      label={TEXT.cost}
+                      value={currencyFormat(maintenance.cost)}
+                    />
+                    <DetailField label={TEXT.local} value={maintenance.local} />
+                  </div>
+                  <p className="car-page__note">
+                    {servicesToString(maintenance.services) || "Sem serviços informados"}
                   </p>
-                  <p>{maintenance.local}</p>
-                  <IonNote className="car-page__note">{servicesToString(maintenance.services)}</IonNote>
-                </IonLabel>
-              </IonItem>
-            )}
-            {!maintenance && (
-              <IonItem>
-                <IonLabel class="ion-text-wrap">
-                  <h2>{TEXT.noMaintenance}</h2>
-                </IonLabel>
-              </IonItem>
-            )}
-          </IonList>
-          <div className="app-actions-row car-page__actions">
-            <IonButton
-              fill="clear"
-              onClick={() => setAddMaintenanceModalOpen(true)}
-            >
-              {TEXT.new}
-            </IonButton>
-            <IonButton
-              fill="clear"
-              routerLink={"/menu/carros/" + match.params.id + "/manutencoes"}
-            >
-              {TEXT.all}
-            </IonButton>
-            <IonButton
-              fill="clear"
-              color="secondary"
-              routerLink={"/menu/carros/" + match.params.id + "/lembretes"}
-            >
-              {TEXT.reminders}
-            </IonButton>
-          </div>
+                </>
+              ) : (
+                <div className="car-page__empty">{TEXT.noMaintenance}</div>
+              )}
+              <div className="app-actions-row car-page__actions">
+                <IonButton
+                  size="small"
+                  fill="outline"
+                  onClick={() => setAddMaintenanceModalOpen(true)}
+                >
+                  {TEXT.new}
+                </IonButton>
+                <IonButton
+                  size="small"
+                  fill="outline"
+                  routerLink={"/menu/carros/" + match.params.id + "/manutencoes"}
+                >
+                  {TEXT.all}
+                </IonButton>
+                <IonButton
+                  size="small"
+                  fill="outline"
+                  color="secondary"
+                  routerLink={"/menu/carros/" + match.params.id + "/lembretes"}
+                >
+                  {TEXT.reminders}
+                </IonButton>
+              </div>
+            </IonCardContent>
           </IonCard>
         </div>
       </IonContent>
@@ -434,3 +449,51 @@ const Car: React.FC<CarDetail> = ({ match }) => {
 };
 
 export default Car;
+
+const DetailField: React.FC<{
+  label: string;
+  value?: string | number | null;
+  strong?: boolean;
+}> = ({ label, value, strong = false }) => (
+  <div className="car-page__detail">
+    <span className="car-page__detail-label">{label}</span>
+    <span
+      className={`car-page__detail-value${
+        strong ? " car-page__detail-value--strong" : ""
+      }`}
+    >
+      {formatDetailValue(value)}
+    </span>
+  </div>
+);
+
+function formatDetailValue(value?: string | number | null): string {
+  if (value === null || value === undefined) {
+    return "—";
+  }
+
+  const text = `${value}`.trim();
+  return text ? text : "—";
+}
+
+function formatKm(value?: number): string {
+  if (typeof value !== "number") {
+    return "—";
+  }
+
+  return `${value.toLocaleString("pt-BR")} ${TEXT.km}`;
+}
+
+function resolveAdminStatusLabel(value?: string): string {
+  if (!value) {
+    return "—";
+  }
+
+  if (value === "ATIVO") return "Ativo";
+  if (value === "RETIRADO") return "Retirado";
+  if (value === "A_VENDA") return "À venda";
+  if (value === "MANUTENCAO") return "Manutenção";
+  if (value === "BLOQUEADO") return "Bloqueado";
+
+  return value;
+}

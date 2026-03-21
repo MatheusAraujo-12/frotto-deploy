@@ -6,6 +6,7 @@ import {
   IonHeader,
   IonIcon,
   IonItem,
+  IonLabel,
   IonList,
   IonModal,
   IonPage,
@@ -142,7 +143,9 @@ const Reminders: React.FC<ReminderDetail> = ({ match }) => {
                     nav.push(nav.location.pathname + "?modalOpened=true");
                   }}
                 >
-                  <p>{reminder.message}</p>
+                  <IonLabel class="ion-text-wrap">
+                    <p>{reminder.message}</p>
+                  </IonLabel>
                 </IonItem>
               );
             })}

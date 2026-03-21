@@ -1531,14 +1531,22 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
   border-color: rgba(var(--ion-color-danger-rgb), 0.28);
 }
 
-.car-card__badge,
-.car-card__driver {
+.car-card__badge {
   display: inline-flex;
   align-items: center;
   padding: 4px 10px;
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 700;
+}
+
+.car-card__driver {
+  display: inline;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--ion-text-color);
 }
 
 .car-card__badge--admin {
@@ -1552,8 +1560,8 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
 }
 
 .car-card__driver--rented {
-  background: var(--app-info-bg);
-  color: var(--app-info-text);
+  background: transparent;
+  color: var(--ion-text-color);
 }
 
 #car-incomes-page .section-shell > ion-list,
@@ -1565,7 +1573,7 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
 #drivers-page .section-shell > ion-list,
 #driver-pendencies-page .section-shell > ion-list {
   margin: 0;
-  padding: 12px;
+  padding: 10px;
   border: var(--app-border);
   border-radius: var(--app-radius);
   background: var(--app-card);
@@ -1581,6 +1589,11 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
 #drivers-page .section-shell > ion-list > ion-item,
 #driver-pendencies-page .section-shell > ion-list > ion-item {
   margin: 0 0 8px;
+  --padding-start: 0;
+  --inner-padding-end: 0;
+  --inner-border-width: 0;
+  --background: transparent;
+  border: 1px solid var(--ion-border-color);
 }
 
 #car-incomes-page .section-shell > ion-list > ion-item:last-child,
@@ -1592,6 +1605,71 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
 #drivers-page .section-shell > ion-list > ion-item:last-child,
 #driver-pendencies-page .section-shell > ion-list > ion-item:last-child {
   margin-bottom: 0;
+}
+
+#car-incomes-page .section-shell > ion-list > ion-item::part(native),
+#car-carExpenses-page .section-shell > ion-list > ion-item::part(native),
+#car-Reminders-page .section-shell > ion-list > ion-item::part(native),
+#car-inspections-page .section-shell > ion-list > ion-item::part(native),
+#car-maintenances-page .section-shell > ion-list > ion-item::part(native),
+#car-damages-page .section-shell > ion-list > ion-item::part(native),
+#drivers-page .section-shell > ion-list > ion-item::part(native),
+#driver-pendencies-page .section-shell > ion-list > ion-item::part(native) {
+  padding: 10px 12px;
+  min-height: 0;
+  align-items: flex-start;
+  background: var(--ion-item-background);
+}
+
+#car-incomes-page .section-shell > ion-list > ion-item h2,
+#car-carExpenses-page .section-shell > ion-list > ion-item h2,
+#car-Reminders-page .section-shell > ion-list > ion-item h2,
+#car-inspections-page .section-shell > ion-list > ion-item h2,
+#car-maintenances-page .section-shell > ion-list > ion-item h2,
+#car-damages-page .section-shell > ion-list > ion-item h2,
+#drivers-page .section-shell > ion-list > ion-item h2,
+#driver-pendencies-page .section-shell > ion-list > ion-item h2 {
+  margin: 0 0 3px;
+  font-size: 0.93rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+#car-incomes-page .section-shell > ion-list > ion-item p,
+#car-carExpenses-page .section-shell > ion-list > ion-item p,
+#car-Reminders-page .section-shell > ion-list > ion-item p,
+#car-inspections-page .section-shell > ion-list > ion-item p,
+#car-maintenances-page .section-shell > ion-list > ion-item p,
+#car-damages-page .section-shell > ion-list > ion-item p,
+#drivers-page .section-shell > ion-list > ion-item p,
+#driver-pendencies-page .section-shell > ion-list > ion-item p,
+#car-incomes-page .section-shell > ion-list > ion-item ion-note,
+#car-carExpenses-page .section-shell > ion-list > ion-item ion-note,
+#car-Reminders-page .section-shell > ion-list > ion-item ion-note,
+#car-inspections-page .section-shell > ion-list > ion-item ion-note,
+#car-maintenances-page .section-shell > ion-list > ion-item ion-note,
+#car-damages-page .section-shell > ion-list > ion-item ion-note,
+#drivers-page .section-shell > ion-list > ion-item ion-note,
+#driver-pendencies-page .section-shell > ion-list > ion-item ion-note {
+  margin: 0;
+  font-size: 0.83rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+#car-incomes-page .section-shell > ion-list > ion-item ion-button,
+#car-carExpenses-page .section-shell > ion-list > ion-item ion-button,
+#car-Reminders-page .section-shell > ion-list > ion-item ion-button,
+#car-inspections-page .section-shell > ion-list > ion-item ion-button,
+#car-maintenances-page .section-shell > ion-list > ion-item ion-button,
+#car-damages-page .section-shell > ion-list > ion-item ion-button,
+#drivers-page .section-shell > ion-list > ion-item ion-button,
+#driver-pendencies-page .section-shell > ion-list > ion-item ion-button {
+  margin: 6px 0 0;
+  min-height: 32px;
+  --padding-start: 10px;
+  --padding-end: 10px;
+  font-size: 0.8rem;
 }
 
 #car-damages-page .section-shell > ion-list > ion-item:first-child,

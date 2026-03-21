@@ -5,17 +5,25 @@ import styled from "styled-components";
 export const IonLabelLeft = styled(IonLabel).attrs(() => ({
   slot: "start",
 }))`
-  margin-right: -10px;
-  align-self: start;
+  margin: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-self: center;
   text-align: start;
+  white-space: normal;
+  overflow: visible;
 `;
 
 export const IonLabekRight = styled(IonLabel).attrs(() => ({
   slot: "end",
 }))`
-  margin-left: 0px;
-  align-self: start;
+  margin: 0;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-self: center;
   text-align: end;
+  white-space: normal;
+  overflow: visible;
 `;
 
 export const IonLabekRightCarList = styled.div.attrs(() => ({

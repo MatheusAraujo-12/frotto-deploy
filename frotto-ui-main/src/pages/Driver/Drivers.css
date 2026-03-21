@@ -1,6 +1,6 @@
 #drivers-page .driver-row {
   display: flex;
-  gap: 18px;
+  gap: 14px;
   width: 100%;
   align-items: flex-start;
 }
@@ -23,17 +23,21 @@
   margin: 0 0 4px;
   font-size: 0.96rem;
   font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 #drivers-page .driver-col-left p,
 #drivers-page .driver-col-right p {
   margin: 0;
+  font-size: 0.84rem;
   color: var(--ion-color-medium);
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 #drivers-page .driver-col-right .driver-pendency-button {
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 @media (max-width: 768px) {
