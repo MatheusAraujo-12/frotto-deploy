@@ -13,29 +13,34 @@ import {
   IonTitle,
   IonToolbar,
   useIonRouter,
-  useIonViewWillLeave,
   useIonViewWillEnter,
+  useIonViewWillLeave,
 } from "@ionic/react";
 import { useCallback, useMemo, useState } from "react";
 import { RouteComponentProps } from "react-router";
+import CarBrandMark from "../../components/Car/CarBrandMark";
+import {
+  normalizeCarBrand,
+  resolveCarBrandDisplayName,
+} from "../../components/Car/carBrandAssets";
 import endpoints from "../../constants/endpoints";
-import { TEXT } from "../../constants/texts";
-import api from "../../services/axios/axios";
-import { useAlert } from "../../services/hooks/useAlert";
-import CarAdd from "./CarAddModal/CarAdd";
 import {
   CarDriverModel,
   CarModel,
   InspectionModel,
   MaintenanceModel,
 } from "../../constants/CarModels";
+import { TEXT } from "../../constants/texts";
+import api from "../../services/axios/axios";
+import { currencyFormat } from "../../services/currencyFormat";
+import { formatDateView } from "../../services/dateFormat";
+import { useAlert } from "../../services/hooks/useAlert";
+import { formatCPF, formatTel } from "../../services/iMaskFormat";
+import { servicesToString } from "../../services/toString";
 import DriverAdd from "../Driver/DriverAddModal/DriverAdd";
 import InspectionAdd from "../Inspection/InspectionAddModal/InspectionAdd";
-import { formatDateView } from "../../services/dateFormat";
 import MaintenanceAdd from "../Maintenance/MaintenanceAddModal/MaintenanceAdd";
-import { currencyFormat } from "../../services/currencyFormat";
-import { servicesToString } from "../../services/toString";
-import { formatCPF, formatTel } from "../../services/iMaskFormat";
+import CarAdd from "./CarAddModal/CarAdd";
 import "./Car.css";
 
 interface CarDetail
@@ -158,6 +163,32 @@ const Car: React.FC<CarDetail> = ({ match }) => {
     [car.odometer]
   );
 
+  const carBrand = useMemo(() => resolveCarBrandDisplayName(car), [car]);
+
+  const carHeadline = useMemo(
+    () => car?.name || car?.model || carBrand || "Veiculo",
+    [car?.model, car?.name, carBrand]
+  );
+
+  const showBrandLine = useMemo(
+    () =>
+      Boolean(
+        carBrand &&
+          !normalizeCarBrand(carHeadline).includes(normalizeCarBrand(carBrand))
+      ),
+    [carBrand, carHeadline]
+  );
+
+  const carSubheadline = useMemo(() => {
+    const items = [car?.model, car?.plate].filter(
+      (value): value is string =>
+        Boolean(value?.trim()) &&
+        normalizeCarBrand(value) !== normalizeCarBrand(carBrand)
+    );
+
+    return items.join(" - ") || "Sem dados principais do veiculo";
+  }, [car?.model, car?.plate, carBrand]);
+
   const closeAddInspectionModal = useCallback(
     (response?: InspectionModel) => {
       setAddInspectionModalOpen(false);
@@ -200,27 +231,41 @@ const Car: React.FC<CarDetail> = ({ match }) => {
               {TEXT.carData}
             </IonCardSubtitle>
             <IonCardContent className="car-page__content">
-              <div className="car-page__headline-block">
-                <h2 className="car-page__headline">
-                  {car?.name || car?.model || "Veículo"}
-                </h2>
-                <p className="car-page__subheadline">
-                  {[car?.model, car?.plate].filter(Boolean).join(" • ") ||
-                    "Sem dados principais do veículo"}
-                </p>
+              <div className="car-page__hero">
+                <CarBrandMark
+                  brand={car?.brand}
+                  marca={car?.marca}
+                  size="lg"
+                  className="car-page__brand-mark"
+                />
+
+                <div className="car-page__headline-block">
+                  {showBrandLine && (
+                    <p className="car-page__brand-line">{carBrand}</p>
+                  )}
+                  <h2 className="car-page__headline">{carHeadline}</h2>
+                  <p className="car-page__subheadline">{carSubheadline}</p>
+                </div>
               </div>
+
               <div className="car-page__detail-grid">
+                <DetailField label="Marca" value={carBrand} />
                 <DetailField label={TEXT.color} value={car?.color} />
                 <DetailField label={TEXT.year} value={car?.year} />
                 <DetailField label={TEXT.group} value={car?.group} />
-                <DetailField label={TEXT.odometer} value={formatKm(car?.odometer)} />
+                <DetailField
+                  label={TEXT.odometer}
+                  value={formatKm(car?.odometer)}
+                />
                 <DetailField
                   label={TEXT.adminStatus}
                   value={resolveAdminStatusLabel(car?.adminStatus)}
                 />
               </div>
+
               <div className="app-actions-row car-page__actions">
                 <IonButton
+                  className="app-semantic-btn app-semantic--edit"
                   size="small"
                   fill="outline"
                   onClick={() => setEditCarModalOpen(true)}
@@ -228,24 +273,25 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                   {TEXT.edit}
                 </IonButton>
                 <IonButton
+                  className="app-semantic-btn app-semantic--success"
                   size="small"
                   fill="outline"
-                  color="success"
-                  routerLink={"/menu/carros/" + match.params.id + "/receitas"}
+                  routerLink={`/menu/carros/${match.params.id}/receitas`}
                 >
                   {TEXT.incomes}
                 </IonButton>
                 <IonButton
+                  className="app-semantic-btn app-semantic--danger"
                   size="small"
                   fill="outline"
-                  color="danger"
-                  routerLink={"/menu/carros/" + match.params.id + "/despesas"}
+                  routerLink={`/menu/carros/${match.params.id}/despesas`}
                 >
                   {TEXT.carExpenses}
                 </IonButton>
               </div>
             </IonCardContent>
           </IonCard>
+
           <IonCard className="car-page__card">
             <IonCardSubtitle className="car-page__eyebrow">
               {TEXT.driver}
@@ -258,9 +304,12 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                       {driver?.driver?.name || TEXT.driver}
                     </h2>
                     <p className="car-page__subheadline">
-                      {[formatCPF(driver?.driver?.cpf), formatTel(driver?.driver?.contact)]
+                      {[
+                        formatCPF(driver?.driver?.cpf),
+                        formatTel(driver?.driver?.contact),
+                      ]
                         .filter(Boolean)
-                        .join(" • ") || "Sem contatos adicionais"}
+                        .join(" - ") || "Sem contatos adicionais"}
                     </p>
                   </div>
                   <div className="car-page__detail-grid">
@@ -272,7 +321,10 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                       label={TEXT.warranty}
                       value={currencyFormat(driver?.warranty)}
                     />
-                    <DetailField label={TEXT.email} value={driver?.driver?.email} />
+                    <DetailField
+                      label={TEXT.email}
+                      value={driver?.driver?.email}
+                    />
                   </div>
                 </>
               ) : (
@@ -280,6 +332,9 @@ const Car: React.FC<CarDetail> = ({ match }) => {
               )}
               <div className="app-actions-row car-page__actions">
                 <IonButton
+                  className={`app-semantic-btn ${
+                    driver ? "app-semantic--edit" : "app-semantic--neutral"
+                  }`}
                   size="small"
                   fill="outline"
                   onClick={() => setEditDriverModalOpen(true)}
@@ -287,20 +342,21 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                   {driver ? TEXT.edit : TEXT.new}
                 </IonButton>
                 <IonButton
+                  className="app-semantic-btn app-semantic--neutral"
                   size="small"
                   fill="outline"
-                  routerLink={"/menu/carros/" + match.params.id + "/motoristas"}
+                  routerLink={`/menu/carros/${match.params.id}/motoristas`}
                 >
                   {TEXT.all}
                 </IonButton>
                 <IonButton
+                  className="app-semantic-btn app-semantic--warning"
                   size="small"
                   fill="outline"
-                  color="secondary"
                   routerLink={
                     driver
-                      ? "/menu/carros/motorista/" + driver.id + "/pendencias"
-                      : "/menu/carros/" + match.params.id + "/motoristas"
+                      ? `/menu/carros/motorista/${driver.id}/pendencias`
+                      : `/menu/carros/${match.params.id}/motoristas`
                   }
                 >
                   {TEXT.driverPendencies}
@@ -308,6 +364,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
               </div>
             </IonCardContent>
           </IonCard>
+
           <IonCard className="car-page__card">
             <IonCardSubtitle className="car-page__eyebrow">
               {TEXT.lastInspection}
@@ -334,6 +391,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
               )}
               <div className="app-actions-row car-page__actions">
                 <IonButton
+                  className="app-semantic-btn app-semantic--neutral"
                   size="small"
                   fill="outline"
                   onClick={() => setAddInspectionModalOpen(true)}
@@ -341,23 +399,25 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                   {TEXT.new}
                 </IonButton>
                 <IonButton
+                  className="app-semantic-btn app-semantic--neutral"
                   size="small"
                   fill="outline"
-                  routerLink={"/menu/carros/" + match.params.id + "/inspecoes"}
+                  routerLink={`/menu/carros/${match.params.id}/inspecoes`}
                 >
                   {TEXT.all}
                 </IonButton>
                 <IonButton
+                  className="app-semantic-btn app-semantic--warning"
                   size="small"
                   fill="outline"
-                  color="secondary"
-                  routerLink={"/menu/carros/" + match.params.id + "/danos"}
+                  routerLink={`/menu/carros/${match.params.id}/danos`}
                 >
                   {TEXT.damage}
                 </IonButton>
               </div>
             </IonCardContent>
           </IonCard>
+
           <IonCard className="car-page__card">
             <IonCardSubtitle className="car-page__eyebrow">
               {TEXT.lastMaintenance}
@@ -382,7 +442,8 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                     <DetailField label={TEXT.local} value={maintenance.local} />
                   </div>
                   <p className="car-page__note">
-                    {servicesToString(maintenance.services) || "Sem serviços informados"}
+                    {servicesToString(maintenance.services) ||
+                      "Sem servicos informados"}
                   </p>
                 </>
               ) : (
@@ -390,6 +451,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
               )}
               <div className="app-actions-row car-page__actions">
                 <IonButton
+                  className="app-semantic-btn app-semantic--neutral"
                   size="small"
                   fill="outline"
                   onClick={() => setAddMaintenanceModalOpen(true)}
@@ -397,17 +459,18 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                   {TEXT.new}
                 </IonButton>
                 <IonButton
+                  className="app-semantic-btn app-semantic--neutral"
                   size="small"
                   fill="outline"
-                  routerLink={"/menu/carros/" + match.params.id + "/manutencoes"}
+                  routerLink={`/menu/carros/${match.params.id}/manutencoes`}
                 >
                   {TEXT.all}
                 </IonButton>
                 <IonButton
+                  className="app-semantic-btn app-semantic--warning"
                   size="small"
                   fill="outline"
-                  color="secondary"
-                  routerLink={"/menu/carros/" + match.params.id + "/lembretes"}
+                  routerLink={`/menu/carros/${match.params.id}/lembretes`}
                 >
                   {TEXT.reminders}
                 </IonButton>
@@ -416,6 +479,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
           </IonCard>
         </div>
       </IonContent>
+
       <IonModal isOpen={editCarModalOpen} backdropDismiss={false}>
         <CarAdd closeModal={closeEditCarModal} initialValues={car} />
       </IonModal>
@@ -469,16 +533,16 @@ const DetailField: React.FC<{
 
 function formatDetailValue(value?: string | number | null): string {
   if (value === null || value === undefined) {
-    return "—";
+    return "--";
   }
 
   const text = `${value}`.trim();
-  return text ? text : "—";
+  return text ? text : "--";
 }
 
 function formatKm(value?: number): string {
   if (typeof value !== "number") {
-    return "—";
+    return "--";
   }
 
   return `${value.toLocaleString("pt-BR")} ${TEXT.km}`;
@@ -486,13 +550,13 @@ function formatKm(value?: number): string {
 
 function resolveAdminStatusLabel(value?: string): string {
   if (!value) {
-    return "—";
+    return "--";
   }
 
   if (value === "ATIVO") return "Ativo";
   if (value === "RETIRADO") return "Retirado";
-  if (value === "A_VENDA") return "À venda";
-  if (value === "MANUTENCAO") return "Manutenção";
+  if (value === "A_VENDA") return "A venda";
+  if (value === "MANUTENCAO") return "Manutencao";
   if (value === "BLOQUEADO") return "Bloqueado";
 
   return value;

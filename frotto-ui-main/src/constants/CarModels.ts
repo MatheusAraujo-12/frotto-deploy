@@ -18,6 +18,8 @@ export interface CommissionConfig {
 export interface CarModel extends CommissionConfig {
   id?: number;
   name?: string;
+  brand?: string;
+  marca?: string;
   model?: string;
   color?: string;
   plate?: string;

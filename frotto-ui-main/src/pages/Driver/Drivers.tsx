@@ -207,8 +207,8 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
       </IonHeader>
       <IonContent>
         <div className="section-shell">
-          <IonList>
-            <IonItem>
+          <IonList className="app-nested-list">
+            <IonItem className="app-nested-list__title">
               <IonLabel>
                 <h1>{TEXT.active}</h1>
               </IonLabel>
@@ -216,6 +216,7 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
 
             {activeDoneList.active && (
               <IonItem
+                className="app-nested-list__item"
                 button
                 onClick={() => {
                   setModalDriver(activeDoneList.active!);
@@ -237,25 +238,26 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
                       {currencyFormat(getOutstandingDebt(activeDoneList.active))}
                     </p>
                     <p>{`${activeDoneList.active?.driver?.email}`}</p>
-                    <IonButton
-                      className="driver-pendency-button"
-                      size="small"
-                      fill="outline"
-                      color="secondary"
-                      onClick={(event) =>
-                        openDriverPendencies(event, activeDoneList.active)
-                      }
-                    >
-                      {TEXT.driverPendencies}
-                    </IonButton>
+                    <div className="driver-col-actions">
+                      <IonButton
+                        className="driver-pendency-button app-semantic-btn app-semantic--warning"
+                        size="small"
+                        fill="outline"
+                        onClick={(event) =>
+                          openDriverPendencies(event, activeDoneList.active)
+                        }
+                      >
+                        {TEXT.driverPendencies}
+                      </IonButton>
+                    </div>
                   </div>
                 </div>
               </IonItem>
             )}
             {!isLoading && !activeDoneList.active && <ItemNotFound />}
           </IonList>
-          <IonList>
-            <IonItem>
+          <IonList className="app-nested-list">
+            <IonItem className="app-nested-list__title">
               <IonLabel>
                 <h1>{TEXT.carDamagesDone}</h1>
               </IonLabel>
@@ -264,6 +266,7 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
             {activeDoneList.done.map((carDriver: CarDriverModel, index) => {
               return (
                 <IonItem
+                  className="app-nested-list__item"
                   key={index}
                   button
                   onClick={() => {
@@ -287,17 +290,18 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
                         {currencyFormat(getOutstandingDebt(carDriver))}
                       </p>
                       <p>{`${carDriver?.driver?.email}`}</p>
-                      <IonButton
-                        className="driver-pendency-button"
-                        size="small"
-                        fill="outline"
-                        color="secondary"
-                        onClick={(event) =>
-                          openDriverPendencies(event, carDriver)
-                        }
-                      >
-                        {TEXT.driverPendencies}
-                      </IonButton>
+                      <div className="driver-col-actions">
+                        <IonButton
+                          className="driver-pendency-button app-semantic-btn app-semantic--warning"
+                          size="small"
+                          fill="outline"
+                          onClick={(event) =>
+                            openDriverPendencies(event, carDriver)
+                          }
+                        >
+                          {TEXT.driverPendencies}
+                        </IonButton>
+                      </div>
                     </div>
                   </div>
                 </IonItem>

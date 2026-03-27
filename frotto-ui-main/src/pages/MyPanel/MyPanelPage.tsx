@@ -494,7 +494,12 @@ const MyPanelPage: React.FC = () => {
               <IonCardContent>
                 <h3>Nao foi possivel carregar todos os dados</h3>
                 <p>Voce pode tentar novamente agora ou continuar preenchendo o formulario.</p>
-                <IonButton size="small" fill="outline" onClick={loadProfile}>
+                <IonButton
+                  className="app-semantic-btn app-semantic--neutral"
+                  size="small"
+                  fill="outline"
+                  onClick={loadProfile}
+                >
                   Tentar Novamente
                 </IonButton>
               </IonCardContent>
@@ -547,6 +552,7 @@ const MyPanelPage: React.FC = () => {
         <IonToolbar>
           <div className="my-panel-footer-inner">
             <IonButton
+              className="app-semantic-btn app-semantic--success"
               expand="block"
               disabled={isLoading || isSaving || isInvalid || !isDirty}
               onClick={onSave}

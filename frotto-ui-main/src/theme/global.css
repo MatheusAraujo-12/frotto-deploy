@@ -88,22 +88,28 @@ ion-title {
 }
 
 ion-card,
+ion-card[class],
 .app-card,
 .app-panel-card {
   --background: var(--app-card);
-  background: var(--app-card);
-  border: var(--app-border);
+  background: transparent;
+  border: 0;
   border-radius: var(--app-radius);
   box-shadow: var(--app-shadow);
   overflow: hidden;
+  isolation: isolate;
+  background-clip: padding-box;
 }
 
 ion-card::part(native),
 .app-card::part(native),
 .app-panel-card::part(native) {
-  border-radius: var(--app-radius);
+  border-radius: inherit;
   overflow: hidden;
-  background: var(--app-card);
+  border: var(--app-border);
+  background: var(--background, var(--app-card));
+  box-sizing: border-box;
+  background-clip: padding-box;
 }
 
 ion-card:hover,
@@ -112,19 +118,25 @@ ion-card:hover,
   box-shadow: var(--app-shadow-hover);
 }
 
-ion-item {
+ion-item,
+ion-item[class] {
   --color: var(--ion-text-color);
   --background: var(--ion-item-background);
   --border-color: var(--ion-border-color);
   color: var(--ion-text-color);
+  background: transparent;
   border-radius: var(--app-radius-sm);
   overflow: hidden;
+  isolation: isolate;
+  background-clip: padding-box;
 }
 
 ion-item::part(native) {
-  border-radius: var(--app-radius-sm);
+  border-radius: inherit;
   overflow: hidden;
-  background: var(--ion-item-background);
+  background: var(--background, var(--ion-item-background));
+  box-sizing: border-box;
+  background-clip: padding-box;
 }
 
 ion-label,
@@ -271,29 +283,33 @@ body.dark .app-subtoolbar {
 }
 
 body.dark ion-card,
+body.dark ion-card[class],
 body.dark .app-card,
 body.dark .app-panel-card {
   --background: var(--app-card);
-  background: var(--app-card);
-  border: var(--app-border);
+  background: transparent;
+  border: 0;
   box-shadow: var(--app-shadow);
 }
 
 body.dark ion-card::part(native),
 body.dark .app-card::part(native),
 body.dark .app-panel-card::part(native) {
-  background: var(--app-card);
+  border: var(--app-border);
+  background: var(--background, var(--app-card));
 }
 
-body.dark ion-item {
+body.dark ion-item,
+body.dark ion-item[class] {
   --color: var(--ion-text-color);
   --background: var(--ion-item-background);
   --border-color: var(--ion-border-color);
   color: var(--ion-text-color);
+  background: transparent;
 }
 
 body.dark ion-item::part(native) {
-  background: var(--ion-item-background);
+  background: var(--background, var(--ion-item-background));
 }
 
 body.dark ion-label,
@@ -404,7 +420,7 @@ body.dark ion-progress-bar {
 
 .app-panel-card--soft {
   --background: var(--app-card-strong);
-  background: var(--app-card-strong);
+  background: transparent;
 }
 
 .app-panel-header {
@@ -625,6 +641,96 @@ body.dark ion-progress-bar {
   font-weight: 700;
 }
 
+.app-semantic-btn,
+.app-semantic-icon {
+  --app-semantic-color: var(--app-action-neutral);
+  --app-semantic-color-rgb: var(--app-action-neutral-rgb);
+  --app-semantic-contrast: var(--app-action-neutral-contrast);
+  --app-semantic-soft: var(--app-action-neutral-soft);
+  --app-semantic-border: var(--app-action-neutral-border);
+}
+
+.app-semantic--edit {
+  --app-semantic-color: var(--app-action-edit);
+  --app-semantic-color-rgb: var(--app-action-edit-rgb);
+  --app-semantic-contrast: var(--app-action-edit-contrast);
+  --app-semantic-soft: var(--app-action-edit-soft);
+  --app-semantic-border: var(--app-action-edit-border);
+}
+
+.app-semantic--success {
+  --app-semantic-color: var(--app-action-success);
+  --app-semantic-color-rgb: var(--app-action-success-rgb);
+  --app-semantic-contrast: var(--app-action-success-contrast);
+  --app-semantic-soft: var(--app-action-success-soft);
+  --app-semantic-border: var(--app-action-success-border);
+}
+
+.app-semantic--danger {
+  --app-semantic-color: var(--app-action-danger);
+  --app-semantic-color-rgb: var(--app-action-danger-rgb);
+  --app-semantic-contrast: var(--app-action-danger-contrast);
+  --app-semantic-soft: var(--app-action-danger-soft);
+  --app-semantic-border: var(--app-action-danger-border);
+}
+
+.app-semantic--warning {
+  --app-semantic-color: var(--app-action-warning);
+  --app-semantic-color-rgb: var(--app-action-warning-rgb);
+  --app-semantic-contrast: var(--app-action-warning-contrast);
+  --app-semantic-soft: var(--app-action-warning-soft);
+  --app-semantic-border: var(--app-action-warning-border);
+}
+
+.app-semantic--neutral {
+  --app-semantic-color: var(--app-action-neutral);
+  --app-semantic-color-rgb: var(--app-action-neutral-rgb);
+  --app-semantic-contrast: var(--app-action-neutral-contrast);
+  --app-semantic-soft: var(--app-action-neutral-soft);
+  --app-semantic-border: var(--app-action-neutral-border);
+}
+
+ion-button.app-semantic-btn {
+  --ion-color-base: var(--app-semantic-color);
+  --ion-color-base-rgb: var(--app-semantic-color-rgb);
+  --ion-color-contrast: var(--app-semantic-contrast);
+  font-weight: 700;
+}
+
+ion-button.app-semantic-btn[fill="outline"],
+ion-button.app-semantic-btn[fill="clear"] {
+  --background: var(--app-semantic-soft);
+  --color: var(--app-semantic-color);
+  --border-color: var(--app-semantic-border);
+}
+
+ion-button.app-semantic-btn:not([fill="outline"]):not([fill="clear"]) {
+  --background: var(--app-semantic-color);
+  --color: var(--app-semantic-contrast);
+  --border-color: rgba(var(--app-semantic-color-rgb), 0.22);
+}
+
+.app-semantic-icon {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  padding: 8px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--app-semantic-border);
+  background: var(--app-semantic-soft);
+  color: var(--app-semantic-color);
+  font-size: 18px;
+  transition: transform 0.14s ease, border-color 0.14s ease,
+    background-color 0.14s ease, color 0.14s ease;
+}
+
+.app-semantic-icon:hover {
+  transform: translateY(-1px);
+}
+
 .app-footer-bar {
   border-top: 1px solid var(--ion-border-color);
   box-shadow: none;
@@ -750,7 +856,8 @@ body.dark ion-progress-bar {
 
 .my-panel-card {
   --background: var(--app-card);
-  border: var(--app-border);
+  background: transparent;
+  border: 0;
   box-shadow: var(--app-shadow);
   border-radius: var(--app-radius);
   margin: 0;
@@ -1385,8 +1492,198 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
 }
 
 /* ============================================ */
+/*               VEHICLE BRAND MARK             */
+/* ============================================ */
+
+.vehicle-brand-mark {
+  --brand-mark-size: 52px;
+  width: var(--brand-mark-size);
+  height: var(--brand-mark-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid rgba(var(--ion-color-medium-rgb), 0.14);
+  background: linear-gradient(
+    180deg,
+    rgba(var(--ion-color-medium-rgb), 0.12) 0%,
+    rgba(var(--ion-color-medium-rgb), 0.05) 100%
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.vehicle-brand-mark--sm {
+  --brand-mark-size: 44px;
+  border-radius: 14px;
+}
+
+.vehicle-brand-mark--lg {
+  --brand-mark-size: 64px;
+  border-radius: 18px;
+}
+
+.vehicle-brand-mark__img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.vehicle-brand-mark__icon {
+  font-size: calc(var(--brand-mark-size) * 0.48);
+  color: var(--ion-color-medium);
+}
+
+/* ============================================ */
 /*                CARS / LISTS                  */
 /* ============================================ */
+
+.cars-dashboard {
+  margin: 0;
+}
+
+.cars-dashboard__content {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+}
+
+.cars-dashboard__hero {
+  display: grid;
+  gap: 8px;
+}
+
+.cars-dashboard__copy {
+  display: grid;
+  gap: 8px;
+}
+
+.cars-dashboard__eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+}
+
+.cars-dashboard__title {
+  margin: 0;
+  font-size: 1.18rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--ion-text-color);
+}
+
+.cars-dashboard__description {
+  margin: 0;
+  max-width: 760px;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--ion-color-medium);
+}
+
+.cars-dashboard__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.cars-dashboard__metric {
+  --cars-dashboard-accent: var(--app-action-neutral);
+  --cars-dashboard-soft: var(--app-action-neutral-soft);
+  --cars-dashboard-border: var(--app-action-neutral-border);
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-height: 118px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--cars-dashboard-border);
+  background: linear-gradient(
+    180deg,
+    var(--cars-dashboard-soft) 0%,
+    rgba(var(--ion-color-medium-rgb), 0.04) 100%
+  );
+}
+
+.cars-dashboard__metric--edit {
+  --cars-dashboard-accent: var(--app-action-edit);
+  --cars-dashboard-soft: var(--app-action-edit-soft);
+  --cars-dashboard-border: var(--app-action-edit-border);
+}
+
+.cars-dashboard__metric--success {
+  --cars-dashboard-accent: var(--app-action-success);
+  --cars-dashboard-soft: var(--app-action-success-soft);
+  --cars-dashboard-border: var(--app-action-success-border);
+}
+
+.cars-dashboard__metric--danger {
+  --cars-dashboard-accent: var(--app-action-danger);
+  --cars-dashboard-soft: var(--app-action-danger-soft);
+  --cars-dashboard-border: var(--app-action-danger-border);
+}
+
+.cars-dashboard__metric--warning {
+  --cars-dashboard-accent: var(--app-action-warning);
+  --cars-dashboard-soft: var(--app-action-warning-soft);
+  --cars-dashboard-border: var(--app-action-warning-border);
+}
+
+.cars-dashboard__metric--neutral {
+  --cars-dashboard-accent: var(--app-action-neutral);
+  --cars-dashboard-soft: var(--app-action-neutral-soft);
+  --cars-dashboard-border: var(--app-action-neutral-border);
+}
+
+.cars-dashboard__metric--placeholder {
+  opacity: 0.92;
+}
+
+.cars-dashboard__metric-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+}
+
+.cars-dashboard__metric-value {
+  font-size: 1.28rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--cars-dashboard-accent);
+}
+
+.cars-dashboard__metric-note {
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--ion-color-medium);
+}
+
+.cars-list-section__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cars-list-section__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--ion-text-color);
+}
+
+.cars-list-section__caption {
+  margin: 4px 0 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--ion-color-medium);
+}
 
 .cards-grid {
   display: grid;
@@ -1394,11 +1691,32 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
   gap: 16px;
 }
 
+.cards-grid--cars {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 18px;
+  align-items: stretch;
+}
+
 .cards-empty {
   padding: 18px;
   border-radius: var(--app-radius);
   border: 1px dashed rgba(var(--ion-color-primary-rgb), 0.22);
   background: rgba(var(--ion-color-primary-rgb), 0.05);
+}
+
+.cards-empty--cars {
+  padding: 22px;
+  border-style: solid;
+  border-color: rgba(var(--ion-color-medium-rgb), 0.16);
+  background: linear-gradient(
+    180deg,
+    rgba(var(--ion-color-medium-rgb), 0.08) 0%,
+    rgba(var(--ion-color-medium-rgb), 0.04) 100%
+  );
+}
+
+#cars-page .cars-shell {
+  gap: 20px;
 }
 
 .action-picker-popover::part(content) {
@@ -1425,6 +1743,10 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
   margin-bottom: 0;
 }
 
+.cars-action-picker__icon {
+  margin-top: 2px;
+}
+
 .cars-action-picker__title {
   margin: 0;
   font-size: 0.92rem;
@@ -1438,9 +1760,14 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
 }
 
 .car-card {
+  height: 100%;
   margin: 0;
   cursor: pointer;
   transition: transform 0.14s ease, box-shadow 0.18s ease;
+}
+
+.car-card::part(native) {
+  height: 100%;
 }
 
 .car-card:hover {
@@ -1448,50 +1775,181 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
 }
 
 .car-card__main {
+  display: grid;
+  gap: 16px;
+  min-height: 216px;
+  padding: 20px;
+}
+
+.car-card__header {
   display: flex;
   justify-content: space-between;
-  gap: 18px;
-  padding: 18px;
+  align-items: flex-start;
+  gap: 14px;
 }
 
-.car-card__info-block {
+.car-card__headline {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.car-card__headline-copy {
   min-width: 0;
   display: grid;
-  gap: 10px;
-  flex: 1;
+  gap: 4px;
 }
 
-.car-card__title {
-  font-size: 1.02rem;
-  font-weight: 800;
-  letter-spacing: 0.2px;
-  color: var(--ion-text-color);
-}
-
-.car-card__line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  font-size: 0.88rem;
-  line-height: 1.45;
+.car-card__brand-name {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--ion-color-medium);
 }
 
-.car-card__line span {
+.car-card__title {
+  font-size: 1.08rem;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  line-height: 1.2;
   color: var(--ion-text-color);
-  font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
-.car-card__line--km span {
-  color: var(--ion-color-primary);
+.car-card__meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.car-card__meta-item {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(var(--ion-color-medium-rgb), 0.12);
+  background: rgba(var(--ion-color-medium-rgb), 0.06);
+}
+
+.car-card__meta-label,
+.car-card__km-label,
+.car-card__detail-label {
+  font-size: 0.69rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+}
+
+.car-card__meta-value {
+  min-width: 0;
+  font-size: 0.94rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--ion-text-color);
+  word-break: break-word;
+}
+
+.car-card__meta-value--plate {
+  font-family: "Roboto Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+    Menlo, monospace;
+  font-size: 0.98rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.car-card__footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: end;
+  padding-top: 14px;
+  border-top: 1px solid rgba(var(--ion-color-medium-rgb), 0.12);
+}
+
+.car-card__summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.car-card__km {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(var(--ion-color-medium-rgb), 0.14);
+  background: linear-gradient(
+    180deg,
+    rgba(var(--ion-color-medium-rgb), 0.08) 0%,
+    rgba(var(--ion-color-medium-rgb), 0.04) 100%
+  );
+}
+
+.car-card__km-value {
+  font-size: 1.34rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--ion-text-color);
+}
+
+.car-card__km-value small {
+  margin-left: 4px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+}
+
+.car-card__detail {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  align-self: center;
+}
+
+.car-card__detail-value {
+  font-size: 0.94rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--ion-text-color);
+}
+
+.car-card__detail-value--active {
+  color: var(--app-car-status-active-text);
+}
+
+.car-card__detail-value--rented {
+  color: var(--app-car-status-rented-text);
+}
+
+.car-card__detail-value--sale {
+  color: var(--app-car-status-sale-text);
+}
+
+.car-card__detail-value--retired {
+  color: var(--app-car-status-retired-text);
+}
+
+.car-card__detail-value--maintenance {
+  color: var(--app-car-status-maintenance-text);
+}
+
+.car-card__detail-value--blocked {
+  color: var(--app-car-status-blocked-text);
 }
 
 .car-card__aside {
-  min-width: 128px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: flex-end;
+  min-width: 132px;
+  display: grid;
+  justify-items: end;
+  align-content: end;
   gap: 12px;
 }
 
@@ -1502,66 +1960,238 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
 
 .car-card__actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
 }
 
-.car-card__icon {
-  width: 34px;
-  height: 34px;
-  padding: 8px;
-  border-radius: 10px;
-  border: 1px solid var(--ion-border-color);
-  background: var(--app-card-strong);
-  color: var(--ion-color-medium);
+.car-card__action {
+  appearance: none;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid rgba(var(--ion-color-medium-rgb), 0.14);
+  background: rgba(var(--ion-color-medium-rgb), 0.08);
+  color: var(--ion-text-color);
+  cursor: pointer;
   transition: transform 0.14s ease, border-color 0.14s ease,
-    color 0.14s ease;
+    background 0.14s ease, box-shadow 0.14s ease;
 }
 
-.car-card__icon:hover {
+.car-card__action:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.16);
+}
+
+.car-card__action:hover {
   transform: translateY(-1px);
 }
 
-.car-card__icon--edit:hover {
-  color: var(--ion-color-primary);
-  border-color: rgba(var(--ion-color-primary-rgb), 0.28);
+.car-card__action--edit {
+  border-color: var(--app-action-edit-border);
+  background: var(--app-action-edit-soft);
+  color: var(--app-action-edit);
 }
 
-.car-card__icon--delete:hover {
-  color: var(--ion-color-danger);
-  border-color: rgba(var(--ion-color-danger-rgb), 0.28);
+.car-card__action--danger {
+  border-color: var(--app-action-danger-border);
+  background: var(--app-action-danger-soft);
+  color: var(--app-action-danger);
+}
+
+.car-card__icon {
+  font-size: 1rem;
 }
 
 .car-card__badge {
   display: inline-flex;
   align-items: center;
-  padding: 4px 10px;
+  justify-content: center;
+  min-height: 32px;
+  padding: 6px 12px;
   border-radius: 999px;
-  font-size: 0.78rem;
+  border: 1px solid transparent;
+  font-size: 0.77rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.car-card__badge--active {
+  border-color: var(--app-car-status-active-border);
+  background: var(--app-car-status-active-soft);
+  color: var(--app-car-status-active-text);
+}
+
+.car-card__badge--rented {
+  border-color: var(--app-car-status-rented-border);
+  background: var(--app-car-status-rented-soft);
+  color: var(--app-car-status-rented-text);
+}
+
+.car-card__badge--sale {
+  border-color: var(--app-car-status-sale-border);
+  background: var(--app-car-status-sale-soft);
+  color: var(--app-car-status-sale-text);
+}
+
+.car-card__badge--retired {
+  border-color: var(--app-car-status-retired-border);
+  background: var(--app-car-status-retired-soft);
+  color: var(--app-car-status-retired-text);
+}
+
+.car-card__badge--maintenance {
+  border-color: var(--app-car-status-maintenance-border);
+  background: var(--app-car-status-maintenance-soft);
+  color: var(--app-car-status-maintenance-text);
+}
+
+.car-card__badge--blocked {
+  border-color: var(--app-car-status-blocked-border);
+  background: var(--app-car-status-blocked-soft);
+  color: var(--app-car-status-blocked-text);
+}
+
+#drivers-page .section-shell,
+#driver-pendencies-page .section-shell {
+  max-width: 960px;
+  gap: 18px;
+}
+
+.app-nested-list {
+  margin: 0;
+  padding: 14px;
+  border: var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-card);
+  box-shadow: var(--app-shadow);
+  display: grid;
+  gap: 12px;
+}
+
+#drivers-page .section-shell > ion-list.app-nested-list,
+#driver-pendencies-page .section-shell > ion-list.app-nested-list {
+  padding: 14px;
+}
+
+.app-nested-list > .app-item-not-found {
+  padding: 6px 4px 2px;
+}
+
+.app-nested-list > ion-list-header.app-nested-list__summary,
+.app-nested-list > ion-item.app-nested-list__title {
+  margin: 0;
+  padding: 0 2px 12px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--ion-border-color);
+  min-height: 0;
+}
+
+#drivers-page .app-nested-list > ion-item.app-nested-list__title,
+#driver-pendencies-page .app-nested-list > ion-item.app-nested-list__title,
+#driver-pendencies-page .app-nested-list > ion-list-header.app-nested-list__summary {
+  margin: 0;
+  border: 0;
+}
+
+.app-nested-list > ion-item.app-nested-list__title::part(native) {
+  background: transparent;
+  border: 0;
+  padding: 0 2px 12px;
+  min-height: 0;
+}
+
+#drivers-page .app-nested-list > ion-item.app-nested-list__title::part(native) {
+  background: transparent;
+  border: 0;
+  padding: 0 2px 12px;
+}
+
+.app-nested-list__summary ion-label,
+.app-nested-list__title ion-label {
+  margin: 0;
+}
+
+.app-nested-list__title h1 {
+  margin: 0;
+  font-size: 0.96rem;
   font-weight: 700;
 }
 
-.car-card__driver {
-  display: inline;
-  padding: 0;
-  border-radius: 0;
-  font-size: 0.84rem;
-  font-weight: 600;
+.app-nested-list__summary ion-label p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.app-nested-list__summary ion-label p + p {
+  margin-top: 4px;
+}
+
+.app-nested-list__item {
+  margin: 0;
+  --padding-start: 0;
+  --inner-padding-end: 0;
+  --inner-border-width: 0;
+  --background: transparent;
+  border: 0;
+  border-radius: 14px;
+  box-shadow: none;
+}
+
+#drivers-page .app-nested-list > ion-item.app-nested-list__item,
+#driver-pendencies-page .app-nested-list > ion-item.app-nested-list__item {
+  margin: 0;
+  border: 0;
+  box-shadow: none;
+}
+
+.app-nested-list__item::part(native) {
+  padding: 14px 16px;
+  min-height: 0;
+  align-items: flex-start;
+  background: var(--app-card-strong);
+  border: 0;
+  border-radius: 14px;
+}
+
+#drivers-page .app-nested-list > ion-item.app-nested-list__item::part(native),
+#driver-pendencies-page .app-nested-list > ion-item.app-nested-list__item::part(native) {
+  padding: 14px 16px;
+  background: var(--app-card-strong);
+  border: 0;
+}
+
+.app-nested-list__lead {
+  align-self: flex-start;
+}
+
+#driver-pendencies-page .app-nested-list__meta {
+  display: grid !important;
+  gap: 6px;
+  justify-items: end;
+  align-self: flex-start !important;
+  text-align: end !important;
+  padding-inline-start: 16px;
+}
+
+#driver-pendencies-page .app-nested-list__meta p:first-child {
   color: var(--ion-text-color);
+  font-weight: 700;
 }
 
-.car-card__badge--admin {
-  background: var(--app-badge-bg);
-  color: var(--app-badge-text);
-}
-
-.car-card__badge--available {
-  background: var(--app-success-bg);
-  color: var(--app-success-text);
-}
-
-.car-card__driver--rented {
-  background: transparent;
-  color: var(--ion-text-color);
+.app-nested-list__actions {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(var(--ion-color-medium-rgb), 0.14);
 }
 
 #car-incomes-page .section-shell > ion-list,
@@ -1834,15 +2464,55 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
     padding: 22px 18px;
   }
 
-  .car-card__main {
+  .cars-dashboard__content {
+    padding: 18px;
+  }
+
+  .cars-list-section__header {
+    align-items: flex-start;
     flex-direction: column;
+  }
+
+  .car-card__main {
+    min-height: 0;
+    padding: 18px;
+  }
+
+  .car-card__footer,
+  .car-card__summary {
+    grid-template-columns: 1fr;
   }
 
   .car-card__aside {
     min-width: 0;
     width: 100%;
-    flex-direction: row;
+    grid-template-columns: 1fr auto;
     align-items: center;
+    justify-items: start;
+  }
+
+  .car-card__actions {
+    justify-content: flex-start;
+  }
+
+  #driver-pendencies-page .app-nested-list__meta {
+    width: 100%;
+    justify-items: start;
+    text-align: left !important;
+    padding-inline-start: 0;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(var(--ion-color-medium-rgb), 0.14);
+  }
+
+  #driver-pendencies-page .app-nested-list__actions {
+    justify-content: flex-start;
+  }
+
+  #driver-pendencies-page .app-nested-list__meta .app-nested-list__actions {
+    border-top: 0;
+    margin-top: 2px;
+    padding-top: 8px;
   }
 
   #car-page .section-shell {
@@ -1880,6 +2550,23 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
 
   .cards-grid {
     grid-template-columns: 1fr;
+  }
+
+  .cars-dashboard__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .car-card__header,
+  .car-card__meta {
+    grid-template-columns: 1fr;
+  }
+
+  .car-card__header {
+    display: grid;
+  }
+
+  .car-card__badge {
+    justify-self: start;
   }
 
   .app-selected-car {

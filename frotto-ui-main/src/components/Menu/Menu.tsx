@@ -380,7 +380,7 @@ const Menu: React.FC = () => {
             </IonItem>
             <IonMenuToggle>
               <IonButton
-                color="danger"
+                className="app-semantic-btn app-semantic--danger"
                 fill="outline"
                 expand="block"
                 onClick={() => {

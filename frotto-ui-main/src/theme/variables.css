@@ -89,34 +89,34 @@
   /* =========================
      SURFACES / LIGHT MODE
      ========================= */
-  --ion-background-color: #edf3f8;
-  --ion-background-color-rgb: 237, 243, 248;
+  --ion-background-color: #eef3f7;
+  --ion-background-color-rgb: 238, 243, 247;
 
   --ion-text-color: var(--app-text);
   --ion-text-color-rgb: 24, 50, 59;
 
   --ion-border-color: #d9e3ec;
-  --ion-card-background: #f9fbfd;
-  --ion-item-background: #f4f8fb;
+  --ion-card-background: #fbfcfd;
+  --ion-item-background: #f7fafc;
   --ion-toolbar-background: #0c3440;
   --ion-tab-bar-background: #ffffff;
 
   /* =========================
      APP TOKENS / LIGHT MODE
      ========================= */
-  --app-gradient: linear-gradient(180deg, #f4f7fb 0%, #e6edf3 100%);
+  --app-gradient: linear-gradient(180deg, #f6f8fb 0%, #ecf1f5 100%);
 
   --app-card: #ffffff;
-  --app-card-strong: #f7fafc;
-  --app-card-soft: #f4f8fb;
+  --app-card-strong: #f8fafc;
+  --app-card-soft: #f5f8fb;
   --app-border: 1px solid rgba(16, 42, 67, 0.08);
 
   --app-radius: 18px;
   --app-radius-sm: 12px;
 
-  --app-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
-  --app-shadow-hover: 0 14px 28px rgba(0, 0, 0, 0.12);
-  --app-card-glow: 0 0 0 1px rgba(11, 85, 111, 0.04);
+  --app-shadow: 0 8px 18px rgba(16, 42, 67, 0.06);
+  --app-shadow-hover: 0 12px 24px rgba(16, 42, 67, 0.1);
+  --app-card-glow: 0 0 0 1px rgba(16, 42, 67, 0.03);
 
   --app-button-radius: 12px;
   --app-modal-backdrop: rgba(12, 52, 64, 0.28);
@@ -138,6 +138,71 @@
 
   --app-teal-bg: rgba(20, 184, 166, 0.12);
   --app-teal-text: #0f766e;
+
+  /* =========================
+     CAR STATUS TOKENS
+     ========================= */
+  --app-car-status-active-soft: rgba(20, 184, 166, 0.12);
+  --app-car-status-active-border: rgba(20, 184, 166, 0.22);
+  --app-car-status-active-text: #0f766e;
+
+  --app-car-status-rented-soft: rgba(22, 163, 74, 0.12);
+  --app-car-status-rented-border: rgba(22, 163, 74, 0.22);
+  --app-car-status-rented-text: #15803d;
+
+  --app-car-status-sale-soft: rgba(245, 158, 11, 0.14);
+  --app-car-status-sale-border: rgba(245, 158, 11, 0.24);
+  --app-car-status-sale-text: #b45309;
+
+  --app-car-status-retired-soft: rgba(100, 116, 139, 0.1);
+  --app-car-status-retired-border: rgba(100, 116, 139, 0.18);
+  --app-car-status-retired-text: #475569;
+
+  --app-car-status-maintenance-soft: rgba(249, 115, 22, 0.12);
+  --app-car-status-maintenance-border: rgba(249, 115, 22, 0.22);
+  --app-car-status-maintenance-text: #c2410c;
+
+  --app-car-status-blocked-soft: rgba(220, 38, 38, 0.12);
+  --app-car-status-blocked-border: rgba(220, 38, 38, 0.22);
+  --app-car-status-blocked-text: #b91c1c;
+
+  /* =========================
+     SEMANTIC ACTIONS
+     ========================= */
+  --app-action-edit: #2563eb;
+  --app-action-edit-rgb: 37, 99, 235;
+  --app-action-edit-contrast: #ffffff;
+  --app-action-edit-contrast-rgb: 255, 255, 255;
+  --app-action-edit-soft: rgba(37, 99, 235, 0.12);
+  --app-action-edit-border: rgba(37, 99, 235, 0.22);
+
+  --app-action-success: #16a34a;
+  --app-action-success-rgb: 22, 163, 74;
+  --app-action-success-contrast: #ffffff;
+  --app-action-success-contrast-rgb: 255, 255, 255;
+  --app-action-success-soft: rgba(22, 163, 74, 0.12);
+  --app-action-success-border: rgba(22, 163, 74, 0.22);
+
+  --app-action-danger: #dc2626;
+  --app-action-danger-rgb: 220, 38, 38;
+  --app-action-danger-contrast: #ffffff;
+  --app-action-danger-contrast-rgb: 255, 255, 255;
+  --app-action-danger-soft: rgba(220, 38, 38, 0.12);
+  --app-action-danger-border: rgba(220, 38, 38, 0.22);
+
+  --app-action-warning: #f59e0b;
+  --app-action-warning-rgb: 245, 158, 11;
+  --app-action-warning-contrast: #1f2937;
+  --app-action-warning-contrast-rgb: 31, 41, 55;
+  --app-action-warning-soft: rgba(245, 158, 11, 0.14);
+  --app-action-warning-border: rgba(245, 158, 11, 0.24);
+
+  --app-action-neutral: #64748b;
+  --app-action-neutral-rgb: 100, 116, 139;
+  --app-action-neutral-contrast: #ffffff;
+  --app-action-neutral-contrast-rgb: 255, 255, 255;
+  --app-action-neutral-soft: rgba(100, 116, 139, 0.1);
+  --app-action-neutral-border: rgba(100, 116, 139, 0.18);
 }
 
 /* ============================================ */
@@ -215,29 +280,29 @@ body.dark {
   --app-text-soft-on-dark: #b8c7d1;
 
   /* surfaces */
-  --ion-background-color: #0d1b1f;
-  --ion-background-color-rgb: 13, 27, 31;
+  --ion-background-color: #10171b;
+  --ion-background-color-rgb: 16, 23, 27;
 
   --ion-text-color: var(--app-text-on-dark);
   --ion-text-color-rgb: 234, 242, 247;
 
-  --ion-border-color: rgba(175, 179, 183, 0.16);
-  --ion-item-background: #1b3238;
-  --ion-card-background: #162a30;
-  --ion-toolbar-background: #10252c;
-  --ion-tab-bar-background: #10252c;
+  --ion-border-color: rgba(184, 196, 205, 0.14);
+  --ion-item-background: #18252b;
+  --ion-card-background: #142126;
+  --ion-toolbar-background: #10181c;
+  --ion-tab-bar-background: #10181c;
 
   /* app tokens */
-  --app-gradient: linear-gradient(180deg, #121f23 0%, #0d1b1f 100%);
+  --app-gradient: linear-gradient(180deg, #141c20 0%, #0f1518 100%);
 
-  --app-card: #162a30;
-  --app-card-strong: #1b3238;
-  --app-card-soft: #1f3941;
-  --app-border: 1px solid rgba(175, 179, 183, 0.14);
+  --app-card: #142126;
+  --app-card-strong: #19282e;
+  --app-card-soft: #1d2e35;
+  --app-border: 1px solid rgba(184, 196, 205, 0.12);
 
-  --app-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
-  --app-shadow-hover: 0 18px 36px rgba(0, 0, 0, 0.48);
-  --app-card-glow: 0 0 0 1px rgba(34, 166, 201, 0.08);
+  --app-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+  --app-shadow-hover: 0 14px 30px rgba(0, 0, 0, 0.34);
+  --app-card-glow: 0 0 0 1px rgba(234, 242, 247, 0.04);
 
   --app-modal-backdrop: rgba(6, 10, 12, 0.72);
 
@@ -257,48 +322,109 @@ body.dark {
   --app-teal-bg: rgba(45, 212, 191, 0.14);
   --app-teal-text: #7dd3fc;
 
+  /* car status tokens */
+  --app-car-status-active-soft: rgba(45, 212, 191, 0.16);
+  --app-car-status-active-border: rgba(45, 212, 191, 0.28);
+  --app-car-status-active-text: #99f6e4;
+
+  --app-car-status-rented-soft: rgba(74, 222, 128, 0.16);
+  --app-car-status-rented-border: rgba(74, 222, 128, 0.26);
+  --app-car-status-rented-text: #bbf7d0;
+
+  --app-car-status-sale-soft: rgba(251, 191, 36, 0.18);
+  --app-car-status-sale-border: rgba(251, 191, 36, 0.28);
+  --app-car-status-sale-text: #fcd34d;
+
+  --app-car-status-retired-soft: rgba(184, 199, 209, 0.14);
+  --app-car-status-retired-border: rgba(184, 199, 209, 0.22);
+  --app-car-status-retired-text: #e2e8f0;
+
+  --app-car-status-maintenance-soft: rgba(249, 115, 22, 0.18);
+  --app-car-status-maintenance-border: rgba(249, 115, 22, 0.28);
+  --app-car-status-maintenance-text: #fdba74;
+
+  --app-car-status-blocked-soft: rgba(248, 113, 113, 0.16);
+  --app-car-status-blocked-border: rgba(248, 113, 113, 0.26);
+  --app-car-status-blocked-text: #fecaca;
+
+  /* semantic actions */
+  --app-action-edit: #60a5fa;
+  --app-action-edit-rgb: 96, 165, 250;
+  --app-action-edit-contrast: #08161d;
+  --app-action-edit-contrast-rgb: 8, 22, 29;
+  --app-action-edit-soft: rgba(96, 165, 250, 0.18);
+  --app-action-edit-border: rgba(96, 165, 250, 0.28);
+
+  --app-action-success: #4ade80;
+  --app-action-success-rgb: 74, 222, 128;
+  --app-action-success-contrast: #08161d;
+  --app-action-success-contrast-rgb: 8, 22, 29;
+  --app-action-success-soft: rgba(74, 222, 128, 0.16);
+  --app-action-success-border: rgba(74, 222, 128, 0.26);
+
+  --app-action-danger: #f87171;
+  --app-action-danger-rgb: 248, 113, 113;
+  --app-action-danger-contrast: #08161d;
+  --app-action-danger-contrast-rgb: 8, 22, 29;
+  --app-action-danger-soft: rgba(248, 113, 113, 0.16);
+  --app-action-danger-border: rgba(248, 113, 113, 0.26);
+
+  --app-action-warning: #fbbf24;
+  --app-action-warning-rgb: 251, 191, 36;
+  --app-action-warning-contrast: #1f2937;
+  --app-action-warning-contrast-rgb: 31, 41, 55;
+  --app-action-warning-soft: rgba(251, 191, 36, 0.18);
+  --app-action-warning-border: rgba(251, 191, 36, 0.28);
+
+  --app-action-neutral: #b8c7d1;
+  --app-action-neutral-rgb: 184, 199, 209;
+  --app-action-neutral-contrast: #08161d;
+  --app-action-neutral-contrast-rgb: 8, 22, 29;
+  --app-action-neutral-soft: rgba(184, 199, 209, 0.14);
+  --app-action-neutral-border: rgba(184, 199, 209, 0.22);
+
   /* ionic step colors */
-  --ion-color-step-50: #102126;
-  --ion-color-step-100: #13282d;
-  --ion-color-step-150: #163036;
-  --ion-color-step-200: #19373d;
-  --ion-color-step-250: #1c3e45;
-  --ion-color-step-300: #20464d;
-  --ion-color-step-350: #244d55;
-  --ion-color-step-400: #28555d;
-  --ion-color-step-450: #2d5d66;
-  --ion-color-step-500: #32656f;
-  --ion-color-step-550: #386e78;
-  --ion-color-step-600: #407782;
-  --ion-color-step-650: #4b818c;
-  --ion-color-step-700: #5b8a95;
-  --ion-color-step-750: #6d949f;
-  --ion-color-step-800: #839fa9;
-  --ion-color-step-850: #9aaab4;
-  --ion-color-step-900: #b3c0c7;
-  --ion-color-step-950: #d7e1e8;
+  --ion-color-step-50: #11191d;
+  --ion-color-step-100: #151e22;
+  --ion-color-step-150: #192328;
+  --ion-color-step-200: #1d282d;
+  --ion-color-step-250: #222d32;
+  --ion-color-step-300: #283338;
+  --ion-color-step-350: #2d393f;
+  --ion-color-step-400: #344046;
+  --ion-color-step-450: #3b484e;
+  --ion-color-step-500: #435057;
+  --ion-color-step-550: #4c5a61;
+  --ion-color-step-600: #56656d;
+  --ion-color-step-650: #62727b;
+  --ion-color-step-700: #72818a;
+  --ion-color-step-750: #84939c;
+  --ion-color-step-800: #99a7af;
+  --ion-color-step-850: #b0bcc3;
+  --ion-color-step-900: #c8d2d8;
+  --ion-color-step-950: #e5ecef;
 }
 
 /* ============================================ */
 /*            PLATFORM SPECIFIC DARK            */
 /* ============================================ */
 .ios body.dark {
-  --ion-item-background: #1b3238;
-  --ion-card-background: #162a30;
+  --ion-item-background: #18252b;
+  --ion-card-background: #142126;
 }
 
 .ios body.dark ion-modal {
-  --ion-background-color: #162a30;
-  --ion-toolbar-background: #10252c;
-  --ion-toolbar-border-color: rgba(175, 179, 183, 0.16);
+  --ion-background-color: #142126;
+  --ion-toolbar-background: #10181c;
+  --ion-toolbar-border-color: rgba(184, 196, 205, 0.14);
 }
 
 .md body.dark {
-  --ion-item-background: #1b3238;
-  --ion-card-background: #162a30;
-  --ion-toolbar-background: #10252c;
-  --ion-border-color: rgba(175, 179, 183, 0.16);
-  --ion-tab-bar-background: #10252c;
+  --ion-item-background: #18252b;
+  --ion-card-background: #142126;
+  --ion-toolbar-background: #10181c;
+  --ion-border-color: rgba(184, 196, 205, 0.14);
+  --ion-tab-bar-background: #10181c;
 }
 
 /* ============================================ */
@@ -336,8 +462,8 @@ body.dark {
     --ion-color-danger-contrast: #08161d;
     --ion-color-danger-contrast-rgb: 8, 22, 29;
 
-    --ion-background-color: #0d1b1f;
-    --ion-background-color-rgb: 13, 27, 31;
+    --ion-background-color: #10171b;
+    --ion-background-color-rgb: 16, 23, 27;
 
     --ion-text-color: #eaf2f7;
     --ion-text-color-rgb: 234, 242, 247;
@@ -345,38 +471,97 @@ body.dark {
     --ion-color-medium: #9fb0bb;
     --ion-color-medium-rgb: 159, 176, 187;
 
-    --ion-border-color: rgba(175, 179, 183, 0.16);
-    --ion-item-background: #1b3238;
-    --ion-card-background: #162a30;
-    --ion-toolbar-background: #10252c;
-    --ion-tab-bar-background: #10252c;
+    --ion-border-color: rgba(184, 196, 205, 0.14);
+    --ion-item-background: #18252b;
+    --ion-card-background: #142126;
+    --ion-toolbar-background: #10181c;
+    --ion-tab-bar-background: #10181c;
 
-    --app-gradient: linear-gradient(180deg, #121f23 0%, #0d1b1f 100%);
-    --app-card: #162a30;
-    --app-card-strong: #1b3238;
-    --app-card-soft: #1f3941;
-    --app-border: 1px solid rgba(175, 179, 183, 0.14);
-    --app-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
-    --app-shadow-hover: 0 18px 36px rgba(0, 0, 0, 0.48);
-    --app-card-glow: 0 0 0 1px rgba(34, 166, 201, 0.08);
+    --app-gradient: linear-gradient(180deg, #141c20 0%, #0f1518 100%);
+    --app-card: #142126;
+    --app-card-strong: #19282e;
+    --app-card-soft: #1d2e35;
+    --app-border: 1px solid rgba(184, 196, 205, 0.12);
+    --app-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+    --app-shadow-hover: 0 14px 30px rgba(0, 0, 0, 0.34);
+    --app-card-glow: 0 0 0 1px rgba(234, 242, 247, 0.04);
+
+    --app-car-status-active-soft: rgba(45, 212, 191, 0.16);
+    --app-car-status-active-border: rgba(45, 212, 191, 0.28);
+    --app-car-status-active-text: #99f6e4;
+
+    --app-car-status-rented-soft: rgba(74, 222, 128, 0.16);
+    --app-car-status-rented-border: rgba(74, 222, 128, 0.26);
+    --app-car-status-rented-text: #bbf7d0;
+
+    --app-car-status-sale-soft: rgba(251, 191, 36, 0.18);
+    --app-car-status-sale-border: rgba(251, 191, 36, 0.28);
+    --app-car-status-sale-text: #fcd34d;
+
+    --app-car-status-retired-soft: rgba(184, 199, 209, 0.14);
+    --app-car-status-retired-border: rgba(184, 199, 209, 0.22);
+    --app-car-status-retired-text: #e2e8f0;
+
+    --app-car-status-maintenance-soft: rgba(249, 115, 22, 0.18);
+    --app-car-status-maintenance-border: rgba(249, 115, 22, 0.28);
+    --app-car-status-maintenance-text: #fdba74;
+
+    --app-car-status-blocked-soft: rgba(248, 113, 113, 0.16);
+    --app-car-status-blocked-border: rgba(248, 113, 113, 0.26);
+    --app-car-status-blocked-text: #fecaca;
+
+    --app-action-edit: #60a5fa;
+    --app-action-edit-rgb: 96, 165, 250;
+    --app-action-edit-contrast: #08161d;
+    --app-action-edit-contrast-rgb: 8, 22, 29;
+    --app-action-edit-soft: rgba(96, 165, 250, 0.18);
+    --app-action-edit-border: rgba(96, 165, 250, 0.28);
+
+    --app-action-success: #4ade80;
+    --app-action-success-rgb: 74, 222, 128;
+    --app-action-success-contrast: #08161d;
+    --app-action-success-contrast-rgb: 8, 22, 29;
+    --app-action-success-soft: rgba(74, 222, 128, 0.16);
+    --app-action-success-border: rgba(74, 222, 128, 0.26);
+
+    --app-action-danger: #f87171;
+    --app-action-danger-rgb: 248, 113, 113;
+    --app-action-danger-contrast: #08161d;
+    --app-action-danger-contrast-rgb: 8, 22, 29;
+    --app-action-danger-soft: rgba(248, 113, 113, 0.16);
+    --app-action-danger-border: rgba(248, 113, 113, 0.26);
+
+    --app-action-warning: #fbbf24;
+    --app-action-warning-rgb: 251, 191, 36;
+    --app-action-warning-contrast: #1f2937;
+    --app-action-warning-contrast-rgb: 31, 41, 55;
+    --app-action-warning-soft: rgba(251, 191, 36, 0.18);
+    --app-action-warning-border: rgba(251, 191, 36, 0.28);
+
+    --app-action-neutral: #b8c7d1;
+    --app-action-neutral-rgb: 184, 199, 209;
+    --app-action-neutral-contrast: #08161d;
+    --app-action-neutral-contrast-rgb: 8, 22, 29;
+    --app-action-neutral-soft: rgba(184, 199, 209, 0.14);
+    --app-action-neutral-border: rgba(184, 199, 209, 0.22);
   }
 
   .ios body:not(.dark):not(.light) {
-    --ion-item-background: #1b3238;
-    --ion-card-background: #162a30;
+    --ion-item-background: #18252b;
+    --ion-card-background: #142126;
   }
 
   .ios body:not(.dark):not(.light) ion-modal {
-    --ion-background-color: #162a30;
-    --ion-toolbar-background: #10252c;
-    --ion-toolbar-border-color: rgba(175, 179, 183, 0.16);
+    --ion-background-color: #142126;
+    --ion-toolbar-background: #10181c;
+    --ion-toolbar-border-color: rgba(184, 196, 205, 0.14);
   }
 
   .md body:not(.dark):not(.light) {
-    --ion-border-color: rgba(175, 179, 183, 0.16);
-    --ion-item-background: #1b3238;
-    --ion-toolbar-background: #10252c;
-    --ion-tab-bar-background: #10252c;
-    --ion-card-background: #162a30;
+    --ion-border-color: rgba(184, 196, 205, 0.14);
+    --ion-item-background: #18252b;
+    --ion-toolbar-background: #10181c;
+    --ion-tab-bar-background: #10181c;
+    --ion-card-background: #142126;
   }
 }

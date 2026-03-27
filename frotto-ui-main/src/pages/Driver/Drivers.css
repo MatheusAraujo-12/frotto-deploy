@@ -1,22 +1,33 @@
+#drivers-page .section-shell {
+  max-width: 960px;
+  gap: 18px;
+}
+
 #drivers-page .driver-row {
   display: flex;
-  gap: 14px;
+  gap: 18px;
   width: 100%;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
 #drivers-page .driver-col-left {
   flex: 1;
   min-width: 0;
+  display: grid;
+  gap: 5px;
+  align-content: start;
 }
 
 #drivers-page .driver-col-right {
-  flex: 1;
+  flex: 0 1 240px;
   text-align: right;
   min-width: 0;
   display: grid;
-  gap: 4px;
+  gap: 6px;
   justify-items: end;
+  align-content: start;
+  padding-inline-start: 16px;
+  border-inline-start: 1px solid rgba(var(--ion-color-medium-rgb), 0.14);
 }
 
 #drivers-page .driver-col-left h2 {
@@ -36,17 +47,40 @@
   overflow-wrap: anywhere;
 }
 
+#drivers-page .driver-col-right p:first-child {
+  color: var(--ion-text-color);
+  font-weight: 700;
+}
+
+#drivers-page .driver-col-actions {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(var(--ion-color-medium-rgb), 0.14);
+}
+
 #drivers-page .driver-col-right .driver-pendency-button {
-  margin-top: 6px;
+  margin: 0;
 }
 
 @media (max-width: 768px) {
   #drivers-page .driver-row {
     flex-direction: column;
+    gap: 12px;
   }
 
   #drivers-page .driver-col-right {
     text-align: left;
     justify-items: start;
+    padding-inline-start: 0;
+    padding-top: 12px;
+    border-inline-start: 0;
+    border-top: 1px solid rgba(var(--ion-color-medium-rgb), 0.14);
+  }
+
+  #drivers-page .driver-col-actions {
+    justify-content: flex-start;
   }
 }

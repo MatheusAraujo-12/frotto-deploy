@@ -278,8 +278,8 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
       </IonHeader>
       <IonContent>
         <div className="section-shell">
-          <IonList>
-            <IonListHeader>
+          <IonList className="app-nested-list">
+            <IonListHeader className="app-nested-list__summary">
               <IonLabel>
                 <p>
                   <strong>
@@ -299,6 +299,7 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
               const paid = isPaid(driverPendency.status);
               return (
                 <IonItem
+                  className="app-nested-list__item"
                   key={index}
                   button={!paid}
                   onClick={() => {
@@ -310,12 +311,12 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                     nav.push(nav.location.pathname + "?modalOpened=true");
                   }}
                 >
-                  <IonLabelLeft class="ion-text-wrap">
+                  <IonLabelLeft class="ion-text-wrap app-nested-list__lead">
                     <h2>{formatDateView(driverPendency.date)}</h2>
                     <p>{driverPendency.name}</p>
                     {driverPendency.note && <p>{driverPendency.note}</p>}
                   </IonLabelLeft>
-                  <IonLabekRight>
+                  <IonLabekRight className="app-nested-list__meta">
                     <p>{getStatusLabel(driverPendency.status)}</p>
                     <p>{currencyFormat(driverPendency.cost)}</p>
                     {!paid && (
@@ -330,21 +331,23 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                       </p>
                     )}
                     {!paid && (
-                      <IonButton
-                        size="small"
-                        fill="outline"
-                        color="success"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handleSettlePendency(driverPendency);
-                        }}
-                      >
-                        <IonIcon
-                          icon={checkmarkDoneCircleOutline}
-                          slot="start"
-                        />
-                        {TEXT.settleDebt}
-                      </IonButton>
+                      <div className="app-nested-list__actions">
+                        <IonButton
+                          className="app-semantic-btn app-semantic--success"
+                          size="small"
+                          fill="outline"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleSettlePendency(driverPendency);
+                          }}
+                        >
+                          <IonIcon
+                            icon={checkmarkDoneCircleOutline}
+                            slot="start"
+                          />
+                          {TEXT.settleDebt}
+                        </IonButton>
+                      </div>
                     )}
                   </IonLabekRight>
                 </IonItem>

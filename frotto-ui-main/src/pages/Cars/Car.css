@@ -24,10 +24,29 @@
   padding: 14px 16px 16px;
 }
 
+#car-page .car-page__hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+#car-page .car-page__brand-mark {
+  flex-shrink: 0;
+}
+
 #car-page .car-page__headline-block {
   display: grid;
   gap: 4px;
   min-width: 0;
+}
+
+#car-page .car-page__brand-line {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
 }
 
 #car-page .car-page__headline {
@@ -116,6 +135,10 @@
 @media (max-width: 720px) {
   #car-page .section-shell.car-page-shell {
     gap: 12px;
+  }
+
+  #car-page .car-page__hero {
+    align-items: flex-start;
   }
 
   #car-page .car-page__content {
