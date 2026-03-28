@@ -1,17 +1,20 @@
 # ========================
 # STAGE 1: frontend build
 # ========================
-FROM node:20-alpine AS build
+FROM node:20.19-alpine AS build
 WORKDIR /app
 
 ENV CI=false
-# Cap Node memory to avoid OOM when backend/frontend build in parallel.
 ENV NODE_OPTIONS=--max-old-space-size=512
-# CRA sourcemap generation increases memory usage significantly during build.
 ENV GENERATE_SOURCEMAP=false
+ENV NPM_CONFIG_AUDIT=false
+ENV NPM_CONFIG_FUND=false
+ENV NPM_CONFIG_LEGACY_PEER_DEPS=true
+ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+RUN node -v && npm -v
+RUN npm install
 
 COPY . .
 RUN npm run build
