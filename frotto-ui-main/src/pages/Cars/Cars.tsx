@@ -2,7 +2,6 @@ import {
   IonButton,
   IonButtons,
   IonCard,
-  IonCardContent,
   IonContent,
   IonHeader,
   IonIcon,
@@ -34,7 +33,6 @@ import { useLocation } from "react-router-dom";
 import api from "../../services/axios/axios";
 import endpoints from "../../constants/endpoints";
 import { TEXT } from "../../constants/texts";
-import { currencyFormat } from "../../services/currencyFormat";
 import { useAlert } from "../../services/hooks/useAlert";
 import CarAdd from "./CarAddModal/CarAdd";
 import MaintenanceAdd from "../Maintenance/MaintenanceAddModal/MaintenanceAdd";
@@ -52,6 +50,7 @@ import {
   MaintenanceModel,
   ReminderModel,
 } from "../../constants/CarModels";
+import "./Car.css";
 
 type ActionType = "maintenance" | "reminder" | "expense" | "income" | null;
 type SemanticTone = "success" | "danger" | "warning" | "neutral";
@@ -69,18 +68,10 @@ type CarListItemData = CarModel & {
   car?: CarModel;
   carId?: number;
 };
-type DashboardMetricTone = "edit" | "success" | "danger" | "warning" | "neutral";
-type DashboardMetric = {
-  key: string;
-  label: string;
-  value: string;
-  note: string;
-  tone: DashboardMetricTone;
-  isPlaceholder?: boolean;
-};
 type DashboardSummary = {
   totalCars?: number;
   activeCars: number;
+  inactiveCars?: number;
   rentedCars: number;
   availableCars: number;
   totalExpenses?: number;
@@ -92,6 +83,7 @@ type DashboardSummary = {
 
 const EMPTY_DASHBOARD_SUMMARY: DashboardSummary = {
   activeCars: 0,
+  inactiveCars: 0,
   rentedCars: 0,
   availableCars: 0,
   hasTotalCarsData: false,
@@ -128,9 +120,6 @@ const normalizeCars = (list: CarListItemData[]): CarModel[] =>
 const isOperationalCar = (car: CarModel): boolean =>
   car.active !== false && (car.adminStatus || "ATIVO") === "ATIVO";
 
-const formatDashboardCurrency = (value?: number): string =>
-  typeof value === "number" ? currencyFormat(value) : "--";
-
 const buildDashboardSummary = (
   activeCars: CarModel[],
   allCarsData?: unknown,
@@ -141,6 +130,7 @@ const buildDashboardSummary = (
   const availableCars = Math.max(operationalCars.length - rentedCars, 0);
 
   const allCars = extractListData<CarListItemData>(allCarsData);
+  const normalizedAllCars = normalizeCars(allCars);
   const expenseItems = extractListData<CarExpenseModel>(expensesData);
   const totalExpenses =
     expenseItems.length > 0
@@ -153,8 +143,12 @@ const buildDashboardSummary = (
       : undefined;
 
   return {
-    totalCars: allCarsData !== undefined ? normalizeCars(allCars).length : undefined,
+    totalCars: allCarsData !== undefined ? normalizedAllCars.length : undefined,
     activeCars: operationalCars.length,
+    inactiveCars:
+      allCarsData !== undefined
+        ? Math.max(normalizedAllCars.length - operationalCars.length, 0)
+        : undefined,
     rentedCars,
     availableCars,
     totalExpenses,
@@ -327,100 +321,42 @@ const Cars: React.FC = () => {
     return filterListObj(carList, searchValue) as CarModel[];
   }, [carList, searchValue]);
 
-  const dashboardMetrics = useMemo<DashboardMetric[]>(() => {
-    const totalCarsValue =
-      dashboardSummary.hasTotalCarsData && typeof dashboardSummary.totalCars === "number"
-        ? `${dashboardSummary.totalCars}`
-        : "--";
-    const totalCarsNote = isDashboardLoading
-      ? "Carregando base da frota"
-      : dashboardSummary.hasTotalCarsData
-      ? dashboardSummary.totalCars === 0
-        ? "Nenhum carro cadastrado"
-        : `${dashboardSummary.activeCars} operando na carteira ativa`
-      : "Sem base consolidada de carros";
-
-    const activeCarsNote = isDashboardLoading
-      ? "Consolidando disponibilidade"
-      : dashboardSummary.activeCars === 0
-      ? "Nenhum carro ativo agora"
-      : `${dashboardSummary.rentedCars} alugados e ${dashboardSummary.availableCars} disponiveis`;
-
-    const expenseNote = isDashboardLoading
-      ? "Consolidando despesas"
-      : dashboardSummary.hasExpenseData
-      ? "Somatorio das despesas registradas"
-      : "Sem consolidado de despesas";
-
-    return [
+  const fleetSummary = useMemo(
+    () => [
       {
-        key: "total-cars",
-        label: "Total de carros",
-        value: totalCarsValue,
-        note: totalCarsNote,
-        tone: "edit",
-        isPlaceholder: !dashboardSummary.hasTotalCarsData,
-      },
-      {
-        key: "active-cars",
-        label: "Carros ativos",
+        key: "active",
+        label: "Veiculos ativos",
         value: `${dashboardSummary.activeCars}`,
-        note: activeCarsNote,
-        tone: "success",
+        tone: "active",
       },
       {
-        key: "income",
-        label: "Receita",
-        value: "--",
-        note: isDashboardLoading
-          ? "Aguardando consolidado financeiro"
-          : "Sem endpoint consolidado de receitas",
-        tone: "success",
-        isPlaceholder: true,
+        key: "inactive",
+        label: "Veiculos inativos",
+        value:
+          dashboardSummary.hasTotalCarsData &&
+          typeof dashboardSummary.inactiveCars === "number"
+            ? `${dashboardSummary.inactiveCars}`
+            : "--",
+        tone: "inactive",
       },
-      {
-        key: "expense",
-        label: "Despesa",
-        value: dashboardSummary.hasExpenseData
-          ? formatDashboardCurrency(dashboardSummary.totalExpenses)
-          : "--",
-        note: expenseNote,
-        tone: "danger",
-        isPlaceholder: !dashboardSummary.hasExpenseData,
-      },
-      {
-        key: "profit-loss",
-        label: "Lucro / Prejuizo",
-        value: "--",
-        note: isDashboardLoading
-          ? "Aguardando dados de receita"
-          : "Disponivel quando receita e despesa estiverem consolidadas",
-        tone: "warning",
-        isPlaceholder: true,
-      },
-      {
-        key: "open-pendencies",
-        label: "Pendencias abertas",
-        value: "--",
-        note: isDashboardLoading
-          ? "Buscando consolidado operacional"
-          : "Sem endpoint agregado de pendencias",
-        tone: "warning",
-        isPlaceholder: true,
-      },
-    ];
-  }, [dashboardSummary, isDashboardLoading]);
+    ],
+    [
+      dashboardSummary.activeCars,
+      dashboardSummary.hasTotalCarsData,
+      dashboardSummary.inactiveCars,
+    ]
+  );
 
   const carsListCaption = useMemo(() => {
     if (searchValue.trim()) {
-      return `${filteredList.length} resultado(s) na carteira ativa`;
+      return `${filteredList.length} resultado(s) encontrado(s)`;
     }
 
     if (dashboardSummary.hasTotalCarsData && typeof dashboardSummary.totalCars === "number") {
-      return `${carList.length} carros ativos exibidos de ${dashboardSummary.totalCars} cadastrados`;
+      return `${carList.length} ativos de ${dashboardSummary.totalCars} veiculos cadastrados`;
     }
 
-    return `${carList.length} carros ativos exibidos`;
+    return `${carList.length} veiculos ativos`;
   }, [carList.length, dashboardSummary, filteredList.length, searchValue]);
 
   const handleDeleteCar = useCallback((deletedCarId: number) => {
@@ -720,39 +656,27 @@ const Cars: React.FC = () => {
 
       <IonContent scrollY forceOverscroll={true}>
         <div className="section-shell cars-shell cars-shell--list">
-          <IonCard className="cars-dashboard">
-            <IonCardContent className="cars-dashboard__content">
-              <div className="cars-dashboard__hero">
-                <div className="cars-dashboard__copy">
-                  <span className="cars-dashboard__eyebrow">Painel inicial</span>
-                  <h2 className="cars-dashboard__title">Visao geral da frota</h2>
-                  <p className="cars-dashboard__description">
-                    Indicadores essenciais para acompanhar tamanho da operacao,
-                    pressao financeira e o que ainda precisa de consolidacao.
-                  </p>
+          <IonCard
+            className={`cars-fleet-summary-card${
+              isDashboardLoading ? " cars-fleet-summary-card--loading" : ""
+            }`}
+          >
+            <div className="cars-fleet-summary">
+              {fleetSummary.map((item) => (
+                <div
+                  key={item.key}
+                  className={`cars-fleet-summary__item cars-fleet-summary__item--${item.tone}`}
+                >
+                  <span className="cars-fleet-summary__label">{item.label}</span>
+                  <strong className="cars-fleet-summary__value">{item.value}</strong>
                 </div>
-              </div>
-
-              <div className="cars-dashboard__grid">
-                {dashboardMetrics.map((metric) => (
-                  <div
-                    key={metric.key}
-                    className={`cars-dashboard__metric cars-dashboard__metric--${metric.tone}${
-                      metric.isPlaceholder ? " cars-dashboard__metric--placeholder" : ""
-                    }`}
-                  >
-                    <span className="cars-dashboard__metric-label">{metric.label}</span>
-                    <strong className="cars-dashboard__metric-value">{metric.value}</strong>
-                    <span className="cars-dashboard__metric-note">{metric.note}</span>
-                  </div>
-                ))}
-              </div>
-            </IonCardContent>
+              ))}
+            </div>
           </IonCard>
 
           <div className="cars-list-section__header">
             <div>
-              <h3 className="cars-list-section__title">Carteira ativa</h3>
+              <h3 className="cars-list-section__title">Veiculos ativos</h3>
               <p className="cars-list-section__caption">{carsListCaption}</p>
             </div>
           </div>

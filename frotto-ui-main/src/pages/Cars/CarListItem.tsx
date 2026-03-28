@@ -50,10 +50,10 @@ const CarListItem: React.FC<CarListItemProps> = ({
   const { showErrorAlert } = useAlert();
 
   const brandLabel = resolveCarBrandDisplayName({ brand, marca });
-  const titleParts = [name, model, brandLabel].filter(
+  const titleParts = [name, model].filter(
     (value): value is string => Boolean(value?.trim())
   );
-  const title = Array.from(new Set(titleParts)).join(" - ") || "Veiculo";
+  const title = Array.from(new Set(titleParts)).join(" - ") || brandLabel || "Veiculo";
   const showBrandLabel = Boolean(
     brandLabel &&
       !normalizeCarBrand(title).includes(normalizeCarBrand(brandLabel))
@@ -105,12 +105,12 @@ const CarListItem: React.FC<CarListItemProps> = ({
   return (
     <IonCard className="car-card" onClick={handleOpen}>
       <div className="car-card__main">
-        <div className="car-card__header">
+        <div className="car-card__topline">
           <div className="car-card__headline">
             <CarBrandMark
               brand={brand}
               marca={marca}
-              size="md"
+              size="sm"
               className="car-card__brand-mark"
             />
 
@@ -128,7 +128,7 @@ const CarListItem: React.FC<CarListItemProps> = ({
         </div>
 
         <div className="car-card__meta">
-          <div className="car-card__meta-item">
+          <div className="car-card__meta-item car-card__meta-item--plate">
             <span className="car-card__meta-label">Placa</span>
             <span className="car-card__meta-value car-card__meta-value--plate">
               {plateLabel}
@@ -136,13 +136,13 @@ const CarListItem: React.FC<CarListItemProps> = ({
           </div>
 
           <div className="car-card__meta-item">
-            <span className="car-card__meta-label">Proprietario</span>
+            <span className="car-card__meta-label">Grupo</span>
             <span className="car-card__meta-value">{ownerLabel}</span>
           </div>
         </div>
 
         <div className="car-card__footer">
-          <div className="car-card__summary">
+          <div className="car-card__footer-main">
             <div className="car-card__km">
               <span className="car-card__km-label">Odometro</span>
               <span className="car-card__km-value">
@@ -161,28 +161,24 @@ const CarListItem: React.FC<CarListItemProps> = ({
             </div>
           </div>
 
-          <div className="car-card__aside">
-            <span className="car-card__hint">Pressione para abrir</span>
+          <div className="car-card__actions">
+            <button
+              type="button"
+              className="car-card__action car-card__action--edit"
+              onClick={handleEdit}
+              aria-label={`Editar ${title}`}
+            >
+              <IonIcon icon={createOutline} className="car-card__icon" />
+            </button>
 
-            <div className="car-card__actions">
-              <button
-                type="button"
-                className="car-card__action car-card__action--edit"
-                onClick={handleEdit}
-                aria-label={`Editar ${title}`}
-              >
-                <IonIcon icon={createOutline} className="car-card__icon" />
-              </button>
-
-              <button
-                type="button"
-                className="car-card__action car-card__action--danger"
-                onClick={handleDelete}
-                aria-label={`Excluir ${title}`}
-              >
-                <IonIcon icon={trashOutline} className="car-card__icon" />
-              </button>
-            </div>
+            <button
+              type="button"
+              className="car-card__action car-card__action--danger"
+              onClick={handleDelete}
+              aria-label={`Excluir ${title}`}
+            >
+              <IonIcon icon={trashOutline} className="car-card__icon" />
+            </button>
           </div>
         </div>
       </div>
