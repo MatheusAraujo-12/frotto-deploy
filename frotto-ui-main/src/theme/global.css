@@ -67,6 +67,7 @@ ion-toolbar,
   --color: #ffffff;
   --border-color: transparent;
   border-bottom: 1px solid var(--ion-border-color);
+  overflow-x: clip;
 }
 
 body.dark ion-toolbar,
@@ -181,13 +182,15 @@ ion-searchbar {
   border-radius: 14px;
   margin: 12px auto;
   max-width: 720px;
-  width: calc(100% - 48px);
+  width: 100%;
+  inline-size: min(720px, calc(100% - 24px));
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
   --height: 44px;
   --padding-start: 14px;
   --padding-end: 14px;
   display: block;
   box-sizing: border-box;
+  min-width: 0;
   transition: box-shadow 0.15s ease, transform 0.12s ease,
     border-color 0.12s ease;
 }
@@ -195,7 +198,8 @@ ion-searchbar {
 ion-toolbar ion-searchbar {
   margin: 8px 12px;
   max-width: none;
-  width: calc(100% - 24px);
+  width: auto;
+  inline-size: auto;
 }
 
 .app-subtoolbar ion-searchbar {
@@ -205,6 +209,7 @@ ion-toolbar ion-searchbar {
 }
 
 ion-searchbar::part(container) {
+  width: 100%;
   max-width: 100%;
   box-sizing: border-box;
 }
@@ -220,6 +225,7 @@ ion-searchbar::part(container) {
 .app-toolbar-search ion-searchbar {
   width: 100%;
   max-width: 100%;
+  inline-size: 100%;
   margin: 0;
 }
 
@@ -2570,7 +2576,8 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
   }
 
   ion-searchbar {
-    width: calc(100% - 24px);
+    width: 100%;
+    inline-size: min(100%, calc(100% - 16px));
     max-width: none;
   }
 
@@ -2651,7 +2658,8 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
 
   ion-toolbar ion-searchbar {
     margin: 6px 8px;
-    width: calc(100% - 16px);
+    width: auto;
+    inline-size: auto;
   }
 
   .app-toolbar-search {

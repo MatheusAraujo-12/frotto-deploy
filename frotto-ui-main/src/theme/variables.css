@@ -308,15 +308,15 @@ body.dark {
   --app-card-strong: #1c2b31;
   --app-card-soft: #213239;
   --app-border: 1px solid rgba(184, 196, 205, 0.15);
-  --app-car-card-surface: linear-gradient(180deg, #263138 0%, #1d262c 100%);
-  --app-car-card-soft-surface: #2a353d;
+  --app-car-card-surface: linear-gradient(180deg, #0c1652 0%, #070d2e 100%);
+  --app-car-card-soft-surface: #101944;
   --app-car-card-panel-surface: linear-gradient(
     180deg,
-    #303c44 0%,
-    #253038 100%
+    #142063 0%,
+    #091236 100%
   );
-  --app-car-card-border: rgba(184, 199, 209, 0.22);
-  --app-car-card-shadow: 0 14px 30px rgba(0, 0, 0, 0.36);
+  --app-car-card-border: rgba(95, 116, 221, 0.3);
+  --app-car-card-shadow: 0 16px 34px rgba(0, 0, 0, 0.42);
 
   --app-shadow: 0 12px 26px rgba(0, 0, 0, 0.32);
   --app-shadow-hover: 0 16px 32px rgba(0, 0, 0, 0.38);
@@ -500,15 +500,15 @@ body.dark {
     --app-card-strong: #1c2b31;
     --app-card-soft: #213239;
     --app-border: 1px solid rgba(184, 196, 205, 0.15);
-    --app-car-card-surface: linear-gradient(180deg, #263138 0%, #1d262c 100%);
-    --app-car-card-soft-surface: #2a353d;
+    --app-car-card-surface: linear-gradient(180deg, #0c1652 0%, #070d2e 100%);
+    --app-car-card-soft-surface: #101944;
     --app-car-card-panel-surface: linear-gradient(
       180deg,
-      #303c44 0%,
-      #253038 100%
+      #142063 0%,
+      #091236 100%
     );
-    --app-car-card-border: rgba(184, 199, 209, 0.22);
-    --app-car-card-shadow: 0 14px 30px rgba(0, 0, 0, 0.36);
+    --app-car-card-border: rgba(95, 116, 221, 0.3);
+    --app-car-card-shadow: 0 16px 34px rgba(0, 0, 0, 0.42);
     --app-shadow: 0 12px 26px rgba(0, 0, 0, 0.32);
     --app-shadow-hover: 0 16px 32px rgba(0, 0, 0, 0.38);
     --app-card-glow: 0 0 0 1px rgba(234, 242, 247, 0.05);
