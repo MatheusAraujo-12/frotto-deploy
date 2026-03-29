@@ -121,11 +121,13 @@ const Reminders: React.FC<ReminderDetail> = ({ match }) => {
           </IonButtons>
         </IonToolbar>
         <IonToolbar>
-          <IonSearchbar
-            debounce={500}
-            placeholder={TEXT.search}
-            onIonChange={(e) => setSearchValue(e.detail.value)}
-          ></IonSearchbar>
+          <div className="app-toolbar-search">
+            <IonSearchbar
+              debounce={500}
+              placeholder={TEXT.search}
+              onIonChange={(e) => setSearchValue(e.detail.value)}
+            ></IonSearchbar>
+          </div>
           {isLoading && <IonProgressBar type="indeterminate"></IonProgressBar>}
         </IonToolbar>
       </IonHeader>
