@@ -169,11 +169,9 @@
 }
 
 #cars-page .cars-fleet-summary-card::part(native) {
-  background: linear-gradient(
-    180deg,
-    rgba(var(--ion-color-medium-rgb), 0.08) 0%,
-    rgba(var(--ion-color-medium-rgb), 0.04) 100%
-  );
+  background: var(--app-car-card-panel-surface);
+  border-color: var(--app-car-card-border);
+  box-shadow: var(--app-car-card-shadow);
 }
 
 #cars-page .cars-fleet-summary-card--loading {
@@ -194,8 +192,8 @@
   min-width: 0;
   padding: 10px 12px;
   border-radius: 14px;
-  border: 1px solid rgba(var(--ion-color-medium-rgb), 0.14);
-  background: rgba(var(--ion-color-medium-rgb), 0.06);
+  border: 1px solid var(--app-car-card-border);
+  background: var(--app-car-card-soft-surface);
 }
 
 #cars-page .cars-fleet-summary__item--active {
@@ -204,8 +202,8 @@
 }
 
 #cars-page .cars-fleet-summary__item--inactive {
-  border-color: rgba(var(--ion-color-medium-rgb), 0.18);
-  background: rgba(var(--ion-color-medium-rgb), 0.08);
+  border-color: var(--app-car-card-border);
+  background: var(--app-car-card-panel-surface);
 }
 
 #cars-page .cars-fleet-summary__label {
@@ -257,11 +255,9 @@
 }
 
 #cars-page .car-card::part(native) {
-  background: linear-gradient(
-    180deg,
-    rgba(var(--ion-color-medium-rgb), 0.08) 0%,
-    rgba(var(--ion-color-medium-rgb), 0.03) 100%
-  );
+  background: var(--app-car-card-surface);
+  border-color: var(--app-car-card-border);
+  box-shadow: var(--app-car-card-shadow);
 }
 
 #cars-page .car-card:hover {
@@ -316,6 +312,8 @@
   gap: 4px;
   padding: 9px 10px;
   border-radius: 12px;
+  border-color: var(--app-car-card-border);
+  background: var(--app-car-card-soft-surface);
 }
 
 #cars-page .car-card__meta-label,
@@ -355,6 +353,8 @@
   padding: 9px 10px;
   border-radius: 14px;
   min-width: 108px;
+  border-color: var(--app-car-card-border);
+  background: var(--app-car-card-panel-surface);
 }
 
 #cars-page .car-card__km-value {
