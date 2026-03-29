@@ -233,6 +233,9 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
                   <div className="driver-col-right">
                     <p>{`${formatDateView(activeDoneList.active?.startDate)}`}</p>
                     <p>{currencyFormat(activeDoneList.active?.warranty)}</p>
+                    {formatDriverContract(activeDoneList.active?.contractNumber) && (
+                      <p>{formatDriverContract(activeDoneList.active?.contractNumber)}</p>
+                    )}
                     <p>
                       {TEXT.totalOutstanding}:{" "}
                       {currencyFormat(getOutstandingDebt(activeDoneList.active))}
@@ -285,6 +288,9 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
                       <p>{`${formatDateView(
                         carDriver?.startDate
                       )} - ${formatDateView(carDriver?.endDate)}`}</p>
+                      {formatDriverContract(carDriver?.contractNumber) && (
+                        <p>{formatDriverContract(carDriver?.contractNumber)}</p>
+                      )}
                       <p>
                         {TEXT.totalOutstanding}:{" "}
                         {currencyFormat(getOutstandingDebt(carDriver))}
@@ -323,3 +329,8 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
 };
 
 export default Drivers;
+
+function formatDriverContract(contractNumber?: string): string | undefined {
+  const value = `${contractNumber || ""}`.trim();
+  return value ? `Contrato: ${value}` : undefined;
+}

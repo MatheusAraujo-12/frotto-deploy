@@ -5,6 +5,10 @@ import {
 } from "../../../constants/CarModels";
 import * as Yup from "yup";
 import { TEXT } from "../../../constants/texts";
+import {
+  buildCarLegacyName,
+  resolveCarIdentity,
+} from "../../../components/Car/carIdentity";
 
 const CAR_ADMIN_STATUS_VALUES: CarAdminStatus[] = [
   "ATIVO",
@@ -15,6 +19,7 @@ const CAR_ADMIN_STATUS_VALUES: CarAdminStatus[] = [
 ];
 
 export const initialCarValues = (initialValues: CarModel) => {
+  const identity = resolveCarIdentity(initialValues);
   const commissionPercent =
     initialValues.commissionPercent ??
     initialValues.administrationFee ??
@@ -30,25 +35,40 @@ export const initialCarValues = (initialValues: CarModel) => {
 
   return {
     id: initialValues.id || undefined,
-    name: initialValues.name || "",
+    name: buildCarLegacyName(initialValues) || initialValues.name || "",
+    brand: identity.brand || "",
+    model: identity.model || "",
     odometer: initialValues.odometer || 0,
     initialValue: initialValues.initialValue || 0,
     commissionType,
     commissionPercent,
     commissionFixed,
     plate: initialValues.plate || "",
-    model: initialValues.model || "",
     color: initialValues.color || "",
     year: initialValues.year || 2021,
     group: initialValues.group || "",
-    active: initialValues.active || true,
+    active: initialValues.active ?? true,
     adminStatus: initialValues.adminStatus || "ATIVO",
   };
 };
 
+const requireBrandOrModel = (fieldName: "brand" | "model") =>
+  Yup.string().test({
+    name: `require-brand-or-model-${fieldName}`,
+    message: TEXT.requiredField,
+    test(value) {
+      const siblingField = fieldName === "brand" ? "model" : "brand";
+      const siblingValue = this.parent?.[siblingField];
+      return Boolean(
+        `${value || ""}`.trim() || `${siblingValue || ""}`.trim()
+      );
+    },
+  });
+
 export const carAddValidationSchema = Yup.object().shape({
   id: Yup.number().nullable(),
-  name: Yup.string().required(TEXT.requiredField),
+  name: Yup.string(),
+  brand: requireBrandOrModel("brand"),
   initialValue: Yup.number().typeError(TEXT.requiredField),
   odometer: Yup.number()
     .typeError(TEXT.requiredField)
@@ -76,7 +96,7 @@ export const carAddValidationSchema = Yup.object().shape({
     otherwise: (schema) => schema.notRequired(),
   }),
   plate: Yup.string().required(TEXT.requiredField),
-  model: Yup.string(),
+  model: requireBrandOrModel("model"),
   color: Yup.string(),
   year: Yup.number(),
   group: Yup.string().required(TEXT.requiredField),

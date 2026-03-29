@@ -191,6 +191,7 @@ public class DriverCarResource {
         existingDriverCar.setScore(driverCar.getScore());
         existingDriverCar.setDebt(driverCar.getDebt());
         existingDriverCar.setConcluded(driverCar.getConcluded());
+        existingDriverCar.setContractNumber(driverCar.getContractNumber());
         existingDriverCar.setDriver(savedDriver);
 
         DriverCar result = driverCarRepository.save(existingDriverCar);

@@ -109,6 +109,7 @@ ion-card::part(native),
   border: var(--app-border);
   background: var(--background, var(--app-card));
   box-sizing: border-box;
+  max-width: 100%;
   background-clip: padding-box;
 }
 
@@ -136,6 +137,7 @@ ion-item::part(native) {
   overflow: hidden;
   background: var(--background, var(--ion-item-background));
   box-sizing: border-box;
+  max-width: 100%;
   background-clip: padding-box;
 }
 
@@ -184,6 +186,8 @@ ion-searchbar {
   --height: 44px;
   --padding-start: 14px;
   --padding-end: 14px;
+  display: block;
+  box-sizing: border-box;
   transition: box-shadow 0.15s ease, transform 0.12s ease,
     border-color 0.12s ease;
 }
@@ -198,6 +202,25 @@ ion-toolbar ion-searchbar {
   margin: 0 auto;
   width: 100%;
   max-width: 940px;
+}
+
+ion-searchbar::part(container) {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.app-toolbar-search {
+  width: 100%;
+  max-width: 100%;
+  padding: 8px 12px 10px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.app-toolbar-search ion-searchbar {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
 }
 
 ion-searchbar:focus-within {
@@ -820,19 +843,61 @@ ion-button.app-semantic-btn:not([fill="outline"]):not([fill="clear"]) {
   flex-direction: column;
   gap: 10px;
   height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .menu-item {
   --background: var(--ion-item-background);
   --border-radius: 12px;
   --color: var(--ion-text-color);
+  --padding-start: 12px;
+  --inner-padding-end: 12px;
   border: 1px solid var(--ion-border-color);
   margin: 2px 6px;
   font-weight: 600;
+  line-height: 1.35;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .menu-item:hover {
   --background: rgba(var(--ion-color-primary-rgb), 0.08);
+}
+
+.menu-item::part(native) {
+  min-height: 52px;
+  align-items: center;
+  padding-inline: 12px;
+  overflow: hidden;
+}
+
+.menu-item ion-icon {
+  flex-shrink: 0;
+  margin-inline-end: 10px;
+}
+
+.menu-item__label {
+  margin: 0;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.menu-theme-toggle {
+  line-height: 1.35;
+}
+
+.menu-theme-toggle::part(native) {
+  padding-inline: 12px;
+  min-height: 52px;
+}
+
+.menu-theme-toggle ion-label {
+  margin: 0;
+  line-height: 1.35;
+  white-space: normal;
 }
 
 /* ============================================ */
@@ -1089,11 +1154,18 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
   width: 100%;
   max-width: 1080px;
   margin: 0 auto;
-  padding: 16px 18px 28px;
+  padding: 14px 16px 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
   box-sizing: border-box;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.section-shell > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .section-shell > form {
@@ -1687,14 +1759,21 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
 
 .cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
   gap: 16px;
 }
 
 .cards-grid--cars {
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: 18px;
   align-items: stretch;
+}
+
+.cards-grid > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .cards-empty {
@@ -2063,6 +2142,9 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
 
 .app-nested-list {
   margin: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 14px;
   border: var(--app-border);
   border-radius: var(--app-radius);
@@ -2070,6 +2152,7 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
   box-shadow: var(--app-shadow);
   display: grid;
   gap: 12px;
+  overflow: hidden;
 }
 
 #drivers-page .section-shell > ion-list.app-nested-list,
@@ -2156,6 +2239,7 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
   background: var(--app-card-strong);
   border: 0;
   border-radius: 14px;
+  max-width: 100%;
 }
 
 #drivers-page .app-nested-list > ion-item.app-nested-list__item::part(native),
@@ -2172,10 +2256,35 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
 #driver-pendencies-page .app-nested-list__meta {
   display: grid !important;
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
   justify-items: end;
   align-self: flex-start !important;
   text-align: end !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   padding-inline-start: 16px;
+}
+
+#driver-pendencies-page .app-nested-list__item::part(native) {
+  flex-wrap: wrap;
+  gap: 12px;
+  overflow: hidden;
+}
+
+#driver-pendencies-page .app-nested-list__lead,
+#driver-pendencies-page .app-nested-list__meta,
+#driver-pendencies-page .app-nested-list__summary ion-label {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#driver-pendencies-page .app-nested-list__lead h2,
+#driver-pendencies-page .app-nested-list__lead p,
+#driver-pendencies-page .app-nested-list__meta p {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 #driver-pendencies-page .app-nested-list__meta p:first-child {
@@ -2450,6 +2559,11 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
     padding: 12px 12px 20px;
   }
 
+  .app-toolbar-search {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
   .app-footer-bar__inner {
     padding-left: 12px;
     padding-right: 12px;
@@ -2538,6 +2652,10 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
   ion-toolbar ion-searchbar {
     margin: 6px 8px;
     width: calc(100% - 16px);
+  }
+
+  .app-toolbar-search {
+    padding: 6px 8px 8px;
   }
 
   .auth-grid {

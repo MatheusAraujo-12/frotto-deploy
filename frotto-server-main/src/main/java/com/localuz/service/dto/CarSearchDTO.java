@@ -6,16 +6,18 @@ public class CarSearchDTO {
     private Long id;
     private String plate;
     private String name;
+    private String brand;
     private String model;
     private Boolean active;
     private CarAdminStatus adminStatus;
 
     public CarSearchDTO() {}
 
-    public CarSearchDTO(Long id, String plate, String name, String model, Boolean active, CarAdminStatus adminStatus) {
+    public CarSearchDTO(Long id, String plate, String name, String brand, String model, Boolean active, CarAdminStatus adminStatus) {
         this.id = id;
         this.plate = plate;
         this.name = name;
+        this.brand = brand;
         this.model = model;
         this.active = active;
         this.adminStatus = adminStatus;
@@ -43,6 +45,14 @@ public class CarSearchDTO {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getBrand() {
+        return brand;
+    }
+
+    public void setBrand(String brand) {
+        this.brand = brand;
     }
 
     public String getModel() {

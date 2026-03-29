@@ -314,6 +314,20 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             }}
             required
           />
+          <FormInput
+            label="Número do contrato"
+            errorsObj={errors}
+            errorName="contractNumber"
+            initialValue={watch("contractNumber") ?? ""}
+            maxlength={120}
+            changeCallback={(value: string) => {
+              setValue("contractNumber", value, {
+                shouldValidate: true,
+                shouldDirty: true,
+                shouldTouch: true,
+              });
+            }}
+          />
           <FormToggle
             label={TEXT.resolved}
             initialValue={watch("concluded")}

@@ -118,7 +118,18 @@ public class CarResource {
         return carRepository
             .searchByCurrentUserAndPlate(normalizedPlate, PageRequest.of(0, 20))
             .stream()
-            .map(car -> new CarSearchDTO(car.getId(), car.getPlate(), car.getName(), car.getModel(), car.getActive(), car.getAdminStatus()))
+            .map(
+                car ->
+                    new CarSearchDTO(
+                        car.getId(),
+                        car.getPlate(),
+                        car.getName(),
+                        car.getBrand(),
+                        car.getModel(),
+                        car.getActive(),
+                        car.getAdminStatus()
+                    )
+            )
             .collect(Collectors.toList());
     }
 
@@ -255,6 +266,9 @@ public class CarResource {
     private void applyPartialUpdates(Car existingCar, Car car) {
         if (car.getName() != null) {
             existingCar.setName(car.getName());
+        }
+        if (car.getBrand() != null) {
+            existingCar.setBrand(car.getBrand());
         }
         if (car.getModel() != null) {
             existingCar.setModel(car.getModel());

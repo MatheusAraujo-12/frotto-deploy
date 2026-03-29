@@ -11,6 +11,7 @@ import { CarModel } from "../../constants/CarModels";
 import { TEXT } from "../../constants/texts";
 import api from "../../services/axios/axios";
 import endpoints from "../../constants/endpoints";
+import { normalizeCarRecord, resolveCarIdentity } from "./carIdentity";
 
 type Props = {
   cars?: CarModel[];
@@ -21,6 +22,18 @@ type CarListItem = CarModel & {
   car?: CarModel;
   carId?: number;
 };
+
+const normalizeCars = (list: CarListItem[]): CarModel[] =>
+  list.map((item) => {
+    const { car, carId, ...rest } = item;
+    const baseCar = car ?? rest;
+    const resolvedId = baseCar.id ?? rest.id ?? carId;
+    return normalizeCarRecord({
+      ...rest,
+      ...baseCar,
+      id: resolvedId,
+    });
+  });
 
 const CarSelector: React.FC<Props> = ({ cars = [], onSelect }) => {
   const [search, setSearch] = useState<string>("");
@@ -33,14 +46,6 @@ const CarSelector: React.FC<Props> = ({ cars = [], onSelect }) => {
 
     let mounted = true;
     const controller = new AbortController();
-
-    const normalizeCars = (list: CarListItem[]) =>
-      list.map((item) => {
-        const { car, carId, ...rest } = item;
-        const baseCar = car ?? rest;
-        const resolvedId = baseCar.id ?? rest.id ?? carId;
-        return { ...rest, ...baseCar, id: resolvedId };
-      });
 
     const fetchCars = async () => {
       try {
@@ -88,7 +93,10 @@ const CarSelector: React.FC<Props> = ({ cars = [], onSelect }) => {
   }, [cars]);
 
   const source = useMemo(
-    () => (cars && cars.length > 0 ? cars : internalCars),
+    () =>
+      cars && cars.length > 0
+        ? cars.map((car) => normalizeCarRecord(car))
+        : internalCars,
     [cars, internalCars]
   );
 
@@ -96,11 +104,12 @@ const CarSelector: React.FC<Props> = ({ cars = [], onSelect }) => {
     if (!search.trim()) return source;
 
     const q = search.toLowerCase().trim();
-    return source.filter(
-      (c) =>
-        c.name?.toLowerCase().includes(q) ||
-        c.plate?.toLowerCase().includes(q)
-    );
+    return source.filter((car) => {
+      const identity = resolveCarIdentity(car);
+      return [identity.displayName, identity.brand, identity.model, car.name, car.plate]
+        .filter((value): value is string => Boolean(value))
+        .some((value) => value.toLowerCase().includes(q));
+    });
   }, [source, search]);
 
   const handleSearchChange = useCallback((e: SearchbarCustomEvent) => {
@@ -155,9 +164,13 @@ const CarSelector: React.FC<Props> = ({ cars = [], onSelect }) => {
           detail={false}
         >
           <IonLabel>
-            <div className="car-selector__title">{car.name}</div>
+            <div className="car-selector__title">
+              {resolveCarIdentity(car).displayName}
+            </div>
             <div className="car-selector__meta">
-              {car.plate || "Sem placa"}
+              {[car.plate?.trim(), car.group?.trim()]
+                .filter((value): value is string => Boolean(value))
+                .join(" • ") || "Sem placa"}
             </div>
           </IonLabel>
         </IonItem>

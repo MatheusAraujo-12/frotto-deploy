@@ -30,6 +30,10 @@ public class Car implements Serializable {
     private String name;
 
     @Size(max = 60)
+    @Column(name = "brand", length = 60)
+    private String brand;
+
+    @Size(max = 60)
     @Column(name = "model", length = 60)
     private String model;
 
@@ -101,6 +105,19 @@ public class Car implements Serializable {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getBrand() {
+        return this.brand;
+    }
+
+    public Car brand(String brand) {
+        this.setBrand(brand);
+        return this;
+    }
+
+    public void setBrand(String brand) {
+        this.brand = brand;
     }
 
     public String getModel() {
@@ -280,6 +297,9 @@ public class Car implements Serializable {
         + getId()
         + ", name='"
         + getName()
+        + "'"
+        + ", brand='"
+        + getBrand()
         + "'"
         + ", model='"
         + getModel()

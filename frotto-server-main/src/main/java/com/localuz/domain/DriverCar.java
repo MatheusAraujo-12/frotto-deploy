@@ -41,6 +41,9 @@ public class DriverCar implements Serializable {
     @Column(name = "concluded")
     private Boolean concluded;
 
+    @Column(name = "contract_number", length = 120)
+    private String contractNumber;
+
     @ManyToOne
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private Car car;
@@ -142,6 +145,19 @@ public class DriverCar implements Serializable {
         this.concluded = concluded;
     }
 
+    public String getContractNumber() {
+        return this.contractNumber;
+    }
+
+    public DriverCar contractNumber(String contractNumber) {
+        this.setContractNumber(contractNumber);
+        return this;
+    }
+
+    public void setContractNumber(String contractNumber) {
+        this.contractNumber = contractNumber;
+    }
+
     public Car getCar() {
         return this.car;
     }
@@ -208,6 +224,9 @@ public class DriverCar implements Serializable {
         + getDebt()
         + ", concluded='"
         + getConcluded()
+        + "'"
+        + ", contractNumber='"
+        + getContractNumber()
         + "'"
         + "}";
   }

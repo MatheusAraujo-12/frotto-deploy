@@ -391,7 +391,7 @@ const MyPanelPage: React.FC = () => {
       header: "Alterar foto",
       buttons: [
         {
-          text: "Camera",
+          text: "Câmera",
           handler: () => {
             void pickAvatar(true);
           },
@@ -492,15 +492,15 @@ const MyPanelPage: React.FC = () => {
           {hasLoadError && (
             <IonCard className="my-panel-card my-panel-error-card">
               <IonCardContent>
-                <h3>Nao foi possivel carregar todos os dados</h3>
-                <p>Voce pode tentar novamente agora ou continuar preenchendo o formulario.</p>
+                <h3>Não foi possível carregar todos os dados</h3>
+                <p>Você pode tentar novamente agora ou continuar preenchendo o formulário.</p>
                 <IonButton
                   className="app-semantic-btn app-semantic--neutral"
                   size="small"
                   fill="outline"
                   onClick={loadProfile}
                 >
-                  Tentar Novamente
+                  Tentar novamente
                 </IonButton>
               </IonCardContent>
             </IonCard>

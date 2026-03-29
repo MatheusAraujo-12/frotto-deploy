@@ -50,6 +50,7 @@ import {
   MaintenanceModel,
   ReminderModel,
 } from "../../constants/CarModels";
+import { normalizeCarRecord } from "../../components/Car/carIdentity";
 import "./Car.css";
 
 type ActionType = "maintenance" | "reminder" | "expense" | "income" | null;
@@ -114,7 +115,11 @@ const normalizeCars = (list: CarListItemData[]): CarModel[] =>
     const { car, carId, ...rest } = item;
     const baseCar = car ?? rest;
     const resolvedId = baseCar.id ?? rest.id ?? carId;
-    return { ...rest, ...baseCar, id: resolvedId };
+    return normalizeCarRecord({
+      ...rest,
+      ...baseCar,
+      id: resolvedId,
+    });
   });
 
 const isOperationalCar = (car: CarModel): boolean =>
@@ -125,12 +130,12 @@ const buildDashboardSummary = (
   allCarsData?: unknown,
   expensesData?: unknown
 ): DashboardSummary => {
-  const operationalCars = activeCars.filter(isOperationalCar);
-  const rentedCars = operationalCars.filter((car) => Boolean(car.driverName)).length;
-  const availableCars = Math.max(operationalCars.length - rentedCars, 0);
-
   const allCars = extractListData<CarListItemData>(allCarsData);
   const normalizedAllCars = normalizeCars(allCars);
+  const carsForStatus = allCarsData !== undefined ? normalizedAllCars : activeCars;
+  const operationalCars = carsForStatus.filter(isOperationalCar);
+  const rentedCars = operationalCars.filter((car) => Boolean(car.driverName)).length;
+  const availableCars = Math.max(operationalCars.length - rentedCars, 0);
   const expenseItems = extractListData<CarExpenseModel>(expensesData);
   const totalExpenses =
     expenseItems.length > 0
@@ -325,13 +330,13 @@ const Cars: React.FC = () => {
     () => [
       {
         key: "active",
-        label: "Veiculos ativos",
+        label: "Veículos ativos",
         value: `${dashboardSummary.activeCars}`,
         tone: "active",
       },
       {
         key: "inactive",
-        label: "Veiculos inativos",
+        label: "Veículos inativos",
         value:
           dashboardSummary.hasTotalCarsData &&
           typeof dashboardSummary.inactiveCars === "number"
@@ -352,12 +357,8 @@ const Cars: React.FC = () => {
       return `${filteredList.length} resultado(s) encontrado(s)`;
     }
 
-    if (dashboardSummary.hasTotalCarsData && typeof dashboardSummary.totalCars === "number") {
-      return `${carList.length} ativos de ${dashboardSummary.totalCars} veiculos cadastrados`;
-    }
-
-    return `${carList.length} veiculos ativos`;
-  }, [carList.length, dashboardSummary, filteredList.length, searchValue]);
+    return "Toque em um veículo para ver os detalhes.";
+  }, [filteredList.length, searchValue]);
 
   const handleDeleteCar = useCallback((deletedCarId: number) => {
     setCarList((prev) => prev.filter((car) => car.id !== deletedCarId));
@@ -392,13 +393,16 @@ const Cars: React.FC = () => {
       pendingQuickActionRef.current = null;
 
       if (!response) return;
+      const normalizedResponse = normalizeCarRecord(response);
 
       setCarList((prev) => {
-        const exists = prev.some((item) => item.id === response.id);
+        const exists = prev.some((item) => item.id === normalizedResponse.id);
         if (exists) {
-          return prev.map((item) => (item.id === response.id ? response : item));
+          return prev.map((item) =>
+            item.id === normalizedResponse.id ? normalizedResponse : item
+          );
         }
-        return [response, ...prev];
+        return [normalizedResponse, ...prev];
       });
       void loadCars();
     },
@@ -573,9 +577,17 @@ const Cars: React.FC = () => {
   const quickActions = useMemo<QuickAction[]>(
     () => [
       { key: "car", title: TEXT.addCar, description: "Adicionar um novo veículo" },
-      { key: "maintenance", title: TEXT.addCarMaintenance, description: "Registrar serviços e custos" },
+      {
+        key: "maintenance",
+        title: TEXT.addCarMaintenance,
+        description: "Registrar serviços e custos",
+      },
       { key: "reminder", title: TEXT.reminder, description: "Criar alerta para o carro" },
-      { key: "expense", title: `${TEXT.add} ${TEXT.carExpense}`, description: "Nova despesa do veículo" },
+      {
+        key: "expense",
+        title: `${TEXT.add} ${TEXT.carExpense}`,
+        description: "Nova despesa do veículo",
+      },
       { key: "income", title: `${TEXT.add} ${TEXT.income}`, description: "Adicionar receita" },
     ],
     []
@@ -644,12 +656,14 @@ const Cars: React.FC = () => {
         </IonToolbar>
 
         <IonToolbar>
-          <IonSearchbar
-            debounce={500}
-            placeholder={TEXT.search}
-            value={searchValue}
-            onIonChange={(e) => setSearchValue(e.detail.value || "")}
-          />
+          <div className="app-toolbar-search">
+            <IonSearchbar
+              debounce={500}
+              placeholder={TEXT.search}
+              value={searchValue}
+              onIonChange={(e) => setSearchValue(e.detail.value || "")}
+            />
+          </div>
           {isLoading && <IonProgressBar type="indeterminate" />}
         </IonToolbar>
       </IonHeader>
@@ -676,7 +690,7 @@ const Cars: React.FC = () => {
 
           <div className="cars-list-section__header">
             <div>
-              <h3 className="cars-list-section__title">Veiculos ativos</h3>
+              <h3 className="cars-list-section__title">Veículos ativos</h3>
               <p className="cars-list-section__caption">{carsListCaption}</p>
             </div>
           </div>

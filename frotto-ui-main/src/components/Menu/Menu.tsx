@@ -351,25 +351,25 @@ const Menu: React.FC = () => {
           <IonMenuToggle>
             <IonItem className="menu-item" routerLink="/menu/carros" routerDirection="none">
               <IonIcon icon={car} slot="start"></IonIcon>
-              {TEXT.cars}
+              <IonLabel className="menu-item__label">{TEXT.cars}</IonLabel>
             </IonItem>
           </IonMenuToggle>
           <IonMenuToggle>
             <IonItem className="menu-item" routerLink="/menu/relatorios" routerDirection="none">
               <IonIcon icon={clipboard} slot="start"></IonIcon>
-              {TEXT.reports}
+              <IonLabel className="menu-item__label">{TEXT.reports}</IonLabel>
             </IonItem>
           </IonMenuToggle>
           <IonMenuToggle>
             <IonItem className="menu-item" routerLink="/documents" routerDirection="none">
               <IonIcon icon={documentTextOutline} slot="start"></IonIcon>
-              Documentos
+              <IonLabel className="menu-item__label">Documentos</IonLabel>
             </IonItem>
           </IonMenuToggle>
           <IonMenuToggle>
             <IonItem className="menu-item" routerLink="/meu-painel" routerDirection="none">
               <IonIcon icon={personCircleOutline} slot="start"></IonIcon>
-              Meu Painel
+              <IonLabel className="menu-item__label">Meu Painel</IonLabel>
             </IonItem>
           </IonMenuToggle>
 

@@ -9,6 +9,7 @@ export const initialDriverValues = (initialValues: CarDriverModel) => {
     id: initialValues.id || undefined,
     startDate: initialValues.startDate || DATE_TODAY,
     warranty: initialValues.warranty || 0,
+    contractNumber: initialValues.contractNumber || "",
     concluded: initialValues.concluded || false,
     endDate: initialValues.endDate || DATE_TODAY,
     score: initialValues.score || 1,
@@ -45,6 +46,7 @@ export const driverAddValidationSchema = Yup.object().shape({
   warranty: Yup.number()
     .typeError(TEXT.requiredField)
     .required(TEXT.requiredField),
+  contractNumber: Yup.string(),
   score: Yup.number().typeError(TEXT.requiredField),
   debt: Yup.number().typeError(TEXT.requiredField),
   concluded: Yup.boolean(),
@@ -79,6 +81,7 @@ export interface DriverForm {
   id?: number;
   startDate?: string;
   warranty?: number;
+  contractNumber?: string;
   concluded?: boolean;
   endDate?: string;
   score?: number;
@@ -110,6 +113,7 @@ export const driverFormtoDriver = (driverForm: DriverForm): CarDriverModel => {
   driver.id = driverForm.id;
   driver.startDate = driverForm.startDate;
   driver.warranty = driverForm.warranty;
+  driver.contractNumber = driverForm.contractNumber?.trim() || undefined;
   driver.concluded = driverForm.concluded;
   if (driverForm.concluded) {
     driver.endDate = driverForm.endDate;

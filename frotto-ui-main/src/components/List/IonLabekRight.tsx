@@ -7,11 +7,14 @@ export const IonLabelLeft = styled(IonLabel).attrs(() => ({
 }))`
   margin: 0;
   min-width: 0;
+  max-width: 100%;
   flex: 1 1 auto;
   align-self: center;
   text-align: start;
   white-space: normal;
   overflow: visible;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 `;
 
 export const IonLabekRight = styled(IonLabel).attrs(() => ({
@@ -19,11 +22,14 @@ export const IonLabekRight = styled(IonLabel).attrs(() => ({
 }))`
   margin: 0;
   min-width: 0;
+  max-width: 100%;
   flex: 0 1 auto;
-  align-self: center;
+  align-self: flex-start;
   text-align: end;
   white-space: normal;
   overflow: visible;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 `;
 
 export const IonLabekRightCarList = styled.div.attrs(() => ({

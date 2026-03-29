@@ -20,9 +20,9 @@ import { useCallback, useMemo, useState } from "react";
 import { RouteComponentProps } from "react-router";
 import CarBrandMark from "../../components/Car/CarBrandMark";
 import {
-  normalizeCarBrand,
-  resolveCarBrandDisplayName,
-} from "../../components/Car/carBrandAssets";
+  normalizeCarRecord,
+  resolveCarIdentity,
+} from "../../components/Car/carIdentity";
 import endpoints from "../../constants/endpoints";
 import {
   CarDriverModel,
@@ -77,7 +77,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
       );
       setisLoading(false);
       if (data) {
-        setCar(data.car);
+        setCar(normalizeCarRecord(data.car || {}));
         setMaintenance(data.lastMaintenance);
         setInspection(data.lastInspection);
         setDriver(data.activeDriver);
@@ -106,7 +106,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
 
     if (!response) return;
 
-    setCar(response);
+    setCar(normalizeCarRecord(response));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -163,31 +163,18 @@ const Car: React.FC<CarDetail> = ({ match }) => {
     [car.odometer]
   );
 
-  const carBrand = useMemo(() => resolveCarBrandDisplayName(car), [car]);
-
-  const carHeadline = useMemo(
-    () => car?.name || car?.model || carBrand || "Veiculo",
-    [car?.model, car?.name, carBrand]
-  );
-
-  const showBrandLine = useMemo(
-    () =>
-      Boolean(
-        carBrand &&
-          !normalizeCarBrand(carHeadline).includes(normalizeCarBrand(carBrand))
-      ),
-    [carBrand, carHeadline]
-  );
+  const carIdentity = useMemo(() => resolveCarIdentity(car), [car]);
+  const carBrand = carIdentity.brand;
+  const carModel = carIdentity.model;
+  const carHeadline = carIdentity.displayName;
 
   const carSubheadline = useMemo(() => {
-    const items = [car?.model, car?.plate].filter(
-      (value): value is string =>
-        Boolean(value?.trim()) &&
-        normalizeCarBrand(value) !== normalizeCarBrand(carBrand)
+    const items = [car?.plate, car?.group].filter(
+      (value): value is string => Boolean(value?.trim())
     );
 
-    return items.join(" - ") || "Sem dados principais do veiculo";
-  }, [car?.model, car?.plate, carBrand]);
+    return items.join(" - ") || "Sem dados principais do veículo";
+  }, [car?.group, car?.plate]);
 
   const closeAddInspectionModal = useCallback(
     (response?: InspectionModel) => {
@@ -233,16 +220,15 @@ const Car: React.FC<CarDetail> = ({ match }) => {
             <IonCardContent className="car-page__content">
               <div className="car-page__hero">
                 <CarBrandMark
+                  name={car?.name}
                   brand={car?.brand}
                   marca={car?.marca}
+                  model={car?.model}
                   size="lg"
                   className="car-page__brand-mark"
                 />
 
                 <div className="car-page__headline-block">
-                  {showBrandLine && (
-                    <p className="car-page__brand-line">{carBrand}</p>
-                  )}
                   <h2 className="car-page__headline">{carHeadline}</h2>
                   <p className="car-page__subheadline">{carSubheadline}</p>
                 </div>
@@ -250,6 +236,8 @@ const Car: React.FC<CarDetail> = ({ match }) => {
 
               <div className="car-page__detail-grid">
                 <DetailField label="Marca" value={carBrand} />
+                <DetailField label="Modelo" value={carModel} />
+                <DetailField label={TEXT.plate} value={car?.plate} />
                 <DetailField label={TEXT.color} value={car?.color} />
                 <DetailField label={TEXT.year} value={car?.year} />
                 <DetailField label={TEXT.group} value={car?.group} />
@@ -324,6 +312,10 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                     <DetailField
                       label={TEXT.email}
                       value={driver?.driver?.email}
+                    />
+                    <DetailField
+                      label="Número do contrato"
+                      value={driver?.contractNumber}
                     />
                   </div>
                 </>
@@ -443,7 +435,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                   </div>
                   <p className="car-page__note">
                     {servicesToString(maintenance.services) ||
-                      "Sem servicos informados"}
+                      "Sem serviços informados"}
                   </p>
                 </>
               ) : (
@@ -555,8 +547,8 @@ function resolveAdminStatusLabel(value?: string): string {
 
   if (value === "ATIVO") return "Ativo";
   if (value === "RETIRADO") return "Retirado";
-  if (value === "A_VENDA") return "A venda";
-  if (value === "MANUTENCAO") return "Manutencao";
+  if (value === "A_VENDA") return "À venda";
+  if (value === "MANUTENCAO") return "Manutenção";
   if (value === "BLOQUEADO") return "Bloqueado";
 
   return value;

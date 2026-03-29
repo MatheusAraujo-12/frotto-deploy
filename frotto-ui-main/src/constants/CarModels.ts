@@ -127,6 +127,7 @@ export interface CarDriverModel {
   warranty?: number;
   score?: number;
   debt?: number;
+  contractNumber?: string;
   outstandingDebtTotal?: number;
   openPendenciesCount?: number;
   concluded?: boolean;

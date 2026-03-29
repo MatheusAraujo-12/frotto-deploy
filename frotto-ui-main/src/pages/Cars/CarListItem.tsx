@@ -4,10 +4,7 @@ import { IonCard, IonIcon } from "@ionic/react";
 import { createOutline, trashOutline } from "ionicons/icons";
 import { useHistory } from "react-router";
 import CarBrandMark from "../../components/Car/CarBrandMark";
-import {
-  normalizeCarBrand,
-  resolveCarBrandDisplayName,
-} from "../../components/Car/carBrandAssets";
+import { resolveCarIdentity } from "../../components/Car/carIdentity";
 import { CarAdminStatus, CarModel } from "../../constants/CarModels";
 import endpoints from "../../constants/endpoints";
 import { TEXT } from "../../constants/texts";
@@ -49,17 +46,10 @@ const CarListItem: React.FC<CarListItemProps> = ({
   const history = useHistory();
   const { showErrorAlert } = useAlert();
 
-  const brandLabel = resolveCarBrandDisplayName({ brand, marca });
-  const titleParts = [name, model].filter(
-    (value): value is string => Boolean(value?.trim())
-  );
-  const title = Array.from(new Set(titleParts)).join(" - ") || brandLabel || "Veiculo";
-  const showBrandLabel = Boolean(
-    brandLabel &&
-      !normalizeCarBrand(title).includes(normalizeCarBrand(brandLabel))
-  );
+  const carIdentity = resolveCarIdentity({ name, brand, marca, model });
+  const title = carIdentity.displayName;
   const plateLabel = plate?.trim() || "--";
-  const ownerLabel = group?.trim() || "--";
+  const groupLabel = group?.trim() || "--";
   const isRented = Boolean(driverName);
   const effectiveAdminStatus: CarAdminStatus = adminStatus || "ATIVO";
   const statusMeta = resolveCarVisualStatusMeta(
@@ -87,7 +77,7 @@ const CarListItem: React.FC<CarListItemProps> = ({
     event.stopPropagation();
     if (id == null) return;
 
-    const carLabel = title || plateLabel || "este veiculo";
+    const carLabel = title || plateLabel || "este veículo";
     const confirmDelete = window.confirm(`${TEXT.deleteDefault} ${carLabel}?`);
     if (!confirmDelete) return;
 
@@ -108,16 +98,15 @@ const CarListItem: React.FC<CarListItemProps> = ({
         <div className="car-card__topline">
           <div className="car-card__headline">
             <CarBrandMark
+              name={name}
               brand={brand}
               marca={marca}
+              model={model}
               size="sm"
               className="car-card__brand-mark"
             />
 
             <div className="car-card__headline-copy">
-              {showBrandLabel && (
-                <span className="car-card__brand-name">{brandLabel}</span>
-              )}
               <div className="car-card__title">{title}</div>
             </div>
           </div>
@@ -137,14 +126,14 @@ const CarListItem: React.FC<CarListItemProps> = ({
 
           <div className="car-card__meta-item">
             <span className="car-card__meta-label">Grupo</span>
-            <span className="car-card__meta-value">{ownerLabel}</span>
+            <span className="car-card__meta-value">{groupLabel}</span>
           </div>
         </div>
 
         <div className="car-card__footer">
           <div className="car-card__footer-main">
             <div className="car-card__km">
-              <span className="car-card__km-label">Odometro</span>
+              <span className="car-card__km-label">Odômetro</span>
               <span className="car-card__km-value">
                 {kmValue}
                 <small>km</small>
@@ -196,13 +185,13 @@ function resolveCarVisualStatusMeta(
       label: "Retirado",
       tone: "retired",
       detailLabel: "Disponibilidade",
-      detailValue: "Fora de operacao",
+      detailValue: "Fora de operação",
     };
   }
 
   if (status === "A_VENDA") {
     return {
-      label: "A venda",
+      label: "À venda",
       tone: "sale",
       detailLabel: "Disponibilidade",
       detailValue: "Em processo de venda",
@@ -211,10 +200,10 @@ function resolveCarVisualStatusMeta(
 
   if (status === "MANUTENCAO") {
     return {
-      label: "Manutencao",
+      label: "Manutenção",
       tone: "maintenance",
       detailLabel: "Disponibilidade",
-      detailValue: "Em manutencao",
+      detailValue: "Em manutenção",
     };
   }
 
@@ -240,7 +229,7 @@ function resolveCarVisualStatusMeta(
     label: "Ativo",
     tone: "active",
     detailLabel: "Disponibilidade",
-    detailValue: "Disponivel",
+    detailValue: "Disponível",
   };
 }
 

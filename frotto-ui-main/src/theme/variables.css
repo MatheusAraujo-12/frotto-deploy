@@ -89,34 +89,34 @@
   /* =========================
      SURFACES / LIGHT MODE
      ========================= */
-  --ion-background-color: #eef3f7;
-  --ion-background-color-rgb: 238, 243, 247;
+  --ion-background-color: #ecf2f6;
+  --ion-background-color-rgb: 236, 242, 246;
 
   --ion-text-color: var(--app-text);
   --ion-text-color-rgb: 24, 50, 59;
 
-  --ion-border-color: #d9e3ec;
+  --ion-border-color: #d2dde7;
   --ion-card-background: #fbfcfd;
-  --ion-item-background: #f7fafc;
+  --ion-item-background: #f5f8fb;
   --ion-toolbar-background: #0c3440;
   --ion-tab-bar-background: #ffffff;
 
   /* =========================
      APP TOKENS / LIGHT MODE
      ========================= */
-  --app-gradient: linear-gradient(180deg, #f6f8fb 0%, #ecf1f5 100%);
+  --app-gradient: linear-gradient(180deg, #f8fafc 0%, #ebf1f5 100%);
 
   --app-card: #ffffff;
-  --app-card-strong: #f8fafc;
-  --app-card-soft: #f5f8fb;
-  --app-border: 1px solid rgba(16, 42, 67, 0.08);
+  --app-card-strong: #f2f6f9;
+  --app-card-soft: #eef3f7;
+  --app-border: 1px solid rgba(16, 42, 67, 0.1);
 
   --app-radius: 18px;
   --app-radius-sm: 12px;
 
-  --app-shadow: 0 8px 18px rgba(16, 42, 67, 0.06);
-  --app-shadow-hover: 0 12px 24px rgba(16, 42, 67, 0.1);
-  --app-card-glow: 0 0 0 1px rgba(16, 42, 67, 0.03);
+  --app-shadow: 0 10px 22px rgba(16, 42, 67, 0.07);
+  --app-shadow-hover: 0 14px 28px rgba(16, 42, 67, 0.11);
+  --app-card-glow: 0 0 0 1px rgba(16, 42, 67, 0.035);
 
   --app-button-radius: 12px;
   --app-modal-backdrop: rgba(12, 52, 64, 0.28);
@@ -280,29 +280,29 @@ body.dark {
   --app-text-soft-on-dark: #b8c7d1;
 
   /* surfaces */
-  --ion-background-color: #10171b;
-  --ion-background-color-rgb: 16, 23, 27;
+  --ion-background-color: #0f1518;
+  --ion-background-color-rgb: 15, 21, 24;
 
   --ion-text-color: var(--app-text-on-dark);
   --ion-text-color-rgb: 234, 242, 247;
 
-  --ion-border-color: rgba(184, 196, 205, 0.14);
-  --ion-item-background: #18252b;
-  --ion-card-background: #142126;
-  --ion-toolbar-background: #10181c;
-  --ion-tab-bar-background: #10181c;
+  --ion-border-color: rgba(184, 196, 205, 0.16);
+  --ion-item-background: #19272d;
+  --ion-card-background: #162329;
+  --ion-toolbar-background: #0f171b;
+  --ion-tab-bar-background: #0f171b;
 
   /* app tokens */
-  --app-gradient: linear-gradient(180deg, #141c20 0%, #0f1518 100%);
+  --app-gradient: linear-gradient(180deg, #151d21 0%, #0e1417 100%);
 
-  --app-card: #142126;
-  --app-card-strong: #19282e;
-  --app-card-soft: #1d2e35;
-  --app-border: 1px solid rgba(184, 196, 205, 0.12);
+  --app-card: #162329;
+  --app-card-strong: #1c2b31;
+  --app-card-soft: #213239;
+  --app-border: 1px solid rgba(184, 196, 205, 0.15);
 
-  --app-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
-  --app-shadow-hover: 0 14px 30px rgba(0, 0, 0, 0.34);
-  --app-card-glow: 0 0 0 1px rgba(234, 242, 247, 0.04);
+  --app-shadow: 0 12px 26px rgba(0, 0, 0, 0.32);
+  --app-shadow-hover: 0 16px 32px rgba(0, 0, 0, 0.38);
+  --app-card-glow: 0 0 0 1px rgba(234, 242, 247, 0.05);
 
   --app-modal-backdrop: rgba(6, 10, 12, 0.72);
 
@@ -462,8 +462,8 @@ body.dark {
     --ion-color-danger-contrast: #08161d;
     --ion-color-danger-contrast-rgb: 8, 22, 29;
 
-    --ion-background-color: #10171b;
-    --ion-background-color-rgb: 16, 23, 27;
+    --ion-background-color: #0f1518;
+    --ion-background-color-rgb: 15, 21, 24;
 
     --ion-text-color: #eaf2f7;
     --ion-text-color-rgb: 234, 242, 247;
@@ -471,20 +471,20 @@ body.dark {
     --ion-color-medium: #9fb0bb;
     --ion-color-medium-rgb: 159, 176, 187;
 
-    --ion-border-color: rgba(184, 196, 205, 0.14);
-    --ion-item-background: #18252b;
-    --ion-card-background: #142126;
-    --ion-toolbar-background: #10181c;
-    --ion-tab-bar-background: #10181c;
+    --ion-border-color: rgba(184, 196, 205, 0.16);
+    --ion-item-background: #19272d;
+    --ion-card-background: #162329;
+    --ion-toolbar-background: #0f171b;
+    --ion-tab-bar-background: #0f171b;
 
-    --app-gradient: linear-gradient(180deg, #141c20 0%, #0f1518 100%);
-    --app-card: #142126;
-    --app-card-strong: #19282e;
-    --app-card-soft: #1d2e35;
-    --app-border: 1px solid rgba(184, 196, 205, 0.12);
-    --app-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
-    --app-shadow-hover: 0 14px 30px rgba(0, 0, 0, 0.34);
-    --app-card-glow: 0 0 0 1px rgba(234, 242, 247, 0.04);
+    --app-gradient: linear-gradient(180deg, #151d21 0%, #0e1417 100%);
+    --app-card: #162329;
+    --app-card-strong: #1c2b31;
+    --app-card-soft: #213239;
+    --app-border: 1px solid rgba(184, 196, 205, 0.15);
+    --app-shadow: 0 12px 26px rgba(0, 0, 0, 0.32);
+    --app-shadow-hover: 0 16px 32px rgba(0, 0, 0, 0.38);
+    --app-card-glow: 0 0 0 1px rgba(234, 242, 247, 0.05);
 
     --app-car-status-active-soft: rgba(45, 212, 191, 0.16);
     --app-car-status-active-border: rgba(45, 212, 191, 0.28);

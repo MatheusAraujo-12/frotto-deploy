@@ -9,6 +9,7 @@ public class CarFormDTO {
 
     private Long id;
     private String name;
+    private String brand;
     private String model;
     private String color;
     private String plate;
@@ -45,6 +46,14 @@ public class CarFormDTO {
 
     public void setModel(String model) {
         this.model = model;
+    }
+
+    public String getBrand() {
+        return brand;
+    }
+
+    public void setBrand(String brand) {
+        this.brand = brand;
     }
 
     public String getColor() {
@@ -147,6 +156,7 @@ public class CarFormDTO {
         Car car = new Car();
         car.setId(id);
         car.setName(name);
+        car.setBrand(brand);
         car.setModel(model);
         car.setColor(color);
         car.setPlate(plate);

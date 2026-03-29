@@ -59,15 +59,15 @@ const PersonalTab: React.FC<PersonalTabProps> = ({
         <IonIcon icon={personCircleOutline} />
         Dados Pessoais
       </IonCardTitle>
-      <IonCardSubtitle>Mantenha suas informacoes basicas sempre atualizadas.</IonCardSubtitle>
+      <IonCardSubtitle>Mantenha suas informações básicas sempre atualizadas.</IonCardSubtitle>
     </IonCardHeader>
     <IonCardContent>
       {!hasData && (
         <div className="my-panel-empty-state">
           <h3>Nenhum dado pessoal salvo</h3>
-          <p>Preencha os campos abaixo para comecar.</p>
+          <p>Preencha os campos abaixo para começar.</p>
           <IonButton size="small" fill="outline" onClick={onQuickSave}>
-            Salvar Agora
+            Salvar agora
           </IonButton>
         </div>
       )}
@@ -75,7 +75,7 @@ const PersonalTab: React.FC<PersonalTabProps> = ({
       <IonItem className="my-panel-item">
         <IonAvatar slot="start" className="my-panel-avatar">
           {avatarPreviewUrl ? (
-            <img src={avatarPreviewUrl} alt="Avatar do usuario" />
+            <img src={avatarPreviewUrl} alt="Avatar do usuário" />
           ) : (
             <IonIcon icon={imageOutline} className="my-panel-avatar-placeholder" />
           )}

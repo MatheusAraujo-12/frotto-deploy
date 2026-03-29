@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { IonIcon } from "@ionic/react";
 import { carOutline } from "ionicons/icons";
+import { resolveCarIdentity } from "./carIdentity";
 import {
-  resolveCarBrandDisplayName,
   resolveCarBrandLogo,
 } from "./carBrandAssets";
 
 interface CarBrandMarkProps {
+  name?: string | null;
   brand?: string | null;
   marca?: string | null;
+  model?: string | null;
   className?: string;
   size?: "sm" | "md" | "lg";
 }
@@ -17,18 +19,21 @@ const joinClassNames = (...classNames: Array<string | undefined>) =>
   classNames.filter(Boolean).join(" ");
 
 const CarBrandMark: React.FC<CarBrandMarkProps> = ({
+  name,
   brand,
   marca,
+  model,
   className,
   size = "md",
 }) => {
   const [hasImageError, setHasImageError] = useState(false);
-  const logo = resolveCarBrandLogo({ brand, marca });
-  const brandLabel = resolveCarBrandDisplayName({ brand, marca });
+  const carIdentity = resolveCarIdentity({ name, brand, marca, model });
+  const logo = resolveCarBrandLogo(carIdentity.brand);
+  const brandLabel = carIdentity.brand;
 
   useEffect(() => {
     setHasImageError(false);
-  }, [brandLabel, logo?.key]);
+  }, [brandLabel, logo?.key, model, name]);
 
   return (
     <span
@@ -37,7 +42,7 @@ const CarBrandMark: React.FC<CarBrandMarkProps> = ({
         `vehicle-brand-mark--${size}`,
         className
       )}
-      title={brandLabel ? `Marca ${brandLabel}` : "Veiculo"}
+      title={brandLabel ? `Marca ${brandLabel}` : "Veículo"}
     >
       {logo && !hasImageError ? (
         <img

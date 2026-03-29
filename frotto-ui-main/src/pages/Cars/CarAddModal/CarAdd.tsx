@@ -35,6 +35,10 @@ import FormInput from "../../../components/Form/FormInput";
 import FormSelect from "../../../components/Form/FormSelect";
 import FormDeleteButton from "../../../components/Form/FormDeleteButton";
 import FormCurrency from "../../../components/Form/FormCurrency";
+import {
+  buildCarLegacyName,
+  resolveCarIdentity,
+} from "../../../components/Car/carIdentity";
 
 interface CarAddModalProps {
   closeModal: (response?: CarModel) => void;
@@ -57,24 +61,34 @@ const CarAdd: React.FC<CarAddModalProps> = ({ closeModal, initialValues }) => {
   });
 
   const onSubmit = async (newCar: CarModel) => {
+    const identity = resolveCarIdentity(newCar);
+    const payload: CarModel = {
+      ...newCar,
+      name: buildCarLegacyName({
+        ...newCar,
+        brand: identity.brand,
+        model: identity.model,
+      }),
+      brand: identity.brand,
+      model: identity.model,
+    };
+
     setisLoading(true);
     try {
       let responseCar: CarModel;
-      if (newCar.id) {
+      if (payload.id) {
         const response = await api.patch(
           endpoints.CAR({
             pathVariables: {
-              id: newCar.id,
+              id: payload.id,
             },
           }),
-          {
-            ...newCar,
-          }
+          payload
         );
         responseCar = response.data;
       } else {
         const response = await api.post(endpoints.CARS(), {
-          ...newCar,
+          ...payload,
           active: true,
         });
         responseCar = response.data;
@@ -126,15 +140,32 @@ const CarAdd: React.FC<CarAddModalProps> = ({ closeModal, initialValues }) => {
       <IonContent>
         <form>
           <FormInput
-            label={TEXT.carModel}
+            label="Marca"
             errorsObj={errors}
-            errorName="name"
-            initialValue={watch("name")}
-            maxlength={50}
+            errorName="brand"
+            initialValue={watch("brand") ?? ""}
+            maxlength={60}
             changeCallback={(value: string) => {
-              setValue("name", value);
+              setValue("brand", value, {
+                shouldValidate: true,
+                shouldDirty: true,
+                shouldTouch: true,
+              });
             }}
-            required
+          />
+          <FormInput
+            label={TEXT.model}
+            errorsObj={errors}
+            errorName="model"
+            initialValue={watch("model") ?? ""}
+            maxlength={60}
+            changeCallback={(value: string) => {
+              setValue("model", value, {
+                shouldValidate: true,
+                shouldDirty: true,
+                shouldTouch: true,
+              });
+            }}
           />
           <FormInput
             label={TEXT.plate}
