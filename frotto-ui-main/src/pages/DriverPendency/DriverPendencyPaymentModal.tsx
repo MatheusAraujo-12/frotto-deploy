@@ -93,7 +93,7 @@ const DriverPendencyPaymentModal: React.FC<DriverPendencyPaymentModalProps> = ({
         return;
       }
       if (partialAmount > remainingAmount) {
-        showErrorAlert("O valor parcial nao pode ser maior que o saldo restante.");
+        showErrorAlert("O valor parcial não pode ser maior que o saldo restante.");
         return;
       }
     }
@@ -134,20 +134,20 @@ const DriverPendencyPaymentModal: React.FC<DriverPendencyPaymentModalProps> = ({
       <IonContent>
         <div className="app-form-page__body">
           <div className="app-form-page__panel">
-            <h3 className="app-form-page__title">Como deseja registrar esta quitacao?</h3>
+            <h3 className="app-form-page__title">Como deseja registrar esta quitação?</h3>
             <div className="driver-pendency-payment-summary">
               <p className="driver-pendency-payment-summary__title">
                 <strong>{pendency?.name || TEXT.driverPendency}</strong>
               </p>
-              <p>Total da divida: {currencyFormat(pendency?.cost || 0)}</p>
-              <p>Ja pago: {currencyFormat(paidAmount)}</p>
+              <p>Total da dívida: {currencyFormat(pendency?.cost || 0)}</p>
+              <p>Já pago: {currencyFormat(paidAmount)}</p>
               <p>Saldo restante: {currencyFormat(remainingAmount)}</p>
             </div>
 
             <IonCard className="app-panel-card driver-pendency-payment-card">
               <IonCardHeader className="app-panel-header">
                 <div className="app-panel-header__content">
-                  <IonCardTitle className="app-panel-title">Forma de quitacao</IonCardTitle>
+                  <IonCardTitle className="app-panel-title">Forma de quitação</IonCardTitle>
                   <IonCardSubtitle className="app-panel-subtitle">
                     Escolha entre quitar todo o saldo ou registrar apenas parte dele.
                   </IonCardSubtitle>
@@ -175,7 +175,7 @@ const DriverPendencyPaymentModal: React.FC<DriverPendencyPaymentModalProps> = ({
 
                 {paymentMode === "full" && (
                   <div className="app-soft-box app-soft-box--warning driver-pendency-payment-note">
-                    O sistema vai quitar todo o saldo restante desta divida.
+                    O sistema vai quitar todo o saldo restante desta dívida.
                   </div>
                 )}
 

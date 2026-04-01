@@ -177,7 +177,7 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
             <div className="driver-pendency-add-section-head">
               <h2 className="app-section-title">{pageTitle}</h2>
               <p className="app-section-subtitle">
-                Preencha os dados da pendencia em um fluxo direto e sem ruido
+                Preencha os dados da pendência em um fluxo direto e sem ruído
                 visual.
               </p>
             </div>
@@ -189,10 +189,10 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
                 </div>
                 <div className="app-panel-header__content">
                   <IonCardTitle className="app-panel-title">
-                    Dados da pendencia
+                    Dados da pendência
                   </IonCardTitle>
                   <IonCardSubtitle className="app-panel-subtitle">
-                    Informe data, descricao, valor e observacoes.
+                    Informe data, descrição, valor e observações.
                   </IonCardSubtitle>
                 </div>
               </IonCardHeader>
@@ -253,7 +253,7 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
                       Ajuste do pagamento
                     </IonCardTitle>
                     <IonCardSubtitle className="app-panel-subtitle">
-                      Corrija o valor pago ou reverta a quitacao quando necessario.
+                      Corrija o valor pago ou reverta a quitação quando necessário.
                     </IonCardSubtitle>
                   </div>
                 </IonCardHeader>

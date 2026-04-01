@@ -38,7 +38,7 @@ export const driverPendencyAddValidationSchema = Yup.object().shape({
         : value
     )
     .min(0, TEXT.minFieldNumber("0"))
-    .max(Yup.ref("cost"), "Valor pago nao pode ser maior que a divida")
+    .max(Yup.ref("cost"), "Valor pago não pode ser maior que a dívida")
     .nullable(),
   paymentMethod: Yup.string().max(60, TEXT.maxFieldSize("60")).nullable(),
 });
