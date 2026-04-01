@@ -163,6 +163,7 @@ const endpoints = {
   DRIVER_PENDENCIES: apiEndpoint("/pendencies/car-driver/{id}"),
   DRIVER_PENDENCIES_EDIT: apiEndpoint("/pendencies/{id}"),
   DRIVER_PENDENCIES_PAY: apiEndpoint("/pendencies/{id}/pay"),
+  DRIVER_PENDENCIES_PAYMENTS: apiEndpoint("/pendencies/{id}/payments"),
 
   REPORTS: apiEndpoint("/reports"),
   REPORTS_HISTORY: apiEndpoint("/reports-history"),

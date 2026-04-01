@@ -1,0 +1,38 @@
+#driver-pendency-payment-page .driver-pendency-payment-summary {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+#driver-pendency-payment-page .driver-pendency-payment-summary p {
+  margin: 0;
+}
+
+#driver-pendency-payment-page .driver-pendency-payment-summary__title {
+  margin-bottom: 4px;
+}
+
+#driver-pendency-payment-page .driver-pendency-payment-card {
+  margin: 0;
+}
+
+#driver-pendency-payment-page .driver-pendency-payment-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+#driver-pendency-payment-page .driver-pendency-payment-options__button {
+  flex: 1 1 180px;
+}
+
+#driver-pendency-payment-page .driver-pendency-payment-note {
+  margin-bottom: 0;
+}
+
+#driver-pendency-payment-page .driver-pendency-payment-hint {
+  margin: 8px 4px 0;
+  color: var(--ion-color-medium-shade);
+  font-size: 0.88rem;
+}

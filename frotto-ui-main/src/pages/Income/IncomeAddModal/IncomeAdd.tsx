@@ -1,13 +1,20 @@
 import {
   IonButton,
   IonButtons,
+  IonCard,
+  IonCardContent,
+  IonCardHeader,
+  IonCardSubtitle,
+  IonCardTitle,
   IonContent,
   IonHeader,
+  IonIcon,
   IonPage,
   IonProgressBar,
   IonTitle,
   IonToolbar,
 } from "@ionic/react";
+import { carSportOutline, cashOutline } from "ionicons/icons";
 import { TEXT } from "../../../constants/texts";
 import { useState, useEffect, useCallback } from "react";
 import { useAlert } from "../../../services/hooks/useAlert";
@@ -25,6 +32,7 @@ import { INCOMES } from "../../../constants/selectOptions";
 import { INCOME_KEY } from "../../../services/localStorage/localstorage";
 import FormDeleteButton from "../../../components/Form/FormDeleteButton";
 import FormCurrency from "../../../components/Form/FormCurrency";
+import "./IncomeAdd.css";
 
 interface IncomeAddModalProps {
   closeModal: (response?: IncomeModel) => void;
@@ -162,10 +170,15 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
 
   return (
     <IonPage id="car-income-add-page">
-      <IonHeader>
-        <IonToolbar>
+      <IonHeader className="ion-no-border">
+        <IonToolbar className="app-toolbar-clean">
           <IonButtons slot="start">
-            <IonButton color="medium" onClick={handleClose} disabled={isLoading}>
+            <IonButton
+              fill="clear"
+              className="app-outline-btn"
+              onClick={handleClose}
+              disabled={isLoading}
+            >
               {TEXT.cancel}
             </IonButton>
           </IonButtons>
@@ -174,8 +187,8 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
 
           <IonButtons slot="end">
             <IonButton
+              className="app-primary-btn"
               disabled={isLoading || !isValid || (!isDirty && !!formInitial.id)}
-              strong
               onClick={handleSubmit(onSubmit)}
             >
               {TEXT.save}
@@ -186,82 +199,163 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
         </IonToolbar>
       </IonHeader>
 
-      <IonContent>
-        <form onSubmit={(e) => e.preventDefault()}>
-          {!selectedCar && !carId && (
-            <div className="app-form-page__panel">
-              {fetchError && (
-                <div className="app-inline-alert app-inline-alert--danger">
-                  {fetchError}
-                </div>
-              )}
-
-              <h3 className="app-form-page__title">{`${TEXT.select} ${TEXT.car}`}</h3>
-
-              <CarSelector onSelect={handleCarSelect} />
+      <IonContent className="income-add-content">
+        <div className="app-shell app-shell--compact income-add-shell">
+          <section className="app-section">
+            <div className="income-add-section-head">
+              <h2 className="app-section-title">{titleText}</h2>
+              <p className="app-section-subtitle">
+                Registre a receita com o mesmo padrao visual aplicado aos demais
+                lancamentos.
+              </p>
             </div>
-          )}
 
-          {(selectedCar || carId) && (
-            <>
-              <FormDate
-                id="date-income-add"
-                initialValue={incomeDate}
-                label={TEXT.date}
-                presentation="date"
-                formCallBack={(value: string) =>
-                  setValue("date", value, {
-                    shouldValidate: true,
-                    shouldDirty: true,
-                    shouldTouch: true,
-                  })
-                }
-                required
-              />
+            {!selectedCar && !carId && (
+              <IonCard className="app-panel-card">
+                <IonCardHeader className="app-panel-header">
+                  <div className="app-soft-icon">
+                    <IonIcon icon={carSportOutline} />
+                  </div>
+                  <div className="app-panel-header__content">
+                    <IonCardTitle className="app-panel-title">
+                      {`${TEXT.select} ${TEXT.car}`}
+                    </IonCardTitle>
+                    <IonCardSubtitle className="app-panel-subtitle">
+                      Escolha o veiculo para vincular a receita.
+                    </IonCardSubtitle>
+                  </div>
+                </IonCardHeader>
+                <IonCardContent>
+                  {fetchError && (
+                    <div className="app-inline-alert app-inline-alert--danger income-add-alert">
+                      {fetchError}
+                    </div>
+                  )}
 
-              <FormSelectFilterAdd
-                label={TEXT.incomeName}
-                errorsObj={errors}
-                errorName="name"
-                formCallBack={(value: string) =>
-                  setValue("name", value, {
-                    shouldValidate: true,
-                    shouldDirty: true,
-                    shouldTouch: true,
-                  })
-                }
-                initialValue={incomeName}
-                options={INCOMES}
-                storageToken={INCOME_KEY}
-                required
-              />
+                  <CarSelector onSelect={handleCarSelect} />
+                </IonCardContent>
+              </IonCard>
+            )}
 
-              <FormCurrency
-                label={TEXT.value}
-                errorsObj={errors}
-                errorName="cost"
-                initialValue={incomeValue}
-                maxlength={15}
-                changeCallback={(value: number) =>
-                  setValue("cost", value, {
-                    shouldValidate: true,
-                    shouldDirty: true,
-                    shouldTouch: true,
-                  })
-                }
-                required
-              />
-            </>
-          )}
-        </form>
+            {selectedCar && !carId && (
+              <IonCard className="app-panel-card app-panel-card--soft">
+                <IonCardHeader className="app-panel-header">
+                  <div className="app-soft-icon">
+                    <IonIcon icon={carSportOutline} />
+                  </div>
+                  <div className="app-panel-header__content">
+                    <IonCardTitle className="app-panel-title">
+                      {selectedCar.name}
+                    </IonCardTitle>
+                    <IonCardSubtitle className="app-panel-subtitle">
+                      {selectedCar.plate || "Sem placa"}
+                    </IonCardSubtitle>
+                  </div>
+                </IonCardHeader>
+                <IonCardContent>
+                  <div className="income-add-selected-car">
+                    <IonButton
+                      size="small"
+                      fill="clear"
+                      className="app-outline-btn"
+                      onClick={() => setSelectedCar(null)}
+                    >
+                      Trocar veiculo
+                    </IonButton>
+                  </div>
+                </IonCardContent>
+              </IonCard>
+            )}
 
-        {formInitial.id && (
-          <FormDeleteButton
-            label={`${TEXT.delete} ${String(TEXT.income).toLowerCase()}`}
-            message={confirmDeleteMessage}
-            callBackFunc={onDelete}
-          />
-        )}
+            {(selectedCar || carId) && (
+              <IonCard className="app-panel-card">
+                <IonCardHeader className="app-panel-header">
+                  <div className="app-soft-icon">
+                    <IonIcon icon={cashOutline} />
+                  </div>
+                  <div className="app-panel-header__content">
+                    <IonCardTitle className="app-panel-title">
+                      Dados da receita
+                    </IonCardTitle>
+                    <IonCardSubtitle className="app-panel-subtitle">
+                      Informe data, categoria e valor para salvar o lancamento.
+                    </IonCardSubtitle>
+                  </div>
+                </IonCardHeader>
+                <IonCardContent>
+                  <form
+                    className="app-form-grid income-add-form"
+                    onSubmit={(e) => e.preventDefault()}
+                  >
+                    <div className="income-add-field">
+                      <FormDate
+                        id="date-income-add"
+                        initialValue={incomeDate}
+                        label={TEXT.date}
+                        presentation="date"
+                        formCallBack={(value: string) =>
+                          setValue("date", value, {
+                            shouldValidate: true,
+                            shouldDirty: true,
+                            shouldTouch: true,
+                          })
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div className="income-add-field">
+                      <FormSelectFilterAdd
+                        label={TEXT.incomeName}
+                        errorsObj={errors}
+                        errorName="name"
+                        formCallBack={(value: string) =>
+                          setValue("name", value, {
+                            shouldValidate: true,
+                            shouldDirty: true,
+                            shouldTouch: true,
+                          })
+                        }
+                        initialValue={incomeName}
+                        options={INCOMES}
+                        storageToken={INCOME_KEY}
+                        required
+                      />
+                    </div>
+
+                    <div className="income-add-field">
+                      <FormCurrency
+                        label={TEXT.value}
+                        errorsObj={errors}
+                        errorName="cost"
+                        initialValue={incomeValue}
+                        maxlength={15}
+                        changeCallback={(value: number) =>
+                          setValue("cost", value, {
+                            shouldValidate: true,
+                            shouldDirty: true,
+                            shouldTouch: true,
+                          })
+                        }
+                        required
+                      />
+                    </div>
+                  </form>
+                </IonCardContent>
+              </IonCard>
+            )}
+
+            {formInitial.id && (
+              <div className="income-add-delete">
+                <FormDeleteButton
+                  label={`${TEXT.delete} ${String(TEXT.income).toLowerCase()}`}
+                  message={confirmDeleteMessage}
+                  callBackFunc={onDelete}
+                />
+              </div>
+            )}
+          </section>
+        </div>
       </IonContent>
     </IonPage>
   );

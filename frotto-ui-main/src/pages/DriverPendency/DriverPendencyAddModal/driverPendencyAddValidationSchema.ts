@@ -25,7 +25,20 @@ export const initialDriverPendencyValues = (
 export const driverPendencyAddValidationSchema = Yup.object().shape({
   id: Yup.number().nullable(),
   name: Yup.string().required(TEXT.requiredField),
-  cost: Yup.number().typeError(TEXT.requiredField).required(TEXT.requiredField),
+  cost: Yup.number()
+    .typeError(TEXT.requiredField)
+    .min(0, TEXT.minFieldNumber("0"))
+    .required(TEXT.requiredField),
   date: Yup.string().required(TEXT.requiredField),
   note: Yup.string().max(255, TEXT.maxFieldSize("255")).nullable(),
+  paidAmount: Yup.number()
+    .transform((value, originalValue) =>
+      originalValue === "" || originalValue === null || originalValue === undefined
+        ? 0
+        : value
+    )
+    .min(0, TEXT.minFieldNumber("0"))
+    .max(Yup.ref("cost"), "Valor pago nao pode ser maior que a divida")
+    .nullable(),
+  paymentMethod: Yup.string().max(60, TEXT.maxFieldSize("60")).nullable(),
 });

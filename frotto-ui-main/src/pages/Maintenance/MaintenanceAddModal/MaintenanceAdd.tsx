@@ -1,8 +1,14 @@
 import {
   IonButton,
   IonButtons,
+  IonCard,
+  IonCardContent,
+  IonCardHeader,
+  IonCardSubtitle,
+  IonCardTitle,
   IonContent,
   IonHeader,
+  IonIcon,
   IonItem,
   IonLabel,
   IonList,
@@ -14,6 +20,11 @@ import {
   IonTitle,
   IonToolbar,
 } from "@ionic/react";
+import {
+  buildOutline,
+  carSportOutline,
+  notificationsOutline,
+} from "ionicons/icons";
 import { TEXT } from "../../../constants/texts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAlert } from "../../../services/hooks/useAlert";
@@ -30,7 +41,6 @@ import {
 import api from "../../../services/axios/axios";
 import endpoints from "../../../constants/endpoints";
 import FormInput from "../../../components/Form/FormInput";
-import ItemNotFound from "../../../components/List/ItemNotFound";
 import {
   calculateMaintenanceCost,
   initialMaintenanceValues,
@@ -40,6 +50,7 @@ import ServiceAddModal from "../ServiceAddModal/ServiceAddModal";
 import { currencyFormat } from "../../../services/currencyFormat";
 import FormDeleteButton from "../../../components/Form/FormDeleteButton";
 import ReminderAdd from "../../Reminders/ReminderAddModal/reminderAdd";
+import "./MaintenanceAdd.css";
 
 interface MaintenanceAddModalProps {
   closeModal: (response?: MaintenanceModel) => void;
@@ -253,10 +264,15 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
 
   return (
     <IonPage id="car-maintenance-add-page">
-      <IonHeader>
-        <IonToolbar>
+      <IonHeader className="ion-no-border">
+        <IonToolbar className="app-toolbar-clean">
           <IonButtons slot="start">
-            <IonButton color="medium" onClick={handleClose} disabled={isLoading}>
+            <IonButton
+              fill="clear"
+              className="app-outline-btn"
+              onClick={handleClose}
+              disabled={isLoading}
+            >
               {TEXT.cancel}
             </IonButton>
           </IonButtons>
@@ -265,8 +281,8 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
 
           <IonButtons slot="end">
             <IonButton
+              className="app-primary-btn"
               disabled={isLoading || !isValid || (!isDirty && !!formInitial.id)}
-              strong
               onClick={handleSubmit(onSubmit)}
             >
               {TEXT.save}
@@ -277,174 +293,350 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
         </IonToolbar>
       </IonHeader>
 
-      <IonContent>
-        <form onSubmit={(e) => e.preventDefault()}>
-          {!selectedCar && !carId && (
-            <div className="app-form-page__panel">
-              <h3 className="app-form-page__title">
-                {`${TEXT.select} ${TEXT.car}`}
-              </h3>
-              <CarSelector onSelect={handleSelectCar} />
+      <IonContent className="maintenance-add-content">
+        <div className="app-shell app-shell--compact maintenance-add-shell">
+          <section className="app-section">
+            <div className="maintenance-add-section-head">
+              <h2 className="app-section-title">{titleText}</h2>
+              <p className="app-section-subtitle">
+                Revise data, odometro, local, servicos e lembretes desta
+                manutencao.
+              </p>
             </div>
-          )}
 
-          {selectedCar && !carId && (
-            <div className="app-selected-car">
-              <div>
-                <strong className="app-selected-car__title">{selectedCar.name}</strong>
-                <div className="app-selected-car__meta">
-                  {selectedCar.plate || "Sem placa"}
-                </div>
+            {!selectedCar && !carId && (
+              <IonCard className="app-panel-card">
+                <IonCardHeader className="app-panel-header">
+                  <div className="app-soft-icon">
+                    <IonIcon icon={carSportOutline} />
+                  </div>
+                  <div className="app-panel-header__content">
+                    <IonCardTitle className="app-panel-title">
+                      {`${TEXT.select} ${TEXT.car}`}
+                    </IonCardTitle>
+                    <IonCardSubtitle className="app-panel-subtitle">
+                      Escolha o veiculo para continuar.
+                    </IonCardSubtitle>
+                  </div>
+                </IonCardHeader>
+                <IonCardContent>
+                  <div className="maintenance-add-car-selector">
+                    <CarSelector onSelect={handleSelectCar} />
+                  </div>
+                </IonCardContent>
+              </IonCard>
+            )}
+
+            {selectedCar && !carId && (
+              <IonCard className="app-panel-card app-panel-card--soft">
+                <IonCardHeader className="app-panel-header">
+                  <div className="app-soft-icon">
+                    <IonIcon icon={carSportOutline} />
+                  </div>
+                  <div className="app-panel-header__content">
+                    <IonCardTitle className="app-panel-title">
+                      {selectedCar.name}
+                    </IonCardTitle>
+                    <IonCardSubtitle className="app-panel-subtitle">
+                      {selectedCar.plate || "Sem placa"}
+                    </IonCardSubtitle>
+                  </div>
+                </IonCardHeader>
+                <IonCardContent>
+                  <div className="maintenance-add-car-summary">
+                    <IonButton
+                      size="small"
+                      fill="clear"
+                      className="app-outline-btn"
+                      onClick={handleResetCar}
+                    >
+                      Trocar veiculo
+                    </IonButton>
+                  </div>
+                </IonCardContent>
+              </IonCard>
+            )}
+
+            {(selectedCar || carId) && (
+              <>
+                <IonCard className="app-panel-card app-panel-card--soft">
+                  <IonCardHeader className="app-panel-header">
+                    <div className="app-soft-icon">
+                      <IonIcon icon={buildOutline} />
+                    </div>
+                    <div className="app-panel-header__content">
+                      <IonCardTitle className="app-panel-title">
+                        Resumo da manutencao
+                      </IonCardTitle>
+                      <IonCardSubtitle className="app-panel-subtitle">
+                        {services?.filter((service) => !!service)?.length || 0}{" "}
+                        servico(s) registrado(s)
+                      </IonCardSubtitle>
+                    </div>
+                  </IonCardHeader>
+                  <IonCardContent>
+                    <div className="maintenance-add-summary">
+                      <div className="app-soft-box app-soft-box--neutral">
+                        <span className="maintenance-add-summary__label">
+                          {TEXT.date}
+                        </span>
+                        <strong className="maintenance-add-summary__value">
+                          {date || "-"}
+                        </strong>
+                      </div>
+                      <div className="app-soft-box app-soft-box--neutral">
+                        <span className="maintenance-add-summary__label">
+                          {TEXT.odometer}
+                        </span>
+                        <strong className="maintenance-add-summary__value">
+                          {`${odometer || 0} ${TEXT.km}`}
+                        </strong>
+                      </div>
+                      <div className="app-soft-box app-soft-box--neutral">
+                        <span className="maintenance-add-summary__label">
+                          {TEXT.local}
+                        </span>
+                        <strong className="maintenance-add-summary__value">
+                          {local || "-"}
+                        </strong>
+                      </div>
+                      <div className="app-soft-box app-soft-box--success">
+                        <span className="maintenance-add-summary__label">
+                          {TEXT.total}
+                        </span>
+                        <strong className="maintenance-add-summary__value">
+                          {currencyFormat(totalCost)}
+                        </strong>
+                      </div>
+                    </div>
+                  </IonCardContent>
+                </IonCard>
+
+                <IonCard className="app-panel-card">
+                  <IonCardHeader className="app-panel-header">
+                    <div className="app-soft-icon">
+                      <IonIcon icon={buildOutline} />
+                    </div>
+                    <div className="app-panel-header__content">
+                      <IonCardTitle className="app-panel-title">
+                        Dados da manutencao
+                      </IonCardTitle>
+                      <IonCardSubtitle className="app-panel-subtitle">
+                        Preencha os campos e edite a lista de servicos.
+                      </IonCardSubtitle>
+                    </div>
+                  </IonCardHeader>
+                  <IonCardContent>
+                    <form
+                      className="app-form-grid maintenance-add-form"
+                      onSubmit={(e) => e.preventDefault()}
+                    >
+                      <div className="maintenance-add-form__main">
+                        <div className="maintenance-add-field">
+                          <FormDate
+                            id="date-maintenance-add"
+                            initialValue={date}
+                            label={TEXT.date}
+                            presentation="date"
+                            formCallBack={(value: string) =>
+                              setValue("date", value, {
+                                shouldValidate: true,
+                                shouldDirty: true,
+                                shouldTouch: true,
+                              })
+                            }
+                            required
+                          />
+                        </div>
+
+                        <div className="maintenance-add-field">
+                          <FormInput
+                            label={TEXT.odometer}
+                            errorsObj={errors}
+                            errorName="odometer"
+                            initialValue={odometer}
+                            maxlength={15}
+                            type="number"
+                            changeCallback={(value: number) =>
+                              setValue("odometer", value, {
+                                shouldValidate: true,
+                                shouldDirty: true,
+                                shouldTouch: true,
+                              })
+                            }
+                            required
+                          />
+                        </div>
+
+                        <div className="maintenance-add-field">
+                          <FormInput
+                            label={TEXT.local}
+                            errorsObj={errors}
+                            errorName="local"
+                            initialValue={local}
+                            maxlength={50}
+                            changeCallback={(value: string) =>
+                              setValue("local", value, {
+                                shouldValidate: true,
+                                shouldDirty: true,
+                                shouldTouch: true,
+                              })
+                            }
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <IonList className="maintenance-add-services-list">
+                        <IonListHeader className="maintenance-add-services-list__header">
+                          <IonLabel>
+                            <h2>{TEXT.maintenanceServices}</h2>
+                            {totalCost > 0 && (
+                              <IonText
+                                color="primary"
+                                className="maintenance-add-services-list__total"
+                              >
+                                ({currencyFormat(totalCost)})
+                              </IonText>
+                            )}
+                          </IonLabel>
+                          <IonButton
+                            size="small"
+                            fill="clear"
+                            className="app-outline-btn"
+                            onClick={openServiceModal}
+                            disabled={isLoading}
+                          >
+                            {TEXT.edit}
+                          </IonButton>
+                        </IonListHeader>
+
+                        {services?.length ? (
+                          services.map((service, index) => {
+                            const desc = (service as any)?.description;
+                            return (
+                              <IonItem
+                                key={`service-${index}`}
+                                lines="none"
+                                className="maintenance-add-services-list__item"
+                              >
+                                <IonLabel
+                                  slot="start"
+                                  className="maintenance-add-services-list__label ion-text-wrap"
+                                >
+                                  <h3 className="maintenance-add-services-list__name">
+                                    <IonText>{service.name}</IonText>
+                                  </h3>
+                                  {!!desc && (
+                                    <p className="maintenance-add-services-list__desc">
+                                      {desc}
+                                    </p>
+                                  )}
+                                </IonLabel>
+                                <IonLabel
+                                  slot="end"
+                                  className="maintenance-add-services-list__value"
+                                >
+                                  <IonText>
+                                    {currencyFormat(service.cost || 0)}
+                                  </IonText>
+                                </IonLabel>
+                              </IonItem>
+                            );
+                          })
+                        ) : (
+                          <div className="app-empty-state maintenance-add-empty-state">
+                            <strong>{TEXT.maintenanceServices}</strong>
+                            <span>Nenhum servico adicionado.</span>
+                          </div>
+                        )}
+                      </IonList>
+                    </form>
+                  </IonCardContent>
+                </IonCard>
+              </>
+            )}
+
+            {!formInitial.id && (
+              <IonCard className="app-panel-card">
+                <IonCardHeader className="app-panel-header">
+                  <div className="app-soft-icon">
+                    <IonIcon icon={notificationsOutline} />
+                  </div>
+                  <div className="app-panel-header__content">
+                    <IonCardTitle className="app-panel-title">
+                      {TEXT.reminders}
+                    </IonCardTitle>
+                    <IonCardSubtitle className="app-panel-subtitle">
+                      Ajuste ou crie lembretes relacionados a esta manutencao.
+                    </IonCardSubtitle>
+                  </div>
+                </IonCardHeader>
+                <IonCardContent>
+                  <IonList className="maintenance-add-reminders">
+                    <IonListHeader className="maintenance-add-reminders__header">
+                      <IonLabel>
+                        <h2>{TEXT.reminders}</h2>
+                      </IonLabel>
+                      <IonButton
+                        size="small"
+                        fill="clear"
+                        className="app-outline-btn"
+                        onClick={() => openReminderModal()}
+                        disabled={isLoading}
+                      >
+                        {TEXT.add}
+                      </IonButton>
+                    </IonListHeader>
+
+                    {reminderList.length > 0 ? (
+                      reminderList.map((reminder, index) => {
+                        const reminderDate = (reminder as any)?.date;
+                        return (
+                          <IonItem
+                            button
+                            detail={false}
+                            lines="none"
+                            key={`reminder-${index}`}
+                            className="maintenance-add-reminders__item"
+                            onClick={() => openReminderModal(reminder)}
+                            disabled={isLoading}
+                          >
+                            <IonLabel className="ion-text-wrap">
+                              <p className="maintenance-add-reminders__message">
+                                {reminder.message}
+                              </p>
+                              {!!reminderDate && (
+                                <p className="maintenance-add-reminders__date">
+                                  {reminderDate}
+                                </p>
+                              )}
+                            </IonLabel>
+                          </IonItem>
+                        );
+                      })
+                    ) : (
+                      <div className="app-empty-state maintenance-add-reminders-empty">
+                        <strong>{TEXT.reminders}</strong>
+                        <span>{TEXT.noReminders}</span>
+                      </div>
+                    )}
+                  </IonList>
+                </IonCardContent>
+              </IonCard>
+            )}
+
+            {formInitial.id && (
+              <div className="maintenance-add-delete">
+                <FormDeleteButton
+                  label={`${TEXT.delete} ${String(TEXT.maintenance).toLowerCase()}`}
+                  message={TEXT.maintenance}
+                  callBackFunc={onDelete}
+                />
               </div>
-              <IonButton size="small" fill="clear" color="medium" onClick={handleResetCar}>
-                Trocar
-              </IonButton>
-            </div>
-          )}
-
-          {(selectedCar || carId) && (
-            <>
-              <FormDate
-                id="date-maintenance-add"
-                initialValue={date}
-                label={TEXT.date}
-                presentation="date"
-                formCallBack={(value: string) =>
-                  setValue("date", value, {
-                    shouldValidate: true,
-                    shouldDirty: true,
-                    shouldTouch: true,
-                  })
-                }
-                required
-              />
-
-              <FormInput
-                label={TEXT.odometer}
-                errorsObj={errors}
-                errorName="odometer"
-                initialValue={odometer}
-                maxlength={15}
-                type="number"
-                changeCallback={(value: number) =>
-                  setValue("odometer", value, {
-                    shouldValidate: true,
-                    shouldDirty: true,
-                    shouldTouch: true,
-                  })
-                }
-                required
-              />
-
-              <FormInput
-                label={TEXT.local}
-                errorsObj={errors}
-                errorName="local"
-                initialValue={local}
-                maxlength={50}
-                changeCallback={(value: string) =>
-                  setValue("local", value, {
-                    shouldValidate: true,
-                    shouldDirty: true,
-                    shouldTouch: true,
-                  })
-                }
-                required
-              />
-
-              <IonList>
-                <IonListHeader>
-                  <IonLabel>
-                    <h2>{TEXT.maintenanceServices}</h2>
-                    {totalCost > 0 && (
-                      <IonText color="primary" style={{ marginLeft: 8 }}>
-                        ({currencyFormat(totalCost)})
-                      </IonText>
-                    )}
-                  </IonLabel>
-                  <IonButton onClick={openServiceModal} disabled={isLoading}>
-                    {TEXT.edit}
-                  </IonButton>
-                </IonListHeader>
-
-                {services?.length ? (
-                  services.map((service, index) => {
-                    const desc = (service as any)?.description;
-                    return (
-                      <IonItem key={`service-${index}`}>
-                        <IonLabel slot="start" class="ion-text-wrap">
-                          <h3 style={{ margin: 0 }}>
-                            <IonText>{service.name}</IonText>
-                          </h3>
-                          {!!desc && (
-                            <p style={{ fontSize: 12, color: "var(--ion-color-medium)", margin: 0 }}>
-                              {desc}
-                            </p>
-                          )}
-                        </IonLabel>
-                        <IonLabel slot="end">
-                          <IonText style={{ fontWeight: 600 }}>
-                            {currencyFormat(service.cost || 0)}
-                          </IonText>
-                        </IonLabel>
-                      </IonItem>
-                    );
-                  })
-                ) : (
-                  <ItemNotFound />
-                )}
-              </IonList>
-            </>
-          )}
-        </form>
-
-        {formInitial.id && (
-          <FormDeleteButton
-            label={`${TEXT.delete} ${String(TEXT.maintenance).toLowerCase()}`}
-            message={TEXT.maintenance}
-            callBackFunc={onDelete}
-          />
-        )}
-
-        {!formInitial.id && reminderList.length > 0 && (
-          <IonList style={{ marginTop: 24 }}>
-            <IonListHeader>
-              <IonLabel>
-                <h2>{TEXT.reminders}</h2>
-              </IonLabel>
-              <IonButton onClick={() => openReminderModal()} disabled={isLoading}>
-                {TEXT.add}
-              </IonButton>
-            </IonListHeader>
-
-            {reminderList.map((reminder, index) => {
-              const reminderDate = (reminder as any)?.date;
-              return (
-                <IonItem
-                  button
-                  key={`reminder-${index}`}
-                  onClick={() => openReminderModal(reminder)}
-                  disabled={isLoading}
-                >
-                  <IonLabel>
-                    <p style={{ margin: 0 }}>{reminder.message}</p>
-                    {!!reminderDate && (
-                      <p style={{ fontSize: 12, color: "var(--ion-color-medium)", margin: 0 }}>
-                        {reminderDate}
-                      </p>
-                    )}
-                  </IonLabel>
-                </IonItem>
-              );
-            })}
-          </IonList>
-        )}
-
-        {!formInitial.id && reminderList.length === 0 && (
-          <div className="app-item-not-found">
-            <p>{TEXT.noReminders}</p>
-          </div>
-        )}
+            )}
+          </section>
+        </div>
       </IonContent>
 
       <IonModal

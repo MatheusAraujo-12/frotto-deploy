@@ -1,0 +1,50 @@
+#car-income-add-page .income-add-content {
+  --padding-bottom: 20px;
+}
+
+.income-add-shell {
+  gap: 16px;
+}
+
+.income-add-section-head {
+  display: grid;
+  gap: 4px;
+}
+
+.income-add-alert {
+  margin-bottom: 12px;
+}
+
+.income-add-selected-car {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.income-add-form {
+  display: grid;
+  gap: 12px;
+}
+
+.income-add-field {
+  display: grid;
+  gap: 4px;
+}
+
+.income-add-field > div {
+  padding: 0 !important;
+}
+
+.income-add-field > ion-text.ion-padding-start {
+  margin: -2px 4px 0 10px;
+  font-size: 0.82rem;
+}
+
+.income-add-delete .ion-margin-top {
+  margin-top: 0 !important;
+}
+
+@media (max-width: 640px) {
+  .income-add-form {
+    gap: 10px;
+  }
+}

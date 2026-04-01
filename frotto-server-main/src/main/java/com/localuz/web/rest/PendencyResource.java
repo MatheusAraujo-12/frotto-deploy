@@ -171,9 +171,6 @@ public class PendencyResource {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
         Pendency existingPendency = getPendencyOrThrow(id);
-        if (existingPendency.getStatus() == PendencyStatus.PAID) {
-            throw new BadRequestAlertException("Paid pendencies cannot be edited", ENTITY_NAME, "pendencypaid");
-        }
 
         applyEditableFields(existingPendency, pendency);
         recalculatePaymentFields(existingPendency);
@@ -300,7 +297,16 @@ public class PendencyResource {
         if (pendency.getCost() != null) {
             existingPendency.setCost(pendency.getCost());
         }
+        if (pendency.getPaidAmount() != null) {
+            existingPendency.setPaidAmount(pendency.getPaidAmount());
+        }
         existingPendency.setNote(pendency.getNote());
+        if (pendency.getPaymentMethod() != null) {
+            String paymentMethod = pendency.getPaymentMethod().trim();
+            existingPendency.setPaymentMethod(paymentMethod.isEmpty() ? null : paymentMethod);
+        } else {
+            existingPendency.setPaymentMethod(null);
+        }
     }
 
     private void recalculatePaymentFields(Pendency pendency) {
@@ -331,10 +337,12 @@ public class PendencyResource {
         }
         if (paidAmount.compareTo(BigDecimal.ZERO) > 0) {
             pendency.setStatus(PendencyStatus.PARTIALLY_PAID);
+            pendency.setPaidAt(null);
             return;
         }
         pendency.setStatus(PendencyStatus.OPEN);
         pendency.setPaidAt(null);
+        pendency.setPaymentMethod(null);
     }
 
     private BigDecimal getCurrentRemainingAmount(Pendency pendency) {

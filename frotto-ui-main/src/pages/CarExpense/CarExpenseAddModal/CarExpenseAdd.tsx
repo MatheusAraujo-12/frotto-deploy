@@ -1,13 +1,20 @@
 import {
   IonButton,
   IonButtons,
+  IonCard,
+  IonCardContent,
+  IonCardHeader,
+  IonCardSubtitle,
+  IonCardTitle,
   IonContent,
   IonHeader,
+  IonIcon,
   IonPage,
   IonProgressBar,
   IonTitle,
   IonToolbar,
 } from "@ionic/react";
+import { carSportOutline, receiptOutline } from "ionicons/icons";
 import { TEXT } from "../../../constants/texts";
 import { useState, useEffect } from "react";
 import { useAlert } from "../../../services/hooks/useAlert";
@@ -27,11 +34,12 @@ import {
 import FormDeleteButton from "../../../components/Form/FormDeleteButton";
 import FormCurrency from "../../../components/Form/FormCurrency";
 import FormToggle from "../../../components/Form/FormToggle";
+import "./CarExpenseAdd.css";
 
 interface CarExpenseAddModalProps {
   closeModal: (response?: CarExpenseModel) => void;
   initialValues?: CarExpenseModel;
-  carId?: string; // opcional
+  carId?: string;
 }
 
 const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
@@ -47,7 +55,6 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
 
   const formInitial = initialCarExpenseValues(initialValues || {});
 
-  // Buscar informações do carro se carId for fornecido
   useEffect(() => {
     if (!carId) return;
 
@@ -69,7 +76,7 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
         if (mounted) {
           // eslint-disable-next-line no-console
           console.error("Erro ao buscar carro:", error);
-          setFetchError("Não foi possível carregar informações do veículo");
+          setFetchError("Nao foi possivel carregar informacoes do veiculo");
         }
       }
     };
@@ -99,16 +106,13 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
     try {
       let responseCarExpense: CarExpenseModel;
 
-      // EDITAR
       if (newCarExpense.id) {
         const url = endpoints.CAR_EXPENSES_EDIT({
           pathVariables: { id: newCarExpense.id },
         });
         const response = await api.put(url, newCarExpense);
         responseCarExpense = response.data;
-      }
-      // CRIAR NOVO
-      else {
+      } else {
         let url: string;
 
         if (replicateForAllCars) {
@@ -183,7 +187,6 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
     ? `${TEXT.edit} ${TEXT.carExpense}`
     : `${TEXT.newCarExpense} ${TEXT.carExpense}`;
 
-  // Ajuste: Garante que a frase fique natural (ex: "Deseja excluir esta despesa?")
   const confirmDeleteMessage =
     (TEXT as any).confirmDeleteExpense ||
     `Deseja excluir esta ${String(TEXT.carExpense || "despesa").toLowerCase()}?`;
@@ -191,15 +194,16 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
   const selectVehicleText =
     (TEXT as any).selectVehicle || `${TEXT.select} ${TEXT.car}`;
 
-  const changeVehicleText = (TEXT as any).changeVehicle || "Trocar veículo";
+  const changeVehicleText = (TEXT as any).changeVehicle || "Trocar veiculo";
 
   return (
     <IonPage id="car-expense-add-page">
-      <IonHeader>
-        <IonToolbar>
+      <IonHeader className="ion-no-border">
+        <IonToolbar className="app-toolbar-clean">
           <IonButtons slot="start">
             <IonButton
-              color="medium"
+              fill="clear"
+              className="app-outline-btn"
               onClick={() => handleClose()}
               disabled={isLoading}
             >
@@ -211,8 +215,8 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
 
           <IonButtons slot="end">
             <IonButton
+              className="app-primary-btn"
               disabled={isLoading}
-              strong={true}
               onClick={handleSubmit(onSubmit)}
             >
               {TEXT.save}
@@ -223,119 +227,182 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
         </IonToolbar>
       </IonHeader>
 
-      <IonContent>
-        <form onSubmit={(e) => e.preventDefault()}>
-          <FormDate
-            id="date-car-expense-add"
-            initialValue={watch("date")}
-            label={TEXT.date}
-            presentation="date"
-            formCallBack={(value: string) => {
-              setValue("date", value, {
-                shouldValidate: true,
-                shouldDirty: true,
-                shouldTouch: true,
-              });
-            }}
-            error={errors.date?.message as any}
-            required
-          />
+      <IonContent className="car-expense-add-content">
+        <div className="app-shell app-shell--compact car-expense-add-shell">
+          <section className="app-section">
+            <div className="car-expense-add-section-head">
+              <h2 className="app-section-title">{titleText}</h2>
+              <p className="app-section-subtitle">
+                Padronize data, descricao e valor da despesa com o mesmo layout
+                dos demais lancamentos.
+              </p>
+            </div>
 
-          <FormInput
-            label={TEXT.carExpenseName}
-            errorsObj={errors}
-            errorName="name"
-            initialValue={watch("name")}
-            maxlength={50}
-            changeCallback={(value: string) => {
-              setValue("name", value, {
-                shouldValidate: true,
-                shouldDirty: true,
-                shouldTouch: true,
-              });
-            }}
-            required
-          />
-
-          <FormCurrency
-            label={TEXT.value}
-            errorsObj={errors}
-            errorName="cost"
-            initialValue={watch("cost")}
-            maxlength={15}
-            changeCallback={(value: number) => {
-              setValue("cost", value, {
-                shouldValidate: true,
-                shouldDirty: true,
-                shouldTouch: true,
-              });
-            }}
-            required
-          />
-
-          {/* Mostrar seletor de carro apenas para novas despesas */}
-          {!formInitial.id && (
-            <>
-              <FormToggle
-                label={TEXT.replicateExpense}
-                initialValue={replicateForAllCars}
-                changeCallback={handleReplicateToggle}
-                disabled={!!carId}
-              />
-
-              {!replicateForAllCars && (
-                <div className="app-form-page__panel">
-                  {fetchError && (
-                    <div className="app-inline-alert app-inline-alert--danger">
-                      {fetchError}
-                    </div>
-                  )}
-
-                  {!selectedCar && !carId ? (
-                    <>
-                      <h3 className="app-form-page__title">
-                        {selectVehicleText}
-                      </h3>
-                      <CarSelector onSelect={handleCarSelect} />
-                    </>
-                  ) : (
-                    <div className="app-selected-car">
-                      <div>
-                        <strong className="app-selected-car__title">
-                        {selectedCar?.name || "Veículo selecionado"}
-                        </strong>
-                      <div className="app-selected-car__meta">
-                        {selectedCar?.plate || carId || "ID do veículo"}
-                      </div>
-                      </div>
-
-                      {!carId && (
-                        <IonButton
-                          size="small"
-                          fill="outline"
-                          onClick={() => setSelectedCar(null)}
-                        >
-                          {changeVehicleText}
-                        </IonButton>
-                      )}
-                    </div>
-                  )}
+            <IonCard className="app-panel-card">
+              <IonCardHeader className="app-panel-header">
+                <div className="app-soft-icon">
+                  <IonIcon icon={receiptOutline} />
                 </div>
-              )}
-            </>
-          )}
-        </form>
+                <div className="app-panel-header__content">
+                  <IonCardTitle className="app-panel-title">
+                    Dados da despesa
+                  </IonCardTitle>
+                  <IonCardSubtitle className="app-panel-subtitle">
+                    Informe os campos principais e, se necessario, replique para
+                    toda a frota.
+                  </IonCardSubtitle>
+                </div>
+              </IonCardHeader>
+              <IonCardContent>
+                <form
+                  className="app-form-grid car-expense-add-form"
+                  onSubmit={(e) => e.preventDefault()}
+                >
+                  <div className="car-expense-add-field">
+                    <FormDate
+                      id="date-car-expense-add"
+                      initialValue={watch("date")}
+                      label={TEXT.date}
+                      presentation="date"
+                      formCallBack={(value: string) => {
+                        setValue("date", value, {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                          shouldTouch: true,
+                        });
+                      }}
+                      error={errors.date?.message as any}
+                      required
+                    />
+                  </div>
 
-        {formInitial.id && (
-          <FormDeleteButton
-            label={`${TEXT.delete} ${String(
-              TEXT.carExpense
-            ).toLowerCase()}`}
-            message={confirmDeleteMessage}
-            callBackFunc={onDelete}
-            disabled={isLoading}
-          />
-        )}
+                  <div className="car-expense-add-field">
+                    <FormInput
+                      label={TEXT.carExpenseName}
+                      errorsObj={errors}
+                      errorName="name"
+                      initialValue={watch("name")}
+                      maxlength={50}
+                      changeCallback={(value: string) => {
+                        setValue("name", value, {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                          shouldTouch: true,
+                        });
+                      }}
+                      required
+                    />
+                  </div>
+
+                  <div className="car-expense-add-field">
+                    <FormCurrency
+                      label={TEXT.value}
+                      errorsObj={errors}
+                      errorName="cost"
+                      initialValue={watch("cost")}
+                      maxlength={15}
+                      changeCallback={(value: number) => {
+                        setValue("cost", value, {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                          shouldTouch: true,
+                        });
+                      }}
+                      required
+                    />
+                  </div>
+
+                  {!formInitial.id && (
+                    <div className="car-expense-add-field">
+                      <FormToggle
+                        label={TEXT.replicateExpense}
+                        initialValue={replicateForAllCars}
+                        changeCallback={handleReplicateToggle}
+                        disabled={!!carId}
+                      />
+                    </div>
+                  )}
+                </form>
+              </IonCardContent>
+            </IonCard>
+
+            {!formInitial.id && !replicateForAllCars && (
+              <>
+                {!selectedCar && !carId && (
+                  <IonCard className="app-panel-card">
+                    <IonCardHeader className="app-panel-header">
+                      <div className="app-soft-icon">
+                        <IonIcon icon={carSportOutline} />
+                      </div>
+                      <div className="app-panel-header__content">
+                        <IonCardTitle className="app-panel-title">
+                          {selectVehicleText}
+                        </IonCardTitle>
+                        <IonCardSubtitle className="app-panel-subtitle">
+                          Vincule a despesa a um veiculo especifico.
+                        </IonCardSubtitle>
+                      </div>
+                    </IonCardHeader>
+                    <IonCardContent>
+                      {fetchError && (
+                        <div className="app-inline-alert app-inline-alert--danger car-expense-add-alert">
+                          {fetchError}
+                        </div>
+                      )}
+
+                      <CarSelector onSelect={handleCarSelect} />
+                    </IonCardContent>
+                  </IonCard>
+                )}
+
+                {(selectedCar || carId) && (
+                  <IonCard className="app-panel-card app-panel-card--soft">
+                    <IonCardHeader className="app-panel-header">
+                      <div className="app-soft-icon">
+                        <IonIcon icon={carSportOutline} />
+                      </div>
+                      <div className="app-panel-header__content">
+                        <IonCardTitle className="app-panel-title">
+                          {selectedCar?.name || "Veiculo selecionado"}
+                        </IonCardTitle>
+                        <IonCardSubtitle className="app-panel-subtitle">
+                          {selectedCar?.plate || carId || "ID do veiculo"}
+                        </IonCardSubtitle>
+                      </div>
+                    </IonCardHeader>
+                    {!carId && (
+                      <IonCardContent>
+                        <div className="car-expense-add-selected-car">
+                          <IonButton
+                            size="small"
+                            fill="clear"
+                            className="app-outline-btn"
+                            onClick={() => setSelectedCar(null)}
+                          >
+                            {changeVehicleText}
+                          </IonButton>
+                        </div>
+                      </IonCardContent>
+                    )}
+                  </IonCard>
+                )}
+              </>
+            )}
+
+            {formInitial.id && (
+              <div className="car-expense-add-delete">
+                <FormDeleteButton
+                  label={`${TEXT.delete} ${String(
+                    TEXT.carExpense
+                  ).toLowerCase()}`}
+                  message={confirmDeleteMessage}
+                  callBackFunc={onDelete}
+                  disabled={isLoading}
+                />
+              </div>
+            )}
+          </section>
+        </div>
       </IonContent>
     </IonPage>
   );

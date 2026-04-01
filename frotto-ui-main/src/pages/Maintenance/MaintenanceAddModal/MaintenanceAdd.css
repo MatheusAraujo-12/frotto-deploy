@@ -1,0 +1,237 @@
+.maintenance-add-shell {
+  gap: 16px;
+}
+
+.maintenance-add-section-head {
+  display: grid;
+  gap: 4px;
+}
+
+.maintenance-add-form {
+  display: grid;
+  gap: 14px;
+}
+
+.maintenance-add-form__main {
+  display: grid;
+  gap: 12px;
+}
+
+.maintenance-add-field {
+  min-width: 0;
+}
+
+.maintenance-add-car-selector {
+  padding: 0;
+}
+
+.maintenance-add-car-summary {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.maintenance-add-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.maintenance-add-summary__label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: var(--ion-color-medium);
+}
+
+.maintenance-add-summary__value {
+  color: var(--ion-text-color);
+  font-size: 0.94rem;
+  line-height: 1.35;
+}
+
+.maintenance-add-services-list {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  margin-top: 2px;
+  background: transparent;
+}
+
+.maintenance-add-services-list__header {
+  min-height: auto;
+  padding-inline-start: 0;
+  padding-inline-end: 0;
+  margin-bottom: 2px;
+}
+
+.maintenance-add-services-list__header ion-label h2 {
+  margin: 0;
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: var(--ion-text-color);
+}
+
+.maintenance-add-services-list__total {
+  margin-left: 8px;
+  font-weight: 700;
+}
+
+.maintenance-add-services-list__item {
+  --background: var(--app-card-strong);
+  --border-color: transparent;
+  --inner-border-width: 0;
+  --inner-box-shadow: none;
+  --padding-start: 12px;
+  --inner-padding-end: 12px;
+  --min-height: auto;
+  margin: 0;
+  border: 1px solid var(--ion-border-color);
+  border-radius: 12px;
+}
+
+.maintenance-add-services-list__item::part(native) {
+  background: var(--app-card-strong);
+  border-radius: 12px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.maintenance-add-services-list__label,
+.maintenance-add-services-list__value {
+  margin: 0;
+}
+
+.maintenance-add-services-list__name {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ion-text-color);
+}
+
+.maintenance-add-services-list__desc {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--ion-color-medium);
+}
+
+.maintenance-add-services-list__value {
+  text-align: right;
+}
+
+.maintenance-add-services-list__value ion-text {
+  font-weight: 700;
+  color: var(--ion-text-color);
+}
+
+.maintenance-add-delete {
+  margin: 0;
+}
+
+.maintenance-add-form ion-item {
+  --background: var(--app-card-strong);
+  --border-color: transparent;
+  --inner-border-width: 0;
+  --highlight-color-focused: var(--ion-color-tertiary);
+  --padding-start: 12px;
+  --inner-padding-end: 10px;
+  border: 1px solid var(--ion-border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 0;
+}
+
+.maintenance-add-form ion-item::part(native) {
+  background: var(--app-card-strong);
+  border-radius: 12px;
+  padding-left: 12px;
+  padding-right: 10px;
+  min-height: 62px;
+}
+
+.maintenance-add-form ion-item.ion-focused {
+  border-color: rgba(var(--ion-color-tertiary-rgb), 0.5);
+  box-shadow: 0 0 0 2px rgba(var(--ion-color-tertiary-rgb), 0.14);
+}
+
+.maintenance-add-form ion-label {
+  font-weight: 600 !important;
+  color: var(--ion-text-color) !important;
+  opacity: 0.88;
+}
+
+.maintenance-add-reminders {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+}
+
+.maintenance-add-reminders__header {
+  min-height: auto;
+  padding-inline-start: 0;
+  padding-inline-end: 0;
+  margin-bottom: 2px;
+}
+
+.maintenance-add-reminders__header ion-label h2 {
+  margin: 0;
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: var(--ion-text-color);
+}
+
+.maintenance-add-reminders ion-item {
+  margin: 0;
+}
+
+.maintenance-add-reminders__item {
+  --background: var(--app-card-strong);
+  --border-color: transparent;
+  --inner-border-width: 0;
+  --inner-box-shadow: none;
+  --padding-start: 12px;
+  --inner-padding-end: 12px;
+  --min-height: auto;
+  border: 1px solid var(--ion-border-color);
+  border-radius: 12px;
+}
+
+.maintenance-add-reminders__item::part(native) {
+  background: var(--app-card-strong);
+  border-radius: 12px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.maintenance-add-reminders__message {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ion-text-color);
+}
+
+.maintenance-add-reminders__date {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  color: var(--ion-color-medium);
+}
+
+.maintenance-add-reminders-empty {
+  margin: 0;
+}
+
+.maintenance-add-empty-state {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .maintenance-add-summary {
+    grid-template-columns: 1fr;
+  }
+}

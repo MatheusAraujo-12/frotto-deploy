@@ -37,8 +37,11 @@ import {
 } from "../../components/List/IonLabekRight";
 import DriverPendencyAdd from "./DriverPendencyAddModal/DriverPendencyAdd";
 import { currencyFormat } from "../../services/currencyFormat";
-import { add, checkmarkDoneCircleOutline } from "ionicons/icons";
+import { add, checkmarkDoneCircleOutline, createOutline } from "ionicons/icons";
 import { formatDateView } from "../../services/dateFormat";
+import DriverPendencyPaymentModal, {
+  DriverPendencyPaymentRequest,
+} from "./DriverPendencyPaymentModal";
 
 interface DriverPendencyDetail
   extends RouteComponentProps<{
@@ -59,6 +62,10 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
     DriverPendencyModel[]
   >([]);
   const [debtSummary, setDebtSummary] = useState<DriverDebtSummaryModel>({});
+  const [paymentTarget, setPaymentTarget] = useState<
+    DriverPendencyModel | undefined
+  >(undefined);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
   useEffect(() => {
     if (!location.search.includes("modalOpened=true")) {
@@ -190,28 +197,88 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
     [buildSummaryFromList]
   );
 
-  const handleSettlePendency = async (driverPendency: DriverPendencyModel) => {
+  const applyPendencyResponse = useCallback(
+    (response?: DriverPendencyModel) => {
+      if (!response) {
+        return;
+      }
+
+      setDriverPendencyList((prev) => {
+        if (response.delete && response.id !== undefined) {
+          const updatedList = prev.filter((item) => item.id !== response.id);
+          refreshSummaryFromList(updatedList);
+          return updatedList;
+        }
+
+        const exists = prev.some((item) => item.id === response.id);
+        if (exists) {
+          const updatedList = prev.map((item) =>
+            item.id === response.id ? response : item
+          );
+          refreshSummaryFromList(updatedList);
+          return updatedList;
+        }
+
+        const updatedList = [response, ...prev];
+        refreshSummaryFromList(updatedList);
+        return updatedList;
+      });
+    },
+    [refreshSummaryFromList]
+  );
+
+  const openPendencyEditor = useCallback(
+    (driverPendency: DriverPendencyModel) => {
+      setModalDriverPendencyValue(driverPendency);
+      setIsModalOpen(true);
+      nav.push(nav.location.pathname + "?modalOpened=true");
+    },
+    [nav]
+  );
+
+  const openPaymentModal = useCallback((driverPendency: DriverPendencyModel) => {
     if (!driverPendency.id || isPaid(driverPendency.status)) {
+      return;
+    }
+    setPaymentTarget(driverPendency);
+    setIsPaymentModalOpen(true);
+  }, []);
+
+  const closePaymentModal = useCallback(() => {
+    if (isLoading) {
+      return;
+    }
+    setIsPaymentModalOpen(false);
+    setPaymentTarget(undefined);
+  }, [isLoading]);
+
+  const handleSettlePendency = async (payment: DriverPendencyPaymentRequest) => {
+    if (!paymentTarget?.id || isPaid(paymentTarget.status)) {
       return;
     }
     setisLoading(true);
     try {
+      const endpoint =
+        payment.mode === "partial"
+          ? endpoints.DRIVER_PENDENCIES_PAYMENTS({
+              pathVariables: {
+                id: paymentTarget.id,
+              },
+            })
+          : endpoints.DRIVER_PENDENCIES_PAY({
+              pathVariables: {
+                id: paymentTarget.id,
+              },
+            });
+
       const response = await api.post(
-        endpoints.DRIVER_PENDENCIES_PAY({
-          pathVariables: {
-            id: driverPendency.id,
-          },
-        }),
-        {}
+        endpoint,
+        payment.mode === "partial" ? { amount: payment.amount } : {}
       );
       const updatedPendency = response.data as DriverPendencyModel;
-      setDriverPendencyList((prev) => {
-        const updatedList = prev.map((item) =>
-          item.id === updatedPendency.id ? updatedPendency : item
-        );
-        refreshSummaryFromList(updatedList);
-        return updatedList;
-      });
+      applyPendencyResponse(updatedPendency);
+      setIsPaymentModalOpen(false);
+      setPaymentTarget(undefined);
       setisLoading(false);
     } catch (error) {
       setisLoading(false);
@@ -223,28 +290,9 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
     setIsModalOpen(false);
     nav.goBack();
 
-    if (!response) return;
-
-    setDriverPendencyList((prev) => {
-      if (response.delete && response.id !== undefined) {
-        const updatedList = prev.filter((item) => item.id !== response.id);
-        refreshSummaryFromList(updatedList);
-        return updatedList;
-      }
-      const exists = prev.some((item) => item.id === response.id);
-      if (exists) {
-        const updatedList = prev.map((item) =>
-          item.id === response.id ? response : item
-        );
-        refreshSummaryFromList(updatedList);
-        return updatedList;
-      }
-      const updatedList = [response, ...prev];
-      refreshSummaryFromList(updatedList);
-      return updatedList;
-    });
+    applyPendencyResponse(response);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshSummaryFromList]);
+  }, [applyPendencyResponse, nav]);
 
   return (
     <IonPage id="driver-pendencies-page">
@@ -303,15 +351,10 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
               return (
                 <IonItem
                   className="app-nested-list__item"
-                  key={index}
-                  button={!paid}
+                  key={driverPendency.id ?? index}
+                  button
                   onClick={() => {
-                    if (paid) {
-                      return;
-                    }
-                    setModalDriverPendencyValue(driverPendency);
-                    setIsModalOpen(true);
-                    nav.push(nav.location.pathname + "?modalOpened=true");
+                    openPendencyEditor(driverPendency);
                   }}
                 >
                   <IonLabelLeft class="ion-text-wrap app-nested-list__lead">
@@ -333,15 +376,27 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                         {TEXT.settledAt}: {formatDateView(driverPendency.paidAt)}
                       </p>
                     )}
-                    {!paid && (
-                      <div className="app-nested-list__actions">
+                    <div className="app-nested-list__actions">
+                      <IonButton
+                        className="app-semantic-btn app-semantic--neutral"
+                        size="small"
+                        fill="outline"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openPendencyEditor(driverPendency);
+                        }}
+                      >
+                        <IonIcon icon={createOutline} slot="start" />
+                        {TEXT.edit}
+                      </IonButton>
+                      {!paid && (
                         <IonButton
                           className="app-semantic-btn app-semantic--success"
                           size="small"
                           fill="outline"
                           onClick={(event) => {
                             event.stopPropagation();
-                            handleSettlePendency(driverPendency);
+                            openPaymentModal(driverPendency);
                           }}
                         >
                           <IonIcon
@@ -350,8 +405,8 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                           />
                           {TEXT.settleDebt}
                         </IonButton>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </IonLabekRight>
                 </IonItem>
               );
@@ -365,6 +420,14 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
           driverCarId={match.params.id}
           closeModal={closeModal}
           initialValues={modalDriverPendencyValue}
+        />
+      </IonModal>
+      <IonModal isOpen={isPaymentModalOpen} backdropDismiss={false}>
+        <DriverPendencyPaymentModal
+          pendency={paymentTarget}
+          isLoading={isLoading}
+          closeModal={closePaymentModal}
+          onSubmit={handleSettlePendency}
         />
       </IonModal>
     </IonPage>

@@ -1,0 +1,41 @@
+#car-reminder-add-page .reminder-add-content {
+  --padding-bottom: 20px;
+}
+
+.reminder-add-shell {
+  gap: 16px;
+}
+
+.reminder-add-section-head {
+  display: grid;
+  gap: 4px;
+}
+
+.reminder-add-alert {
+  margin-bottom: 12px;
+}
+
+.reminder-add-selected-car {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.reminder-add-form {
+  gap: 10px;
+}
+
+.reminder-add-form > div {
+  padding: 0 !important;
+}
+
+.reminder-add-delete .ion-margin-top {
+  margin-top: 0 !important;
+}
+
+.reminder-add-tips {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  color: var(--ion-color-medium);
+}

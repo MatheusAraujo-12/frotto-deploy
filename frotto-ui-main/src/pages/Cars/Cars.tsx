@@ -133,7 +133,8 @@ const buildDashboardSummary = (
   const allCars = extractListData<CarListItemData>(allCarsData);
   const normalizedAllCars = normalizeCars(allCars);
   const carsForStatus = allCarsData !== undefined ? normalizedAllCars : activeCars;
-  const operationalCars = carsForStatus.filter(isOperationalCar);
+  const nonDeletedCars = carsForStatus.filter((car) => car.active !== false);
+  const operationalCars = nonDeletedCars.filter(isOperationalCar);
   const rentedCars = operationalCars.filter((car) => Boolean(car.driverName)).length;
   const availableCars = Math.max(operationalCars.length - rentedCars, 0);
   const expenseItems = extractListData<CarExpenseModel>(expensesData);
@@ -148,11 +149,11 @@ const buildDashboardSummary = (
       : undefined;
 
   return {
-    totalCars: allCarsData !== undefined ? normalizedAllCars.length : undefined,
+    totalCars: allCarsData !== undefined ? nonDeletedCars.length : undefined,
     activeCars: operationalCars.length,
     inactiveCars:
       allCarsData !== undefined
-        ? Math.max(normalizedAllCars.length - operationalCars.length, 0)
+        ? Math.max(nonDeletedCars.length - operationalCars.length, 0)
         : undefined,
     rentedCars,
     availableCars,

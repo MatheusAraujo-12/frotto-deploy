@@ -1,0 +1,50 @@
+#car-expense-add-page .car-expense-add-content {
+  --padding-bottom: 20px;
+}
+
+.car-expense-add-shell {
+  gap: 16px;
+}
+
+.car-expense-add-section-head {
+  display: grid;
+  gap: 4px;
+}
+
+.car-expense-add-alert {
+  margin-bottom: 12px;
+}
+
+.car-expense-add-selected-car {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.car-expense-add-form {
+  display: grid;
+  gap: 12px;
+}
+
+.car-expense-add-field {
+  display: grid;
+  gap: 4px;
+}
+
+.car-expense-add-field > div {
+  padding: 0 !important;
+}
+
+.car-expense-add-field > ion-text.ion-padding-start {
+  margin: -2px 4px 0 10px;
+  font-size: 0.82rem;
+}
+
+.car-expense-add-delete .ion-margin-top {
+  margin-top: 0 !important;
+}
+
+@media (max-width: 640px) {
+  .car-expense-add-form {
+    gap: 10px;
+  }
+}

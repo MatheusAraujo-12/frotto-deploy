@@ -1,13 +1,24 @@
 import {
   IonButton,
   IonButtons,
+  IonCard,
+  IonCardContent,
+  IonCardHeader,
+  IonCardSubtitle,
+  IonCardTitle,
   IonContent,
   IonHeader,
+  IonIcon,
   IonPage,
   IonProgressBar,
   IonTitle,
   IonToolbar,
 } from "@ionic/react";
+import {
+  bulbOutline,
+  carSportOutline,
+  notificationsOutline,
+} from "ionicons/icons";
 import { TEXT } from "../../../constants/texts";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAlert } from "../../../services/hooks/useAlert";
@@ -23,6 +34,7 @@ import {
 } from "./reminderAddValidationSchema";
 import FormDeleteButton from "../../../components/Form/FormDeleteButton";
 import FormInputArea from "../../../components/Form/FormInputArea";
+import "./reminderAdd.css";
 
 interface ReminderAddModalProps {
   closeModal: (response?: ReminderModel) => void;
@@ -59,7 +71,6 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
 
   const message = watch("message") || "";
 
-  // Buscar informações do carro se carId for fornecido
   useEffect(() => {
     if (!carId) return;
 
@@ -80,12 +91,14 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
 
         setSelectedCar(response.data);
       } catch (error: any) {
-        if (error?.name === "AbortError" || error?.code === "ERR_CANCELED") return;
+        if (error?.name === "AbortError" || error?.code === "ERR_CANCELED") {
+          return;
+        }
 
         // eslint-disable-next-line no-console
         console.error("Erro ao buscar carro:", error);
-        setFetchError("Não foi possível carregar informações do veículo");
-        showErrorAlert("Erro ao carregar dados do veículo");
+        setFetchError("Nao foi possivel carregar informacoes do veiculo");
+        showErrorAlert("Erro ao carregar dados do veiculo");
       }
     };
 
@@ -96,7 +109,6 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
     };
   }, [carId, showErrorAlert]);
 
-  // Resetar formulário quando initialValues mudar
   useEffect(() => {
     if (initialValues) {
       reset(initialReminderValues(initialValues));
@@ -121,14 +133,12 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
         let responseReminder: ReminderModel;
 
         if (formData.id) {
-          // EDITAR
           const url = endpoints.REMINDERS_EDIT({
             pathVariables: { id: formData.id },
           });
           const response = await api.put(url, formData);
           responseReminder = response.data;
         } else {
-          // CRIAR NOVO
           const url = endpoints.REMINDERS({
             pathVariables: { id: targetCarId },
           });
@@ -199,10 +209,15 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
 
   return (
     <IonPage id="car-reminder-add-page">
-      <IonHeader>
-        <IonToolbar>
+      <IonHeader className="ion-no-border">
+        <IonToolbar className="app-toolbar-clean">
           <IonButtons slot="start">
-            <IonButton color="medium" onClick={handleClose} disabled={isLoading}>
+            <IonButton
+              fill="clear"
+              className="app-outline-btn"
+              onClick={handleClose}
+              disabled={isLoading}
+            >
               {TEXT.cancel}
             </IonButton>
           </IonButtons>
@@ -211,8 +226,8 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
 
           <IonButtons slot="end">
             <IonButton
+              className="app-primary-btn"
               disabled={isLoading || !isValid || (!isDirty && !!formInitial.id)}
-              strong={true}
               onClick={handleSubmit(onSubmit)}
             >
               {TEXT.save}
@@ -223,94 +238,154 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
         </IonToolbar>
       </IonHeader>
 
-      <IonContent>
-        <form onSubmit={(e) => e.preventDefault()}>
-          {/* Seletor de Carro (apenas se não veio com carId) */}
-          {!selectedCar && !carId && (
-            <div className="app-form-page__panel">
-              {fetchError && (
-                <div className="app-inline-alert app-inline-alert--danger">
-                  {fetchError}
-                </div>
-              )}
-
-              <h3 className="app-form-page__title">
-                {selectVehicleText}
-              </h3>
-
-              <CarSelector onSelect={handleSelectCar} />
+      <IonContent className="reminder-add-content">
+        <div className="app-shell app-shell--compact reminder-add-shell">
+          <section className="app-section">
+            <div className="reminder-add-section-head">
+              <h2 className="app-section-title">{titleText}</h2>
+              <p className="app-section-subtitle">
+                Organize lembretes com o mesmo padrao visual dos demais modulos
+                de cadastro.
+              </p>
             </div>
-          )}
 
-          {/* Info do Carro Selecionado */}
-          {selectedCar && (
-            <div className="app-selected-car">
-              <div>
-                  <strong className="app-selected-car__title">
-                    {selectedCar.name}
-                  </strong>
-                  <div className="app-selected-car__meta">
-                    {selectedCar.plate || "Sem placa"}
+            {!selectedCar && !carId && (
+              <IonCard className="app-panel-card">
+                <IonCardHeader className="app-panel-header">
+                  <div className="app-soft-icon">
+                    <IonIcon icon={carSportOutline} />
                   </div>
-                </div>
+                  <div className="app-panel-header__content">
+                    <IonCardTitle className="app-panel-title">
+                      {selectVehicleText}
+                    </IonCardTitle>
+                    <IonCardSubtitle className="app-panel-subtitle">
+                      Escolha o veiculo para salvar o lembrete.
+                    </IonCardSubtitle>
+                  </div>
+                </IonCardHeader>
+                <IonCardContent>
+                  {fetchError && (
+                    <div className="app-inline-alert app-inline-alert--danger reminder-add-alert">
+                      {fetchError}
+                    </div>
+                  )}
 
-              {!carId && (
-                <IonButton
-                  size="small"
-                  fill="clear"
-                  color="medium"
-                  onClick={handleResetCar}
-                >
-                  Trocar
-                </IonButton>
-              )}
-            </div>
-          )}
+                  <CarSelector onSelect={handleSelectCar} />
+                </IonCardContent>
+              </IonCard>
+            )}
 
-          {/* Formulário (apenas se tiver carro selecionado ou carId) */}
-          {(selectedCar || carId) && (
-            <FormInputArea
-              label={TEXT.reminder}
-              errorsObj={errors}
-              errorName="message"
-              initialValue={message}
-              maxlength={200}
-              rows={4}
-              placeholder="Ex: Trocar óleo a cada 10.000km, Calibrar pneus mensalmente..."
-              changeCallback={(value: string) => {
-                setValue("message", value, { shouldValidate: true });
-              }}
-              required
-              disabled={isLoading}
-              counter={true}
-              maxCounter={200}
-            />
-          )}
-        </form>
+            {selectedCar && !carId && (
+              <IonCard className="app-panel-card app-panel-card--soft">
+                <IonCardHeader className="app-panel-header">
+                  <div className="app-soft-icon">
+                    <IonIcon icon={carSportOutline} />
+                  </div>
+                  <div className="app-panel-header__content">
+                    <IonCardTitle className="app-panel-title">
+                      {selectedCar.name}
+                    </IonCardTitle>
+                    <IonCardSubtitle className="app-panel-subtitle">
+                      {selectedCar.plate || "Sem placa"}
+                    </IonCardSubtitle>
+                  </div>
+                </IonCardHeader>
+                <IonCardContent>
+                  <div className="reminder-add-selected-car">
+                    <IonButton
+                      size="small"
+                      fill="clear"
+                      className="app-outline-btn"
+                      onClick={handleResetCar}
+                    >
+                      Trocar veiculo
+                    </IonButton>
+                  </div>
+                </IonCardContent>
+              </IonCard>
+            )}
 
-        {/* Botão de deletar (apenas para edição) */}
-        {formInitial.id && (
-          <FormDeleteButton
-            label={`${TEXT.delete} ${String(TEXT.reminder).toLowerCase()}`}
-            message={confirmDeleteMessage}
-            callBackFunc={onDelete}
-            disabled={isLoading}
-          />
-        )}
+            {(selectedCar || carId) && (
+              <IonCard className="app-panel-card">
+                <IonCardHeader className="app-panel-header">
+                  <div className="app-soft-icon">
+                    <IonIcon icon={notificationsOutline} />
+                  </div>
+                  <div className="app-panel-header__content">
+                    <IonCardTitle className="app-panel-title">
+                      Conteudo do lembrete
+                    </IonCardTitle>
+                    <IonCardSubtitle className="app-panel-subtitle">
+                      Registre uma orientacao clara e facil de consultar depois.
+                    </IonCardSubtitle>
+                  </div>
+                </IonCardHeader>
+                <IonCardContent>
+                  <form
+                    className="app-form-grid reminder-add-form"
+                    onSubmit={(e) => e.preventDefault()}
+                  >
+                    <FormInputArea
+                      label={TEXT.reminder}
+                      errorsObj={errors}
+                      errorName="message"
+                      initialValue={message}
+                      maxlength={200}
+                      rows={4}
+                      placeholder="Ex: Trocar oleo a cada 10.000km, calibrar pneus mensalmente..."
+                      changeCallback={(value: string) => {
+                        setValue("message", value, { shouldValidate: true });
+                      }}
+                      required
+                      disabled={isLoading}
+                      counter={true}
+                      maxCounter={200}
+                    />
+                  </form>
+                </IonCardContent>
+              </IonCard>
+            )}
 
-        {/* Dicas */}
-        {!formInitial.id && (selectedCar || carId) && (
-          <div className="app-help-card">
-            <p className="app-help-card__title">Dicas para lembrete:</p>
-            <ul className="app-help-card__list">
-              <li>Troca de óleo a cada 10.000km</li>
-              <li>Calibragem de pneus semanal</li>
-              <li>Revisão anual obrigatória</li>
-              <li>Troca de pastilhas de freio</li>
-              <li>Alinhamento e balanceamento</li>
-            </ul>
-          </div>
-        )}
+            {formInitial.id && (
+              <div className="reminder-add-delete">
+                <FormDeleteButton
+                  label={`${TEXT.delete} ${String(TEXT.reminder).toLowerCase()}`}
+                  message={confirmDeleteMessage}
+                  callBackFunc={onDelete}
+                  disabled={isLoading}
+                />
+              </div>
+            )}
+
+            {!formInitial.id && (selectedCar || carId) && (
+              <IonCard className="app-panel-card app-panel-card--soft">
+                <IonCardHeader className="app-panel-header">
+                  <div className="app-soft-icon">
+                    <IonIcon icon={bulbOutline} />
+                  </div>
+                  <div className="app-panel-header__content">
+                    <IonCardTitle className="app-panel-title">
+                      Dicas de preenchimento
+                    </IonCardTitle>
+                    <IonCardSubtitle className="app-panel-subtitle">
+                      Exemplos curtos para manter os lembretes objetivos.
+                    </IonCardSubtitle>
+                  </div>
+                </IonCardHeader>
+                <IonCardContent>
+                  <ul className="reminder-add-tips">
+                    <li>Troca de oleo a cada 10.000km</li>
+                    <li>Calibragem de pneus semanal</li>
+                    <li>Revisao anual obrigatoria</li>
+                    <li>Troca de pastilhas de freio</li>
+                    <li>Alinhamento e balanceamento</li>
+                  </ul>
+                </IonCardContent>
+              </IonCard>
+            )}
+          </section>
+        </div>
       </IonContent>
     </IonPage>
   );

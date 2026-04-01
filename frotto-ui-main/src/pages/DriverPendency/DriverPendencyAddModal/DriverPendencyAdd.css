@@ -1,0 +1,37 @@
+#driver-pendency-add-page .app-shell {
+  gap: 14px;
+}
+
+.driver-pendency-add-section-head {
+  display: grid;
+  gap: 4px;
+}
+
+.driver-pendency-add-cancel-btn,
+.driver-pendency-add-save-btn {
+  margin: 0;
+}
+
+.driver-pendency-add-lock-note {
+  margin-bottom: 12px;
+}
+
+.driver-pendency-add-form {
+  gap: 10px;
+}
+
+.driver-pendency-add-form > div {
+  padding: 0 !important;
+}
+
+.driver-pendency-add-delete {
+  margin: 0;
+}
+
+.driver-pendency-add-delete .ion-margin-top {
+  margin-top: 0 !important;
+}
+
+.driver-pendency-add-delete ion-button {
+  margin: 0 !important;
+}
