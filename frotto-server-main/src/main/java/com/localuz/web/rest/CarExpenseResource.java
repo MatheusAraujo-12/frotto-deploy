@@ -49,6 +49,12 @@ public class CarExpenseResource {
         this.carRepository = carRepository;
     }
 
+    @GetMapping("/car-expenses/car-all")
+    public List<CarExpense> getAllCarExpensesByCurrentUser() {
+        log.debug("REST request to get all CarExpenses for current user");
+        return carExpenseRepository.findByCurrentUser();
+    }
+
     @GetMapping("/car-expenses/car/{carId}")
     public List<CarExpense> getCarExpenseByCar(@PathVariable Long carId) {
         log.debug("REST request to get CarExpense  by carId : {}", carId);
