@@ -3,8 +3,8 @@ import {
   IonButtons,
   IonContent,
   IonHeader,
+  IonIcon,
   IonItem,
-  IonList,
   IonModal,
   IonPage,
   IonProgressBar,
@@ -21,15 +21,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAlert } from "../../services/hooks/useAlert";
 import { InspectionModel } from "../../constants/CarModels";
 import { filterListObj } from "../../services/filterList";
-import ItemNotFound from "../../components/List/ItemNotFound";
 import { RouteComponentProps } from "react-router";
 import InspectionAdd from "./InspectionAddModal/InspectionAdd";
 import { formatDateView } from "../../services/dateFormat";
-import {
-  IonLabelLeft,
-  IonLabekRight,
-} from "../../components/List/IonLabekRight";
 import { currencyFormat } from "../../services/currencyFormat";
+import { clipboardOutline } from "ionicons/icons";
+import "./Inspections.css";
 
 interface InspectionDetail
   extends RouteComponentProps<{
@@ -100,49 +97,87 @@ const Inspections: React.FC<InspectionDetail> = ({ match }) => {
 
   return (
     <IonPage id="car-inspections-page">
-      <IonHeader>
-        <IonToolbar>
+      <IonHeader className="ion-no-border">
+        <IonToolbar className="app-toolbar-clean">
           <IonButtons slot="start">
             <IonBackButton defaultHref="/menu" />
           </IonButtons>
           <IonTitle>{TEXT.inspections}</IonTitle>
         </IonToolbar>
-        <IonToolbar>
-          <div className="app-toolbar-search">
-            <IonSearchbar
-              debounce={500}
-              placeholder={TEXT.search}
-              onIonChange={(e) => setSearchValue(e.detail.value)}
-            ></IonSearchbar>
-          </div>
+        <IonToolbar className="app-subtoolbar">
+          <IonSearchbar
+            debounce={500}
+            placeholder={TEXT.search}
+            value={searchValue}
+            onIonChange={(e) => setSearchValue(e.detail.value ?? undefined)}
+          ></IonSearchbar>
           {isLoading && <IonProgressBar type="indeterminate"></IonProgressBar>}
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <div className="section-shell">
-          <IonList>
-            {filteredList.map((inspection: InspectionModel, index) => {
-              return (
-                <IonItem
-                  key={index}
-                  button
-                  onClick={() => {
-                    setModalInspection(inspection);
-                    setIsModalOpen(true);
-                  }}
-                >
-                  <IonLabelLeft class="ion-text-wrap">
-                    <h2>{formatDateView(inspection.date)}</h2>
-                    <p>{`${inspection.odometer} ${TEXT.km}`}</p>
-                  </IonLabelLeft>
-                  <IonLabekRight>
-                    <p>{currencyFormat(inspection.cost)}</p>
-                  </IonLabekRight>
-                </IonItem>
-              );
-            })}
-            {!isLoading && filteredList.length === 0 && <ItemNotFound />}
-          </IonList>
+        <div className="app-shell app-shell--compact">
+          <section className="app-section">
+            <div className="inspections-section-head">
+              <h2 className="app-section-title">{TEXT.inspections}</h2>
+              <p className="app-section-subtitle">
+                Histórico de inspeções registradas para este veículo.
+              </p>
+            </div>
+
+            <div className="inspections-list">
+              {filteredList.map((inspection: InspectionModel, index) => {
+                return (
+                  <IonItem
+                    key={inspection.id ?? `inspection-${index}`}
+                    button
+                    detail={false}
+                    lines="none"
+                    className="inspection-list-item"
+                    onClick={() => {
+                      setModalInspection(inspection);
+                      setIsModalOpen(true);
+                    }}
+                  >
+                    <div className="inspection-list-item__wrap">
+                      <div className="app-soft-icon">
+                        <IonIcon icon={clipboardOutline} />
+                      </div>
+
+                      <div className="inspection-list-item__content">
+                        <div className="inspection-list-item__main ion-text-wrap">
+                          <h3 className="inspection-list-item__title">
+                            {formatDateView(inspection.date)}
+                          </h3>
+                          <p className="inspection-list-item__meta">
+                            {inspection.driverName || TEXT.inspection}
+                          </p>
+                          <p className="inspection-list-item__hint">
+                            {`${inspection.odometer || 0} ${TEXT.km}`}
+                          </p>
+                        </div>
+
+                        <div className="inspection-list-item__aside ion-text-wrap">
+                          <p className="inspection-list-item__value">
+                            {currencyFormat(inspection.cost)}
+                          </p>
+                          <p className="inspection-list-item__meta">
+                            {TEXT.totalCost}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </IonItem>
+                );
+              })}
+            </div>
+
+            {!isLoading && filteredList.length === 0 && (
+              <div className="app-empty-state">
+                <strong>{TEXT.noInspection}</strong>
+                <span>Nenhuma inspeção encontrada para os filtros atuais.</span>
+              </div>
+            )}
+          </section>
         </div>
       </IonContent>
       <IonModal isOpen={isModalOpen} backdropDismiss={false}>

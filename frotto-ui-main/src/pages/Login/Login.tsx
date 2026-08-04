@@ -1,7 +1,13 @@
 import {
   IonButton,
+  IonCard,
+  IonCardContent,
+  IonCardHeader,
+  IonCardSubtitle,
+  IonCardTitle,
   IonContent,
   IonHeader,
+  IonIcon,
   IonPage,
   IonProgressBar,
   IonTitle,
@@ -9,6 +15,7 @@ import {
   useIonRouter,
   useIonViewDidEnter,
 } from "@ionic/react";
+import { logInOutline, personAddOutline } from "ionicons/icons";
 import { FieldValues, useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { loginValidationSchema } from "./loginValidationSchema";
@@ -19,6 +26,7 @@ import { useState } from "react";
 import { getToken, setToken } from "../../services/localStorage/localstorage";
 import { useAlert } from "../../services/hooks/useAlert";
 import FormInput from "../../components/Form/FormInput";
+import "./AuthPages.css";
 
 const Login: React.FC = () => {
   const history = useIonRouter();
@@ -62,56 +70,81 @@ const Login: React.FC = () => {
 
   return (
     <IonPage id="login-page">
-      <IonHeader translucent>
-        <IonToolbar>
+      <IonHeader className="ion-no-border">
+        <IonToolbar className="app-toolbar-clean">
           <IonTitle>{TEXT.appTitle}</IonTitle>
           {isLoading && <IonProgressBar type="indeterminate"></IonProgressBar>}
         </IonToolbar>
       </IonHeader>
-      <IonContent className="auth-content" fullscreen>
-        <div className="auth-grid">
-          <section className="auth-card">
-            <div className="auth-logo">
-              <img src={`${publicUrl}/assets/icon/icon.png`} alt={TEXT.appTitle} />
-            </div>
-            <h2>{TEXT.login}</h2>
-            <p>Acesse para acompanhar sua frota na Frotto.</p>
-            <form onSubmit={handleSubmit(onSubmit)}>
-              <FormInput
-                label={TEXT.email}
-                type="email"
-                errorsObj={errors}
-                errorName="email"
-                initialValue={watch("email")}
-                maxlength={50}
-                changeCallback={(value: string) => {
-                  setValue("email", value);
-                }}
-                required
-              />
-              <FormInput
-                label={TEXT.password}
-                type="password"
-                errorsObj={errors}
-                errorName="password"
-                initialValue={watch("password")}
-                maxlength={40}
-                changeCallback={(value: string) => {
-                  setValue("password", value);
-                }}
-                required
-              />
-
-              <div className="auth-actions">
-                <IonButton type="submit" expand="block" disabled={isLoading}>
-                  {TEXT.login}
-                </IonButton>
-                <IonButton expand="block" fill="clear" routerLink="/cadastro">
-                  {TEXT.doRegister}
-                </IonButton>
+      <IonContent className="auth-content">
+        <div className="app-shell app-shell--compact auth-shell">
+          <IonCard className="app-panel-card auth-card">
+            <IonCardHeader className="app-panel-header auth-card__header">
+              <div className="auth-logo">
+                <img
+                  src={`${publicUrl}/assets/icon/icon.png`}
+                  alt={TEXT.appTitle}
+                />
               </div>
-            </form>
-          </section>
+              <div className="app-panel-header__content">
+                <IonCardTitle className="app-panel-title">
+                  {TEXT.login}
+                </IonCardTitle>
+                <IonCardSubtitle className="app-panel-subtitle">
+                  Acesse para acompanhar sua frota na Frotto.
+                </IonCardSubtitle>
+              </div>
+            </IonCardHeader>
+            <IonCardContent>
+              <form className="app-form-grid auth-form" onSubmit={handleSubmit(onSubmit)}>
+                <FormInput
+                  label={TEXT.email}
+                  type="email"
+                  errorsObj={errors}
+                  errorName="email"
+                  initialValue={watch("email")}
+                  maxlength={50}
+                  changeCallback={(value: string) => {
+                    setValue("email", value);
+                  }}
+                  required
+                />
+                <FormInput
+                  label={TEXT.password}
+                  type="password"
+                  errorsObj={errors}
+                  errorName="password"
+                  initialValue={watch("password")}
+                  maxlength={40}
+                  changeCallback={(value: string) => {
+                    setValue("password", value);
+                  }}
+                  required
+                />
+
+                <div className="auth-actions">
+                  <IonButton
+                    className="app-primary-btn"
+                    type="submit"
+                    expand="block"
+                    disabled={isLoading}
+                  >
+                    <IonIcon icon={logInOutline} slot="start" />
+                    {TEXT.login}
+                  </IonButton>
+                  <IonButton
+                    className="app-outline-btn"
+                    expand="block"
+                    fill="clear"
+                    routerLink="/cadastro"
+                  >
+                    <IonIcon icon={personAddOutline} slot="start" />
+                    {TEXT.doRegister}
+                  </IonButton>
+                </div>
+              </form>
+            </IonCardContent>
+          </IonCard>
         </div>
       </IonContent>
     </IonPage>

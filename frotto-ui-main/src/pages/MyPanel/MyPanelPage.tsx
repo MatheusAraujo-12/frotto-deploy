@@ -64,7 +64,7 @@ const EMPTY_ACCOUNT_META: AccountMetaForm = {
 };
 
 const renderSkeleton = () => (
-  <IonCard className="my-panel-card">
+  <IonCard className="app-panel-card">
     <IonCardContent>
       {Array.from({ length: 5 }).map((_, index) => (
         <div key={`my-panel-skeleton-${index}`} className="my-panel-skeleton-line">
@@ -459,17 +459,17 @@ const MyPanelPage: React.FC = () => {
   return (
     <IonPage id="my-panel-page">
       <IonHeader>
-        <IonToolbar>
+        <IonToolbar className="app-toolbar-clean">
           <IonButtons slot="start">
             <IonMenuButton menu="main-menu" autoHide={false} />
           </IonButtons>
           <IonTitle>Meu Painel</IonTitle>
         </IonToolbar>
 
-        <IonToolbar className="my-panel-segment-toolbar">
+        <IonToolbar className="app-subtoolbar">
           <IonSegment
             value={activeTab}
-            className="my-panel-segment"
+            className="app-segment-shell"
             onIonChange={(event) =>
               setActiveTab((event.detail.value as PanelTab) || "pessoal")
             }
@@ -488,20 +488,22 @@ const MyPanelPage: React.FC = () => {
       </IonHeader>
 
       <IonContent fullscreen className="my-panel-content">
-        <div className="section-shell my-panel-shell">
+        <div className="app-shell app-shell--compact">
           {hasLoadError && (
-            <IonCard className="my-panel-card my-panel-error-card">
+            <IonCard className="app-panel-card">
               <IonCardContent>
-                <h3>Não foi possível carregar todos os dados</h3>
-                <p>Você pode tentar novamente agora ou continuar preenchendo o formulário.</p>
-                <IonButton
-                  className="app-semantic-btn app-semantic--neutral"
-                  size="small"
-                  fill="outline"
-                  onClick={loadProfile}
-                >
-                  Tentar novamente
-                </IonButton>
+                <div className="app-empty-state">
+                  <strong>Não foi possível carregar todos os dados</strong>
+                  <span>Você pode tentar novamente agora ou continuar preenchendo o formulário.</span>
+                  <IonButton
+                    className="app-semantic-btn app-semantic--neutral"
+                    size="small"
+                    fill="outline"
+                    onClick={loadProfile}
+                  >
+                    Tentar novamente
+                  </IonButton>
+                </div>
               </IonCardContent>
             </IonCard>
           )}
@@ -548,9 +550,9 @@ const MyPanelPage: React.FC = () => {
         </div>
       </IonContent>
 
-      <IonFooter translucent className="my-panel-footer">
+      <IonFooter className="app-footer-bar">
         <IonToolbar>
-          <div className="my-panel-footer-inner">
+          <div className="app-footer-bar__inner">
             <IonButton
               className="app-semantic-btn app-semantic--success"
               expand="block"

@@ -1,14 +1,21 @@
 import {
   IonButton,
   IonButtons,
+  IonCard,
+  IonCardContent,
+  IonCardHeader,
+  IonCardSubtitle,
+  IonCardTitle,
   IonContent,
   IonHeader,
+  IonIcon,
   IonPage,
   IonProgressBar,
   IonTitle,
   IonToolbar,
   useIonRouter,
 } from "@ionic/react";
+import { carSportOutline } from "ionicons/icons";
 import { TEXT } from "../../../constants/texts";
 import { useState } from "react";
 import { useAlert } from "../../../services/hooks/useAlert";
@@ -117,18 +124,22 @@ const CarAdd: React.FC<CarAddModalProps> = ({ closeModal, initialValues }) => {
 
   return (
     <IonPage id="car-add-page">
-      <IonHeader>
-        <IonToolbar>
+      <IonHeader className="ion-no-border">
+        <IonToolbar className="app-toolbar-clean">
           <IonButtons slot="start">
-            <IonButton color="danger" onClick={() => closeModal()}>
+            <IonButton
+              fill="clear"
+              className="app-outline-btn"
+              onClick={() => closeModal()}
+            >
               {TEXT.cancel}
             </IonButton>
           </IonButtons>
           <IonTitle>{TEXT.addCar}</IonTitle>
           <IonButtons slot="end">
             <IonButton
+              className="app-primary-btn"
               disabled={isLoading}
-              strong={true}
               onClick={handleSubmit(onSubmit)}
             >
               {TEXT.save}
@@ -138,157 +149,186 @@ const CarAdd: React.FC<CarAddModalProps> = ({ closeModal, initialValues }) => {
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <form>
-          <FormInput
-            label="Marca"
-            errorsObj={errors}
-            errorName="brand"
-            initialValue={watch("brand") ?? ""}
-            maxlength={60}
-            changeCallback={(value: string) => {
-              setValue("brand", value, {
-                shouldValidate: true,
-                shouldDirty: true,
-                shouldTouch: true,
-              });
-            }}
-          />
-          <FormInput
-            label={TEXT.model}
-            errorsObj={errors}
-            errorName="model"
-            initialValue={watch("model") ?? ""}
-            maxlength={60}
-            changeCallback={(value: string) => {
-              setValue("model", value, {
-                shouldValidate: true,
-                shouldDirty: true,
-                shouldTouch: true,
-              });
-            }}
-          />
-          <FormInput
-            label={TEXT.plate}
-            errorsObj={errors}
-            errorName="plate"
-            initialValue={watch("plate")}
-            maxlength={15}
-            changeCallback={(value: string) => {
-              setValue("plate", value);
-            }}
-            required
-          />
-          <FormInput
-            label={TEXT.odometer}
-            errorsObj={errors}
-            errorName="odometer"
-            initialValue={watch("odometer")}
-            maxlength={15}
-            type="number"
-            changeCallback={(value: number) => {
-              setValue("odometer", value);
-            }}
-            required
-          />
-          <FormInput
-            label={TEXT.group}
-            errorsObj={errors}
-            errorName="group"
-            initialValue={watch("group")}
-            maxlength={20}
-            changeCallback={(value: string) => {
-              setValue("group", value);
-            }}
-            required
-          />
-          <FormSelect
-            label={TEXT.adminStatus}
-            options={CAR_ADMIN_STATUS_OPTIONS}
-            errorsObj={errors}
-            errorName="adminStatus"
-            initialValue={watch("adminStatus")}
-            changeCallback={(value: string) => {
-              setValue("adminStatus", value as CarAdminStatus);
-            }}
-            required
-          />
-          <FormSelect
-            label={TEXT.color}
-            options={COLORS}
-            errorsObj={errors}
-            errorName="color"
-            initialValue={watch("color")}
-            changeCallback={(value: string) => {
-              setValue("color", value);
-            }}
-            required
-          />
-          <FormSelect
-            label={TEXT.commissionType}
-            options={COMMISSION_TYPES}
-            errorsObj={errors}
-            errorName="commissionType"
-            initialValue={watch("commissionType")}
-            changeCallback={(value: string) => {
-              setValue("commissionType", value as CommissionType);
-            }}
-            required
-          />
-          {watch("commissionType") === "PERCENT_PROFIT" && (
-            <FormInput
-              label={TEXT.commissionPercent}
-              errorsObj={errors}
-              errorName="commissionPercent"
-              initialValue={watch("commissionPercent")}
-              type="number"
-              changeCallback={(value: string) => {
-                const parsed = Number(String(value).replace(",", "."));
-                setValue("commissionPercent", Number.isNaN(parsed) ? 0 : parsed);
-              }}
-              required
-            />
-          )}
-          {watch("commissionType") === "FIXED" && (
-            <FormCurrency
-              label={TEXT.commissionFixed}
-              errorsObj={errors}
-              errorName="commissionFixed"
-              initialValue={watch("commissionFixed")}
-              maxlength={15}
-              changeCallback={(value: number) => {
-                setValue("commissionFixed", value);
-              }}
-              required
-            />
-          )}
-          <FormCurrency
-            label={TEXT.initialValue}
-            errorsObj={errors}
-            errorName="initialValue"
-            initialValue={watch("initialValue")}
-            maxlength={15}
-            changeCallback={(value: number) => {
-              setValue("initialValue", value);
-            }}
-          />
-          <FormDate
-            id="year-car-add"
-            initialValue={watch("year").toString()}
-            label={TEXT.year}
-            presentation="year"
-            formCallBack={(value: string) => {
-              setValue("year", Number(value));
-            }}
-          />
-        </form>
+        <div className="app-shell app-shell--compact">
+          <section className="app-section">
+            <IonCard className="app-panel-card">
+              <IonCardHeader className="app-panel-header">
+                <div className="app-soft-icon">
+                  <IonIcon icon={carSportOutline} />
+                </div>
+                <div className="app-panel-header__content">
+                  <IonCardTitle className="app-panel-title">
+                    {TEXT.addCar}
+                  </IonCardTitle>
+                  <IonCardSubtitle className="app-panel-subtitle">
+                    Informe os dados do veiculo.
+                  </IonCardSubtitle>
+                </div>
+              </IonCardHeader>
+              <IonCardContent>
+                <form
+                  className="app-form-grid"
+                  onSubmit={(e) => e.preventDefault()}
+                >
+                  <FormInput
+                    label="Marca"
+                    errorsObj={errors}
+                    errorName="brand"
+                    initialValue={watch("brand") ?? ""}
+                    maxlength={60}
+                    changeCallback={(value: string) => {
+                      setValue("brand", value, {
+                        shouldValidate: true,
+                        shouldDirty: true,
+                        shouldTouch: true,
+                      });
+                    }}
+                  />
+                  <FormInput
+                    label={TEXT.model}
+                    errorsObj={errors}
+                    errorName="model"
+                    initialValue={watch("model") ?? ""}
+                    maxlength={60}
+                    changeCallback={(value: string) => {
+                      setValue("model", value, {
+                        shouldValidate: true,
+                        shouldDirty: true,
+                        shouldTouch: true,
+                      });
+                    }}
+                  />
+                  <FormInput
+                    label={TEXT.plate}
+                    errorsObj={errors}
+                    errorName="plate"
+                    initialValue={watch("plate")}
+                    maxlength={15}
+                    changeCallback={(value: string) => {
+                      setValue("plate", value);
+                    }}
+                    required
+                  />
+                  <FormInput
+                    label={TEXT.odometer}
+                    errorsObj={errors}
+                    errorName="odometer"
+                    initialValue={watch("odometer")}
+                    maxlength={15}
+                    type="number"
+                    changeCallback={(value: number) => {
+                      setValue("odometer", value);
+                    }}
+                    required
+                  />
+                  <FormInput
+                    label={TEXT.group}
+                    errorsObj={errors}
+                    errorName="group"
+                    initialValue={watch("group")}
+                    maxlength={20}
+                    changeCallback={(value: string) => {
+                      setValue("group", value);
+                    }}
+                    required
+                  />
+                  <FormSelect
+                    label={TEXT.adminStatus}
+                    options={CAR_ADMIN_STATUS_OPTIONS}
+                    errorsObj={errors}
+                    errorName="adminStatus"
+                    initialValue={watch("adminStatus")}
+                    changeCallback={(value: string) => {
+                      setValue("adminStatus", value as CarAdminStatus);
+                    }}
+                    required
+                  />
+                  <FormSelect
+                    label={TEXT.color}
+                    options={COLORS}
+                    errorsObj={errors}
+                    errorName="color"
+                    initialValue={watch("color")}
+                    changeCallback={(value: string) => {
+                      setValue("color", value);
+                    }}
+                    required
+                  />
+                  <FormSelect
+                    label={TEXT.commissionType}
+                    options={COMMISSION_TYPES}
+                    errorsObj={errors}
+                    errorName="commissionType"
+                    initialValue={watch("commissionType")}
+                    changeCallback={(value: string) => {
+                      setValue("commissionType", value as CommissionType);
+                    }}
+                    required
+                  />
+                  {watch("commissionType") === "PERCENT_PROFIT" && (
+                    <FormInput
+                      label={TEXT.commissionPercent}
+                      errorsObj={errors}
+                      errorName="commissionPercent"
+                      initialValue={watch("commissionPercent")}
+                      type="number"
+                      changeCallback={(value: string) => {
+                        const parsed = Number(String(value).replace(",", "."));
+                        setValue(
+                          "commissionPercent",
+                          Number.isNaN(parsed) ? 0 : parsed
+                        );
+                      }}
+                      required
+                    />
+                  )}
+                  {watch("commissionType") === "FIXED" && (
+                    <FormCurrency
+                      label={TEXT.commissionFixed}
+                      errorsObj={errors}
+                      errorName="commissionFixed"
+                      initialValue={watch("commissionFixed")}
+                      maxlength={15}
+                      changeCallback={(value: number) => {
+                        setValue("commissionFixed", value);
+                      }}
+                      required
+                    />
+                  )}
+                  <FormCurrency
+                    label={TEXT.initialValue}
+                    errorsObj={errors}
+                    errorName="initialValue"
+                    initialValue={watch("initialValue")}
+                    maxlength={15}
+                    changeCallback={(value: number) => {
+                      setValue("initialValue", value);
+                    }}
+                  />
+                  <FormDate
+                    id="year-car-add"
+                    initialValue={watch("year").toString()}
+                    label={TEXT.year}
+                    presentation="year"
+                    formCallBack={(value: string) => {
+                      setValue("year", Number(value));
+                    }}
+                  />
+                </form>
+              </IonCardContent>
+            </IonCard>
 
-        {formInitial.id && (
-          <FormDeleteButton
-            label={`${TEXT.delete} ${TEXT.car}`}
-            message={TEXT.car}
-            callBackFunc={onDelete}
-          />
-        )}
+            {formInitial.id && (
+              <div>
+                <FormDeleteButton
+                  label={`${TEXT.delete} ${TEXT.car}`}
+                  message={TEXT.car}
+                  callBackFunc={onDelete}
+                />
+              </div>
+            )}
+          </section>
+        </div>
       </IonContent>
     </IonPage>
   );

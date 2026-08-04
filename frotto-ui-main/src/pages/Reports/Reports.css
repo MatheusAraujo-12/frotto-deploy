@@ -1,0 +1,84 @@
+#reports-page .app-shell {
+  gap: 14px;
+}
+
+.reports-section-head {
+  display: grid;
+  gap: 4px;
+}
+
+.reports-form {
+  gap: 10px;
+}
+
+.reports-form > div {
+  padding: 0 !important;
+}
+
+.reports-form ion-item {
+  --background: var(--app-card-strong);
+  --border-color: transparent;
+  --inner-border-width: 0;
+  --highlight-color-focused: var(--ion-color-tertiary);
+  --padding-start: 12px;
+  --inner-padding-end: 10px;
+  border: 1px solid var(--ion-border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 0;
+}
+
+.reports-form ion-item::part(native) {
+  background: var(--app-card-strong);
+  border-radius: 12px;
+  padding-left: 12px;
+  padding-right: 10px;
+  min-height: 62px;
+}
+
+.reports-form ion-item.ion-focused {
+  border-color: rgba(var(--ion-color-tertiary-rgb), 0.65);
+  box-shadow: 0 0 0 2px rgba(var(--ion-color-tertiary-rgb), 0.18);
+}
+
+.reports-form ion-label {
+  font-weight: 600 !important;
+  color: var(--ion-text-color) !important;
+  opacity: 0.88;
+}
+
+.reports-form ion-select,
+.reports-form ion-datetime-button {
+  color: var(--ion-text-color);
+}
+
+.reports-form ion-datetime-button::part(native) {
+  color: var(--ion-text-color);
+  font-weight: 600;
+}
+
+.reports-form > ion-text,
+.reports-form ion-text.ion-padding-start {
+  display: block;
+  margin: -4px 4px 4px 10px;
+  padding-left: 0 !important;
+  font-size: 0.82rem;
+}
+
+.reports-car-selector {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--ion-border-color);
+  border-radius: 12px;
+  background: var(--app-card-strong);
+}
+
+.reports-car-selector .car-selector {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.reports-submit-btn {
+  margin-top: 4px;
+}

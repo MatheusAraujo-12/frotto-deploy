@@ -40,7 +40,7 @@ const FormSelect: React.FC<FormSelectProps> = ({
           interface={SELECT_TYPE}
           placeholder={label}
           onIonChange={(e) => {
-            changeCallback(e.target.value);
+            changeCallback(e.detail.value);
           }}
         >
           {options.map((option) => {

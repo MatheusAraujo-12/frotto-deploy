@@ -1,0 +1,73 @@
+#car-Reminders-page .app-shell {
+  gap: 14px;
+}
+
+.reminders-section-head {
+  display: grid;
+  gap: 4px;
+}
+
+.reminders-list {
+  display: grid;
+  gap: 12px;
+}
+
+.reminders-add-btn {
+  margin: 0;
+}
+
+.reminder-list-item {
+  --background: transparent;
+  --border-color: transparent;
+  --padding-start: 0;
+  --inner-padding-end: 0;
+  --min-height: auto;
+  margin: 0;
+}
+
+.reminder-list-item::part(native) {
+  background: var(--app-card);
+  border: var(--app-border);
+  border-radius: 16px;
+  box-shadow: var(--app-shadow);
+  padding: 12px 14px;
+  transition: transform 0.12s ease, box-shadow 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.reminder-list-item:hover::part(native),
+.reminder-list-item:active::part(native) {
+  transform: translateY(-1px);
+  box-shadow: var(--app-shadow-hover);
+}
+
+.reminder-list-item__wrap {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.reminder-list-item__content {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.reminder-list-item__title {
+  margin: 0;
+  font-size: 0.96rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--ion-text-color);
+  word-break: break-word;
+}
+
+.reminder-list-item__meta {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.35;
+  color: var(--ion-color-medium);
+}

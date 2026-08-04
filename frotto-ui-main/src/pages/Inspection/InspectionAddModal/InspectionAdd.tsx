@@ -1,8 +1,14 @@
 import {
   IonButton,
   IonButtons,
+  IonCard,
+  IonCardContent,
+  IonCardHeader,
+  IonCardSubtitle,
+  IonCardTitle,
   IonContent,
   IonHeader,
+  IonIcon,
   IonItem,
   IonLabel,
   IonList,
@@ -14,6 +20,13 @@ import {
   IonTitle,
   IonToolbar,
 } from "@ionic/react";
+import {
+  carSportOutline,
+  clipboardOutline,
+  receiptOutline,
+  sparklesOutline,
+  warningOutline,
+} from "ionicons/icons";
 import { TEXT } from "../../../constants/texts";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAlert } from "../../../services/hooks/useAlert";
@@ -197,16 +210,24 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
 
   return (
     <IonPage id="car-inspection-add-page">
-      <IonHeader>
-        <IonToolbar>
+      <IonHeader className="ion-no-border">
+        <IonToolbar className="app-toolbar-clean">
           <IonButtons slot="start">
-            <IonButton color="danger" onClick={() => closeModal()}>
+            <IonButton
+              fill="clear"
+              className="app-outline-btn"
+              onClick={() => closeModal()}
+            >
               {TEXT.cancel}
             </IonButton>
           </IonButtons>
           <IonTitle>{TEXT.addCarInspection}</IonTitle>
           <IonButtons slot="end">
-            <IonButton disabled={isLoading} strong onClick={handleSubmit(onSubmit)}>
+            <IonButton
+              className="app-primary-btn"
+              disabled={isLoading}
+              onClick={handleSubmit(onSubmit)}
+            >
               {TEXT.save}
             </IonButton>
           </IonButtons>
@@ -215,252 +236,407 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
       </IonHeader>
 
       <IonContent>
-        <form>
-          <FormDate
-            id="date-inspection-add"
-            initialValue={String(watch("date") || "")}
-            label={TEXT.date}
-            presentation="date"
-            formCallBack={(value: string) => setValue("date", value)}
-          />
-
-          <FormInput
-            label={TEXT.driver}
-            errorsObj={errors}
-            errorName="driverName"
-            initialValue={watch("driverName")}
-            maxlength={50}
-            changeCallback={(value: string) => setValue("driverName", value)}
-            required
-          />
-
-          <FormInput
-            label={TEXT.odometer}
-            errorsObj={errors}
-            errorName="odometer"
-            initialValue={watch("odometer")}
-            maxlength={15}
-            type="number"
-            changeCallback={(value: number) => setValue("odometer", value)}
-            required
-          />
-
-          <FormSelect
-            header={TEXT.cleaning}
-            label={TEXT.intern}
-            options={CLEANING}
-            errorsObj={errors}
-            errorName="internalCleaning"
-            initialValue={watch("internalCleaning")}
-            changeCallback={(value: string) => setValue("internalCleaning", value)}
-            required
-          />
-
-          <FormSelect
-            label={TEXT.extern}
-            options={CLEANING}
-            errorsObj={errors}
-            errorName="externalCleaning"
-            initialValue={watch("externalCleaning")}
-            changeCallback={(value: string) => setValue("externalCleaning", value)}
-            required
-          />
-
-          {/* pneus... (mantive como estava) */}
-          <FormSelectFilterAdd
-            header={`${TEXT.tire} ${TEXT.leftFront}`}
-            label={TEXT.model}
-            errorsObj={errors}
-            errorName="leftFrontModel"
-            formCallBack={(value: string) => setValue("leftFrontModel", value)}
-            initialValue={watch("leftFrontModel")}
-            options={TIRE_BRANDS}
-            storageToken={TIRE_BRANDS_KEY}
-            required
-          />
-          <FormSelect
-            label={TEXT.integrity}
-            options={INTEGRITY}
-            errorsObj={errors}
-            errorName="leftFrontIntegrity"
-            initialValue={watch("leftFrontIntegrity")}
-            changeCallback={(value: string) => setValue("leftFrontIntegrity", value)}
-            required
-          />
-
-          <FormSelectFilterAdd
-            header={`${TEXT.tire} ${TEXT.rightFront}`}
-            label={TEXT.model}
-            errorsObj={errors}
-            errorName="rightFrontModel"
-            formCallBack={(value: string) => setValue("rightFrontModel", value)}
-            initialValue={watch("rightFrontModel")}
-            options={TIRE_BRANDS}
-            storageToken={TIRE_BRANDS_KEY}
-            required
-          />
-          <FormSelect
-            label={TEXT.integrity}
-            options={INTEGRITY}
-            errorsObj={errors}
-            errorName="rightFrontIntegrity"
-            initialValue={watch("rightFrontIntegrity")}
-            changeCallback={(value: string) => setValue("rightFrontIntegrity", value)}
-            required
-          />
-
-          <FormSelectFilterAdd
-            header={`${TEXT.tire} ${TEXT.leftFBack}`}
-            label={TEXT.model}
-            errorsObj={errors}
-            errorName="leftBackModel"
-            formCallBack={(value: string) => setValue("leftBackModel", value)}
-            initialValue={watch("leftBackModel")}
-            options={TIRE_BRANDS}
-            storageToken={TIRE_BRANDS_KEY}
-            required
-          />
-          <FormSelect
-            label={TEXT.integrity}
-            options={INTEGRITY}
-            errorsObj={errors}
-            errorName="leftBackIntegrity"
-            initialValue={watch("leftBackIntegrity")}
-            changeCallback={(value: string) => setValue("leftBackIntegrity", value)}
-            required
-          />
-
-          <FormSelectFilterAdd
-            header={`${TEXT.tire} ${TEXT.rightFBack}`}
-            label={TEXT.model}
-            errorsObj={errors}
-            errorName="rightBackModel"
-            formCallBack={(value: string) => setValue("rightBackModel", value)}
-            initialValue={watch("rightBackModel")}
-            options={TIRE_BRANDS}
-            storageToken={TIRE_BRANDS_KEY}
-            required
-          />
-          <FormSelect
-            label={TEXT.integrity}
-            options={INTEGRITY}
-            errorsObj={errors}
-            errorName="rightBackIntegrity"
-            initialValue={watch("rightBackIntegrity")}
-            changeCallback={(value: string) => setValue("rightBackIntegrity", value)}
-            required
-          />
-
-          <FormSelectFilterAdd
-            header={`${TEXT.tire} ${TEXT.spare}`}
-            label={TEXT.model}
-            errorsObj={errors}
-            errorName="spareModel"
-            formCallBack={(value: string) => setValue("spareModel", value)}
-            initialValue={watch("spareModel")}
-            options={TIRE_BRANDS}
-            storageToken={TIRE_BRANDS_KEY}
-            required
-          />
-          <FormSelect
-            label={TEXT.integrity}
-            options={INTEGRITY}
-            errorsObj={errors}
-            errorName="spareIntegrity"
-            initialValue={watch("spareIntegrity")}
-            changeCallback={(value: string) => setValue("spareIntegrity", value)}
-            required
-          />
-
-          <IonList>
-            <IonListHeader>
-              <IonLabel>
-                <h1>{TEXT.inspectionsExpenses}</h1>
-              </IonLabel>
-              <IonButton
-                onClick={(e) => {
-                  e.preventDefault();
-                  setActiveExpense({});
-                  setIsExpenseModalOpen(true);
-                  nav.push(nav.location.pathname + "?modalOpened=true&modalExpenseOpened=true");
-                }}
-              >
-                {TEXT.add}
-              </IonButton>
-            </IonListHeader>
-
-            {watch("expenses")?.map((expense: InspectionExpenseModel, index) =>
-              expense ? (
-                <IonItem
-                  button
-                  key={index}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setActiveExpense({ ...expense, activeIndex: index });
-                    setIsExpenseModalOpen(true);
-                    nav.push(nav.location.pathname + "?modalOpened=true&modalExpenseOpened=true");
-                  }}
+        <div className="app-shell app-shell--compact">
+          <section className="app-section">
+            <IonCard className="app-panel-card">
+              <IonCardHeader className="app-panel-header">
+                <div className="app-soft-icon">
+                  <IonIcon icon={clipboardOutline} />
+                </div>
+                <div className="app-panel-header__content">
+                  <IonCardTitle className="app-panel-title">
+                    {TEXT.addCarInspection}
+                  </IonCardTitle>
+                  <IonCardSubtitle className="app-panel-subtitle">
+                    Informe data, motorista e odometro da inspecao.
+                  </IonCardSubtitle>
+                </div>
+              </IonCardHeader>
+              <IonCardContent>
+                <form
+                  className="app-form-grid"
+                  onSubmit={(e) => e.preventDefault()}
                 >
-                  <IonLabel slot="end">
-                    <IonText>{currencyFormat(expense?.cost)}</IonText>
-                  </IonLabel>
-                  <IonLabel class="ion-text-wrap">
-                    <h2>
-                      <IonText color="medium">{`${expense?.ammount} ${expense?.name}`}</IonText>
-                    </h2>
-                  </IonLabel>
-                </IonItem>
-              ) : null
-            )}
+                  <FormDate
+                    id="date-inspection-add"
+                    initialValue={String(watch("date") || "")}
+                    label={TEXT.date}
+                    presentation="date"
+                    formCallBack={(value: string) => setValue("date", value)}
+                  />
 
-            {(!watch("expenses") || watch("expenses").length === 0) && <ItemNotFound />}
-          </IonList>
+                  <FormInput
+                    label={TEXT.driver}
+                    errorsObj={errors}
+                    errorName="driverName"
+                    initialValue={watch("driverName")}
+                    maxlength={50}
+                    changeCallback={(value: string) =>
+                      setValue("driverName", value)
+                    }
+                    required
+                  />
 
-          <IonList>
-            <IonListHeader>
-              <IonLabel>
-                <h1>{TEXT.carDamages}</h1>
-              </IonLabel>
-              <IonButton
-                onClick={(e) => {
-                  e.preventDefault();
-                  setActiveCarBodyDamage({ date: watch("date"), responsible: watch("driverName") });
-                  setIsBodyDamageModalOpen(true);
-                  nav.push(nav.location.pathname + "?modalOpened=true&modalExpenseOpened=true");
-                }}
-              >
-                {TEXT.add}
-              </IonButton>
-            </IonListHeader>
+                  <FormInput
+                    label={TEXT.odometer}
+                    errorsObj={errors}
+                    errorName="odometer"
+                    initialValue={watch("odometer")}
+                    maxlength={15}
+                    type="number"
+                    changeCallback={(value: number) =>
+                      setValue("odometer", value)
+                    }
+                    required
+                  />
+                </form>
+              </IonCardContent>
+            </IonCard>
 
-            {carDamagesList.map((carBodyDamage: CarBodyDamageModel, index) =>
-              carBodyDamage ? (
-                <IonItem
-                  button
-                  key={index}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setActiveCarBodyDamage({ ...carBodyDamage });
-                    setIsBodyDamageModalOpen(true);
-                    nav.push(nav.location.pathname + "?modalOpened=true&modalExpenseOpened=true");
-                  }}
+            <IonCard className="app-panel-card">
+              <IonCardHeader className="app-panel-header">
+                <div className="app-soft-icon">
+                  <IonIcon icon={sparklesOutline} />
+                </div>
+                <div className="app-panel-header__content">
+                  <IonCardTitle className="app-panel-title">
+                    {TEXT.cleaning}
+                  </IonCardTitle>
+                  <IonCardSubtitle className="app-panel-subtitle">
+                    Avalie a limpeza interna e externa do veiculo.
+                  </IonCardSubtitle>
+                </div>
+              </IonCardHeader>
+              <IonCardContent>
+                <form
+                  className="app-form-grid"
+                  onSubmit={(e) => e.preventDefault()}
                 >
-                  <BodyDamage carDamage={carBodyDamage} />
-                </IonItem>
-              ) : null
+                  <FormSelect
+                    header={TEXT.cleaning}
+                    label={TEXT.intern}
+                    options={CLEANING}
+                    errorsObj={errors}
+                    errorName="internalCleaning"
+                    initialValue={watch("internalCleaning")}
+                    changeCallback={(value: string) =>
+                      setValue("internalCleaning", value)
+                    }
+                    required
+                  />
+
+                  <FormSelect
+                    label={TEXT.extern}
+                    options={CLEANING}
+                    errorsObj={errors}
+                    errorName="externalCleaning"
+                    initialValue={watch("externalCleaning")}
+                    changeCallback={(value: string) =>
+                      setValue("externalCleaning", value)
+                    }
+                    required
+                  />
+                </form>
+              </IonCardContent>
+            </IonCard>
+
+            <IonCard className="app-panel-card">
+              <IonCardHeader className="app-panel-header">
+                <div className="app-soft-icon">
+                  <IonIcon icon={carSportOutline} />
+                </div>
+                <div className="app-panel-header__content">
+                  <IonCardTitle className="app-panel-title">
+                    {TEXT.tire}
+                  </IonCardTitle>
+                  <IonCardSubtitle className="app-panel-subtitle">
+                    Confira modelo e integridade de cada pneu.
+                  </IonCardSubtitle>
+                </div>
+              </IonCardHeader>
+              <IonCardContent>
+                {/* pneus... (mantive como estava) */}
+                <form
+                  className="app-form-grid"
+                  onSubmit={(e) => e.preventDefault()}
+                >
+                  <FormSelectFilterAdd
+                    header={`${TEXT.tire} ${TEXT.leftFront}`}
+                    label={TEXT.model}
+                    errorsObj={errors}
+                    errorName="leftFrontModel"
+                    formCallBack={(value: string) =>
+                      setValue("leftFrontModel", value)
+                    }
+                    initialValue={watch("leftFrontModel")}
+                    options={TIRE_BRANDS}
+                    storageToken={TIRE_BRANDS_KEY}
+                    required
+                  />
+                  <FormSelect
+                    label={TEXT.integrity}
+                    options={INTEGRITY}
+                    errorsObj={errors}
+                    errorName="leftFrontIntegrity"
+                    initialValue={watch("leftFrontIntegrity")}
+                    changeCallback={(value: string) =>
+                      setValue("leftFrontIntegrity", value)
+                    }
+                    required
+                  />
+
+                  <FormSelectFilterAdd
+                    header={`${TEXT.tire} ${TEXT.rightFront}`}
+                    label={TEXT.model}
+                    errorsObj={errors}
+                    errorName="rightFrontModel"
+                    formCallBack={(value: string) =>
+                      setValue("rightFrontModel", value)
+                    }
+                    initialValue={watch("rightFrontModel")}
+                    options={TIRE_BRANDS}
+                    storageToken={TIRE_BRANDS_KEY}
+                    required
+                  />
+                  <FormSelect
+                    label={TEXT.integrity}
+                    options={INTEGRITY}
+                    errorsObj={errors}
+                    errorName="rightFrontIntegrity"
+                    initialValue={watch("rightFrontIntegrity")}
+                    changeCallback={(value: string) =>
+                      setValue("rightFrontIntegrity", value)
+                    }
+                    required
+                  />
+
+                  <FormSelectFilterAdd
+                    header={`${TEXT.tire} ${TEXT.leftFBack}`}
+                    label={TEXT.model}
+                    errorsObj={errors}
+                    errorName="leftBackModel"
+                    formCallBack={(value: string) =>
+                      setValue("leftBackModel", value)
+                    }
+                    initialValue={watch("leftBackModel")}
+                    options={TIRE_BRANDS}
+                    storageToken={TIRE_BRANDS_KEY}
+                    required
+                  />
+                  <FormSelect
+                    label={TEXT.integrity}
+                    options={INTEGRITY}
+                    errorsObj={errors}
+                    errorName="leftBackIntegrity"
+                    initialValue={watch("leftBackIntegrity")}
+                    changeCallback={(value: string) =>
+                      setValue("leftBackIntegrity", value)
+                    }
+                    required
+                  />
+
+                  <FormSelectFilterAdd
+                    header={`${TEXT.tire} ${TEXT.rightFBack}`}
+                    label={TEXT.model}
+                    errorsObj={errors}
+                    errorName="rightBackModel"
+                    formCallBack={(value: string) =>
+                      setValue("rightBackModel", value)
+                    }
+                    initialValue={watch("rightBackModel")}
+                    options={TIRE_BRANDS}
+                    storageToken={TIRE_BRANDS_KEY}
+                    required
+                  />
+                  <FormSelect
+                    label={TEXT.integrity}
+                    options={INTEGRITY}
+                    errorsObj={errors}
+                    errorName="rightBackIntegrity"
+                    initialValue={watch("rightBackIntegrity")}
+                    changeCallback={(value: string) =>
+                      setValue("rightBackIntegrity", value)
+                    }
+                    required
+                  />
+
+                  <FormSelectFilterAdd
+                    header={`${TEXT.tire} ${TEXT.spare}`}
+                    label={TEXT.model}
+                    errorsObj={errors}
+                    errorName="spareModel"
+                    formCallBack={(value: string) =>
+                      setValue("spareModel", value)
+                    }
+                    initialValue={watch("spareModel")}
+                    options={TIRE_BRANDS}
+                    storageToken={TIRE_BRANDS_KEY}
+                    required
+                  />
+                  <FormSelect
+                    label={TEXT.integrity}
+                    options={INTEGRITY}
+                    errorsObj={errors}
+                    errorName="spareIntegrity"
+                    initialValue={watch("spareIntegrity")}
+                    changeCallback={(value: string) =>
+                      setValue("spareIntegrity", value)
+                    }
+                    required
+                  />
+                </form>
+              </IonCardContent>
+            </IonCard>
+
+            <IonCard className="app-panel-card">
+              <IonCardHeader className="app-panel-header">
+                <div className="app-soft-icon">
+                  <IonIcon icon={receiptOutline} />
+                </div>
+                <div className="app-panel-header__content">
+                  <IonCardTitle className="app-panel-title">
+                    {TEXT.inspectionsExpenses}
+                  </IonCardTitle>
+                  <IonCardSubtitle className="app-panel-subtitle">
+                    Despesas relacionadas a esta inspecao.
+                  </IonCardSubtitle>
+                </div>
+              </IonCardHeader>
+              <IonCardContent>
+                <IonList>
+                  <IonListHeader>
+                    <IonLabel>
+                      <h1>{TEXT.inspectionsExpenses}</h1>
+                    </IonLabel>
+                    <IonButton
+                      fill="clear"
+                      className="app-outline-btn"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setActiveExpense({});
+                        setIsExpenseModalOpen(true);
+                        nav.push(
+                          nav.location.pathname +
+                            "?modalOpened=true&modalExpenseOpened=true"
+                        );
+                      }}
+                    >
+                      {TEXT.add}
+                    </IonButton>
+                  </IonListHeader>
+
+                  {watch("expenses")?.map(
+                    (expense: InspectionExpenseModel, index) =>
+                      expense ? (
+                        <IonItem
+                          button
+                          key={index}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setActiveExpense({ ...expense, activeIndex: index });
+                            setIsExpenseModalOpen(true);
+                            nav.push(
+                              nav.location.pathname +
+                                "?modalOpened=true&modalExpenseOpened=true"
+                            );
+                          }}
+                        >
+                          <IonLabel slot="end">
+                            <IonText>{currencyFormat(expense?.cost)}</IonText>
+                          </IonLabel>
+                          <IonLabel class="ion-text-wrap">
+                            <h2>
+                              <IonText color="medium">{`${expense?.ammount} ${expense?.name}`}</IonText>
+                            </h2>
+                          </IonLabel>
+                        </IonItem>
+                      ) : null
+                  )}
+
+                  {(!watch("expenses") || watch("expenses").length === 0) && (
+                    <ItemNotFound />
+                  )}
+                </IonList>
+              </IonCardContent>
+            </IonCard>
+
+            <IonCard className="app-panel-card">
+              <IonCardHeader className="app-panel-header">
+                <div className="app-soft-icon app-soft-icon--warning">
+                  <IonIcon icon={warningOutline} />
+                </div>
+                <div className="app-panel-header__content">
+                  <IonCardTitle className="app-panel-title">
+                    {TEXT.carDamages}
+                  </IonCardTitle>
+                  <IonCardSubtitle className="app-panel-subtitle">
+                    Avarias identificadas nesta inspecao.
+                  </IonCardSubtitle>
+                </div>
+              </IonCardHeader>
+              <IonCardContent>
+                <IonList>
+                  <IonListHeader>
+                    <IonLabel>
+                      <h1>{TEXT.carDamages}</h1>
+                    </IonLabel>
+                    <IonButton
+                      fill="clear"
+                      className="app-outline-btn"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setActiveCarBodyDamage({
+                          date: watch("date"),
+                          responsible: watch("driverName"),
+                        });
+                        setIsBodyDamageModalOpen(true);
+                        nav.push(
+                          nav.location.pathname +
+                            "?modalOpened=true&modalExpenseOpened=true"
+                        );
+                      }}
+                    >
+                      {TEXT.add}
+                    </IonButton>
+                  </IonListHeader>
+
+                  {carDamagesList.map(
+                    (carBodyDamage: CarBodyDamageModel, index) =>
+                      carBodyDamage ? (
+                        <IonItem
+                          button
+                          key={index}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setActiveCarBodyDamage({ ...carBodyDamage });
+                            setIsBodyDamageModalOpen(true);
+                            nav.push(
+                              nav.location.pathname +
+                                "?modalOpened=true&modalExpenseOpened=true"
+                            );
+                          }}
+                        >
+                          <BodyDamage carDamage={carBodyDamage} />
+                        </IonItem>
+                      ) : null
+                  )}
+
+                  {carDamagesList.length === 0 && <ItemNotFound />}
+                </IonList>
+              </IonCardContent>
+            </IonCard>
+
+            {formInitial.id && (
+              <div>
+                <FormDeleteButton
+                  label={`${TEXT.delete} ${TEXT.inspection}`}
+                  message={TEXT.inspection}
+                  callBackFunc={onDelete}
+                />
+              </div>
             )}
-
-            {carDamagesList.length === 0 && <ItemNotFound />}
-          </IonList>
-
-          {formInitial.id && (
-            <FormDeleteButton
-              label={`${TEXT.delete} ${TEXT.inspection}`}
-              message={TEXT.inspection}
-              callBackFunc={onDelete}
-            />
-          )}
-        </form>
+          </section>
+        </div>
       </IonContent>
 
       <IonModal isOpen={isExpenseModalOpen} backdropDismiss={false}>

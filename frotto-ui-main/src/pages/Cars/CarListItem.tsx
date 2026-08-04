@@ -1,236 +1,142 @@
 // src/pages/Cars/CarListItem.tsx
 import React from "react";
-import { IonCard, IonIcon } from "@ionic/react";
-import { createOutline, trashOutline } from "ionicons/icons";
-import { useHistory } from "react-router";
+import { IonIcon, IonItem, IonNote, IonText } from "@ionic/react";
+import { trashOutline } from "ionicons/icons";
 import CarBrandMark from "../../components/Car/CarBrandMark";
-import { resolveCarIdentity } from "../../components/Car/carIdentity";
+import {
+  normalizeCarRecord,
+  resolveCarIdentity,
+} from "../../components/Car/carIdentity";
 import { CarAdminStatus, CarModel } from "../../constants/CarModels";
-import endpoints from "../../constants/endpoints";
 import { TEXT } from "../../constants/texts";
+import endpoints from "../../constants/endpoints";
 import api from "../../services/axios/axios";
 import { useAlert } from "../../services/hooks/useAlert";
+import "./CarListItem.css";
 
 interface CarListItemProps extends CarModel {
-  onDeleted?: (id: number) => void;
+  onDeleted?: (deletedCarId: number) => void;
 }
 
-type CarVisualTone =
-  | "active"
-  | "rented"
-  | "sale"
-  | "retired"
-  | "maintenance"
-  | "blocked";
-
-type CarVisualStatusMeta = {
-  label: string;
-  tone: CarVisualTone;
-  detailLabel: string;
-  detailValue: string;
+const ADMIN_STATUS_LABEL: Record<CarAdminStatus, string> = {
+  ATIVO: "Ativo",
+  RETIRADO: "Retirado",
+  A_VENDA: "A venda",
+  MANUTENCAO: "Manutencao",
+  BLOQUEADO: "Bloqueado",
 };
 
-const CarListItem: React.FC<CarListItemProps> = ({
-  id,
-  name,
-  brand,
-  marca,
-  model,
-  plate,
-  group,
-  driverName,
-  odometer,
-  adminStatus,
-  onDeleted,
-}) => {
-  const history = useHistory();
+const ADMIN_STATUS_CLASS: Record<CarAdminStatus, string> = {
+  ATIVO: "car-status-neutral",
+  RETIRADO: "car-status-dark",
+  A_VENDA: "car-status-info",
+  MANUTENCAO: "car-status-warning",
+  BLOQUEADO: "car-status-danger",
+};
+
+const CarListItem: React.FC<CarListItemProps> = (car) => {
   const { showErrorAlert } = useAlert();
+  const normalizedCar = normalizeCarRecord(car);
+  const carIdentity = resolveCarIdentity(normalizedCar);
+  const adminStatus = (normalizedCar.adminStatus || "ATIVO") as CarAdminStatus;
+  const hasAdminOverride = adminStatus !== "ATIVO";
 
-  const carIdentity = resolveCarIdentity({ name, brand, marca, model });
-  const title = carIdentity.displayName;
-  const plateLabel = plate?.trim() || "--";
-  const groupLabel = group?.trim() || "--";
-  const isRented = Boolean(driverName);
-  const effectiveAdminStatus: CarAdminStatus = adminStatus || "ATIVO";
-  const statusMeta = resolveCarVisualStatusMeta(
-    effectiveAdminStatus,
-    isRented,
-    driverName
-  );
-  const kmValue =
-    typeof odometer === "number"
-      ? odometer.toLocaleString("pt-BR")
-      : "--";
+  const statusLabel = hasAdminOverride
+    ? ADMIN_STATUS_LABEL[adminStatus]
+    : normalizedCar?.driverName
+    ? "Alugado"
+    : "Disponivel";
 
-  const handleOpen = () => {
-    if (id != null) {
-      history.push(`/menu/carros/${id}`);
-    }
-  };
-
-  const handleEdit = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-    handleOpen();
-  };
+  const statusClass = hasAdminOverride
+    ? ADMIN_STATUS_CLASS[adminStatus]
+    : normalizedCar?.driverName
+    ? "car-status-success"
+    : "car-status-warning";
 
   const handleDelete = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
     event.stopPropagation();
+    const id = normalizedCar.id;
     if (id == null) return;
 
-    const carLabel = title || plateLabel || "este veículo";
+    const carLabel = carIdentity.displayName || normalizedCar.plate || "este veículo";
     const confirmDelete = window.confirm(`${TEXT.deleteDefault} ${carLabel}?`);
     if (!confirmDelete) return;
 
     try {
       await api.delete(endpoints.CAR({ pathVariables: { id } }));
-
-      if (onDeleted) {
-        onDeleted(id);
-      }
+      car.onDeleted?.(id);
     } catch (err) {
       showErrorAlert(TEXT.deleteFailed);
     }
   };
 
   return (
-    <IonCard className="car-card" onClick={handleOpen}>
-      <div className="car-card__main">
-        <div className="car-card__topline">
-          <div className="car-card__headline">
-            <CarBrandMark
-              name={name}
-              brand={brand}
-              marca={marca}
-              model={model}
-              size="sm"
-              className="car-card__brand-mark"
-            />
+    <IonItem
+      button
+      detail={false}
+      lines="none"
+      routerLink={`/menu/carros/${normalizedCar.id}`}
+      routerOptions={{ unmount: true }}
+      routerDirection="forward"
+      className="car-list-item"
+    >
+      <div className="car-list-item__wrap">
+        <div className="car-list-item__left">
+          <CarBrandMark
+            name={normalizedCar.name}
+            brand={normalizedCar.brand}
+            marca={normalizedCar.marca}
+            model={normalizedCar.model}
+            size="sm"
+            className="car-list-item__mark"
+          />
 
-            <div className="car-card__headline-copy">
-              <div className="car-card__title">{title}</div>
+          <div className="car-list-item__content">
+            <div className="car-list-item__header">
+              <h2 className="car-list-item__title">
+                <IonText color="primary">{carIdentity.displayName}</IonText>
+              </h2>
+              <div className={`car-list-item__status ${statusClass}`}>
+                {statusLabel}
+              </div>
             </div>
-          </div>
 
-          <span className={`car-card__badge car-card__badge--${statusMeta.tone}`}>
-            {statusMeta.label}
-          </span>
+            <p className="car-list-item__meta">
+              {[normalizedCar?.year, normalizedCar.color, normalizedCar?.plate]
+                .filter(Boolean)
+                .join(" - ") || "-"}
+            </p>
+
+            <p className="car-list-item__meta">
+              Quilometragem: {normalizedCar?.odometer || 0} {TEXT.km}
+            </p>
+
+            <p className="car-list-item__meta">
+              Dono/Grupo: {normalizedCar?.group || "-"}
+            </p>
+
+            {normalizedCar?.driverName && (
+              <IonNote className="car-list-item__driver">
+                Motorista: {normalizedCar.driverName}
+              </IonNote>
+            )}
+          </div>
         </div>
 
-        <div className="car-card__meta">
-          <div className="car-card__meta-item car-card__meta-item--plate">
-            <span className="car-card__meta-label">Placa</span>
-            <span className="car-card__meta-value car-card__meta-value--plate">
-              {plateLabel}
-            </span>
-          </div>
-
-          <div className="car-card__meta-item">
-            <span className="car-card__meta-label">Grupo</span>
-            <span className="car-card__meta-value">{groupLabel}</span>
-          </div>
-        </div>
-
-        <div className="car-card__footer">
-          <div className="car-card__footer-main">
-            <div className="car-card__km">
-              <span className="car-card__km-label">Odômetro</span>
-              <span className="car-card__km-value">
-                {kmValue}
-                <small>km</small>
-              </span>
-            </div>
-
-            <div className="car-card__detail">
-              <span className="car-card__detail-label">{statusMeta.detailLabel}</span>
-              <span
-                className={`car-card__detail-value car-card__detail-value--${statusMeta.tone}`}
-              >
-                {statusMeta.detailValue}
-              </span>
-            </div>
-          </div>
-
-          <div className="car-card__actions">
-            <button
-              type="button"
-              className="car-card__action car-card__action--edit"
-              onClick={handleEdit}
-              aria-label={`Editar ${title}`}
-            >
-              <IonIcon icon={createOutline} className="car-card__icon" />
-            </button>
-
-            <button
-              type="button"
-              className="car-card__action car-card__action--danger"
-              onClick={handleDelete}
-              aria-label={`Excluir ${title}`}
-            >
-              <IonIcon icon={trashOutline} className="car-card__icon" />
-            </button>
-          </div>
+        <div className="car-list-item__actions">
+          <button
+            type="button"
+            className="car-list-item__action car-list-item__action--danger"
+            onClick={handleDelete}
+            aria-label={`Excluir ${carIdentity.displayName}`}
+          >
+            <IonIcon icon={trashOutline} />
+          </button>
         </div>
       </div>
-    </IonCard>
+    </IonItem>
   );
 };
-
-function resolveCarVisualStatusMeta(
-  status: CarAdminStatus,
-  isRented: boolean,
-  driverName?: string
-): CarVisualStatusMeta {
-  if (status === "RETIRADO") {
-    return {
-      label: "Retirado",
-      tone: "retired",
-      detailLabel: "Disponibilidade",
-      detailValue: "Fora de operação",
-    };
-  }
-
-  if (status === "A_VENDA") {
-    return {
-      label: "À venda",
-      tone: "sale",
-      detailLabel: "Disponibilidade",
-      detailValue: "Em processo de venda",
-    };
-  }
-
-  if (status === "MANUTENCAO") {
-    return {
-      label: "Manutenção",
-      tone: "maintenance",
-      detailLabel: "Disponibilidade",
-      detailValue: "Em manutenção",
-    };
-  }
-
-  if (status === "BLOQUEADO") {
-    return {
-      label: "Bloqueado",
-      tone: "blocked",
-      detailLabel: "Disponibilidade",
-      detailValue: "Uso bloqueado",
-    };
-  }
-
-  if (isRented) {
-    return {
-      label: "Alugado",
-      tone: "rented",
-      detailLabel: "Motorista",
-      detailValue: driverName?.trim() || "--",
-    };
-  }
-
-  return {
-    label: "Ativo",
-    tone: "active",
-    detailLabel: "Disponibilidade",
-    detailValue: "Disponível",
-  };
-}
 
 export default CarListItem;

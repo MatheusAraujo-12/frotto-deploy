@@ -3,11 +3,9 @@ import {
   IonButtons,
   IonContent,
   IonHeader,
+  IonIcon,
   IonItem,
-  IonLabel,
-  IonList,
   IonModal,
-  IonNote,
   IonPage,
   IonProgressBar,
   IonSearchbar,
@@ -23,12 +21,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAlert } from "../../services/hooks/useAlert";
 import { MaintenanceModel } from "../../constants/CarModels";
 import { filterListObj } from "../../services/filterList";
-import ItemNotFound from "../../components/List/ItemNotFound";
 import { RouteComponentProps } from "react-router";
 import { formatDateView } from "../../services/dateFormat";
 import MaintenanceAdd from "./MaintenanceAddModal/MaintenanceAdd";
 import { currencyFormat } from "../../services/currencyFormat";
 import { servicesToString } from "../../services/toString";
+import { buildOutline } from "ionicons/icons";
+import "./Maintenances.css";
 
 interface MaintenanceDetail
   extends RouteComponentProps<{
@@ -104,50 +103,103 @@ const Maintenances: React.FC<MaintenanceDetail> = ({ match }) => {
 
   return (
     <IonPage id="car-maintenances-page">
-      <IonHeader>
-        <IonToolbar>
+      <IonHeader className="ion-no-border">
+        <IonToolbar className="app-toolbar-clean">
           <IonButtons slot="start">
             <IonBackButton defaultHref="/menu" />
           </IonButtons>
           <IonTitle>{TEXT.maintenances}</IonTitle>
         </IonToolbar>
-        <IonToolbar>
+        <IonToolbar className="app-subtoolbar">
           <IonSearchbar
             debounce={500}
             placeholder={TEXT.search}
-            onIonChange={(e) => setSearchValue(e.detail.value)}
+            value={searchValue}
+            onIonChange={(e) => setSearchValue(e.detail.value ?? undefined)}
           ></IonSearchbar>
           {isLoading && <IonProgressBar type="indeterminate"></IonProgressBar>}
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <div className="section-shell">
-          <IonList>
-            {filteredList.map((maintenance: MaintenanceModel, index) => {
-              return (
-                <IonItem
-                  key={index}
-                  button
-                  onClick={() => {
-                    setModalMaintenance(maintenance);
-                    setIsModalOpen(true);
-                  }}
-                >
-                  <IonLabel class="ion-text-wrap">
-                    <h2>{formatDateView(maintenance.date)}</h2>
-                    <p>
-                      {`${maintenance.odometer} ${TEXT.km}`}
-                      &nbsp;&nbsp;&nbsp;-&nbsp;&nbsp;&nbsp;
-                      {currencyFormat(maintenance.cost)}
-                    </p>
-                    <p>{maintenance.local}</p>
-                    <IonNote>{servicesToString(maintenance.services)}</IonNote>
-                  </IonLabel>
-                </IonItem>
-              );
-            })}
-            {!isLoading && filteredList.length === 0 && <ItemNotFound />}
-          </IonList>
+        <div className="app-shell app-shell--compact">
+          <section className="app-section">
+            <div className="maintenances-section-head">
+              <h2 className="app-section-title">{TEXT.maintenances}</h2>
+              <p className="app-section-subtitle">
+                Histórico de manutenções registradas para este veículo.
+              </p>
+            </div>
+
+            <div className="maintenances-list">
+              {filteredList.map((maintenance: MaintenanceModel, index) => {
+                return (
+                  <IonItem
+                    key={maintenance.id ?? `maintenance-${index}`}
+                    button
+                    detail={false}
+                    className="maintenance-list-item"
+                    onClick={() => {
+                      setModalMaintenance(maintenance);
+                      setIsModalOpen(true);
+                    }}
+                  >
+                    <div className="maintenance-list-item__wrap">
+                      <div className="app-soft-icon">
+                        <IonIcon icon={buildOutline} />
+                      </div>
+
+                      <div className="maintenance-list-item__content">
+                        <div className="maintenance-list-item__main ion-text-wrap">
+                          <div className="maintenance-list-item__details">
+                            <p className="maintenance-list-item__detail">
+                              <span className="maintenance-list-item__detail-label">
+                                {TEXT.date}:
+                              </span>{" "}
+                              <span className="maintenance-list-item__detail-value">
+                                {formatDateView(maintenance.date) || "-"}
+                              </span>
+                            </p>
+                            <p className="maintenance-list-item__detail">
+                              <span className="maintenance-list-item__detail-label">
+                                {TEXT.odometer}:
+                              </span>{" "}
+                              <span className="maintenance-list-item__detail-value">
+                                {`${maintenance.odometer || 0} ${TEXT.km}`}
+                              </span>
+                            </p>
+                            <p className="maintenance-list-item__detail">
+                              <span className="maintenance-list-item__detail-label">
+                                {TEXT.local}:
+                              </span>{" "}
+                              <span className="maintenance-list-item__detail-value">
+                                {maintenance.local || "-"}
+                              </span>
+                            </p>
+                          </div>
+                          <p className="maintenance-list-item__services">
+                            {servicesToString(maintenance.services)}
+                          </p>
+                        </div>
+
+                        <div className="maintenance-list-item__aside ion-text-wrap">
+                          <p className="maintenance-list-item__value">
+                            {currencyFormat(maintenance.cost)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </IonItem>
+                );
+              })}
+            </div>
+
+            {!isLoading && filteredList.length === 0 && (
+              <div className="app-empty-state">
+                <strong>{TEXT.noMaintenance}</strong>
+                <span>Nenhuma manutenção encontrada para os filtros atuais.</span>
+              </div>
+            )}
+          </section>
         </div>
       </IonContent>
       <IonModal isOpen={isModalOpen} backdropDismiss={false}>

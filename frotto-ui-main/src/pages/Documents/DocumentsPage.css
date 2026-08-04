@@ -17,10 +17,12 @@
   font-weight: 700;
 }
 
+#documents-page .documents-section-head {
+  display: grid;
+  gap: 4px;
+}
+
 #documents-page .documents-filter-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
   margin-top: 4px;
 }
 
@@ -31,37 +33,44 @@
   margin: 0;
 }
 
-#documents-page .documents-list-item {
-  --padding-top: 14px;
-  --padding-bottom: 14px;
-  margin-bottom: 10px;
-  border: 1px solid var(--ion-border-color);
-  border-radius: 14px;
+#documents-page .documents-result-list {
+  display: grid;
+  gap: 12px;
 }
 
-#documents-page .documents-list-item:last-child {
-  margin-bottom: 0;
-}
-
-#documents-page .documents-list-item h2 {
-  margin: 0 0 4px;
-  font-size: 0.96rem;
-  font-weight: 700;
-}
-
-#documents-page .documents-list-item p {
-  margin: 0;
-  color: var(--ion-color-medium);
-  line-height: 1.45;
-}
-
-#documents-page .documents-item-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+#documents-page .documents-result-header {
   align-items: center;
+}
+
+#documents-page .documents-result-meta {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 12px;
+}
+
+#documents-page .documents-meta-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--ion-color-medium);
+}
+
+#documents-page .documents-meta-line strong {
+  color: var(--ion-text-color);
+  font-weight: 600;
+  text-align: right;
+}
+
+#documents-page .documents-result-actions {
   justify-content: flex-end;
-  padding-left: 12px;
+}
+
+#documents-page .documents-pagination-controls span {
+  font-size: 0.86rem;
+  color: var(--ion-color-medium);
 }
 
 #documents-page .documents-autocomplete {
@@ -311,21 +320,12 @@
   margin: 4px 0;
 }
 
-#documents-page .documents-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 0 6px 0;
-  flex-wrap: wrap;
-}
-
 @media (max-width: 700px) {
-  #documents-page .documents-item-actions,
+  #documents-page .documents-result-actions,
+  #documents-page .documents-pagination-controls,
   #documents-page .documents-step-footer,
   #documents-page .documents-filter-actions {
     justify-content: stretch;
-    padding-left: 0;
   }
 
   #documents-page .documents-filter-actions ion-button,
@@ -333,6 +333,8 @@
   #documents-page .documents-editor-actions ion-button,
   #documents-page .documents-editor-actions .documents-generate-button,
   #documents-page .documents-modal-actions ion-button,
+  #documents-page .documents-result-actions ion-button,
+  #documents-page .documents-pagination-controls ion-button,
   #documents-page .documents-debt-item-actions ion-button {
     flex: 1 1 100%;
   }

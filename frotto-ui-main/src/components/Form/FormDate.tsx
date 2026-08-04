@@ -1,17 +1,24 @@
 import {
+  IonButton,
+  IonButtons,
   IonDatetime,
   IonDatetimeButton,
   IonItem,
   IonModal,
   IonText,
 } from "@ionic/react";
+import { useRef } from "react";
 import FormInputLabel from "./FormInputLabel";
-import { format, parseISO } from "date-fns";
+import { isValid, parseISO } from "date-fns";
 import styled from "styled-components";
+import { TEXT } from "../../constants/texts";
 
 const MyIonModal = styled(IonModal)`
-  height: 100%;
-  background-color: var(--app-modal-backdrop);
+  --backdrop-opacity: 1;
+
+  &::part(backdrop) {
+    background: var(--app-modal-backdrop);
+  }
 `;
 
 export interface DateProps {
@@ -22,8 +29,6 @@ export interface DateProps {
   required?: boolean;
   initialValue?: string | string[] | null | undefined;
   min?: string;
-
-  // ✅ novo: permite passar erro do react-hook-form
   error?: string;
 }
 
@@ -37,48 +42,106 @@ const FormDate: React.FC<DateProps> = ({
   min,
   error,
 }) => {
-  const confirmDate = (dateValue: string | string[] | null | undefined) => {
-    if (typeof dateValue !== "string") return;
-
-    if (presentation === "year") {
-      formCallBack(format(parseISO(dateValue), "yyyy"));
-      return;
-    }
-
-    if (presentation === "date") {
-      formCallBack(format(parseISO(dateValue), "yyyy-MM-dd"));
-      return;
-    }
-
-    if (presentation === "month-year") {
-      // se você quiser só mês/ano, dá pra mudar para "yyyy-MM"
-      formCallBack(format(parseISO(dateValue), "yyyy-MM-dd"));
-      return;
-    }
-
-    // fallback seguro
-    formCallBack(dateValue);
+  // Strips timezone suffix and normalizes to YYYY-MM-DD.
+  // Handles IonDatetime emitting full ISO strings like "2022-04-05T00:00:00.000Z"
+  // which would cause date-fns parseISO to shift the date by the UTC offset.
+  const normalizeDateValue = (value: string): string => {
+    const stripped = value.length > 10 ? value.substring(0, 10) : value;
+    if (/^\d{4}$/.test(stripped)) return `${stripped}-01-01`;
+    if (/^\d{4}-\d{2}$/.test(stripped)) return `${stripped}-01`;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(stripped)) return stripped;
+    return value;
   };
 
+  const modalRef = useRef<HTMLIonModalElement>(null);
+  // Ref to the IonDatetime element — used to call confirm() and reset()
+  const datetimeRef = useRef<HTMLIonDatetimeElement>(null);
+  // Tracks the value for the current modal session; updated by onIonChange
+  const pendingValueRef = useRef<string | string[] | null | undefined>(undefined);
+
+  const confirmDate = (dateValue: string | string[] | null | undefined) => {
+    if (typeof dateValue !== "string") return;
+    const normalized = normalizeDateValue(dateValue);
+
+    if (presentation === "year") {
+      formCallBack(normalized.substring(0, 4));
+      return;
+    }
+
+    if (presentation === "date" || presentation === "month-year") {
+      formCallBack(normalized);
+      return;
+    }
+
+    formCallBack(normalized);
+  };
+
+  // confirm() asks Ionic to commit the user's current selection using activeDateParts
+  // (the highlighted state in the calendar UI), which is reliable even when
+  // keepContentsMounted causes Stencil to reconcile the .value property from the prop.
+  // confirm() fires ionChange synchronously, which updates pendingValueRef before the
+  // Promise resolves, so we can safely read it right after await.
+  const handleConfirm = async () => {
+    await datetimeRef.current?.confirm(false);
+    confirmDate(pendingValueRef.current);
+    modalRef.current?.dismiss();
+  };
+
+  const handleCancel = () => {
+    modalRef.current?.dismiss();
+    // Reset element state so next open doesn't carry over a canceled selection
+    void datetimeRef.current?.reset(
+      typeof safeInitialValue === "string" ? safeInitialValue : undefined
+    );
+  };
+
+  const resolvedInitialValue =
+    typeof initialValue === "string"
+      ? normalizeDateValue(initialValue)
+      : initialValue;
+
+  const safeInitialValue =
+    typeof resolvedInitialValue === "string"
+      ? (isValid(parseISO(resolvedInitialValue)) ? resolvedInitialValue : undefined)
+      : resolvedInitialValue;
+
   return (
-    <div className="app-form-date-field">
-      <IonItem className="app-form-item app-form-item--date">
+    <div style={{ padding: "8px 0" }}>
+      <IonItem>
         <FormInputLabel name={label} required={required} />
         <IonDatetimeButton datetime={id} slot="end" />
-        <MyIonModal keepContentsMounted={true}>
+        <MyIonModal
+          ref={modalRef}
+          keepContentsMounted={true}
+          onWillPresent={() => {
+            pendingValueRef.current = safeInitialValue;
+          }}
+        >
           <IonDatetime
             id={id}
+            ref={datetimeRef}
             presentation={presentation}
-            value={initialValue}
+            value={safeInitialValue}
             min={min}
-            onIonChange={(e) => confirmDate(e.detail.value)}
-          />
+            onIonChange={(e) => {
+              pendingValueRef.current = e.detail.value;
+            }}
+          >
+            <IonButtons slot="buttons">
+              <IonButton color="medium" onClick={handleCancel}>
+                {TEXT.cancel}
+              </IonButton>
+              <IonButton color="primary" onClick={handleConfirm}>
+                {TEXT.confirm}
+              </IonButton>
+            </IonButtons>
+          </IonDatetime>
         </MyIonModal>
       </IonItem>
 
       {!!error && (
-        <div className="app-form-date-field__error">
-          <IonText color="danger" className="app-form-error">
+        <div style={{ padding: "6px 16px 0 16px" }}>
+          <IonText color="danger" style={{ fontSize: 12 }}>
             {error}
           </IonText>
         </div>

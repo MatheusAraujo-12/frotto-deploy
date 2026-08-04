@@ -6,7 +6,6 @@ import {
   IonHeader,
   IonIcon,
   IonItem,
-  IonList,
   IonModal,
   IonPage,
   IonProgressBar,
@@ -22,16 +21,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAlert } from "../../services/hooks/useAlert";
 import { IncomeModel } from "../../constants/CarModels";
 import { filterListObj } from "../../services/filterList";
-import ItemNotFound from "../../components/List/ItemNotFound";
 import { RouteComponentProps, useHistory, useLocation } from "react-router";
 import { formatDateView } from "../../services/dateFormat";
-import {
-  IonLabelLeft,
-  IonLabekRight,
-} from "../../components/List/IonLabekRight";
 import IncomeAdd from "./IncomeAddModal/IncomeAdd";
 import { currencyFormat } from "../../services/currencyFormat";
-import { add } from "ionicons/icons";
+import { add, cashOutline } from "ionicons/icons";
+import "./Incomes.css";
+
 interface IncomeDetail
   extends RouteComponentProps<{
     id: string;
@@ -106,15 +102,15 @@ const Incomes: React.FC<IncomeDetail> = ({ match }) => {
 
   return (
     <IonPage id="car-incomes-page">
-      <IonHeader>
-        <IonToolbar>
+      <IonHeader className="ion-no-border">
+        <IonToolbar className="app-toolbar-clean">
           <IonButtons slot="start">
             <IonBackButton defaultHref="/menu" />
           </IonButtons>
           <IonTitle>{TEXT.incomes}</IonTitle>
           <IonButtons slot="end">
             <IonButton
-              strong={true}
+              className="app-primary-btn incomes-add-btn"
               onClick={() => {
                 setModalIncomeValue({});
                 setIsModalOpen(true);
@@ -125,41 +121,78 @@ const Incomes: React.FC<IncomeDetail> = ({ match }) => {
             </IonButton>
           </IonButtons>
         </IonToolbar>
-        <IonToolbar>
+        <IonToolbar className="app-subtoolbar">
           <IonSearchbar
             debounce={500}
             placeholder={TEXT.search}
-            onIonChange={(e) => setSearchValue(e.detail.value)}
+            value={searchValue}
+            onIonChange={(e) => setSearchValue(e.detail.value ?? undefined)}
           ></IonSearchbar>
           {isLoading && <IonProgressBar type="indeterminate"></IonProgressBar>}
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <div className="section-shell">
-          <IonList>
-            {filteredList.map((income: IncomeModel, index) => {
-              return (
-                <IonItem
-                  key={index}
-                  button
-                  onClick={() => {
-                    setModalIncomeValue(income);
-                    setIsModalOpen(true);
-                    nav.push(nav.location.pathname + "?modalOpened=true");
-                  }}
-                >
-                  <IonLabelLeft class="ion-text-wrap">
-                    <h2>{formatDateView(income.date)}</h2>
-                    <p>{income.name}</p>
-                  </IonLabelLeft>
-                  <IonLabekRight>
-                    <p>{currencyFormat(income.cost)}</p>
-                  </IonLabekRight>
-                </IonItem>
-              );
-            })}
-            {!isLoading && filteredList.length === 0 && <ItemNotFound />}
-          </IonList>
+        <div className="app-shell app-shell--compact">
+          <section className="app-section">
+            <div className="incomes-section-head">
+              <h2 className="app-section-title">{TEXT.incomes}</h2>
+              <p className="app-section-subtitle">
+                Histórico de receitas cadastradas para este veículo.
+              </p>
+            </div>
+
+            <div className="incomes-list">
+              {filteredList.map((income: IncomeModel, index) => {
+                return (
+                  <IonItem
+                    key={income.id ?? `income-${index}`}
+                    button
+                    detail={false}
+                    lines="none"
+                    className="income-list-item"
+                    onClick={() => {
+                      setModalIncomeValue(income);
+                      setIsModalOpen(true);
+                      nav.push(nav.location.pathname + "?modalOpened=true");
+                    }}
+                  >
+                    <div className="income-list-item__wrap">
+                      <div className="app-soft-icon app-soft-icon--success">
+                        <IonIcon icon={cashOutline} />
+                      </div>
+
+                      <div className="income-list-item__content">
+                        <div className="income-list-item__main ion-text-wrap">
+                          <h3 className="income-list-item__title">
+                            {income.name || "-"}
+                          </h3>
+                          <p className="income-list-item__meta">
+                            {formatDateView(income.date)}
+                          </p>
+                        </div>
+
+                        <div className="income-list-item__aside ion-text-wrap">
+                          <p className="income-list-item__value">
+                            {currencyFormat(income.cost)}
+                          </p>
+                          <p className="income-list-item__hint">
+                            {TEXT.income}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </IonItem>
+                );
+              })}
+            </div>
+
+            {!isLoading && filteredList.length === 0 && (
+              <div className="app-empty-state">
+                <strong>{TEXT.itensNotFound}</strong>
+                <span>Nenhuma receita encontrada para os filtros atuais.</span>
+              </div>
+            )}
+          </section>
         </div>
       </IonContent>
       <IonModal isOpen={isModalOpen} backdropDismiss={false}>

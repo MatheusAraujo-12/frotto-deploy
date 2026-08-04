@@ -406,6 +406,15 @@ export enum REPORTS {
   maintenance = "Manutenções"
 }
 
+export enum REPORT_PERIODS {
+  monthly = "Mensal",
+  bimonthly = "Bimestral",
+  quarterly = "Trimestral",
+  semiannual = "Semestral",
+  annual = "Anual",
+  custom = "Personalizado"
+}
+
 export const INCOMES = [
   "Aluguel",
   "Aluguel com desconto",

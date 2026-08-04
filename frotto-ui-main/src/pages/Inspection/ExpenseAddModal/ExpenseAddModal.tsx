@@ -1,12 +1,19 @@
 import {
   IonButton,
   IonButtons,
+  IonCard,
+  IonCardContent,
+  IonCardHeader,
+  IonCardSubtitle,
+  IonCardTitle,
   IonContent,
   IonHeader,
+  IonIcon,
   IonPage,
   IonTitle,
   IonToolbar,
 } from "@ionic/react";
+import { receiptOutline } from "ionicons/icons";
 import { TEXT } from "../../../constants/texts";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -49,10 +56,11 @@ const ExpenseAddModal: React.FC<ExpenseAddModalProps> = ({
 
   return (
     <IonPage id="expense-add-page">
-      <IonHeader>
-        <IonToolbar>
+      <IonHeader className="ion-no-border">
+        <IonToolbar className="app-toolbar-clean">
           <IonButtons slot="start">
             <IonButton
+              fill="clear"
               color="danger"
               onClick={() => closeModal({ ...formInitial, delete: true })}
             >
@@ -61,50 +69,77 @@ const ExpenseAddModal: React.FC<ExpenseAddModalProps> = ({
           </IonButtons>
           <IonTitle>{TEXT.expense}</IonTitle>
           <IonButtons slot="end">
-            <IonButton strong={true} onClick={handleSubmit(onSubmit)}>
+            <IonButton
+              className="app-primary-btn"
+              onClick={handleSubmit(onSubmit)}
+            >
               {TEXT.save}
             </IonButton>
           </IonButtons>
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <form>
-          <FormSelectFilterAdd
-            label={TEXT.product}
-            errorsObj={errors}
-            errorName="name"
-            formCallBack={(value: string) => {
-              setValue("name", value);
-            }}
-            initialValue={watch("name")}
-            options={EXPENSES}
-            storageToken={EXPENSES_KEY}
-            required
-          />
-          <FormInput
-            label={TEXT.ammount}
-            errorsObj={errors}
-            errorName="ammount"
-            initialValue={watch("ammount")}
-            maxlength={15}
-            type="number"
-            changeCallback={(value: number) => {
-              setValue("ammount", value);
-            }}
-            required
-          />
-          <FormCurrency
-            label={TEXT.totalCost}
-            errorsObj={errors}
-            errorName="cost"
-            initialValue={watch("cost")}
-            maxlength={15}
-            changeCallback={(value: number) => {
-              setValue("cost", value);
-            }}
-            required
-          />
-        </form>
+        <div className="app-shell app-shell--compact">
+          <section className="app-section">
+            <IonCard className="app-panel-card">
+              <IonCardHeader className="app-panel-header">
+                <div className="app-soft-icon">
+                  <IonIcon icon={receiptOutline} />
+                </div>
+                <div className="app-panel-header__content">
+                  <IonCardTitle className="app-panel-title">
+                    {TEXT.expense}
+                  </IonCardTitle>
+                  <IonCardSubtitle className="app-panel-subtitle">
+                    Informe o produto, a quantidade e o valor total.
+                  </IonCardSubtitle>
+                </div>
+              </IonCardHeader>
+              <IonCardContent>
+                <form
+                  className="app-form-grid"
+                  onSubmit={(e) => e.preventDefault()}
+                >
+                  <FormSelectFilterAdd
+                    label={TEXT.product}
+                    errorsObj={errors}
+                    errorName="name"
+                    formCallBack={(value: string) => {
+                      setValue("name", value);
+                    }}
+                    initialValue={watch("name")}
+                    options={EXPENSES}
+                    storageToken={EXPENSES_KEY}
+                    required
+                  />
+                  <FormInput
+                    label={TEXT.ammount}
+                    errorsObj={errors}
+                    errorName="ammount"
+                    initialValue={watch("ammount")}
+                    maxlength={15}
+                    type="number"
+                    changeCallback={(value: number) => {
+                      setValue("ammount", value);
+                    }}
+                    required
+                  />
+                  <FormCurrency
+                    label={TEXT.totalCost}
+                    errorsObj={errors}
+                    errorName="cost"
+                    initialValue={watch("cost")}
+                    maxlength={15}
+                    changeCallback={(value: number) => {
+                      setValue("cost", value);
+                    }}
+                    required
+                  />
+                </form>
+              </IonCardContent>
+            </IonCard>
+          </section>
+        </div>
       </IonContent>
     </IonPage>
   );

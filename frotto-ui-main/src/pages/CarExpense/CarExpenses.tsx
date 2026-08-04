@@ -6,7 +6,6 @@ import {
   IonHeader,
   IonIcon,
   IonItem,
-  IonList,
   IonModal,
   IonPage,
   IonProgressBar,
@@ -22,16 +21,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAlert } from "../../services/hooks/useAlert";
 import { CarExpenseModel } from "../../constants/CarModels";
 import { filterListObj } from "../../services/filterList";
-import ItemNotFound from "../../components/List/ItemNotFound";
 import { RouteComponentProps, useHistory, useLocation } from "react-router";
 import { formatDateView } from "../../services/dateFormat";
-import {
-  IonLabelLeft,
-  IonLabekRight,
-} from "../../components/List/IonLabekRight";
 import CarExpenseAdd from "./CarExpenseAddModal/CarExpenseAdd";
 import { currencyFormat } from "../../services/currencyFormat";
-import { add } from "ionicons/icons";
+import { add, walletOutline } from "ionicons/icons";
+import "./CarExpenses.css";
 
 interface CarExpenseDetail
   extends RouteComponentProps<{
@@ -107,15 +102,15 @@ const CarExpenses: React.FC<CarExpenseDetail> = ({ match }) => {
 
   return (
     <IonPage id="car-carExpenses-page">
-      <IonHeader>
-        <IonToolbar>
+      <IonHeader className="ion-no-border">
+        <IonToolbar className="app-toolbar-clean">
           <IonButtons slot="start">
             <IonBackButton defaultHref="/menu" />
           </IonButtons>
           <IonTitle>{TEXT.carExpenses}</IonTitle>
           <IonButtons slot="end">
             <IonButton
-              strong={true}
+              className="app-primary-btn car-expenses-add-btn"
               onClick={() => {
                 setModalCarExpense({});
                 setIsModalOpen(true);
@@ -126,44 +121,85 @@ const CarExpenses: React.FC<CarExpenseDetail> = ({ match }) => {
             </IonButton>
           </IonButtons>
         </IonToolbar>
-        <IonToolbar>
+        <IonToolbar className="app-subtoolbar">
           <IonSearchbar
             debounce={500}
             placeholder={TEXT.search}
-            onIonChange={(e) => setSearchValue(e.detail.value)}
+            value={searchValue}
+            onIonChange={(e) => setSearchValue(e.detail.value ?? undefined)}
           ></IonSearchbar>
           {isLoading && <IonProgressBar type="indeterminate"></IonProgressBar>}
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <div className="section-shell">
-          <IonList>
-            {filteredList.map((carExpense: CarExpenseModel, index) => {
-              return (
-                <IonItem
-                  key={index}
-                  button
-                  onClick={() => {
-                    setModalCarExpense(carExpense);
-                    setIsModalOpen(true);
-                    nav.push(nav.location.pathname + "?modalOpened=true");
-                  }}
-                >
-                  <IonLabelLeft class="ion-text-wrap">
-                    <h2>{formatDateView(carExpense.date)}</h2>
-                    <p>{carExpense.name}</p>
-                  </IonLabelLeft>
-                  <IonLabekRight>
-                    <p>{currencyFormat(carExpense.cost)}</p>
-                  </IonLabekRight>
-                </IonItem>
-              );
-            })}
-            {!isLoading && filteredList.length === 0 && <ItemNotFound />}
-          </IonList>
+        <div className="app-shell app-shell--compact">
+          <section className="app-section">
+            <div className="car-expenses-section-head">
+              <h2 className="app-section-title">{TEXT.carExpenses}</h2>
+              <p className="app-section-subtitle">
+                Histórico de despesas cadastradas para este veículo.
+              </p>
+            </div>
+
+            <div className="car-expenses-list">
+              {filteredList.map((carExpense: CarExpenseModel, index) => {
+                return (
+                  <IonItem
+                    key={carExpense.id ?? `car-expense-${index}`}
+                    button
+                    detail={false}
+                    lines="none"
+                    className="car-expense-list-item"
+                    onClick={() => {
+                      setModalCarExpense(carExpense);
+                      setIsModalOpen(true);
+                      nav.push(nav.location.pathname + "?modalOpened=true");
+                    }}
+                  >
+                    <div className="car-expense-list-item__wrap">
+                      <div className="app-soft-icon app-soft-icon--danger">
+                        <IonIcon icon={walletOutline} />
+                      </div>
+
+                      <div className="car-expense-list-item__content">
+                        <div className="car-expense-list-item__main ion-text-wrap">
+                          <h3 className="car-expense-list-item__title">
+                            {carExpense.name || "-"}
+                          </h3>
+                          <p className="car-expense-list-item__meta">
+                            {formatDateView(carExpense.date)}
+                          </p>
+                        </div>
+
+                        <div className="car-expense-list-item__aside ion-text-wrap">
+                          <p className="car-expense-list-item__value">
+                            {currencyFormat(carExpense.cost)}
+                          </p>
+                          <p className="car-expense-list-item__hint">
+                            {TEXT.carExpense}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </IonItem>
+                );
+              })}
+            </div>
+
+            {!isLoading && filteredList.length === 0 && (
+              <div className="app-empty-state">
+                <strong>{TEXT.noExpenses}</strong>
+                <span>Nenhuma despesa encontrada para os filtros atuais.</span>
+              </div>
+            )}
+          </section>
         </div>
       </IonContent>
-      <IonModal isOpen={isModalOpen} backdropDismiss={false}>
+      <IonModal
+        isOpen={isModalOpen}
+        onDidDismiss={() => setIsModalOpen(false)}
+        backdropDismiss={false}
+      >
         <CarExpenseAdd
           carId={match.params.id}
           closeModal={closeModal}

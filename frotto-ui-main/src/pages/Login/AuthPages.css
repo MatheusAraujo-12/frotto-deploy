@@ -1,0 +1,118 @@
+#login-page .auth-content::part(background),
+#register-page .auth-content::part(background) {
+  background: var(--ion-background-color);
+}
+
+#login-page .auth-shell,
+#register-page .auth-shell {
+  max-width: 480px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+}
+
+#login-page .auth-card,
+#register-page .auth-card {
+  margin: 0;
+}
+
+#login-page .auth-card__header {
+  align-items: center;
+}
+
+#login-page .auth-logo {
+  width: 56px;
+  height: 56px;
+  min-width: 56px;
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(var(--ion-color-primary-rgb), 0.22);
+  background: rgba(var(--ion-color-primary-rgb), 0.12);
+  box-shadow: var(--app-shadow);
+  overflow: hidden;
+}
+
+#login-page .auth-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+#login-page .auth-form,
+#register-page .auth-form {
+  gap: 10px;
+}
+
+#login-page .auth-form ion-item,
+#register-page .auth-form ion-item {
+  --background: var(--app-card-strong);
+  --border-color: transparent;
+  --inner-border-width: 0;
+  --highlight-color-focused: var(--ion-color-tertiary);
+  --padding-start: 12px;
+  --inner-padding-end: 10px;
+  border: 1px solid var(--ion-border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 0;
+}
+
+#login-page .auth-form ion-item::part(native),
+#register-page .auth-form ion-item::part(native) {
+  background: var(--app-card-strong);
+  border-radius: 12px;
+  padding-left: 12px;
+  padding-right: 10px;
+  min-height: 62px;
+}
+
+#login-page .auth-form ion-item.ion-focused,
+#register-page .auth-form ion-item.ion-focused {
+  border-color: rgba(var(--ion-color-tertiary-rgb), 0.65);
+  box-shadow: 0 0 0 2px rgba(var(--ion-color-tertiary-rgb), 0.18);
+}
+
+#login-page .auth-form ion-label,
+#register-page .auth-form ion-label {
+  font-weight: 600 !important;
+  color: var(--ion-text-color) !important;
+  opacity: 0.88;
+}
+
+#login-page .auth-form ion-input,
+#register-page .auth-form ion-input {
+  --color: var(--ion-text-color);
+  --placeholder-color: var(--ion-color-medium);
+  font-size: 0.95rem;
+}
+
+#login-page .auth-form > ion-text,
+#login-page .auth-form ion-text.ion-padding-start,
+#register-page .auth-form > ion-text,
+#register-page .auth-form ion-text.ion-padding-start {
+  display: block;
+  margin: -4px 4px 4px 10px;
+  padding-left: 0 !important;
+  font-size: 0.82rem;
+}
+
+#login-page .auth-actions,
+#register-page .auth-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+#login-page .auth-actions ion-button,
+#register-page .auth-actions ion-button {
+  margin: 0;
+}
+
+@media (max-width: 480px) {
+  #login-page .auth-shell,
+  #register-page .auth-shell {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}

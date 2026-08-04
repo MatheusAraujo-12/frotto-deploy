@@ -1,7 +1,6 @@
 import {
   IonButton,
   IonButtons,
-  IonCard,
   IonContent,
   IonHeader,
   IonIcon,
@@ -20,14 +19,7 @@ import {
   useIonViewWillEnter,
   useIonViewWillLeave,
 } from "@ionic/react";
-import {
-  add,
-  carOutline,
-  cashOutline,
-  constructOutline,
-  notificationsOutline,
-  walletOutline,
-} from "ionicons/icons";
+import { add } from "ionicons/icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import api from "../../services/axios/axios";
@@ -51,10 +43,9 @@ import {
   ReminderModel,
 } from "../../constants/CarModels";
 import { normalizeCarRecord } from "../../components/Car/carIdentity";
-import "./Car.css";
+import "./Cars.css";
 
 type ActionType = "maintenance" | "reminder" | "expense" | "income" | null;
-type SemanticTone = "success" | "danger" | "warning" | "neutral";
 type QuickAction = {
   key: ActionType | "car";
   title: string;
@@ -68,29 +59,6 @@ type QuickActionResponse =
 type CarListItemData = CarModel & {
   car?: CarModel;
   carId?: number;
-};
-type DashboardSummary = {
-  totalCars?: number;
-  activeCars: number;
-  inactiveCars?: number;
-  rentedCars: number;
-  availableCars: number;
-  totalExpenses?: number;
-  hasTotalCarsData: boolean;
-  hasExpenseData: boolean;
-  hasRevenueData: boolean;
-  hasOpenPendenciesData: boolean;
-};
-
-const EMPTY_DASHBOARD_SUMMARY: DashboardSummary = {
-  activeCars: 0,
-  inactiveCars: 0,
-  rentedCars: 0,
-  availableCars: 0,
-  hasTotalCarsData: false,
-  hasExpenseData: false,
-  hasRevenueData: false,
-  hasOpenPendenciesData: false,
 };
 
 const extractListData = <T extends object>(data: unknown): T[] => {
@@ -122,64 +90,6 @@ const normalizeCars = (list: CarListItemData[]): CarModel[] =>
     });
   });
 
-const isOperationalCar = (car: CarModel): boolean =>
-  car.active !== false && (car.adminStatus || "ATIVO") === "ATIVO";
-
-const buildDashboardSummary = (
-  activeCars: CarModel[],
-  allCarsData?: unknown,
-  expensesData?: unknown
-): DashboardSummary => {
-  const allCars = extractListData<CarListItemData>(allCarsData);
-  const normalizedAllCars = normalizeCars(allCars);
-  const carsForStatus = allCarsData !== undefined ? normalizedAllCars : activeCars;
-  const nonDeletedCars = carsForStatus.filter((car) => car.active !== false);
-  const operationalCars = nonDeletedCars.filter(isOperationalCar);
-  const rentedCars = operationalCars.filter((car) => Boolean(car.driverName)).length;
-  const availableCars = Math.max(operationalCars.length - rentedCars, 0);
-  const expenseItems = extractListData<CarExpenseModel>(expensesData);
-  const totalExpenses =
-    expenseItems.length > 0
-      ? expenseItems.reduce(
-          (sum, item) => sum + (typeof item.cost === "number" ? item.cost : 0),
-          0
-        )
-      : expenseItems.length === 0 && expensesData !== undefined
-      ? 0
-      : undefined;
-
-  return {
-    totalCars: allCarsData !== undefined ? nonDeletedCars.length : undefined,
-    activeCars: operationalCars.length,
-    inactiveCars:
-      allCarsData !== undefined
-        ? Math.max(nonDeletedCars.length - operationalCars.length, 0)
-        : undefined,
-    rentedCars,
-    availableCars,
-    totalExpenses,
-    hasTotalCarsData: allCarsData !== undefined,
-    hasExpenseData: expensesData !== undefined,
-    hasRevenueData: false,
-    hasOpenPendenciesData: false,
-  };
-};
-
-const resolveQuickActionTone = (key: QuickAction["key"]): SemanticTone => {
-  if (key === "income") return "success";
-  if (key === "expense") return "danger";
-  if (key === "reminder") return "warning";
-  return "neutral";
-};
-
-const resolveQuickActionIcon = (key: QuickAction["key"]): string => {
-  if (key === "income") return cashOutline;
-  if (key === "expense") return walletOutline;
-  if (key === "reminder") return notificationsOutline;
-  if (key === "maintenance") return constructOutline;
-  return carOutline;
-};
-
 const Cars: React.FC = () => {
   const location = useLocation();
   const { showErrorAlert } = useAlert();
@@ -198,10 +108,6 @@ const Cars: React.FC = () => {
   const [selectedCar, setSelectedCar] = useState<CarModel | null>(null);
   const [searchValue, setSearchValue] = useState("");
   const [carList, setCarList] = useState<CarModel[]>([]);
-  const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary>(
-    EMPTY_DASHBOARD_SUMMARY
-  );
-  const [isDashboardLoading, setIsDashboardLoading] = useState(true);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const actionOpenTimerRef = useRef<number | null>(null);
@@ -247,32 +153,6 @@ const Cars: React.FC = () => {
     [clearScheduledActionOpen, logBackdropCount, resetCarsOverlayState]
   );
 
-  const loadDashboardSummary = useCallback(async (activeCars: CarModel[], signal?: AbortSignal) => {
-    setIsDashboardLoading(true);
-
-    try {
-      const [allCarsResult, expensesResult] = await Promise.allSettled([
-        api.get(endpoints.CARS(), { signal }),
-        api.get(endpoints.CAR_EXPENSES_ALL(), { signal }),
-      ]);
-
-      if (signal?.aborted) {
-        return;
-      }
-
-      const allCarsData =
-        allCarsResult.status === "fulfilled" ? allCarsResult.value?.data : undefined;
-      const expensesData =
-        expensesResult.status === "fulfilled" ? expensesResult.value?.data : undefined;
-
-      setDashboardSummary(buildDashboardSummary(activeCars, allCarsData, expensesData));
-    } finally {
-      if (!signal?.aborted) {
-        setIsDashboardLoading(false);
-      }
-    }
-  }, []);
-
   const loadCars = useCallback(
     async (signal?: AbortSignal) => {
       setIsLoading(true);
@@ -291,7 +171,6 @@ const Cars: React.FC = () => {
         );
 
         setCarList(normalizedCars);
-        void loadDashboardSummary(normalizedCars, currentSignal);
       } catch (error: any) {
         if (error?.name === "AbortError" || error?.code === "ERR_CANCELED") return;
 
@@ -301,13 +180,11 @@ const Cars: React.FC = () => {
           `${TEXT.loadCarsFailed}${error?.message ? `: ${error.message}` : ""}`
         );
         setCarList([]);
-        setDashboardSummary(EMPTY_DASHBOARD_SUMMARY);
-        setIsDashboardLoading(false);
       } finally {
         setIsLoading(false);
       }
     },
-    [loadDashboardSummary, showErrorAlert]
+    [showErrorAlert]
   );
 
   useIonViewWillEnter(() => {
@@ -319,39 +196,10 @@ const Cars: React.FC = () => {
     };
   }, [loadCars]);
 
-  // ✅ AQUI é o ajuste que elimina: "Property 'id' does not exist on type 'Object'"
   const filteredList = useMemo<CarModel[]>(() => {
     if (!searchValue.trim()) return carList;
-
-    // filterListObj está “perdendo” o tipo, então forçamos o retorno como CarModel[]
     return filterListObj(carList, searchValue) as CarModel[];
   }, [carList, searchValue]);
-
-  const fleetSummary = useMemo(
-    () => [
-      {
-        key: "active",
-        label: "Veículos ativos",
-        value: `${dashboardSummary.activeCars}`,
-        tone: "active",
-      },
-      {
-        key: "inactive",
-        label: "Veículos inativos",
-        value:
-          dashboardSummary.hasTotalCarsData &&
-          typeof dashboardSummary.inactiveCars === "number"
-            ? `${dashboardSummary.inactiveCars}`
-            : "--",
-        tone: "inactive",
-      },
-    ],
-    [
-      dashboardSummary.activeCars,
-      dashboardSummary.hasTotalCarsData,
-      dashboardSummary.inactiveCars,
-    ]
-  );
 
   const carsListCaption = useMemo(() => {
     if (searchValue.trim()) {
@@ -540,14 +388,10 @@ const Cars: React.FC = () => {
 
     return (
       <IonPage id="cars-action-select-page">
-        <IonHeader>
-          <IonToolbar>
+        <IonHeader className="ion-no-border">
+          <IonToolbar className="app-toolbar-clean">
             <IonButtons slot="start">
-              <IonButton
-                className="app-semantic-btn app-semantic--neutral"
-                fill="clear"
-                onClick={handleCloseActionSelectorModal}
-              >
+              <IonButton onClick={handleCloseActionSelectorModal}>
                 {TEXT.cancel}
               </IonButton>
             </IonButtons>
@@ -561,9 +405,9 @@ const Cars: React.FC = () => {
           </IonToolbar>
         </IonHeader>
         <IonContent>
-          <div className="app-form-page__body">
-            <div className="app-form-page__panel">
-              <h3 className="app-form-page__title">{`${TEXT.select} ${TEXT.car}`}</h3>
+          <div className="app-shell app-shell--compact">
+            <div className="cars-action-card">
+              <h3 className="cars-action-title">{`${TEXT.select} ${TEXT.car}`}</h3>
               <CarSelector
                 cars={carList}
                 onSelect={handleSelectActionCar}
@@ -636,8 +480,8 @@ const Cars: React.FC = () => {
 
   return (
     <IonPage id="cars-page">
-      <IonHeader>
-        <IonToolbar>
+      <IonHeader className="ion-no-border">
+        <IonToolbar className="app-toolbar-clean">
           <IonButtons slot="start">
             <IonMenuButton menu="main-menu" autoHide={false} />
           </IonButtons>
@@ -646,9 +490,8 @@ const Cars: React.FC = () => {
 
           <IonButtons slot="end">
             <IonButton
-              className="app-semantic-btn app-semantic--neutral"
               id="cars-action-trigger"
-              fill="clear"
+              className="cars-add-btn"
               onClick={(event) => handleOpenActionPicker(event.nativeEvent)}
             >
               <IonIcon slot="icon-only" icon={add} />
@@ -656,47 +499,25 @@ const Cars: React.FC = () => {
           </IonButtons>
         </IonToolbar>
 
-        <IonToolbar>
-          <div className="app-toolbar-search">
-            <IonSearchbar
-              debounce={500}
-              placeholder={TEXT.search}
-              value={searchValue}
-              onIonChange={(e) => setSearchValue(e.detail.value || "")}
-            />
-          </div>
+        <IonToolbar className="app-subtoolbar">
+          <IonSearchbar
+            debounce={500}
+            placeholder={TEXT.search}
+            value={searchValue}
+            onIonChange={(e) => setSearchValue(e.detail.value || "")}
+          />
           {isLoading && <IonProgressBar type="indeterminate" />}
         </IonToolbar>
       </IonHeader>
 
-      <IonContent scrollY forceOverscroll={true}>
-        <div className="section-shell cars-shell cars-shell--list">
-          <IonCard
-            className={`cars-fleet-summary-card${
-              isDashboardLoading ? " cars-fleet-summary-card--loading" : ""
-            }`}
-          >
-            <div className="cars-fleet-summary">
-              {fleetSummary.map((item) => (
-                <div
-                  key={item.key}
-                  className={`cars-fleet-summary__item cars-fleet-summary__item--${item.tone}`}
-                >
-                  <span className="cars-fleet-summary__label">{item.label}</span>
-                  <strong className="cars-fleet-summary__value">{item.value}</strong>
-                </div>
-              ))}
-            </div>
-          </IonCard>
-
-          <div className="cars-list-section__header">
-            <div>
-              <h3 className="cars-list-section__title">Veículos ativos</h3>
-              <p className="cars-list-section__caption">{carsListCaption}</p>
-            </div>
+      <IonContent>
+        <div className="app-shell app-shell--compact">
+          <div className="cars-section-head">
+            <h2 className="app-section-title">Veículos ativos</h2>
+            <p className="app-section-subtitle">{carsListCaption}</p>
           </div>
 
-          <div className="cards-grid cards-grid--cars">
+          <div className="cars-list-wrap">
             {filteredList.map((car: CarModel, index) => (
               <CarListItem
                 key={car.id ?? `car-${index}`}
@@ -707,7 +528,7 @@ const Cars: React.FC = () => {
           </div>
 
           {!isLoading && filteredList.length === 0 && (
-            <div className="cards-empty cards-empty--cars">
+            <div className="cars-empty-wrap">
               <ItemNotFound />
             </div>
           )}
@@ -728,16 +549,9 @@ const Cars: React.FC = () => {
           <IonList inset>
             {quickActions.map((action) => (
               <IonItem button key={action.key} onClick={() => handleSelectQuickAction(action.key)}>
-                <IonIcon
-                  slot="start"
-                  icon={resolveQuickActionIcon(action.key)}
-                  className={`app-semantic-icon app-semantic--${resolveQuickActionTone(
-                    action.key
-                  )} cars-action-picker__icon`}
-                />
                 <IonLabel>
-                  <h3 className="cars-action-picker__title">{action.title}</h3>
-                  <p className="cars-action-picker__description">{action.description}</p>
+                  <h3 className="action-picker-title">{action.title}</h3>
+                  <p className="action-picker-desc">{action.description}</p>
                 </IonLabel>
               </IonItem>
             ))}

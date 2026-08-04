@@ -23,7 +23,7 @@ type CarListItem = CarModel & {
   carId?: number;
 };
 
-const normalizeCars = (list: CarListItem[]): CarModel[] =>
+export const normalizeCars = (list: CarListItem[]): CarModel[] =>
   list.map((item) => {
     const { car, carId, ...rest } = item;
     const baseCar = car ?? rest;

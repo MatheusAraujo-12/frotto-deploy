@@ -1,0 +1,121 @@
+#car-maintenances-page .app-shell {
+  gap: 14px;
+}
+
+.maintenances-section-head {
+  display: grid;
+  gap: 4px;
+}
+
+.maintenances-list {
+  display: grid;
+  gap: 12px;
+}
+
+.maintenance-list-item {
+  --background: transparent;
+  --border-color: transparent;
+  --inner-border-width: 0;
+  --inner-box-shadow: none;
+  --padding-start: 0;
+  --inner-padding-end: 0;
+  --min-height: auto;
+  margin: 0;
+}
+
+.maintenance-list-item::part(native) {
+  background: var(--app-card);
+  border: var(--app-border);
+  border-radius: 16px;
+  box-shadow: var(--app-shadow);
+  padding: 12px 14px;
+  transition: transform 0.12s ease, box-shadow 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.maintenance-list-item:hover::part(native),
+.maintenance-list-item:active::part(native) {
+  transform: translateY(-1px);
+  box-shadow: var(--app-shadow-hover);
+}
+
+.maintenance-list-item__wrap {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.maintenance-list-item__content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.maintenance-list-item__main,
+.maintenance-list-item__aside {
+  min-width: 0;
+}
+
+.maintenance-list-item__main {
+  display: grid;
+  gap: 8px;
+}
+
+.maintenance-list-item__details {
+  display: grid;
+  gap: 4px;
+}
+
+.maintenance-list-item__detail {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  color: var(--ion-text-color);
+  word-break: break-word;
+}
+
+.maintenance-list-item__detail-label {
+  font-weight: 700;
+}
+
+.maintenance-list-item__detail-value {
+  color: var(--ion-color-medium-shade);
+}
+
+.maintenance-list-item__services {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  color: var(--ion-text-color);
+  padding-top: 2px;
+}
+
+.maintenance-list-item__aside {
+  text-align: right;
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.maintenance-list-item__value {
+  margin: 0;
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: var(--ion-text-color);
+}
+
+@media (max-width: 640px) {
+  .maintenance-list-item__content {
+    flex-direction: column;
+  }
+
+  .maintenance-list-item__aside {
+    text-align: left;
+    justify-items: start;
+  }
+}

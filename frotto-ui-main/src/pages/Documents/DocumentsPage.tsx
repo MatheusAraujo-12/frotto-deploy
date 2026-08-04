@@ -4,6 +4,9 @@ import {
   IonButtons,
   IonCard,
   IonCardContent,
+  IonCardHeader,
+  IonCardSubtitle,
+  IonCardTitle,
   IonCheckbox,
   IonContent,
   IonFooter,
@@ -24,7 +27,14 @@ import {
   IonPage,
   useIonToast,
 } from "@ionic/react";
-import { add, closeCircleOutline, refreshOutline, trashOutline } from "ionicons/icons";
+import {
+  add,
+  closeCircleOutline,
+  documentTextOutline,
+  filterOutline,
+  refreshOutline,
+  trashOutline,
+} from "ionicons/icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DriverPendencyModel } from "../../constants/CarModels";
 import { DebtItemTypeModel } from "../../constants/DebtItemTypeModels";
@@ -96,6 +106,13 @@ type ChecklistTires = {
 
 const MIN_EMERGENCY_CONTACTS = 2;
 const DOCUMENTS_DEV_LOG = process.env.NODE_ENV === "development";
+
+const documentToneClass = (status: DocumentStatus): string => {
+  if (status === "DRAFT") return "app-soft-icon--warning";
+  if (status === "FINAL" || status === "SENT") return "app-soft-icon--success";
+  if (status === "CANCELED") return "app-soft-icon--danger";
+  return "";
+};
 
 const DocumentsPage: React.FC = () => {
   const { showErrorAlert } = useAlert();
@@ -1883,14 +1900,14 @@ const DocumentsPage: React.FC = () => {
 
   return (
     <IonPage id="documents-page">
-      <IonHeader>
-        <IonToolbar>
+      <IonHeader className="ion-no-border">
+        <IonToolbar className="app-toolbar-clean">
           <IonButtons slot="start">
             <IonMenuButton menu="main-menu" autoHide={false} />
           </IonButtons>
           <IonTitle>Documentos</IonTitle>
           <IonButtons slot="end">
-            <IonButton onClick={openWizard}>
+            <IonButton className="app-primary-btn" onClick={openWizard}>
               <IonIcon icon={add} slot="start" />
               Novo Documento
             </IonButton>
@@ -1900,130 +1917,202 @@ const DocumentsPage: React.FC = () => {
       </IonHeader>
 
       <IonContent fullscreen>
-        <div className="section-shell documents-shell">
-          <IonCard>
-            <IonCardContent>
-              <h3>Filtros</h3>
-              <Autocomplete
-                label="Motorista (CPF ou nome)"
-                value={filterDriverQuery}
-                options={filterDriverOptions}
-                getLabel={(item) => `${item.name}${item.cpf ? ` (${item.cpf})` : ""}`}
-                onChange={(value) => {
-                  setFilterDriverQuery(value);
-                  setFilterDriver(null);
-                }}
-                onSelect={(driver) => {
-                  setFilterDriver(driver);
-                  setFilterDriverQuery(driver.name || "");
-                  setFilterDriverOptions([]);
-                }}
-                onClear={() => {
-                  setFilterDriver(null);
-                  setFilterDriverQuery("");
-                }}
-              />
-              <Autocomplete
-                label="Carro (placa)"
-                value={filterCarQuery}
-                options={filterCarOptions}
-                getLabel={(item) => `${item.plate || ""}${item.model ? ` - ${item.model}` : ""}`}
-                onChange={(value) => {
-                  setFilterCarQuery(value);
-                  setFilterCar(null);
-                }}
-                onSelect={(car) => {
-                  setFilterCar(car);
-                  setFilterCarQuery(car.plate || "");
-                  setFilterCarOptions([]);
-                }}
-                onClear={() => {
-                  setFilterCar(null);
-                  setFilterCarQuery("");
-                }}
-              />
-              <SelectField
-                label="Tipo"
-                value={filterType}
-                options={[{ value: "", label: "Todos" }, ...DOCUMENT_TYPES]}
-                onChange={(value) => setFilterType((value as DocumentType) || "")}
-              />
-              <SelectField
-                label="Status"
-                value={filterStatus}
-                options={[{ value: "", label: "Todos" }, ...DOCUMENT_STATUSES]}
-                onChange={(value) => setFilterStatus((value as DocumentStatus) || "")}
-              />
-              <div className="documents-filter-actions">
-                <IonButton
-                  onClick={() => {
-                    setListPage(0);
-                    void loadDocuments(0);
-                  }}
-                >
-                  Buscar
-                </IonButton>
-                <IonButton fill="outline" onClick={resetFilters}>
-                  <IonIcon icon={refreshOutline} slot="start" />
-                  Limpar filtros
-                </IonButton>
-              </div>
-            </IonCardContent>
-          </IonCard>
-          <IonList>
-            {documents.map((item) => (
-              <IonItem key={`doc-${item.id}`} className="documents-list-item">
-                <IonLabel className="ion-text-wrap">
-                  <h2>{resolveTypeLabel(item.type)}</h2>
-                  <p>Motorista: {item.driverName || "-"}</p>
-                  <p>Carro: {item.carPlate || "-"}</p>
-                  <p>Data: {formatDate(item.createdAt)}</p>
-                </IonLabel>
-                <div className="documents-item-actions">
-                  <IonBadge color={resolveStatusColor(item.status)}>{resolveStatusLabel(item.status)}</IonBadge>
-                  {item.status === "DRAFT" ? (
-                    <IonButton size="small" fill="outline" onClick={() => void openEdit(item.id)}>
-                      Editar
-                    </IonButton>
-                  ) : (
-                    <IonButton size="small" fill="outline" onClick={() => void openView(item.id)}>
-                      Detalhes
-                    </IonButton>
-                  )}
-                  {(item.status !== "DRAFT" || !!item.pdfUrl) && (
-                    <IonButton size="small" onClick={() => void openPdf(item.id)}>
-                      Abrir PDF
-                    </IonButton>
-                  )}
-                  <IonButton size="small" color="danger" fill="outline" onClick={() => void deleteDocument(item.id)}>
-                    Excluir
+        <div className="app-shell app-shell--compact documents-shell">
+          <section className="app-section">
+            <div className="documents-section-head">
+              <h2 className="app-section-title">Documentos</h2>
+              <p className="app-section-subtitle">
+                Filtre, acompanhe rascunhos e abra PDFs gerados.
+              </p>
+            </div>
+
+            <IonCard className="documents-filter-card app-panel-card app-panel-card--soft">
+              <IonCardHeader className="app-panel-header">
+                <div className="app-soft-icon">
+                  <IonIcon icon={filterOutline} />
+                </div>
+                <div className="app-panel-header__content">
+                  <IonCardTitle className="app-panel-title">Filtros</IonCardTitle>
+                  <IonCardSubtitle className="app-panel-subtitle">
+                    Motorista, carro, tipo e status
+                  </IonCardSubtitle>
+                </div>
+              </IonCardHeader>
+              <IonCardContent>
+                <div className="app-form-grid documents-filter-grid">
+                  <Autocomplete
+                    label="Motorista (CPF ou nome)"
+                    value={filterDriverQuery}
+                    options={filterDriverOptions}
+                    getLabel={(item) => `${item.name}${item.cpf ? ` (${item.cpf})` : ""}`}
+                    onChange={(value) => {
+                      setFilterDriverQuery(value);
+                      setFilterDriver(null);
+                    }}
+                    onSelect={(driver) => {
+                      setFilterDriver(driver);
+                      setFilterDriverQuery(driver.name || "");
+                      setFilterDriverOptions([]);
+                    }}
+                    onClear={() => {
+                      setFilterDriver(null);
+                      setFilterDriverQuery("");
+                    }}
+                  />
+                  <Autocomplete
+                    label="Carro (placa)"
+                    value={filterCarQuery}
+                    options={filterCarOptions}
+                    getLabel={(item) => `${item.plate || ""}${item.model ? ` - ${item.model}` : ""}`}
+                    onChange={(value) => {
+                      setFilterCarQuery(value);
+                      setFilterCar(null);
+                    }}
+                    onSelect={(car) => {
+                      setFilterCar(car);
+                      setFilterCarQuery(car.plate || "");
+                      setFilterCarOptions([]);
+                    }}
+                    onClear={() => {
+                      setFilterCar(null);
+                      setFilterCarQuery("");
+                    }}
+                  />
+                  <SelectField
+                    label="Tipo"
+                    value={filterType}
+                    options={[{ value: "", label: "Todos" }, ...DOCUMENT_TYPES]}
+                    onChange={(value) => setFilterType((value as DocumentType) || "")}
+                  />
+                  <SelectField
+                    label="Status"
+                    value={filterStatus}
+                    options={[{ value: "", label: "Todos" }, ...DOCUMENT_STATUSES]}
+                    onChange={(value) => setFilterStatus((value as DocumentStatus) || "")}
+                  />
+                </div>
+                <div className="app-actions-row app-actions-row--between documents-filter-actions">
+                  <IonButton
+                    className="app-primary-btn"
+                    onClick={() => {
+                      setListPage(0);
+                      void loadDocuments(0);
+                    }}
+                  >
+                    Buscar
+                  </IonButton>
+                  <IonButton fill="clear" className="app-outline-btn" onClick={resetFilters}>
+                    <IonIcon icon={refreshOutline} slot="start" />
+                    Limpar filtros
                   </IonButton>
                 </div>
-              </IonItem>
-            ))}
-            {!isLoading && !documents.length && (
-              <IonItem>
-                <IonLabel>Nenhum documento encontrado.</IonLabel>
-              </IonItem>
+              </IonCardContent>
+            </IonCard>
+
+            {!isLoading && !documents.length ? (
+              <div className="app-empty-state documents-empty-state">
+                <strong>Nenhum documento encontrado.</strong>
+                <span>Ajuste os filtros ou crie um novo documento.</span>
+              </div>
+            ) : (
+              <div className="documents-result-list">
+                {documents.map((item) => (
+                  <IonCard key={`doc-${item.id}`} className="documents-result-card app-panel-card">
+                    <IonCardHeader className="app-panel-header documents-result-header">
+                      <div className={`app-soft-icon ${documentToneClass(item.status)}`.trim()}>
+                        <IonIcon icon={documentTextOutline} />
+                      </div>
+                      <div className="app-panel-header__content">
+                        <IonCardTitle className="app-panel-title">
+                          {resolveTypeLabel(item.type)}
+                        </IonCardTitle>
+                        <IonCardSubtitle className="app-panel-subtitle">
+                          {formatDate(item.createdAt)}
+                        </IonCardSubtitle>
+                      </div>
+                      <IonBadge color={resolveStatusColor(item.status)}>
+                        {resolveStatusLabel(item.status)}
+                      </IonBadge>
+                    </IonCardHeader>
+                    <IonCardContent>
+                      <div className="documents-result-meta">
+                        <p className="documents-meta-line">
+                          <span>Motorista</span>
+                          <strong>{item.driverName || "-"}</strong>
+                        </p>
+                        <p className="documents-meta-line">
+                          <span>Carro</span>
+                          <strong>{item.carPlate || "-"}</strong>
+                        </p>
+                      </div>
+                      <div className="app-actions-row documents-result-actions">
+                        {item.status === "DRAFT" ? (
+                          <IonButton
+                            size="small"
+                            fill="clear"
+                            className="app-outline-btn"
+                            onClick={() => void openEdit(item.id)}
+                          >
+                            Editar
+                          </IonButton>
+                        ) : (
+                          <IonButton
+                            size="small"
+                            fill="clear"
+                            className="app-outline-btn"
+                            onClick={() => void openView(item.id)}
+                          >
+                            Detalhes
+                          </IonButton>
+                        )}
+                        {(item.status !== "DRAFT" || !!item.pdfUrl) && (
+                          <IonButton
+                            size="small"
+                            className="app-primary-btn"
+                            onClick={() => void openPdf(item.id)}
+                          >
+                            Abrir PDF
+                          </IonButton>
+                        )}
+                        <IonButton
+                          size="small"
+                          fill="clear"
+                          className="app-danger-btn"
+                          onClick={() => void deleteDocument(item.id)}
+                        >
+                          Excluir
+                        </IonButton>
+                      </div>
+                    </IonCardContent>
+                  </IonCard>
+                ))}
+              </div>
             )}
-          </IonList>
-          <div className="documents-pagination">
-            <IonButton
-              fill="outline"
-              disabled={listPage === 0 || isLoading}
-              onClick={() => setListPage((current) => Math.max(0, current - 1))}
-            >
-              Página anterior
-            </IonButton>
-            <span>Página {listPage + 1}</span>
-            <IonButton
-              fill="outline"
-              disabled={!canGoNextPage || isLoading}
-              onClick={() => setListPage((current) => current + 1)}
-            >
-              Próxima página
-            </IonButton>
-          </div>
+
+            <IonCard className="documents-pagination-card app-panel-card app-panel-card--soft">
+              <IonCardContent>
+                <div className="app-actions-row app-actions-row--between documents-pagination-controls">
+                  <IonButton
+                    fill="clear"
+                    className="app-outline-btn"
+                    disabled={listPage === 0 || isLoading}
+                    onClick={() => setListPage((current) => Math.max(0, current - 1))}
+                  >
+                    Página anterior
+                  </IonButton>
+                  <span>Página {listPage + 1}</span>
+                  <IonButton
+                    fill="clear"
+                    className="app-outline-btn"
+                    disabled={!canGoNextPage || isLoading}
+                    onClick={() => setListPage((current) => current + 1)}
+                  >
+                    Próxima página
+                  </IonButton>
+                </div>
+              </IonCardContent>
+            </IonCard>
+          </section>
         </div>
       </IonContent>
 
@@ -2034,8 +2123,8 @@ const DocumentsPage: React.FC = () => {
           setViewDocument(null);
         }}
       >
-        <IonHeader>
-          <IonToolbar>
+        <IonHeader className="ion-no-border">
+          <IonToolbar className="app-toolbar-clean">
             <IonTitle>Documento #{viewDocument?.id}</IonTitle>
             <IonButtons slot="end">
               <IonButton onClick={() => setIsViewModalOpen(false)}>
@@ -2045,8 +2134,8 @@ const DocumentsPage: React.FC = () => {
           </IonToolbar>
         </IonHeader>
         <IonContent>
-          <div className="section-shell">
-            <IonCard>
+          <div className="app-shell app-shell--compact">
+            <IonCard className="app-panel-card">
               <IonCardContent>
                 <p><strong>Tipo:</strong> {resolveTypeLabel(viewDocument?.type || "MULTA")}</p>
                 <p><strong>Status:</strong> {resolveStatusLabel(viewDocument?.status || "DRAFT")}</p>
@@ -2061,11 +2150,13 @@ const DocumentsPage: React.FC = () => {
         </IonContent>
         <IonFooter>
           <IonToolbar>
-            <div className="documents-modal-actions">
+            <div className="app-actions-row app-actions-row--end documents-modal-actions">
               {(viewDocument?.status !== "DRAFT" || !!viewDocument?.pdfUrl) && (
-                <IonButton onClick={() => void openPdf(viewDocument?.id)}>Abrir PDF</IonButton>
+                <IonButton className="app-primary-btn" onClick={() => void openPdf(viewDocument?.id)}>
+                  Abrir PDF
+                </IonButton>
               )}
-              <IonButton color="danger" fill="outline" onClick={() => void deleteDocument(viewDocument?.id)}>
+              <IonButton fill="clear" className="app-danger-btn" onClick={() => void deleteDocument(viewDocument?.id)}>
                 Excluir
               </IonButton>
             </div>
@@ -2074,8 +2165,8 @@ const DocumentsPage: React.FC = () => {
       </IonModal>
 
       <IonModal isOpen={isWizardOpen} onDidDismiss={closeWizard}>
-        <IonHeader>
-          <IonToolbar>
+        <IonHeader className="ion-no-border">
+          <IonToolbar className="app-toolbar-clean">
             <IonTitle>{savedDocument?.id ? "Editar Documento" : "Novo Documento"} - Passo {wizardStep}/3</IonTitle>
             <IonButtons slot="end">
               <IonButton onClick={closeWizard}>
@@ -2085,9 +2176,9 @@ const DocumentsPage: React.FC = () => {
           </IonToolbar>
         </IonHeader>
         <IonContent>
-          <div className="section-shell documents-shell">
+          <div className="app-shell app-shell--compact documents-shell">
             {wizardStep === 1 && (
-              <IonCard>
+              <IonCard className="app-panel-card">
                 <IonCardContent>
                   <h3>Passo 1 - Motorista/Carro</h3>
                   <Autocomplete
@@ -2153,7 +2244,7 @@ const DocumentsPage: React.FC = () => {
             )}
 
             {wizardStep === 2 && (
-              <IonCard>
+              <IonCard className="app-panel-card">
                 <IonCardContent>
                   <h3>Passo 2 - Tipo</h3>
                   <SelectField
@@ -2170,7 +2261,7 @@ const DocumentsPage: React.FC = () => {
             )}
 
             {wizardStep === 3 && (
-              <IonCard>
+              <IonCard className="app-panel-card">
                 <IonCardContent>
                   <h3>Passo 3 - Formulário</h3>
                   {renderTypeFields()}
@@ -2207,13 +2298,15 @@ const DocumentsPage: React.FC = () => {
           <IonToolbar>
             <div className="documents-step-footer">
               <IonButton
-                fill="outline"
+                fill="clear"
+                className="app-outline-btn"
                 disabled={wizardStep === 1}
                 onClick={() => setWizardStep((prev) => (prev === 1 ? 1 : ((prev - 1) as 1 | 2 | 3)))}
               >
                 Voltar
               </IonButton>
               <IonButton
+                className="app-primary-btn"
                 disabled={wizardStep === 3}
                 onClick={() => setWizardStep((prev) => (prev === 3 ? 3 : ((prev + 1) as 1 | 2 | 3)))}
               >
@@ -2224,15 +2317,24 @@ const DocumentsPage: React.FC = () => {
           {wizardStep === 3 && (
             <IonToolbar>
               <div className="documents-editor-actions">
-                <IonButton fill="outline" onClick={() => void saveDraft()} disabled={isActionLoading}>
+                <IonButton
+                  fill="clear"
+                  className="app-outline-btn"
+                  onClick={() => void saveDraft()}
+                  disabled={isActionLoading}
+                >
                   Salvar rascunho
                 </IonButton>
-                <IonButton className="documents-generate-button" onClick={() => void generateWizardPdf()} disabled={isActionLoading}>
+                <IonButton
+                  className="app-primary-btn documents-generate-button"
+                  onClick={() => void generateWizardPdf()}
+                  disabled={isActionLoading}
+                >
                   Gerar PDF
                 </IonButton>
                 <IonButton
-                  color="danger"
-                  fill="outline"
+                  fill="clear"
+                  className="app-danger-btn"
                   disabled={!savedDocument?.id || isActionLoading}
                   onClick={() => void deleteWizardDocument()}
                 >

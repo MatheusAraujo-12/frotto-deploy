@@ -27,8 +27,13 @@ export const createMonthlyReport = (reportsMonthly: ReportsMonthly) => {
   void createReportPdf(content);
 };
 
-export const createHistoryReport = (reportsHistory: ReportsHistory[], group: string) => {
-  const content = createContentReportHistory(reportsHistory, group);
+export const createHistoryReport = (
+  reportsHistory: ReportsHistory[],
+  group: string,
+  period?: { startDate: string; endDate: string },
+  carName?: string
+) => {
+  const content = createContentReportHistory(reportsHistory, group, period, carName);
   void createReportPdf(content);
 };
 

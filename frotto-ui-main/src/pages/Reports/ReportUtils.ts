@@ -278,7 +278,9 @@ const createItensV2 = (listItens: ReportItem[]) => {
 
 export const createContentReportHistory = (
   reportsHistory: ReportsHistory[],
-  group: string
+  group: string,
+  period?: { startDate: string; endDate: string },
+  carName?: string
 ) => {
   const content: any[] = [];
   content.push({ text: "Relatório Histórico financeiro", style: "header" });
@@ -286,6 +288,22 @@ export const createContentReportHistory = (
     text: group,
     style: ["subheader", "mb"],
   });
+  if (period?.startDate && period?.endDate) {
+    content.push({
+      text:
+        "Período: " +
+        formatDateView(period.startDate) +
+        " até " +
+        formatDateView(period.endDate),
+      style: ["mb"],
+    });
+  }
+  if (carName) {
+    content.push({
+      text: "Carro filtrado: " + carName,
+      style: ["mb"],
+    });
+  }
   reportsHistory.forEach((reportHistory) => {
     content.push(
       {

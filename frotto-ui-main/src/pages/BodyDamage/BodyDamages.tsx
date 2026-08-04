@@ -2,12 +2,15 @@ import {
   IonBackButton,
   IonButton,
   IonButtons,
+  IonCard,
+  IonCardContent,
+  IonCardHeader,
+  IonCardSubtitle,
+  IonCardTitle,
   IonContent,
   IonHeader,
   IonIcon,
   IonItem,
-  IonLabel,
-  IonList,
   IonModal,
   IonPage,
   IonProgressBar,
@@ -19,15 +22,15 @@ import {
 import api from "../../services/axios/axios";
 import endpoints from "../../constants/endpoints";
 import { TEXT } from "../../constants/texts";
-import { add } from "ionicons/icons";
+import { add, checkmarkDoneOutline, warningOutline } from "ionicons/icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAlert } from "../../services/hooks/useAlert";
 import { CarBodyDamageModel } from "../../constants/CarModels";
 import { filterListObj } from "../../services/filterList";
-import ItemNotFound from "../../components/List/ItemNotFound";
 import { RouteComponentProps, useHistory, useLocation } from "react-router";
 import BodyDamageAdd from "./BodyDamageAddModal/BodyDamageAdd";
 import BodyDamage from "./BodyDamage";
+import "./BodyDamages.css";
 
 interface BodyDamageDetail
   extends RouteComponentProps<{
@@ -111,88 +114,140 @@ const BodyDamages: React.FC<BodyDamageDetail> = ({ match }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const openDamageModal = (carDamage: CarBodyDamageModel) => {
+    setModalCarDamage(carDamage);
+    setIsModalOpen(true);
+    nav.push(nav.location.pathname + "?modalOpened=true");
+  };
+
   return (
     <IonPage id="car-damages-page">
-      <IonHeader>
-        <IonToolbar>
+      <IonHeader className="ion-no-border">
+        <IonToolbar className="app-toolbar-clean">
           <IonButtons slot="start">
             <IonBackButton defaultHref="/menu" />
           </IonButtons>
-          <IonButtons slot="primary">
+          <IonTitle>{TEXT.carDamages}</IonTitle>
+          <IonButtons slot="end">
             <IonButton
+              className="app-primary-btn body-damages-add-btn"
               disabled={isLoading}
-              onClick={(e) => {
-                e.preventDefault();
-                setModalCarDamage({});
-                setIsModalOpen(true);
-                nav.push(nav.location.pathname + "?modalOpened=true");
+              onClick={(event) => {
+                event.preventDefault();
+                openDamageModal({});
               }}
             >
               <IonIcon slot="icon-only" icon={add}></IonIcon>
             </IonButton>
           </IonButtons>
-          <IonTitle>{TEXT.carDamages}</IonTitle>
         </IonToolbar>
-        <IonToolbar>
-          <div className="app-toolbar-search">
-            <IonSearchbar
-              debounce={500}
-              placeholder={TEXT.search}
-              onIonChange={(e) => setSearchValue(e.detail.value)}
-            ></IonSearchbar>
-          </div>
+        <IonToolbar className="app-subtoolbar">
+          <IonSearchbar
+            debounce={500}
+            placeholder={TEXT.search}
+            value={searchValue}
+            onIonChange={(e) => setSearchValue(e.detail.value ?? undefined)}
+          ></IonSearchbar>
           {isLoading && <IonProgressBar type="indeterminate"></IonProgressBar>}
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <div className="section-shell">
-          <IonList>
-            <IonItem>
-              <IonLabel>
-                <h1>{TEXT.carDamagesActive}</h1>
-              </IonLabel>
-            </IonItem>
-            {activeDoneList.active.map((carDamage: CarBodyDamageModel, index) => {
-              return (
-                <IonItem
-                  key={index}
-                  button
-                  onClick={() => {
-                    setModalCarDamage(carDamage);
-                    setIsModalOpen(true);
-                    nav.push(nav.location.pathname + "?modalOpened=true");
-                  }}
-                >
-                  <BodyDamage carDamage={carDamage} />
-                </IonItem>
-              );
-            })}
-            {!isLoading && activeDoneList.active.length === 0 && <ItemNotFound />}
-          </IonList>
-          <IonList>
-            <IonItem>
-              <IonLabel>
-                <h1>{TEXT.carDamagesDone}</h1>
-              </IonLabel>
-            </IonItem>
+        <div className="app-shell app-shell--compact">
+          <section className="app-section">
+            <div className="body-damages-section-head">
+              <h2 className="app-section-title">{TEXT.carDamages}</h2>
+              <p className="app-section-subtitle">
+                Acompanhe danos pendentes e o histórico já finalizado deste
+                veículo.
+              </p>
+            </div>
 
-            {activeDoneList.done.map((carDamage: CarBodyDamageModel, index) => {
-              return (
-                <IonItem
-                  key={index}
-                  button
-                  onClick={() => {
-                    setModalCarDamage(carDamage);
-                    setIsModalOpen(true);
-                    nav.push(nav.location.pathname + "?modalOpened=true");
-                  }}
-                >
-                  <BodyDamage carDamage={carDamage} />
-                </IonItem>
-              );
-            })}
-            {!isLoading && activeDoneList.done.length === 0 && <ItemNotFound />}
-          </IonList>
+            <IonCard className="app-panel-card">
+              <IonCardHeader className="app-panel-header">
+                <div className="app-soft-icon app-soft-icon--warning">
+                  <IonIcon icon={warningOutline} />
+                </div>
+                <div className="app-panel-header__content">
+                  <IonCardTitle className="app-panel-title">
+                    {TEXT.carDamagesActive}
+                  </IonCardTitle>
+                  <IonCardSubtitle className="app-panel-subtitle">
+                    Danos que ainda precisam de resolução.
+                  </IonCardSubtitle>
+                </div>
+              </IonCardHeader>
+              <IonCardContent>
+                <div className="body-damages-list">
+                  {activeDoneList.active.map((carDamage: CarBodyDamageModel, index) => {
+                    return (
+                      <IonItem
+                        key={carDamage.id ?? `body-damage-active-${index}`}
+                        button
+                        detail={false}
+                        lines="none"
+                        className="body-damage-list-item"
+                        onClick={() => {
+                          openDamageModal(carDamage);
+                        }}
+                      >
+                        <BodyDamage carDamage={carDamage} />
+                      </IonItem>
+                    );
+                  })}
+                </div>
+
+                {!isLoading && activeDoneList.active.length === 0 && (
+                  <div className="app-empty-state">
+                    <strong>{TEXT.carDamagesActive}</strong>
+                    <span>Nenhum dano pendente encontrado.</span>
+                  </div>
+                )}
+              </IonCardContent>
+            </IonCard>
+
+            <IonCard className="app-panel-card">
+              <IonCardHeader className="app-panel-header">
+                <div className="app-soft-icon app-soft-icon--success">
+                  <IonIcon icon={checkmarkDoneOutline} />
+                </div>
+                <div className="app-panel-header__content">
+                  <IonCardTitle className="app-panel-title">
+                    {TEXT.carDamagesDone}
+                  </IonCardTitle>
+                  <IonCardSubtitle className="app-panel-subtitle">
+                    Danos já encerrados para consulta rápida.
+                  </IonCardSubtitle>
+                </div>
+              </IonCardHeader>
+              <IonCardContent>
+                <div className="body-damages-list">
+                  {activeDoneList.done.map((carDamage: CarBodyDamageModel, index) => {
+                    return (
+                      <IonItem
+                        key={carDamage.id ?? `body-damage-done-${index}`}
+                        button
+                        detail={false}
+                        lines="none"
+                        className="body-damage-list-item"
+                        onClick={() => {
+                          openDamageModal(carDamage);
+                        }}
+                      >
+                        <BodyDamage carDamage={carDamage} />
+                      </IonItem>
+                    );
+                  })}
+                </div>
+
+                {!isLoading && activeDoneList.done.length === 0 && (
+                  <div className="app-empty-state">
+                    <strong>{TEXT.carDamagesDone}</strong>
+                    <span>Nenhum dano finalizado encontrado.</span>
+                  </div>
+                )}
+              </IonCardContent>
+            </IonCard>
+          </section>
         </div>
       </IonContent>
       <IonModal isOpen={isModalOpen} backdropDismiss={false}>

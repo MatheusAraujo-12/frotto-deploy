@@ -1,0 +1,105 @@
+#car-inspections-page .app-shell {
+  gap: 14px;
+}
+
+.inspections-section-head {
+  display: grid;
+  gap: 4px;
+}
+
+.inspections-list {
+  display: grid;
+  gap: 12px;
+}
+
+.inspection-list-item {
+  --background: transparent;
+  --border-color: transparent;
+  --inner-border-width: 0;
+  --padding-start: 0;
+  --inner-padding-end: 0;
+  --min-height: auto;
+  margin: 0;
+}
+
+.inspection-list-item::part(native) {
+  background: var(--app-card);
+  border: var(--app-border);
+  border-radius: 16px;
+  box-shadow: var(--app-shadow);
+  padding: 12px 14px;
+  transition: transform 0.12s ease, box-shadow 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.inspection-list-item:hover::part(native),
+.inspection-list-item:active::part(native) {
+  transform: translateY(-1px);
+  box-shadow: var(--app-shadow-hover);
+}
+
+.inspection-list-item__wrap {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.inspection-list-item__content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.inspection-list-item__main,
+.inspection-list-item__aside {
+  min-width: 0;
+}
+
+.inspection-list-item__title {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--ion-text-color);
+  word-break: break-word;
+}
+
+.inspection-list-item__meta {
+  margin: 4px 0 0;
+  font-size: 0.86rem;
+  line-height: 1.35;
+  color: var(--ion-color-medium);
+}
+
+.inspection-list-item__hint {
+  margin: 6px 0 0;
+  font-size: 0.84rem;
+  line-height: 1.35;
+  color: var(--ion-text-color);
+}
+
+.inspection-list-item__aside {
+  text-align: right;
+}
+
+.inspection-list-item__value {
+  margin: 0;
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: var(--ion-text-color);
+}
+
+@media (max-width: 640px) {
+  .inspection-list-item__content {
+    flex-direction: column;
+  }
+
+  .inspection-list-item__aside {
+    text-align: left;
+  }
+}

@@ -6,8 +6,6 @@ import {
   IonHeader,
   IonIcon,
   IonItem,
-  IonLabel,
-  IonList,
   IonModal,
   IonPage,
   IonProgressBar,
@@ -23,10 +21,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAlert } from "../../services/hooks/useAlert";
 import { ReminderModel } from "../../constants/CarModels";
 import { filterListObj } from "../../services/filterList";
-import ItemNotFound from "../../components/List/ItemNotFound";
 import { RouteComponentProps, useHistory, useLocation } from "react-router";
 import ReminderAdd from "./ReminderAddModal/reminderAdd";
-import { add } from "ionicons/icons";
+import { add, notificationsOutline } from "ionicons/icons";
+import "./Reminders.css";
 
 interface ReminderDetail
   extends RouteComponentProps<{
@@ -101,15 +99,15 @@ const Reminders: React.FC<ReminderDetail> = ({ match }) => {
 
   return (
     <IonPage id="car-Reminders-page">
-      <IonHeader>
-        <IonToolbar>
+      <IonHeader className="ion-no-border">
+        <IonToolbar className="app-toolbar-clean">
           <IonButtons slot="start">
             <IonBackButton defaultHref="/menu" />
           </IonButtons>
           <IonTitle>{TEXT.reminders}</IonTitle>
           <IonButtons slot="end">
             <IonButton
-              strong={true}
+              className="app-primary-btn reminders-add-btn"
               onClick={() => {
                 setModalReminderValue({});
                 setIsModalOpen(true);
@@ -120,42 +118,73 @@ const Reminders: React.FC<ReminderDetail> = ({ match }) => {
             </IonButton>
           </IonButtons>
         </IonToolbar>
-        <IonToolbar>
-          <div className="app-toolbar-search">
-            <IonSearchbar
-              debounce={500}
-              placeholder={TEXT.search}
-              onIonChange={(e) => setSearchValue(e.detail.value)}
-            ></IonSearchbar>
-          </div>
+        <IonToolbar className="app-subtoolbar">
+          <IonSearchbar
+            debounce={500}
+            placeholder={TEXT.search}
+            value={searchValue}
+            onIonChange={(e) => setSearchValue(e.detail.value ?? undefined)}
+          ></IonSearchbar>
           {isLoading && <IonProgressBar type="indeterminate"></IonProgressBar>}
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <div className="section-shell">
-          <IonList>
-            {filteredList.map((reminder: ReminderModel, index) => {
-              return (
-                <IonItem
-                  key={index}
-                  button
-                  onClick={() => {
-                    setModalReminderValue(reminder);
-                    setIsModalOpen(true);
-                    nav.push(nav.location.pathname + "?modalOpened=true");
-                  }}
-                >
-                  <IonLabel class="ion-text-wrap">
-                    <p>{reminder.message}</p>
-                  </IonLabel>
-                </IonItem>
-              );
-            })}
-            {!isLoading && filteredList.length === 0 && <ItemNotFound />}
-          </IonList>
+        <div className="app-shell app-shell--compact">
+          <section className="app-section">
+            <div className="reminders-section-head">
+              <h2 className="app-section-title">{TEXT.reminders}</h2>
+              <p className="app-section-subtitle">
+                Lista de lembretes configurados para este veículo.
+              </p>
+            </div>
+
+            <div className="reminders-list">
+              {filteredList.map((reminder: ReminderModel, index) => {
+                return (
+                  <IonItem
+                    key={reminder.id ?? `reminder-${index}`}
+                    button
+                    detail={false}
+                    className="reminder-list-item"
+                    onClick={() => {
+                      setModalReminderValue(reminder);
+                      setIsModalOpen(true);
+                      nav.push(nav.location.pathname + "?modalOpened=true");
+                    }}
+                  >
+                    <div className="reminder-list-item__wrap">
+                      <div className="app-soft-icon app-soft-icon--warning">
+                        <IonIcon icon={notificationsOutline} />
+                      </div>
+
+                      <div className="reminder-list-item__content">
+                        <h3 className="reminder-list-item__title">
+                          {reminder.message || "-"}
+                        </h3>
+                        <p className="reminder-list-item__meta">
+                          {TEXT.reminder}
+                        </p>
+                      </div>
+                    </div>
+                  </IonItem>
+                );
+              })}
+            </div>
+
+            {!isLoading && filteredList.length === 0 && (
+              <div className="app-empty-state">
+                <strong>{TEXT.noReminders}</strong>
+                <span>Nenhum lembrete encontrado para os filtros atuais.</span>
+              </div>
+            )}
+          </section>
         </div>
       </IonContent>
-      <IonModal isOpen={isModalOpen} backdropDismiss={false}>
+      <IonModal
+        isOpen={isModalOpen}
+        onDidDismiss={() => setIsModalOpen(false)}
+        backdropDismiss={false}
+      >
         <ReminderAdd
           carId={match.params.id}
           closeModal={closeModal}

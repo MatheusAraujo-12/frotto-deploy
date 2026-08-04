@@ -24,6 +24,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -216,11 +217,19 @@ public class ReportsResource {
     }
 
     @GetMapping("/reports-history")
-    public List<ReportHistoryDTO> getReportsHistory(@RequestParam String group) {
+    public List<ReportHistoryDTO> getReportsHistory(
+        @RequestParam String group,
+        @RequestParam(required = false) Long carId,
+        @RequestParam(required = false) LocalDate startDate,
+        @RequestParam(required = false) LocalDate endDate
+    ) {
         List<ReportHistoryDTO> responseList = new ArrayList<>();
         if (!group.isEmpty()) {
             List<Car> carsInGroup = carRepository.findActiveByCurrentUserAndGroup(group);
-            for (Car car : carsInGroup) {
+            List<Car> targetCars = carId == null
+                ? carsInGroup
+                : carsInGroup.stream().filter(car -> carId.equals(car.getId())).collect(Collectors.toList());
+            for (Car car : targetCars) {
                 String carName = car.getName() + " " + car.getPlate();
                 ReportHistoryDTO responseItem = new ReportHistoryDTO();
                 responseItem.setCarId(car.getId());
@@ -237,7 +246,9 @@ public class ReportsResource {
                 BigDecimal totalPercentageProfit = new BigDecimal(0);
                 BigDecimal averagePercentageProfit = new BigDecimal(0);
 
-                List<CarHistory> carHistory = carHistoryRepository.findAllByCarId(car.getId());
+                List<CarHistory> carHistory = (startDate != null && endDate != null)
+                    ? carHistoryRepository.findByCarIdAndDateBetween(car.getId(), startDate, endDate)
+                    : carHistoryRepository.findAllByCarId(car.getId());
 
                 if (carHistory != null && !carHistory.isEmpty()) {
                     responseItem.setCarHistory(carHistory);

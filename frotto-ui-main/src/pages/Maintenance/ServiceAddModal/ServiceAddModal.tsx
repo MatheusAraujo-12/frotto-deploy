@@ -1,6 +1,8 @@
 import {
   IonButton,
   IonButtons,
+  IonCard,
+  IonCardContent,
   IonCheckbox,
   IonContent,
   IonHeader,
@@ -126,21 +128,25 @@ const ServiceAddModal: React.FC<ServiceAddModalProps> = ({
 
   return (
     <IonPage id="services-add-page">
-      <IonHeader>
-        <IonToolbar>
+      <IonHeader className="ion-no-border">
+        <IonToolbar className="app-toolbar-clean">
           <IonButtons slot="start">
-            <IonButton color="danger" onClick={() => closeModal()}>
+            <IonButton
+              fill="clear"
+              className="app-outline-btn"
+              onClick={() => closeModal()}
+            >
               {TEXT.cancel}
             </IonButton>
           </IonButtons>
           <IonTitle>{TEXT.services}</IonTitle>
           <IonButtons slot="end">
-            <IonButton strong={true} onClick={save}>
+            <IonButton className="app-primary-btn" onClick={save}>
               {TEXT.save}
             </IonButton>
           </IonButtons>
         </IonToolbar>
-        <IonToolbar>
+        <IonToolbar className="app-subtoolbar">
           <IonSearchbar
             debounce={500}
             placeholder={TEXT.search}
@@ -149,62 +155,79 @@ const ServiceAddModal: React.FC<ServiceAddModalProps> = ({
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <IonList>
-          {Object.entries(filteredList).map(([key, value]) => {
-            return (
-              <IonItem key={key}>
-                <IonCheckbox
-                  checked={value?.selected}
-                  onIonChange={(e) => {
-                    const newServiceList = Object.assign({}, servicesList);
-                    newServiceList[key].selected = e.target.checked;
-                    setServicesList(newServiceList);
-                  }}
-                  slot="start"
-                ></IonCheckbox>
-                <IonLabel>
-                  <IonText color="primary">{value?.name}</IonText>
-                </IonLabel>
-                {value?.selected && (
-                  <CurrencyInput
-                    inputmode="numeric"
-                    class="ion-text-end"
-                    value={currencyFormat(value.cost)}
-                    placeholder={TEXT.zeroMoney}
-                    onKeyDown={(e) => {
-                      e.preventDefault();
-                      const newServiceList = Object.assign({}, servicesList);
-                      newServiceList[key].cost = +updateNumberByKeyandPrevious(
-                        e.key.toString(),
-                        value.cost ? value.cost.toString() : "0"
-                      );
-                      setServicesList(newServiceList);
-                    }}
-                    onIonChange={(e) => {
-                      e.preventDefault();
-                    }}
-                  ></CurrencyInput>
-                )}
-              </IonItem>
-            );
-          })}
-          {Object.entries(filteredList).length === 0 &&
-            searchValue !== undefined && (
-              <>
-                <ItemNotFound />
-                <IonItem>
-                  <IonButton
-                    slot="end"
-                    onClick={() => {
-                      addToList(searchValue);
-                    }}
-                  >
-                    {`${TEXT.addItem} "${searchValue}"`}
-                  </IonButton>
-                </IonItem>
-              </>
-            )}
-        </IonList>
+        <div className="app-shell app-shell--compact">
+          <section className="app-section">
+            <IonCard className="app-panel-card">
+              <IonCardContent>
+                <IonList>
+                  {Object.entries(filteredList).map(([key, value]) => {
+                    return (
+                      <IonItem key={key}>
+                        <IonCheckbox
+                          checked={value?.selected}
+                          onIonChange={(e) => {
+                            const newServiceList = Object.assign(
+                              {},
+                              servicesList
+                            );
+                            newServiceList[key].selected = e.target.checked;
+                            setServicesList(newServiceList);
+                          }}
+                          slot="start"
+                        ></IonCheckbox>
+                        <IonLabel>
+                          <IonText color="primary">{value?.name}</IonText>
+                        </IonLabel>
+                        {value?.selected && (
+                          <CurrencyInput
+                            inputmode="numeric"
+                            class="ion-text-end"
+                            value={currencyFormat(value.cost)}
+                            placeholder={TEXT.zeroMoney}
+                            onKeyDown={(e) => {
+                              e.preventDefault();
+                              const newServiceList = Object.assign(
+                                {},
+                                servicesList
+                              );
+                              newServiceList[key].cost =
+                                +updateNumberByKeyandPrevious(
+                                  e.key.toString(),
+                                  value.cost ? value.cost.toString() : "0"
+                                );
+                              setServicesList(newServiceList);
+                            }}
+                            onIonChange={(e) => {
+                              e.preventDefault();
+                            }}
+                          ></CurrencyInput>
+                        )}
+                      </IonItem>
+                    );
+                  })}
+                  {Object.entries(filteredList).length === 0 &&
+                    searchValue !== undefined && (
+                      <>
+                        <ItemNotFound />
+                        <IonItem>
+                          <IonButton
+                            slot="end"
+                            fill="clear"
+                            className="app-outline-btn"
+                            onClick={() => {
+                              addToList(searchValue);
+                            }}
+                          >
+                            {`${TEXT.addItem} "${searchValue}"`}
+                          </IonButton>
+                        </IonItem>
+                      </>
+                    )}
+                </IonList>
+              </IonCardContent>
+            </IonCard>
+          </section>
+        </div>
       </IonContent>
     </IonPage>
   );
