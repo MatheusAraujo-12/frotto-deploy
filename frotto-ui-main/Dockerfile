@@ -5,7 +5,7 @@ FROM node:20.19-alpine AS build
 WORKDIR /app
 
 ENV CI=false
-ENV NODE_OPTIONS=--max-old-space-size=512
+ENV NODE_OPTIONS=--max-old-space-size=2048
 ENV GENERATE_SOURCEMAP=false
 ENV NPM_CONFIG_AUDIT=false
 ENV NPM_CONFIG_FUND=false
