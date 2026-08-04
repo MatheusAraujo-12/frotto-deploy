@@ -1,7 +1,7 @@
 # ========================
 # STAGE 1: backend build
 # ========================
-FROM eclipse-temurin:25-jdk AS build
+FROM eclipse-temurin:17-jdk AS build
 WORKDIR /app
 
 # Limit Maven memory to reduce build failures on small builders.
@@ -28,7 +28,7 @@ RUN ./mvnw -B -ntp -DskipTests package
 # ========================
 # STAGE 2: runtime image
 # ========================
-FROM eclipse-temurin:25-jre
+FROM eclipse-temurin:17-jre
 WORKDIR /app
 
 COPY --from=build /app/target/*.jar app.jar
