@@ -14,6 +14,7 @@ import {
   IonTitle,
   IonToolbar,
   useIonRouter,
+  useIonViewWillEnter,
 } from "@ionic/react";
 import api from "../../services/axios/axios";
 import endpoints from "../../constants/endpoints";
@@ -121,9 +122,8 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
     }
   };
 
-  useEffect(() => {
+  useIonViewWillEnter(() => {
     loadDrivers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filteredList = useMemo(() => {

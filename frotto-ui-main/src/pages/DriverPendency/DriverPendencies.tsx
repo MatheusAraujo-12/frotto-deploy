@@ -19,6 +19,7 @@ import {
   IonTitle,
   IonToolbar,
   useIonRouter,
+  useIonViewWillEnter,
 } from "@ionic/react";
 import api from "../../services/axios/axios";
 import endpoints from "../../constants/endpoints";
@@ -179,9 +180,8 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
     }
   };
 
-  useEffect(() => {
+  useIonViewWillEnter(() => {
     loadDriverPendencys();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filteredList = useMemo(() => {
@@ -312,13 +312,37 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
     setIsSummaryModalOpen(false);
   }, []);
 
-  const openPaymentModal = useCallback((driverPendency: DriverPendencyModel) => {
-    if (!driverPendency.id || isPaid(driverPendency.status)) {
-      return;
-    }
-    setPaymentTarget(driverPendency);
-    setIsPaymentModalOpen(true);
-  }, []);
+  const openPaymentModal = useCallback(
+    async (driverPendency: DriverPendencyModel) => {
+      if (!driverPendency.id || isPaid(driverPendency.status)) {
+        return;
+      }
+      setPaymentTarget(driverPendency);
+      setIsPaymentModalOpen(true);
+
+      try {
+        const response = await api.get(
+          endpoints.DRIVER_PENDENCIES_EDIT({
+            pathVariables: { id: driverPendency.id },
+          })
+        );
+        const freshPendency = response.data as DriverPendencyModel;
+        if (freshPendency) {
+          if (isPaid(freshPendency.status)) {
+            applyPendencyResponse(freshPendency);
+            setIsPaymentModalOpen(false);
+            setPaymentTarget(undefined);
+            return;
+          }
+          applyPendencyResponse(freshPendency);
+          setPaymentTarget(freshPendency);
+        }
+      } catch (error) {
+        // Mantém o valor já exibido caso a atualização falhe.
+      }
+    },
+    [applyPendencyResponse]
+  );
 
   const closePaymentModal = useCallback(() => {
     if (isLoading) {

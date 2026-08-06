@@ -108,8 +108,11 @@ const Cars: React.FC = () => {
   const [selectedCar, setSelectedCar] = useState<CarModel | null>(null);
   const [searchValue, setSearchValue] = useState("");
   const [carList, setCarList] = useState<CarModel[]>([]);
+  const [activeCarsCount, setActiveCarsCount] = useState(0);
+  const [inactiveCarsCount, setInactiveCarsCount] = useState(0);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const countsAbortControllerRef = useRef<AbortController | null>(null);
   const actionOpenTimerRef = useRef<number | null>(null);
   const pendingQuickActionRef = useRef<QuickAction["key"] | null>(null);
   const isCarsActiveRef = useRef(location.pathname === "/menu/carros");
@@ -187,14 +190,43 @@ const Cars: React.FC = () => {
     [showErrorAlert]
   );
 
+  const loadCarCounts = useCallback(async (signal?: AbortSignal) => {
+    try {
+      if (countsAbortControllerRef.current) countsAbortControllerRef.current.abort();
+      countsAbortControllerRef.current = new AbortController();
+      const currentSignal = signal || countsAbortControllerRef.current.signal;
+
+      // Escopado no backend ao usuário logado (car.user.login = principal),
+      // então nunca traz veículos de outra conta.
+      const response = await api.get(endpoints.CARS(), {
+        signal: currentSignal,
+      });
+
+      const allCars = normalizeCars(
+        extractListData<CarListItemData>(response?.data ?? [])
+      );
+
+      const active = allCars.filter((car) => car.active !== false).length;
+      setActiveCarsCount(active);
+      setInactiveCarsCount(allCars.length - active);
+    } catch (error: any) {
+      if (error?.name === "AbortError" || error?.code === "ERR_CANCELED") return;
+
+      // eslint-disable-next-line no-console
+      console.error("Erro ao carregar contagem de veículos:", error);
+    }
+  }, []);
+
   useIonViewWillEnter(() => {
     isCarsActiveRef.current = true;
     loadCars();
+    loadCarCounts();
 
     return () => {
       if (abortControllerRef.current) abortControllerRef.current.abort();
+      if (countsAbortControllerRef.current) countsAbortControllerRef.current.abort();
     };
-  }, [loadCars]);
+  }, [loadCars, loadCarCounts]);
 
   const filteredList = useMemo<CarModel[]>(() => {
     if (!searchValue.trim()) return carList;
@@ -212,7 +244,8 @@ const Cars: React.FC = () => {
   const handleDeleteCar = useCallback((deletedCarId: number) => {
     setCarList((prev) => prev.filter((car) => car.id !== deletedCarId));
     void loadCars();
-  }, [loadCars]);
+    void loadCarCounts();
+  }, [loadCars, loadCarCounts]);
 
   const handleOpenActionPicker = useCallback((event?: Event) => {
     if (!isCarsActiveRef.current) {
@@ -254,8 +287,9 @@ const Cars: React.FC = () => {
         return [normalizedResponse, ...prev];
       });
       void loadCars();
+      void loadCarCounts();
     },
-    [loadCars, logBackdropCount]
+    [loadCars, loadCarCounts, logBackdropCount]
   );
 
   const handleAddCarModalDidDismiss = useCallback(() => {
@@ -515,6 +549,14 @@ const Cars: React.FC = () => {
           <div className="cars-section-head">
             <h2 className="app-section-title">Veículos ativos</h2>
             <p className="app-section-subtitle">{carsListCaption}</p>
+            <div className="cars-status-summary">
+              <span className="cars-status-chip car-status-success">
+                {activeCarsCount} {activeCarsCount === 1 ? "ativo" : "ativos"}
+              </span>
+              <span className="cars-status-chip car-status-neutral">
+                {inactiveCarsCount} {inactiveCarsCount === 1 ? "inativo" : "inativos"}
+              </span>
+            </div>
           </div>
 
           <div className="cars-list-wrap">
