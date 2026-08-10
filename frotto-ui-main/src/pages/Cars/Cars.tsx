@@ -206,7 +206,7 @@ const Cars: React.FC = () => {
         extractListData<CarListItemData>(response?.data ?? [])
       );
 
-      const active = allCars.filter((car) => car.active !== false).length;
+      const active = allCars.filter((car) => car.active === true).length;
       setActiveCarsCount(active);
       setInactiveCarsCount(allCars.length - active);
     } catch (error: any) {
