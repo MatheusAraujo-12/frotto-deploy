@@ -206,9 +206,14 @@ const Cars: React.FC = () => {
         extractListData<CarListItemData>(response?.data ?? [])
       );
 
-      const active = allCars.filter((car) => car.active === true).length;
+      // Veículos excluídos (soft delete, active === false) não devem entrar
+      // na conta nem como ativos nem como inativos.
+      const nonDeletedCars = allCars.filter((car) => car.active !== false);
+      const active = nonDeletedCars.filter(
+        (car) => (car.adminStatus ?? "ATIVO") === "ATIVO"
+      ).length;
       setActiveCarsCount(active);
-      setInactiveCarsCount(allCars.length - active);
+      setInactiveCarsCount(nonDeletedCars.length - active);
     } catch (error: any) {
       if (error?.name === "AbortError" || error?.code === "ERR_CANCELED") return;
 
