@@ -6,10 +6,12 @@ import com.localuz.domain.enumeration.CarAdminStatus;
 import com.localuz.domain.enumeration.CommissionType;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.Instant;
 import javax.persistence.*;
 import javax.validation.constraints.*;
 import org.hibernate.annotations.Cache;
 import org.hibernate.annotations.CacheConcurrencyStrategy;
+import org.hibernate.annotations.CreationTimestamp;
 
 /** A Car. */
 @Entity
@@ -74,6 +76,10 @@ public class Car implements Serializable {
     @Enumerated(EnumType.STRING)
     @Column(name = "admin_status", length = 32)
     private CarAdminStatus adminStatus;
+
+    @CreationTimestamp
+    @Column(name = "created_date", updatable = false)
+    private Instant createdDate;
 
     @ManyToOne
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
@@ -254,6 +260,10 @@ public class Car implements Serializable {
 
     public void setAdminStatus(CarAdminStatus adminStatus) {
         this.adminStatus = adminStatus;
+    }
+
+    public Instant getCreatedDate() {
+        return createdDate;
     }
 
     public User getUser() {

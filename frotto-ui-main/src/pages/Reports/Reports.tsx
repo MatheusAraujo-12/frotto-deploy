@@ -20,6 +20,7 @@ import {
 import api from "../../services/axios/axios";
 import endpoints from "../../constants/endpoints";
 import { TEXT } from "../../constants/texts";
+import { format } from "date-fns";
 import { useEffect, useState } from "react";
 import { useAlert } from "../../services/hooks/useAlert";
 import { RouteComponentProps } from "react-router";
@@ -125,6 +126,17 @@ const Reports: React.FC<IncomeDetail> = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const resolveAllPeriodStartDate = (): string | undefined => {
+    const source = selectedCar ? [selectedCar] : groupCars;
+    const dates = source
+      .map((car) => car.createdDate)
+      .filter((value): value is string => Boolean(value))
+      .map((value) => new Date(value));
+    if (dates.length === 0) return undefined;
+    const earliest = dates.reduce((min, current) => (current < min ? current : min));
+    return format(earliest, "yyyy-MM-dd");
+  };
+
   const onSubmit = async (reportForm: ReportModel) => {
     setisLoading(true);
     try {
@@ -144,7 +156,8 @@ const Reports: React.FC<IncomeDetail> = () => {
         const periodRange = resolvePeriodRange(
           reportForm.period,
           reportForm.customStartDate,
-          reportForm.customEndDate
+          reportForm.customEndDate,
+          resolveAllPeriodStartDate()
         );
         const { data } = await api.get(
           endpoints.REPORTS_HISTORY({

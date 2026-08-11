@@ -17,12 +17,20 @@ export interface PeriodRange {
 export const resolvePeriodRange = (
   period: string,
   customStartDate?: string,
-  customEndDate?: string
+  customEndDate?: string,
+  allPeriodStartDate?: string
 ): PeriodRange => {
   if (period === REPORT_PERIODS.custom) {
     return {
       startDate: customStartDate ?? "",
       endDate: customEndDate ?? "",
+    };
+  }
+
+  if (period === REPORT_PERIODS.all) {
+    return {
+      startDate: allPeriodStartDate ?? "",
+      endDate: format(new Date(), "yyyy-MM-dd"),
     };
   }
 

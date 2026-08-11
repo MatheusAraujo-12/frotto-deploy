@@ -22,7 +22,7 @@ export const initialReportsValues = () => {
     year: YEAR_NOW,
     period: REPORT_PERIODS.annual,
     customStartDate: "",
-    customEndDate: "",
+    customEndDate: DATE_TODAY,
   };
 };
 

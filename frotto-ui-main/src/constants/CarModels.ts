@@ -30,6 +30,7 @@ export interface CarModel extends CommissionConfig {
   active?: boolean;
   driverName?:string;
   adminStatus?: CarAdminStatus;
+  createdDate?: string;
 }
 
 export interface CarBodyDamageModel {

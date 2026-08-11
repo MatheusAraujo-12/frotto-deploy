@@ -407,6 +407,7 @@ export enum REPORTS {
 }
 
 export enum REPORT_PERIODS {
+  all = "Todo o período",
   monthly = "Mensal",
   bimonthly = "Bimestral",
   quarterly = "Trimestral",
