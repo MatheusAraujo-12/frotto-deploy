@@ -12,6 +12,9 @@ ENV NPM_CONFIG_FUND=false
 ENV NPM_CONFIG_LEGACY_PEER_DEPS=true
 ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 
+ARG REACT_APP_API_URL
+ENV REACT_APP_API_URL=${REACT_APP_API_URL}
+
 COPY package.json package-lock.json ./
 RUN node -v && npm -v
 RUN npm install
