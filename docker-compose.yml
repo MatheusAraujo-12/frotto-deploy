@@ -10,9 +10,6 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.frotto-api.rule=Host(`api.frotto.com.br`)"
-      - "traefik.http.routers.frotto-api.entrypoints=http"
-      - "traefik.http.services.frotto-api.loadbalancer.server.port=5000"
 
   frontend:
     build:
@@ -25,6 +22,3 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.frotto-web.rule=Host(`frotto.com.br`) || Host(`www.frotto.com.br`)"
-      - "traefik.http.routers.frotto-web.entrypoints=http"
-      - "traefik.http.services.frotto-web.loadbalancer.server.port=80"
