@@ -40,6 +40,9 @@ public class WebConfigurer implements ServletContextInitializer {
         log.info("Web application fully configured");
     }
 
+    // Fonte única de CORS do backend, controlada via jhipster.cors.* em application-*.yml.
+    // Não crie um segundo WebMvcConfigurer/addCorsMappings — isso já causou divergência
+    // (métodos e origens diferentes) entre duas configurações concorrentes.
     @Bean
     public CorsFilter corsFilter() {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

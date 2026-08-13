@@ -1,5 +1,6 @@
 package com.localuz.web.rest;
 
+import com.localuz.security.AuthoritiesConstants;
 import com.localuz.service.DebtItemTypeService;
 import com.localuz.service.dto.DebtItemTypeDTO;
 import com.localuz.service.dto.DebtItemTypeSaveDTO;
@@ -10,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -46,6 +48,17 @@ public class DebtItemTypeResource {
         return debtItemTypeService.list(active);
     }
 
+    // POST fica aberto a qualquer usuário autenticado (não só ROLE_ADMIN): revisão pré-deploy
+    // encontrou uso real em DocumentsPage.tsx (assistente de "Confissão de Dívida" ->
+    // createDebtItemTypeInline()), onde qualquer usuário comum cria um novo tipo de dívida
+    // inline ao preencher o documento. Restringir POST a ROLE_ADMIN quebrava esse fluxo.
+    //
+    // Dívida técnica conhecida, não resolvida aqui: DebtItemType é uma tabela global, sem
+    // user_id/owner_id/account_id — um tipo criado por um usuário fica visível (GET) e
+    // reutilizável por todos os outros usuários do sistema. Isso é uma questão de modelo de
+    // dados (avaliar se deveria ser por conta ou continuar global-e-aberto por decisão de
+    // produto), não um bug isolado — deixado para uma etapa futura, junto com o trabalho de
+    // billing/multiusuário, que provavelmente vai mexer em ownership de qualquer forma.
     @PostMapping("/debt-item-types")
     public ResponseEntity<DebtItemTypeDTO> createDebtItemType(@RequestBody DebtItemTypeSaveDTO payload) throws URISyntaxException {
         log.debug("REST request to create debt item type: {}", payload == null ? null : payload.getName());
@@ -57,6 +70,7 @@ public class DebtItemTypeResource {
     }
 
     @PatchMapping("/debt-item-types/{id}")
+    @PreAuthorize("hasAuthority(\"" + AuthoritiesConstants.ADMIN + "\")")
     public ResponseEntity<DebtItemTypeDTO> updateDebtItemType(@PathVariable Long id, @RequestBody DebtItemTypeSaveDTO payload) {
         log.debug("REST request to update debt item type id={} payload={}", id, payload == null ? null : payload.getName());
         DebtItemTypeDTO result = debtItemTypeService.update(id, payload);
@@ -67,6 +81,7 @@ public class DebtItemTypeResource {
     }
 
     @DeleteMapping("/debt-item-types/{id}")
+    @PreAuthorize("hasAuthority(\"" + AuthoritiesConstants.ADMIN + "\")")
     public ResponseEntity<Void> deleteDebtItemType(@PathVariable Long id) {
         log.debug("REST request to deactivate debt item type id={}", id);
         debtItemTypeService.deactivate(id);

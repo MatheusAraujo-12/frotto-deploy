@@ -35,9 +35,13 @@ public class DriverResource {
         this.driverRepository = driverRepository;
     }
 
+    // IDOR corrigido (auditoria): antes usava driverRepository.findByCpf(cpf), que retornava
+    // qualquer motorista do sistema — inclusive de outra conta — para qualquer usuário
+    // autenticado que soubesse/adivinhasse um CPF. Agora só retorna o motorista se ele estiver
+    // vinculado (via driver_car) a um carro do usuário autenticado.
     @GetMapping("/drivers/{cpf}")
     public Driver findByCpf(@PathVariable String cpf) {
-        Optional<Driver> driver = driverRepository.findByCpf(cpf);
+        Optional<Driver> driver = driverRepository.findByCurrentUserAndCpf(cpf);
         if (driver.isPresent()) {
             return driver.get();
         }

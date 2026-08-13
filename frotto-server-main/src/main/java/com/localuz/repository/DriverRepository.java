@@ -11,6 +11,9 @@ import org.springframework.stereotype.Repository;
 @SuppressWarnings("unused")
 @Repository
 public interface DriverRepository extends JpaRepository<Driver, Long> {
+    // Não escopado por usuário: usado internamente (ex.: DriverCarResource) para decidir se um
+    // motorista com este CPF já existe no sistema antes de vincular a um novo contrato. Não expor
+    // via endpoint REST diretamente — use findByCurrentUserAndCpf para requests autenticados.
     Optional<Driver> findByCpf(String cpf);
 
     @Query(
@@ -20,6 +23,14 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
         "where car.user.login = ?#{principal.username} and driver.id = :id"
     )
     Optional<Driver> findByCurrentUserAndId(@Param("id") Long id);
+
+    @Query(
+        "select distinct driver from Driver driver " +
+        "join driver.driverCars driverCar " +
+        "join driverCar.car car " +
+        "where car.user.login = ?#{principal.username} and driver.cpf = :cpf"
+    )
+    Optional<Driver> findByCurrentUserAndCpf(@Param("cpf") String cpf);
 
     @Query(
         "select distinct driver from Driver driver " +

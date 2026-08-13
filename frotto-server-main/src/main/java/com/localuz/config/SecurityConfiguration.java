@@ -2,6 +2,7 @@ package com.localuz.config;
 
 import com.localuz.security.*;
 import com.localuz.security.jwt.*;
+import com.localuz.security.ratelimit.RateLimitingFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpMethod;
@@ -27,16 +28,19 @@ public class SecurityConfiguration {
     private final TokenProvider tokenProvider;
 
     private final CorsFilter corsFilter;
+    private final RateLimitingFilter rateLimitingFilter;
     private final SecurityProblemSupport problemSupport;
 
     public SecurityConfiguration(
         TokenProvider tokenProvider,
         CorsFilter corsFilter,
+        RateLimitingFilter rateLimitingFilter,
         JHipsterProperties jHipsterProperties,
         SecurityProblemSupport problemSupport
     ) {
         this.tokenProvider = tokenProvider;
         this.corsFilter = corsFilter;
+        this.rateLimitingFilter = rateLimitingFilter;
         this.problemSupport = problemSupport;
         this.jHipsterProperties = jHipsterProperties;
     }
@@ -52,6 +56,9 @@ public class SecurityConfiguration {
     http.csrf()
         .disable()
         .addFilterBefore(corsFilter, UsernamePasswordAuthenticationFilter.class)
+        // Rate limiting em /api/authenticate e /api/register (brute force / credential stuffing /
+        // abuso de registro) — ver RateLimitingFilter para os limites e a estratégia de IP.
+        .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
         .exceptionHandling()
         .authenticationEntryPoint(problemSupport)
         .accessDeniedHandler(problemSupport)

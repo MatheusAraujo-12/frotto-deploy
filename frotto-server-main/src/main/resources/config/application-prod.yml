@@ -62,7 +62,13 @@ server:
 # JHipster specific properties
 # ===================================================================
 jhipster:
+  # Fonte única de configuração de CORS (aplicada pelo CorsFilter em WebConfigurer.java).
+  # O antigo CorsConfig.java (WebMvcConfigurer duplicado, sem PATCH e com origens
+  # divergentes) foi removido — não altere CORS em outro lugar do backend.
   cors:
+    # "http://localhost" é mantido propositalmente: é a origem padrão da WebView de apps
+    # Capacitor (Android), não um resquício de desenvolvimento — preservado conforme uso do
+    # app mobile. Os demais valores vêm do domínio confirmado do projeto (frotto.com.br).
     allowed-origins: "http://localhost,https://frotto.com.br,https://www.frotto.com.br"
     allowed-methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
     allowed-headers: "*"
@@ -82,9 +88,17 @@ jhipster:
   security:
     authentication:
       jwt:
-        base64-secret: NjZkOGYwN2Q3MDA3MTM1YTRlNGJmMjZlZTQ3MGM3MGIyMjNhMTA5MTc3MTY0MjMyZjhjYzBhZDgzZmQ0M2U5YzVhNzJlMDdjZDMyOGZjMDcyZDgzZTM4ODUxMzJjOWJiMGNmMzFhNzU2YjVhNDFmMTNhNmExMWY0MjY2NDczMTY=
-        token-validity-in-seconds: 86400000
-        token-validity-in-seconds-for-remember-me: 2592000000
+        # CRÍTICO (auditoria): segredo hardcoded removido. Obrigatório definir a variável de
+        # ambiente JWT_BASE64_SECRET na VPS. Sem ela, a aplicação falha ao iniciar (fail-fast)
+        # em vez de usar um segredo padrão inseguro. Gere um valor novo com:
+        #   openssl rand -base64 64
+        # Nunca reutilize o valor antigo que estava commitado neste arquivo — trate-o como
+        # comprometido.
+        base64-secret: ${JWT_BASE64_SECRET}
+        # 24 horas em segundos (bug anterior: valor estava 1000x maior, ~1000 dias)
+        token-validity-in-seconds: 86400
+        # 30 dias em segundos, para "lembrar de mim" (mesma proporção original, unidade corrigida)
+        token-validity-in-seconds-for-remember-me: 2592000
 
   mail:
     base-url: https://api.frotto.com.br
