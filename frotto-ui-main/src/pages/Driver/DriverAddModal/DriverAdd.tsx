@@ -261,6 +261,10 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
     }
   };
 
+  const onInvalid = () => {
+    showErrorAlert(TEXT.formHasErrors);
+  };
+
   return (
     <IonPage id="car-add-page">
       <IonHeader>
@@ -275,7 +279,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             <IonButton
               disabled={isLoading}
               strong={true}
-              onClick={handleSubmit(onSubmit)}
+              onClick={handleSubmit(onSubmit, onInvalid)}
             >
               {TEXT.save}
             </IonButton>

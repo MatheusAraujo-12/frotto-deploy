@@ -194,6 +194,10 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
     }
   };
 
+  const onInvalid = () => {
+    showErrorAlert(TEXT.formHasErrors);
+  };
+
   const onDelete = async () => {
     if (!formInitial.id) return;
     setIsLoading(true);
@@ -226,7 +230,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
             <IonButton
               className="app-primary-btn"
               disabled={isLoading}
-              onClick={handleSubmit(onSubmit)}
+              onClick={handleSubmit(onSubmit, onInvalid)}
             >
               {TEXT.save}
             </IonButton>

@@ -31,6 +31,7 @@ export const TEXT = {
   loadMaintenancesFailed: "Não foi possível carregar a lista de manutenções.",
   loadCarFailed: "Não foi possível carregar os dados do carro.",
   saveFailed: "Erro ao tentar salvar",
+  formHasErrors: "Preencha todos os campos obrigatórios destacados em vermelho",
   deleteFailed: "Erro ao tentar excluir",
   activeDriverExist: "Já existe outro motorista ativo neste carro",
   itensNotFound: "Nenhum item encontrado",
