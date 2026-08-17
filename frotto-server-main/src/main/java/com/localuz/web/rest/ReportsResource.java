@@ -25,8 +25,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,8 +41,6 @@ import tech.jhipster.web.util.HeaderUtil;
 @RequestMapping("/api")
 @Transactional
 public class ReportsResource {
-
-    private final Logger log = LoggerFactory.getLogger(ReportsResource.class);
 
     @Value("${jhipster.clientApp.name}")
     private String applicationName;

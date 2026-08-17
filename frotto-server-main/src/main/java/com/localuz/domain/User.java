@@ -2,7 +2,6 @@ package com.localuz.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.localuz.config.Constants;
-import java.io.Serializable;
 import java.time.LocalDate;
 import java.time.Instant;
 import java.util.HashSet;
@@ -22,7 +21,7 @@ import org.hibernate.annotations.CacheConcurrencyStrategy;
 @Entity
 @Table(name = "jhi_user")
 @Cache(usage = CacheConcurrencyStrategy.NONSTRICT_READ_WRITE)
-public class User extends AbstractAuditingEntity<Long> implements Serializable {
+public class User extends AbstractAuditingEntity<Long> {
 
     private static final long serialVersionUID = 1L;
 

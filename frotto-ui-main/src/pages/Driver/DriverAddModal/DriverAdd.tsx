@@ -38,6 +38,7 @@ import FormCurrency from "../../../components/Form/FormCurrency";
 import FormInputMask from "../../../components/Form/FormInputMask";
 import FormInputLabel from "../../../components/Form/FormInputLabel";
 import { currencyFormat } from "../../../services/currencyFormat";
+import { getApiErrorMessage } from "../../../services/apiErrorMessage";
 
 interface DriverAddModalProps {
   closeModal: (response?: CarDriverModel) => void;
@@ -69,6 +70,17 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
     defaultValues: formInitial,
   });
 
+  const updateField = useCallback(
+    (field: keyof DriverForm, value: any) => {
+      setValue(field as any, value, {
+        shouldValidate: true,
+        shouldDirty: true,
+        shouldTouch: true,
+      });
+    },
+    [setValue]
+  );
+
   useEffect(() => {
     const nextValues = initialDriverValues(initialValues || {});
     reset(nextValues);
@@ -81,43 +93,48 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
   const watchedDebt = watch("debt");
 
   const updateDriver = useCallback((driver: DriverModel) => {
-    setValue("driverId", driver.id);
-    setValue("driverName", driver.name ? driver.name : "");
-    setValue("driverCpf", driver.cpf ? driver.cpf : "");
-    setValue("driverEmail", driver.email ? driver.email : "");
-    setValue("driverContact", driver.contact ? driver.contact : "");
-    setValue(
+    updateField("driverId", driver.id);
+    updateField("driverName", driver.name ? driver.name : "");
+    updateField("driverCpf", driver.cpf ? driver.cpf : "");
+    updateField("driverEmail", driver.email ? driver.email : "");
+    updateField("driverContact", driver.contact ? driver.contact : "");
+    updateField(
       "driverEmergencyContact",
       driver.emergencyContact ? driver.emergencyContact : ""
     );
-    setValue("driverPublicScore", driver.publicScore ? driver.publicScore : "");
+    updateField(
+      "driverPublicScore",
+      driver.publicScore !== undefined && driver.publicScore !== null
+        ? driver.publicScore
+        : ""
+    );
 
-    setValue("driverAddressId", driver.address?.id);
-    setValue(
+    updateField("driverAddressId", driver.address?.id);
+    updateField(
       "driverAddressCountry",
       driver.address?.country ? driver.address?.country : ""
     );
-    setValue(
+    updateField(
       "driverAddressZip",
       driver.address?.zip ? driver.address?.zip : ""
     );
-    setValue(
+    updateField(
       "driverAddressState",
       driver.address?.state ? driver.address?.state : ""
     );
-    setValue(
+    updateField(
       "driverAddressCity",
       driver.address?.city ? driver.address?.city : ""
     );
-    setValue(
+    updateField(
       "driverAddressDistrict",
       driver.address?.district ? driver.address?.district : ""
     );
-    setValue(
+    updateField(
       "driverAddressName",
       driver.address?.name ? driver.address?.name : ""
     );
-  }, [setValue]);
+  }, [updateField]);
 
   const clearDriverLookupState = useCallback(() => {
     setValue("driverId", undefined);
@@ -173,7 +190,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
         const summary = response.data as DriverDebtSummaryModel;
         setDriverDebtSummary(summary);
         if (!watchedFormId && !(watchedDebt || 0)) {
-          setValue("debt", summary?.totalOutstanding || 0);
+        updateField("debt", summary?.totalOutstanding || 0);
         }
       } catch (_error) {
         if (active) {
@@ -186,7 +203,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
     return () => {
       active = false;
     };
-  }, [setValue, watchedDebt, watchedDriverId, watchedFormId]);
+  }, [updateField, watchedDebt, watchedDriverId, watchedFormId]);
 
   useEffect(() => {
     const name = `${watchedDriverName || ""}`.trim();
@@ -253,11 +270,13 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
       closeModal(responseCar);
     } catch (e: any) {
       setisLoading(false);
-      if (e?.response?.data?.errorKey === "activedriverexists") {
-        showErrorAlert(TEXT.activeDriverExist);
-      } else {
-        showErrorAlert(TEXT.saveFailed);
-      }
+      showErrorAlert(
+        getApiErrorMessage(e, TEXT.saveFailed, {
+          activedriverexists: TEXT.activeDriverExist,
+          driverempty: "Preencha os dados do motorista antes de salvar.",
+          notcurrentuser: "Este carro não foi encontrado para o usuário atual.",
+        })
+      );
     }
   };
 
@@ -299,12 +318,11 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             initialValue={watch("startDate") ?? ""}
             label={TEXT.dateStart}
             presentation="date"
+            errorsObj={errors}
+            errorName="startDate"
+            required
             formCallBack={(value: string) => {
-              setValue("startDate", value, {
-                shouldValidate: true,
-                shouldDirty: true,
-                shouldTouch: true,
-              });
+              updateField("startDate", value);
             }}
           />
           <FormCurrency
@@ -314,7 +332,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             initialValue={watch("warranty")}
             maxlength={20}
             changeCallback={(value: number) => {
-              setValue("warranty", value);
+              updateField("warranty", value);
             }}
             required
           />
@@ -325,22 +343,14 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             initialValue={watch("contractNumber") ?? ""}
             maxlength={120}
             changeCallback={(value: string) => {
-              setValue("contractNumber", value, {
-                shouldValidate: true,
-                shouldDirty: true,
-                shouldTouch: true,
-              });
+              updateField("contractNumber", value);
             }}
           />
           <FormToggle
             label={TEXT.resolved}
             initialValue={watch("concluded")}
             changeCallback={(value: boolean) => {
-              setValue("concluded", value, {
-                shouldValidate: true,
-                shouldDirty: true,
-                shouldTouch: true,
-              });
+              updateField("concluded", value);
               setShowConcluded(value);
             }}
           />
@@ -353,11 +363,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
                 label={TEXT.dateEnd}
                 presentation="date"
                 formCallBack={(value: string) => {
-                  setValue("endDate", value, {
-                    shouldValidate: true,
-                    shouldDirty: true,
-                    shouldTouch: true,
-                  });
+                  updateField("endDate", value);
                 }}
               />
               <FormCurrency
@@ -367,7 +373,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
                 initialValue={watch("debt")}
                 maxlength={20}
                 changeCallback={(value: number) => {
-                  setValue("debt", value);
+                  updateField("debt", value);
                 }}
                 required
               />
@@ -381,7 +387,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
                   min={1}
                   max={5}
                   onIonKnobMoveEnd={({ detail }) => {
-                    setValue("score", +detail.value);
+                    updateField("score", +detail.value);
                   }}
                 ></IonRange>
               </IonItem>
@@ -400,7 +406,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             inputmode="numeric"
             maxlength={50}
             changeCallback={(value: string) => {
-              setValue("driverCpf", value);
+              updateField("driverCpf", value);
               loadDriverByCpf(value);
             }}
             required
@@ -412,7 +418,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             initialValue={watch("driverName")}
             maxlength={50}
             changeCallback={(value: string) => {
-              setValue("driverName", value);
+              updateField("driverName", value);
             }}
             required
           />
@@ -440,7 +446,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
               mask: "(00) 00000-00000",
             }}
             changeCallback={(value: string) => {
-              setValue("driverContact", value);
+              updateField("driverContact", value);
             }}
             required
           />
@@ -452,7 +458,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             initialValue={watch("driverEmail")}
             maxlength={50}
             changeCallback={(value: string) => {
-              setValue("driverEmail", value);
+              updateField("driverEmail", value);
             }}
           />
           <FormInputMask
@@ -465,7 +471,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
               mask: "(00) 00000-00000",
             }}
             changeCallback={(value: string) => {
-              setValue("driverEmergencyContact", value);
+              updateField("driverEmergencyContact", value);
             }}
           />
           <FormInputMask
@@ -478,7 +484,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
               mask: "(00) 00000-00000",
             }}
             changeCallback={(value: string) => {
-              setValue("driverEmergencyContactSecond", value);
+              updateField("driverEmergencyContactSecond", value);
             }}
           />
           <FormInput
@@ -488,7 +494,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             initialValue={watch("driverDocumentDriverLicense")}
             maxlength={30}
             changeCallback={(value: string) => {
-              setValue("driverDocumentDriverLicense", value);
+              updateField("driverDocumentDriverLicense", value);
             }}
           />
           <FormInput
@@ -498,7 +504,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             initialValue={watch("driverDocumentDriverRegister")}
             maxlength={30}
             changeCallback={(value: string) => {
-              setValue("driverDocumentDriverRegister", value);
+              updateField("driverDocumentDriverRegister", value);
             }}
           />
           <FormInput
@@ -509,7 +515,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             initialValue={watch("driverPublicScore")}
             maxlength={20}
             changeCallback={(value: string) => {
-              setValue("driverPublicScore", value);
+              updateField("driverPublicScore", value);
             }}
           />
           <FormInput
@@ -519,7 +525,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             initialValue={watch("driverAddressCountry")}
             maxlength={20}
             changeCallback={(value: string) => {
-              setValue("driverAddressCountry", value);
+              updateField("driverAddressCountry", value);
             }}
             required
           />
@@ -533,7 +539,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
               mask: "00.000-000",
             }}
             changeCallback={(value: string) => {
-              setValue("driverAddressZip", value);
+              updateField("driverAddressZip", value);
             }}
             required
           />
@@ -544,7 +550,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             errorName="driverAddressState"
             initialValue={watch("driverAddressState")}
             changeCallback={(value: string) => {
-              setValue("driverAddressState", value);
+              updateField("driverAddressState", value);
             }}
             required
           />
@@ -555,7 +561,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             initialValue={watch("driverAddressCity")}
             maxlength={20}
             changeCallback={(value: string) => {
-              setValue("driverAddressCity", value);
+              updateField("driverAddressCity", value);
             }}
             required
           />
@@ -566,7 +572,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             initialValue={watch("driverAddressDistrict")}
             maxlength={30}
             changeCallback={(value: string) => {
-              setValue("driverAddressDistrict", value);
+              updateField("driverAddressDistrict", value);
             }}
             required
           />
@@ -577,7 +583,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             initialValue={watch("driverAddressName")}
             maxlength={50}
             changeCallback={(value: string) => {
-              setValue("driverAddressName", value);
+              updateField("driverAddressName", value);
             }}
             required
           />

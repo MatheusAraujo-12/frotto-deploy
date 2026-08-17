@@ -40,6 +40,7 @@ import FormSelectFilterAdd from "../../../components/Form/FormSelectFilterAdd";
 import { BODY_DAMAGES } from "../../../constants/selectOptions";
 import { BODY_DAMAGE_KEY } from "../../../services/localStorage/localstorage";
 import IonPhotoViewer from "@codesyntax/ionic-react-photo-viewer";
+import { getApiErrorMessage } from "../../../services/apiErrorMessage";
 
 interface CarDamageAddModalProps {
   closeModal: (response?: CarBodyDamageModel) => void;
@@ -67,6 +68,7 @@ const BodyDamageAdd: React.FC<CarDamageAddModalProps> = ({
     handleSubmit,
     watch,
     setValue,
+    reset,
     formState: { errors },
   } = useForm<CarBodyDamageModel>({
     reValidateMode: "onBlur",
@@ -74,14 +76,29 @@ const BodyDamageAdd: React.FC<CarDamageAddModalProps> = ({
     defaultValues: formInitial,
   });
 
+  const updateField = useCallback(
+    (field: keyof CarBodyDamageModel, value: any) => {
+      setValue(field as any, value, {
+        shouldValidate: true,
+        shouldDirty: true,
+        shouldTouch: true,
+      });
+    },
+    [setValue]
+  );
+
   useEffect(() => {
-    if (formInitial.imagePath) {
-      setBodyFilePath(urlToS3Image(formInitial.imagePath));
-    }
-    if (formInitial.imagePath2) {
-      setBodyFilePath2(urlToS3Image(formInitial.imagePath2));
-    }
-  }, [formInitial.imagePath, formInitial.imagePath2]);
+    const nextValues = initialBodyValues(initialValues || {});
+    reset(nextValues);
+    setBodyFile(undefined);
+    setBodyFile2(undefined);
+    setBodyFilePath(
+      nextValues.imagePath ? urlToS3Image(nextValues.imagePath) : undefined
+    );
+    setBodyFilePath2(
+      nextValues.imagePath2 ? urlToS3Image(nextValues.imagePath2) : undefined
+    );
+  }, [initialValues, reset]);
 
   const takeBodyPhoto = async () => {
     const photo = await takePhoto(String(carId));
@@ -138,18 +155,17 @@ const BodyDamageAdd: React.FC<CarDamageAddModalProps> = ({
 
         setIsLoading(false);
         closeModal(responseCar);
-      } catch (error: any) {
+      } catch (error) {
         setIsLoading(false);
-        const errorMessage =
-          error?.response?.data?.message ||
-          error?.response?.data?.detail ||
-          error?.message ||
-          TEXT.saveFailed;
-        showErrorAlert(errorMessage);
+        showErrorAlert(getApiErrorMessage(error, TEXT.saveFailed));
       }
     },
     [bodyFile, bodyFile2, carId, closeModal, showErrorAlert]
   );
+
+  const onInvalid = () => {
+    showErrorAlert(TEXT.formHasErrors);
+  };
 
   return (
     <IonPage id="car-body-damage-add-page">
@@ -164,7 +180,11 @@ const BodyDamageAdd: React.FC<CarDamageAddModalProps> = ({
           <IonTitle>{TEXT.addCarDamage}</IonTitle>
 
           <IonButtons slot="end">
-            <IonButton disabled={isLoading} strong onClick={handleSubmit(onSubmit)}>
+            <IonButton
+              disabled={isLoading}
+              strong
+              onClick={handleSubmit(onSubmit, onInvalid)}
+            >
               {TEXT.save}
             </IonButton>
           </IonButtons>
@@ -180,7 +200,10 @@ const BodyDamageAdd: React.FC<CarDamageAddModalProps> = ({
             label={TEXT.date}
             presentation="date"
             initialValue={watch("date") ?? ""}
-            formCallBack={(value: string) => setValue("date", value)}
+            errorsObj={errors}
+            errorName="date"
+            required
+            formCallBack={(value: string) => updateField("date", value)}
           />
 
           <FormSelectFilterAdd
@@ -190,7 +213,7 @@ const BodyDamageAdd: React.FC<CarDamageAddModalProps> = ({
             initialValue={watch("part") ?? ""}
             options={BODY_DAMAGES}
             storageToken={BODY_DAMAGE_KEY}
-            formCallBack={(value: string) => setValue("part", value)}
+            formCallBack={(value: string) => updateField("part", value)}
             required
           />
 
@@ -200,7 +223,7 @@ const BodyDamageAdd: React.FC<CarDamageAddModalProps> = ({
             errorName="cost"
             initialValue={watch("cost") ?? ""}
             maxlength={20}
-            changeCallback={(value: number) => setValue("cost", value)}
+            changeCallback={(value: number) => updateField("cost", value)}
             required
           />
 
@@ -208,13 +231,13 @@ const BodyDamageAdd: React.FC<CarDamageAddModalProps> = ({
             label={TEXT.responsible}
             initialValue={watch("responsible") ?? ""}
             maxlength={50}
-            changeCallback={(value: string) => setValue("responsible", value)}
+            changeCallback={(value: string) => updateField("responsible", value)}
           />
 
           <FormToggle
             label={TEXT.resolved}
             initialValue={watch("resolved") ?? false}
-            changeCallback={(value: boolean) => setValue("resolved", value)}
+            changeCallback={(value: boolean) => updateField("resolved", value)}
           />
 
           {/* Foto 1 */}

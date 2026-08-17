@@ -1,6 +1,7 @@
 package com.localuz.domain;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import javax.persistence.Column;
@@ -18,7 +19,7 @@ import org.hibernate.annotations.CacheConcurrencyStrategy;
 @Entity
 @Table(name = "car_expense")
 @Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
-public class CarExpense {
+public class CarExpense implements Serializable {
 
     private static final long serialVersionUID = 1L;
 

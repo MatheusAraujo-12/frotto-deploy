@@ -5,7 +5,10 @@ import {
   updateNumberByKeyandPrevious,
 } from "../../services/currencyFormat";
 import FormInputLabel from "./FormInputLabel";
-import FormItemWrapper from "./FormItemWrapper";
+import FormItemWrapper, {
+  getFormErrorId,
+  getFormErrorMessage,
+} from "./FormItemWrapper";
 import styled from "styled-components";
 
 export const CurrencyInput = styled(IonInput)`
@@ -31,6 +34,9 @@ const FormCurrency: React.FC<FormCurrencyProps> = ({
   changeCallback,
   ...rest
 }) => {
+  const hasError = Boolean(getFormErrorMessage(errorsObj, errorName));
+  const errorId = getFormErrorId(errorName);
+
   return (
     <FormItemWrapper errorsObj={errorsObj} errorName={errorName}>
       <IonItem className="app-form-item">
@@ -41,12 +47,14 @@ const FormCurrency: React.FC<FormCurrencyProps> = ({
           class="ion-text-end"
           inputmode="numeric"
           placeholder={TEXT.zeroMoney}
+          aria-invalid={hasError ? "true" : undefined}
+          aria-describedby={hasError ? errorId : undefined}
           onKeyDown={(e) => {
             e.preventDefault();
             changeCallback(
               updateNumberByKeyandPrevious(
                 e.key.toString(),
-                initialValue.toString()
+                String(initialValue ?? 0)
               )
             );
           }}

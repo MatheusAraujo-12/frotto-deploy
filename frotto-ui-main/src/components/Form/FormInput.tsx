@@ -1,6 +1,9 @@
 import { IonInput, IonItem } from "@ionic/react";
 import FormInputLabel from "./FormInputLabel";
-import FormItemWrapper from "./FormItemWrapper";
+import FormItemWrapper, {
+  getFormErrorId,
+  getFormErrorMessage,
+} from "./FormItemWrapper";
 
 interface FormInputProps {
   label: string;
@@ -21,6 +24,9 @@ const FormInput: React.FC<FormInputProps> = ({
   changeCallback,
   ...rest
 }) => {
+  const hasError = Boolean(getFormErrorMessage(errorsObj, errorName));
+  const errorId = getFormErrorId(errorName);
+
   return (
     <FormItemWrapper errorsObj={errorsObj} errorName={errorName}>
       <IonItem className="app-form-item">
@@ -29,8 +35,10 @@ const FormInput: React.FC<FormInputProps> = ({
           value={initialValue}
           color="primary"
           class="ion-text-end"
+          aria-invalid={hasError ? "true" : undefined}
+          aria-describedby={hasError ? errorId : undefined}
           onIonChange={(e) => {
-            changeCallback(e.target.value);
+            changeCallback(e.detail.value ?? "");
           }}
           {...rest}
         />

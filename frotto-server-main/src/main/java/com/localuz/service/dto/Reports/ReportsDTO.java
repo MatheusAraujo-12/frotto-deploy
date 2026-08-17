@@ -1,6 +1,5 @@
 package com.localuz.service.dto.Reports;
 
-import com.localuz.domain.Car;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;

@@ -12,6 +12,10 @@ import FormInputLabel from "./FormInputLabel";
 import { isValid, parseISO } from "date-fns";
 import styled from "styled-components";
 import { TEXT } from "../../constants/texts";
+import FormItemWrapper, {
+  getFormErrorId,
+  getFormErrorMessage,
+} from "./FormItemWrapper";
 
 const MyIonModal = styled(IonModal)`
   --backdrop-opacity: 1;
@@ -30,6 +34,8 @@ export interface DateProps {
   initialValue?: string | string[] | null | undefined;
   min?: string;
   error?: string;
+  errorsObj?: Object;
+  errorName?: string;
 }
 
 const FormDate: React.FC<DateProps> = ({
@@ -41,6 +47,8 @@ const FormDate: React.FC<DateProps> = ({
   initialValue,
   min,
   error,
+  errorsObj,
+  errorName,
 }) => {
   // Strips timezone suffix and normalizes to YYYY-MM-DD.
   // Handles IonDatetime emitting full ISO strings like "2022-04-05T00:00:00.000Z"
@@ -104,49 +112,59 @@ const FormDate: React.FC<DateProps> = ({
     typeof resolvedInitialValue === "string"
       ? (isValid(parseISO(resolvedInitialValue)) ? resolvedInitialValue : undefined)
       : resolvedInitialValue;
+  const errorMessage = error || getFormErrorMessage(errorsObj, errorName);
+  const hasError = Boolean(errorMessage);
+  const errorId = getFormErrorId(errorName || id);
 
   return (
-    <div style={{ padding: "8px 0" }}>
-      <IonItem>
-        <FormInputLabel name={label} required={required} />
-        <IonDatetimeButton datetime={id} slot="end" />
-        <MyIonModal
-          ref={modalRef}
-          keepContentsMounted={true}
-          onWillPresent={() => {
-            pendingValueRef.current = safeInitialValue;
-          }}
-        >
-          <IonDatetime
-            id={id}
-            ref={datetimeRef}
-            presentation={presentation}
-            value={safeInitialValue}
-            min={min}
-            onIonChange={(e) => {
-              pendingValueRef.current = e.detail.value;
+    <FormItemWrapper errorsObj={errorsObj} errorName={errorName}>
+      <div style={{ padding: "8px 0" }}>
+        <IonItem className="app-form-item">
+          <FormInputLabel name={label} required={required} />
+          <IonDatetimeButton
+            datetime={id}
+            slot="end"
+            aria-invalid={hasError ? "true" : undefined}
+            aria-describedby={hasError ? errorId : undefined}
+          />
+          <MyIonModal
+            ref={modalRef}
+            keepContentsMounted={true}
+            onWillPresent={() => {
+              pendingValueRef.current = safeInitialValue;
             }}
           >
-            <IonButtons slot="buttons">
-              <IonButton color="medium" onClick={handleCancel}>
-                {TEXT.cancel}
-              </IonButton>
-              <IonButton color="primary" onClick={handleConfirm}>
-                {TEXT.confirm}
-              </IonButton>
-            </IonButtons>
-          </IonDatetime>
-        </MyIonModal>
-      </IonItem>
+            <IonDatetime
+              id={id}
+              ref={datetimeRef}
+              presentation={presentation}
+              value={safeInitialValue}
+              min={min}
+              onIonChange={(e) => {
+                pendingValueRef.current = e.detail.value;
+              }}
+            >
+              <IonButtons slot="buttons">
+                <IonButton color="medium" onClick={handleCancel}>
+                  {TEXT.cancel}
+                </IonButton>
+                <IonButton color="primary" onClick={handleConfirm}>
+                  {TEXT.confirm}
+                </IonButton>
+              </IonButtons>
+            </IonDatetime>
+          </MyIonModal>
+        </IonItem>
 
-      {!!error && (
-        <div style={{ padding: "6px 16px 0 16px" }}>
-          <IonText color="danger" style={{ fontSize: 12 }}>
-            {error}
-          </IonText>
-        </div>
-      )}
-    </div>
+        {!!error && (
+          <div style={{ padding: "6px 16px 0 16px" }}>
+            <IonText color="danger" id={errorId} style={{ fontSize: 12 }}>
+              {error}
+            </IonText>
+          </div>
+        )}
+      </div>
+    </FormItemWrapper>
   );
 };
 

@@ -1,13 +1,11 @@
 package com.localuz.domain;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.localuz.service.dto.BodyDamageDTO;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Set;
-import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.FetchType;

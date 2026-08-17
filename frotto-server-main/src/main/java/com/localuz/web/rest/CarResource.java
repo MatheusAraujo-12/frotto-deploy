@@ -5,7 +5,6 @@ import com.localuz.domain.Car;
 import com.localuz.domain.DriverCar;
 import com.localuz.domain.Inspection;
 import com.localuz.domain.Maintenance;
-import com.localuz.domain.Reminder;
 import com.localuz.domain.User;
 import com.localuz.domain.enumeration.CarAdminStatus;
 import com.localuz.domain.enumeration.CommissionType;
@@ -13,7 +12,6 @@ import com.localuz.repository.CarRepository;
 import com.localuz.repository.DriverCarRepository;
 import com.localuz.repository.InspectionRepository;
 import com.localuz.repository.MaintenanceRepository;
-import com.localuz.repository.ReminderRepository;
 import com.localuz.service.UserService;
 import com.localuz.service.dto.CarSearchDTO;
 import com.localuz.service.dto.CarDTO;
@@ -66,7 +64,6 @@ public class CarResource {
     private final DriverCarRepository driverCarRepository;
     private final InspectionRepository inspectionRepository;
     private final MaintenanceRepository maintenanceRepository;
-    private final ReminderRepository reminderRepository;
 
     private final UserService userService;
 
@@ -75,14 +72,12 @@ public class CarResource {
         UserService userService,
         DriverCarRepository driverCarRepository,
         InspectionRepository inspectionRepository,
-        ReminderRepository reminderRepository,
         MaintenanceRepository maintenanceRepository
     ) {
         this.carRepository = carRepository;
         this.userService = userService;
         this.driverCarRepository = driverCarRepository;
         this.inspectionRepository = inspectionRepository;
-        this.reminderRepository = reminderRepository;
         this.maintenanceRepository = maintenanceRepository;
     }
 

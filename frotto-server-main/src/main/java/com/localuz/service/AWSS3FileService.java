@@ -10,7 +10,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Base64;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -21,8 +20,11 @@ public class AWSS3FileService {
     @Value("${aws.bucketName}")
     private String bucketName;
 
-    @Autowired
-    private AmazonS3 s3Client;
+    private final AmazonS3 s3Client;
+
+    public AWSS3FileService(AmazonS3 s3Client) {
+        this.s3Client = s3Client;
+    }
 
     public String uploadFile(MultipartFile file, String uniqueIdentifier) {
         if (file == null || file.isEmpty()) {

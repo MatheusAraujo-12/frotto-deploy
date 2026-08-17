@@ -14,7 +14,7 @@ import {
 import { TEXT } from "../../constants/texts";
 import FormInputLabel from "./FormInputLabel";
 import { caretDown } from "ionicons/icons";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import ItemNotFound from "../List/ItemNotFound";
 import { filterListString } from "../../services/filterList";
@@ -23,7 +23,10 @@ import {
   getArrays,
 } from "../../services/localStorage/localstorage";
 import styled from "styled-components";
-import FormItemWrapper from "./FormItemWrapper";
+import FormItemWrapper, {
+  getFormErrorId,
+  getFormErrorMessage,
+} from "./FormItemWrapper";
 
 const MyIonModal = styled(IonModal)`
   background-color: var(--app-modal-backdrop);
@@ -64,6 +67,12 @@ const FormSelectFilterAdd: React.FC<SelectFilterAddProps> = ({
     initialValue
   );
   const [storageOptions, setStorageOptions] = useState<string[]>([]);
+  const hasError = Boolean(getFormErrorMessage(errorsObj, errorName));
+  const errorId = getFormErrorId(errorName);
+
+  useEffect(() => {
+    setSelectValue(initialValue);
+  }, [initialValue]);
 
   const loadStorageOptions = () => {
     if (storageToken) {
@@ -94,6 +103,8 @@ const FormSelectFilterAdd: React.FC<SelectFilterAddProps> = ({
         button
         detail={false}
         id="open-modal"
+        aria-invalid={hasError ? "true" : undefined}
+        aria-describedby={hasError ? errorId : undefined}
         onClick={() => {
           setSearchValue(undefined);
           loadStorageOptions();

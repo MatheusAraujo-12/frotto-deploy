@@ -115,7 +115,7 @@ export interface DriverModel {
   emergencyContactSecond?: string;
   documentDriverLicense?: string;
   documentDriverRegister?: string;
-  publicScore?: string;
+  publicScore?: string | number;
   averageKm?: number;
   averageInspectioScore?: number;
   averageDriverCarScore?: number;

@@ -9,7 +9,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 /**
  * Spring Data JPA repository for the Inspection entity.
@@ -17,7 +16,6 @@ import org.springframework.stereotype.Repository;
  * <p>When extending this class, extend InspectionRepositoryWithBagRelationships too. For more
  * information refer to https://github.com/jhipster/generator-jhipster/issues/17990.
  */
-@Repository
 public interface InspectionRepository extends InspectionRepositoryWithBagRelationships, JpaRepository<Inspection, Long> {
     default Optional<Inspection> findOneWithEagerRelationships(Long id) {
         return this.fetchBagRelationships(this.findById(id));

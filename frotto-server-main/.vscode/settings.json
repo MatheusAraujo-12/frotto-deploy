@@ -1,0 +1,24 @@
+{
+    "java.configuration.updateBuildConfiguration": "automatic",
+    "java.import.maven.enabled": true,
+    "java.project.resourceFilters": [
+        "node_modules",
+        "\\.git",
+        "target"
+    ],
+    "java.import.exclusions": [
+        "**/node_modules/**",
+        "**/.metadata/**",
+        "**/archetype-resources/**",
+        "**/META-INF/maven/**",
+        "**/target/**"
+    ],
+    "files.watcherExclude": {
+        "**/target/**": true
+    },
+    "search.exclude": {
+        "**/target/**": true
+    },
+    "boot-java.validation.java.version-validation": "OFF",
+    "spring-boot.ls.problem.version-validation.UNSUPPORTED_OSS_VERSION": "IGNORE"
+}

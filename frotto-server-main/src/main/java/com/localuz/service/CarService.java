@@ -7,7 +7,6 @@ import com.localuz.repository.CarRepository;
 import com.localuz.repository.InspectionRepository;
 import com.localuz.repository.MaintenanceRepository;
 import java.time.LocalDate;
-import java.util.List;
 import org.springframework.stereotype.Service;
 
 @Service

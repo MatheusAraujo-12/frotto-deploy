@@ -6,11 +6,8 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 /** Spring Data JPA repository for the CarBodyDamage entity. */
-@SuppressWarnings("unused")
-@Repository
 public interface CarBodyDamageRepository extends JpaRepository<CarBodyDamage, Long> {
     List<CarBodyDamage> findAllByCar(Car car);
 

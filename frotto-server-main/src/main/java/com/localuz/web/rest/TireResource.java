@@ -1,9 +1,5 @@
 package com.localuz.web.rest;
 
-import com.localuz.repository.TireRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -13,19 +9,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 @Transactional
 public class TireResource {
-
-    private final Logger log = LoggerFactory.getLogger(TireResource.class);
-
-    private static final String ENTITY_NAME = "tire";
-
-    @Value("${jhipster.clientApp.name}")
-    private String applicationName;
-
-    private final TireRepository tireRepository;
-
-    public TireResource(TireRepository tireRepository) {
-        this.tireRepository = tireRepository;
-    }
     //
     //    /**
     //     * {@code POST  /tires} : Create a new tire.

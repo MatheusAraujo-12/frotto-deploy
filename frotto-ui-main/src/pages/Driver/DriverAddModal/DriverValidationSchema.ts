@@ -27,7 +27,11 @@ export const initialDriverValues = (initialValues: CarDriverModel) => {
       initialValues.driver?.documentDriverLicense || "",
     driverDocumentDriverRegister:
       initialValues.driver?.documentDriverRegister || "",
-    driverPublicScore: initialValues.driver?.publicScore || "",
+    driverPublicScore:
+      initialValues.driver?.publicScore !== undefined &&
+      initialValues.driver?.publicScore !== null
+        ? String(initialValues.driver.publicScore)
+        : "",
 
     driverAddressId: initialValues.driver?.address?.id || undefined,
     driverAddressCountry: initialValues.driver?.address?.country || "Brasil",
@@ -96,7 +100,7 @@ export interface DriverForm {
   driverEmergencyContactSecond?: string;
   driverDocumentDriverLicense?: string;
   driverDocumentDriverRegister?: string;
-  driverPublicScore?: string;
+  driverPublicScore?: string | number;
 
   driverAddressId?: number;
   driverAddressCountry?: string;
@@ -131,7 +135,7 @@ export const driverFormtoDriver = (driverForm: DriverForm): CarDriverModel => {
     emergencyContactSecond: driverForm.driverEmergencyContactSecond,
     documentDriverLicense: driverForm.driverDocumentDriverLicense,
     documentDriverRegister: driverForm.driverDocumentDriverRegister,
-    publicScore: driverForm.driverPublicScore,
+    publicScore: normalizeOptionalNumber(driverForm.driverPublicScore),
 
     address: {
       id: driverForm.driverAddressId,
@@ -146,3 +150,12 @@ export const driverFormtoDriver = (driverForm: DriverForm): CarDriverModel => {
 
   return driver;
 };
+
+function normalizeOptionalNumber(value?: string | number): number | undefined {
+  if (value === undefined || value === null || `${value}`.trim() === "") {
+    return undefined;
+  }
+
+  const parsedValue = Number(value);
+  return Number.isFinite(parsedValue) ? parsedValue : undefined;
+}

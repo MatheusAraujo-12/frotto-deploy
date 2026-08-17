@@ -27,6 +27,8 @@ import FormInput from "../../../components/Form/FormInput";
 import FormSelectFilterAdd from "../../../components/Form/FormSelectFilterAdd";
 import { EXPENSES_KEY } from "../../../services/localStorage/localstorage";
 import FormCurrency from "../../../components/Form/FormCurrency";
+import { useCallback, useEffect } from "react";
+import { useAlert } from "../../../services/hooks/useAlert";
 
 interface ExpenseAddModalProps {
   closeModal: (response?: ExpenseModelActive) => void;
@@ -37,11 +39,13 @@ const ExpenseAddModal: React.FC<ExpenseAddModalProps> = ({
   closeModal,
   initialValues,
 }) => {
+  const { showErrorAlert } = useAlert();
   const formInitial = initialExpenseValues(initialValues || {});
 
   const {
     watch,
     setValue,
+    reset,
     handleSubmit,
     formState: { errors },
   } = useForm({
@@ -50,8 +54,27 @@ const ExpenseAddModal: React.FC<ExpenseAddModalProps> = ({
     defaultValues: formInitial,
   });
 
+  const updateField = useCallback(
+    (field: keyof ExpenseModelActive, value: any) => {
+      setValue(field as any, value, {
+        shouldValidate: true,
+        shouldDirty: true,
+        shouldTouch: true,
+      });
+    },
+    [setValue]
+  );
+
+  useEffect(() => {
+    reset(initialExpenseValues(initialValues || {}));
+  }, [initialValues, reset]);
+
   const onSubmit = async (newExpense: ExpenseModelActive) => {
     closeModal(newExpense);
+  };
+
+  const onInvalid = () => {
+    showErrorAlert(TEXT.formHasErrors);
   };
 
   return (
@@ -71,7 +94,7 @@ const ExpenseAddModal: React.FC<ExpenseAddModalProps> = ({
           <IonButtons slot="end">
             <IonButton
               className="app-primary-btn"
-              onClick={handleSubmit(onSubmit)}
+              onClick={handleSubmit(onSubmit, onInvalid)}
             >
               {TEXT.save}
             </IonButton>
@@ -105,7 +128,7 @@ const ExpenseAddModal: React.FC<ExpenseAddModalProps> = ({
                     errorsObj={errors}
                     errorName="name"
                     formCallBack={(value: string) => {
-                      setValue("name", value);
+                      updateField("name", value);
                     }}
                     initialValue={watch("name")}
                     options={EXPENSES}
@@ -120,7 +143,7 @@ const ExpenseAddModal: React.FC<ExpenseAddModalProps> = ({
                     maxlength={15}
                     type="number"
                     changeCallback={(value: number) => {
-                      setValue("ammount", value);
+                      updateField("ammount", value);
                     }}
                     required
                   />
@@ -131,7 +154,7 @@ const ExpenseAddModal: React.FC<ExpenseAddModalProps> = ({
                     initialValue={watch("cost")}
                     maxlength={15}
                     changeCallback={(value: number) => {
-                      setValue("cost", value);
+                      updateField("cost", value);
                     }}
                     required
                   />

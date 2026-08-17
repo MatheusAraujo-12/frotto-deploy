@@ -8,11 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 /** Spring Data JPA repository for the Expense entity. */
-@SuppressWarnings("unused")
-@Repository
 public interface ExpenseRepository extends JpaRepository<Expense, Long> {
     @Query(
         "select expense from Expense expense  join expense.inspection.car car  where car.user.login = ?#{principal.username} and expense.id = :id"

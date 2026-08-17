@@ -1,7 +1,6 @@
 package com.localuz.web.rest;
 
 import com.localuz.domain.Car;
-import com.localuz.domain.CarBodyDamage;
 import com.localuz.domain.Driver;
 import com.localuz.domain.DriverCar;
 import com.localuz.repository.AddressRepository;

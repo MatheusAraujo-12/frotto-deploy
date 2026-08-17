@@ -263,6 +263,35 @@ ion-button {
   letter-spacing: 0.2px;
   max-width: 100%;
   --white-space: normal;
+  --ripple-color: rgba(var(--ion-color-base-rgb, var(--ion-color-primary-rgb)), 0.18);
+  transition: filter 0.14s ease, opacity 0.14s ease, transform 0.1s ease;
+}
+
+ion-button::part(native) {
+  border-radius: var(--app-button-radius);
+  box-shadow: none;
+  outline: none;
+}
+
+ion-button:hover:not(.button-disabled):not([disabled]) {
+  filter: brightness(1.04);
+}
+
+ion-button:active:not(.button-disabled):not([disabled]) {
+  filter: brightness(0.96);
+  transform: scale(0.985);
+}
+
+ion-button:focus-visible::part(native),
+ion-button.ion-focused::part(native) {
+  box-shadow: var(--frotto-focus-ring);
+}
+
+ion-button[disabled],
+ion-button.button-disabled {
+  cursor: not-allowed;
+  filter: saturate(0.72);
+  opacity: 0.54;
 }
 
 ion-button:not([fill="clear"]):not([fill="outline"]) {
@@ -572,6 +601,10 @@ body.dark ion-progress-bar {
   gap: 8px;
 }
 
+.app-form-field {
+  min-width: 0;
+}
+
 .app-form-item {
   --background: var(--app-card-strong);
   --border-color: transparent;
@@ -597,10 +630,29 @@ body.dark ion-progress-bar {
   box-shadow: 0 0 0 2px rgba(var(--ion-color-tertiary-rgb), 0.14);
 }
 
+.app-form-field--invalid .app-form-item {
+  border-color: var(--frotto-danger);
+  box-shadow: 0 0 0 1px rgba(var(--ion-color-danger-rgb), 0.18);
+}
+
+.app-form-field--invalid .app-form-item::part(native) {
+  background: rgba(var(--ion-color-danger-rgb), 0.04);
+}
+
+.app-form-field--invalid .app-form-item.ion-focused {
+  border-color: var(--frotto-danger);
+  box-shadow: 0 0 0 2px rgba(var(--ion-color-danger-rgb), 0.16);
+}
+
 .app-form-item ion-label {
   font-weight: 600 !important;
   color: var(--ion-text-color) !important;
   opacity: 0.88;
+}
+
+.app-form-field--invalid .app-form-item ion-label {
+  color: var(--frotto-danger) !important;
+  opacity: 1;
 }
 
 .app-form-item ion-input,
@@ -613,8 +665,9 @@ body.dark ion-progress-bar {
 
 .app-form-error {
   display: block;
-  margin: -4px 4px 4px 10px;
+  margin: -4px 4px 4px 12px;
   font-size: 0.82rem;
+  line-height: 1.25;
 }
 
 .app-segment-shell {
@@ -653,7 +706,7 @@ body.dark ion-progress-bar {
   --background: var(--ion-color-primary);
   --color: var(--ion-color-primary-contrast);
   --border-color: rgba(var(--ion-color-primary-rgb), 0.22);
-  --border-radius: 10px;
+  --border-radius: var(--app-button-radius);
   font-weight: 700;
 }
 
@@ -661,7 +714,7 @@ body.dark ion-progress-bar {
   --background: transparent;
   --color: var(--ion-color-primary);
   --border-color: rgba(var(--ion-color-primary-rgb), 0.24);
-  --border-radius: 10px;
+  --border-radius: var(--app-button-radius);
   font-weight: 700;
 }
 
@@ -669,7 +722,7 @@ body.dark ion-progress-bar {
   --background: rgba(var(--ion-color-danger-rgb), 0.1);
   --color: var(--ion-color-danger);
   --border-color: rgba(var(--ion-color-danger-rgb), 0.22);
-  --border-radius: 10px;
+  --border-radius: var(--app-button-radius);
   font-weight: 700;
 }
 

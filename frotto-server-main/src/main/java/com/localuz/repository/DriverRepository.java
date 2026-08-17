@@ -5,11 +5,8 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 /** Spring Data JPA repository for the Driver entity. */
-@SuppressWarnings("unused")
-@Repository
 public interface DriverRepository extends JpaRepository<Driver, Long> {
     // Não escopado por usuário: usado internamente (ex.: DriverCarResource) para decidir se um
     // motorista com este CPF já existe no sistema antes de vincular a um novo contrato. Não expor

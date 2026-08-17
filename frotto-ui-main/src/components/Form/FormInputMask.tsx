@@ -1,7 +1,10 @@
 import { IonInput, IonItem } from "@ionic/react";
 import IMask, { AnyMaskedOptions } from "imask";
 import FormInputLabel from "./FormInputLabel";
-import FormItemWrapper from "./FormItemWrapper";
+import FormItemWrapper, {
+  getFormErrorId,
+  getFormErrorMessage,
+} from "./FormItemWrapper";
 
 interface FormInputMaskProps {
   label: string;
@@ -27,7 +30,9 @@ const FormInputMask: React.FC<FormInputMaskProps> = ({
   ...rest
 }) => {
   const masked = IMask.createMask(maskOptions);
-  masked.resolve(initialValue);
+  masked.resolve(initialValue || "");
+  const hasError = Boolean(getFormErrorMessage(errorsObj, errorName));
+  const errorId = getFormErrorId(errorName);
 
   return (
     <FormItemWrapper errorsObj={errorsObj} errorName={errorName}>
@@ -37,8 +42,10 @@ const FormInputMask: React.FC<FormInputMaskProps> = ({
           value={masked.value}
           color="primary"
           class="ion-text-end"
+          aria-invalid={hasError ? "true" : undefined}
+          aria-describedby={hasError ? errorId : undefined}
           onIonChange={(e) => {
-            const changedValue = e.target.value;
+            const changedValue = e.detail.value;
             if (changedValue && changedValue !== "") {
               masked.resolve(changedValue.toString());
               changeCallback(masked.unmaskedValue);

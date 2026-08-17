@@ -1,9 +1,5 @@
 package com.localuz.web.rest;
 
-import com.localuz.repository.AddressRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -13,19 +9,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 @Transactional
 public class AddressResource {
-
-    private final Logger log = LoggerFactory.getLogger(AddressResource.class);
-
-    private static final String ENTITY_NAME = "address";
-
-    @Value("${jhipster.clientApp.name}")
-    private String applicationName;
-
-    private final AddressRepository addressRepository;
-
-    public AddressResource(AddressRepository addressRepository) {
-        this.addressRepository = addressRepository;
-    }
     //
     //    /**
     //     * {@code POST  /addresses} : Create a new address.

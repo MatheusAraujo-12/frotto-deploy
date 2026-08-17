@@ -127,7 +127,10 @@
   --app-shadow-hover: 0 14px 28px rgba(16, 42, 67, 0.11);
   --app-card-glow: 0 0 0 1px rgba(16, 42, 67, 0.035);
 
-  --app-button-radius: 12px;
+  --frotto-button-radius: 8px;
+  --frotto-danger: var(--ion-color-danger);
+  --frotto-focus-ring: 0 0 0 3px rgba(var(--ion-color-tertiary-rgb), 0.22);
+  --app-button-radius: var(--frotto-button-radius);
   --app-modal-backdrop: rgba(12, 52, 64, 0.28);
 
   /* =========================

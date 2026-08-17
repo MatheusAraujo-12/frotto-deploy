@@ -59,6 +59,7 @@ import BodyDamage from "../../BodyDamage/BodyDamage";
 import { useLocation, useHistory } from "react-router";
 import { currencyFormat } from "../../../services/currencyFormat";
 import FormDeleteButton from "../../../components/Form/FormDeleteButton";
+import { getApiErrorMessage } from "../../../services/apiErrorMessage";
 
 interface InspectionAddModalProps {
   closeModal: (response?: InspectionModel) => void;
@@ -77,7 +78,12 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
   const [activeExpense, setActiveExpense] = useState<ExpenseModelActive>({});
   const [activeCarBodyDamage, setActiveCarBodyDamage] = useState<CarBodyDamageModel>({});
 
-  const formInitial = initialInspectionValues(initialValues || {});
+  const initialValuesKey = JSON.stringify(initialValues || {});
+  const formInitial = useMemo(
+    () => initialInspectionValues(initialValues || {}),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [initialValuesKey]
+  );
 
   useEffect(() => {
     if (!location.search.includes("modalExpenseOpened=true")) {
@@ -91,6 +97,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
     setValue,
     getValues,
     watch,
+    reset,
     formState: { errors },
   } = useForm({
     reValidateMode: "onBlur",
@@ -98,7 +105,18 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
     defaultValues: formInitial,
   });
 
-  const loadActiveBodyDamages = async () => {
+  const updateField = useCallback(
+    (field: keyof InspectionForm, value: any) => {
+      setValue(field as any, value, {
+        shouldValidate: true,
+        shouldDirty: true,
+        shouldTouch: true,
+      });
+    },
+    [setValue]
+  );
+
+  const loadActiveBodyDamages = useCallback(async () => {
     setIsLoading(true);
     try {
       const { data } = await api.get(
@@ -106,20 +124,20 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
       );
       if (data) setValue("carBodyDamages", data);
     } catch (error) {
-      showErrorAlert(TEXT.loadCarDamagesFailed);
+      showErrorAlert(getApiErrorMessage(error, TEXT.loadCarDamagesFailed));
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [carId, setValue, showErrorAlert]);
 
   useEffect(() => {
-    if (formInitial.id === undefined) loadActiveBodyDamages();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    reset(formInitial);
+    if (formInitial.id === undefined) {
+      void loadActiveBodyDamages();
+    }
+  }, [formInitial, loadActiveBodyDamages, reset]);
 
-  const carDamagesList = useMemo(() => {
-    return watch("carBodyDamages") ? watch("carBodyDamages") : [];
-  }, [watch]);
+  const carDamagesList = watch("carBodyDamages") || [];
 
   const closeExpenseModal = useCallback(
     (response?: ExpenseModelActive) => {
@@ -133,21 +151,21 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
       if (response.delete) {
         if (typeof response.activeIndex === "number") {
           delete finalExpenseArray[response.activeIndex];
-          setValue("expenses", finalExpenseArray.filter((n) => n));
+          updateField("expenses", finalExpenseArray.filter((n) => n));
         }
         return;
       }
 
       if (typeof response.activeIndex === "number") {
         finalExpenseArray[response.activeIndex] = response;
-        setValue("expenses", finalExpenseArray);
+        updateField("expenses", finalExpenseArray);
         return;
       }
 
       finalExpenseArray.push(response);
-      setValue("expenses", finalExpenseArray);
+      updateField("expenses", finalExpenseArray);
     },
-    [getValues, setValue, nav]
+    [getValues, updateField, nav]
   );
 
   const closeBodyDamageModal = useCallback(
@@ -164,9 +182,9 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
       if (indexFound === -1) finalcarBodyDamageArray.push(response);
       else finalcarBodyDamageArray[indexFound] = response;
 
-      setValue("carBodyDamages", finalcarBodyDamageArray);
+      updateField("carBodyDamages", finalcarBodyDamageArray);
     },
-    [getValues, setValue, nav]
+    [getValues, updateField, nav]
   );
 
   const onSubmit = async (newInspectionForm: InspectionForm) => {
@@ -188,7 +206,14 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
 
       closeModal(responseInspection);
     } catch (e) {
-      showErrorAlert(TEXT.saveFailed);
+      showErrorAlert(
+        getApiErrorMessage(e, TEXT.saveFailed, {
+          idexists: "Esta inspeção já possui identificador e não pode ser criada novamente.",
+          idinvalid: "A inspeção aberta não corresponde ao registro enviado.",
+          idnull: "A inspeção não possui identificador para edição.",
+          notcurrentuser: "Este carro ou inspeção não foi encontrado para o usuário atual.",
+        })
+      );
     } finally {
       setIsLoading(false);
     }
@@ -206,7 +231,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
       await api.delete(endpoints.INSPECTIONS_EDIT({ pathVariables: { id: formInitial.id } }));
       closeModal({ id: formInitial.id, delete: true });
     } catch (e) {
-      showErrorAlert(TEXT.deleteFailed);
+      showErrorAlert(getApiErrorMessage(e, TEXT.deleteFailed));
     } finally {
       setIsLoading(false);
     }
@@ -266,7 +291,10 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     initialValue={String(watch("date") || "")}
                     label={TEXT.date}
                     presentation="date"
-                    formCallBack={(value: string) => setValue("date", value)}
+                    errorsObj={errors}
+                    errorName="date"
+                    required
+                    formCallBack={(value: string) => updateField("date", value)}
                   />
 
                   <FormInput
@@ -276,7 +304,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     initialValue={watch("driverName")}
                     maxlength={50}
                     changeCallback={(value: string) =>
-                      setValue("driverName", value)
+                      updateField("driverName", value)
                     }
                     required
                   />
@@ -289,7 +317,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     maxlength={15}
                     type="number"
                     changeCallback={(value: number) =>
-                      setValue("odometer", value)
+                      updateField("odometer", value)
                     }
                     required
                   />
@@ -324,7 +352,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     errorName="internalCleaning"
                     initialValue={watch("internalCleaning")}
                     changeCallback={(value: string) =>
-                      setValue("internalCleaning", value)
+                      updateField("internalCleaning", value)
                     }
                     required
                   />
@@ -336,7 +364,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     errorName="externalCleaning"
                     initialValue={watch("externalCleaning")}
                     changeCallback={(value: string) =>
-                      setValue("externalCleaning", value)
+                      updateField("externalCleaning", value)
                     }
                     required
                   />
@@ -370,7 +398,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     errorsObj={errors}
                     errorName="leftFrontModel"
                     formCallBack={(value: string) =>
-                      setValue("leftFrontModel", value)
+                      updateField("leftFrontModel", value)
                     }
                     initialValue={watch("leftFrontModel")}
                     options={TIRE_BRANDS}
@@ -384,7 +412,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     errorName="leftFrontIntegrity"
                     initialValue={watch("leftFrontIntegrity")}
                     changeCallback={(value: string) =>
-                      setValue("leftFrontIntegrity", value)
+                      updateField("leftFrontIntegrity", value)
                     }
                     required
                   />
@@ -395,7 +423,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     errorsObj={errors}
                     errorName="rightFrontModel"
                     formCallBack={(value: string) =>
-                      setValue("rightFrontModel", value)
+                      updateField("rightFrontModel", value)
                     }
                     initialValue={watch("rightFrontModel")}
                     options={TIRE_BRANDS}
@@ -409,7 +437,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     errorName="rightFrontIntegrity"
                     initialValue={watch("rightFrontIntegrity")}
                     changeCallback={(value: string) =>
-                      setValue("rightFrontIntegrity", value)
+                      updateField("rightFrontIntegrity", value)
                     }
                     required
                   />
@@ -420,7 +448,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     errorsObj={errors}
                     errorName="leftBackModel"
                     formCallBack={(value: string) =>
-                      setValue("leftBackModel", value)
+                      updateField("leftBackModel", value)
                     }
                     initialValue={watch("leftBackModel")}
                     options={TIRE_BRANDS}
@@ -434,7 +462,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     errorName="leftBackIntegrity"
                     initialValue={watch("leftBackIntegrity")}
                     changeCallback={(value: string) =>
-                      setValue("leftBackIntegrity", value)
+                      updateField("leftBackIntegrity", value)
                     }
                     required
                   />
@@ -445,7 +473,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     errorsObj={errors}
                     errorName="rightBackModel"
                     formCallBack={(value: string) =>
-                      setValue("rightBackModel", value)
+                      updateField("rightBackModel", value)
                     }
                     initialValue={watch("rightBackModel")}
                     options={TIRE_BRANDS}
@@ -459,7 +487,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     errorName="rightBackIntegrity"
                     initialValue={watch("rightBackIntegrity")}
                     changeCallback={(value: string) =>
-                      setValue("rightBackIntegrity", value)
+                      updateField("rightBackIntegrity", value)
                     }
                     required
                   />
@@ -470,7 +498,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     errorsObj={errors}
                     errorName="spareModel"
                     formCallBack={(value: string) =>
-                      setValue("spareModel", value)
+                      updateField("spareModel", value)
                     }
                     initialValue={watch("spareModel")}
                     options={TIRE_BRANDS}
@@ -484,7 +512,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     errorName="spareIntegrity"
                     initialValue={watch("spareIntegrity")}
                     changeCallback={(value: string) =>
-                      setValue("spareIntegrity", value)
+                      updateField("spareIntegrity", value)
                     }
                     required
                   />
