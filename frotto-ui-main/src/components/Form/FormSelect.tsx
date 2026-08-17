@@ -16,7 +16,7 @@ const MyIonSelect = styled(IonSelect)`
 interface FormSelectProps {
   label: string;
   header?: string;
-  required: boolean;
+  required?: boolean;
   initialValue: string;
   options: Array<string | { label: string; value: string }>;
   errorsObj?: Object;
@@ -27,7 +27,7 @@ interface FormSelectProps {
 const FormSelect: React.FC<FormSelectProps> = ({
   label,
   header,
-  required,
+  required = false,
   initialValue,
   options,
   errorsObj,

@@ -347,7 +347,6 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     presentation="date"
                     errorsObj={errors}
                     errorName="date"
-                    required
                     formCallBack={(value: string) => updateField("date", value)}
                   />
 
@@ -360,7 +359,6 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     changeCallback={(value: string) =>
                       updateField("driverName", value)
                     }
-                    required
                   />
 
                   <FormInput
@@ -373,7 +371,6 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     changeCallback={(value: number) =>
                       updateField("odometer", value)
                     }
-                    required
                   />
                 </form>
               </IonCardContent>
@@ -408,7 +405,6 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     changeCallback={(value: string) =>
                       updateField("internalCleaning", value)
                     }
-                    required
                   />
 
                   <FormSelect
@@ -420,7 +416,6 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     changeCallback={(value: string) =>
                       updateField("externalCleaning", value)
                     }
-                    required
                   />
                 </form>
               </IonCardContent>
@@ -457,7 +452,6 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     initialValue={watch("leftFrontModel") ?? ""}
                     options={TIRE_BRANDS}
                     storageToken={TIRE_BRANDS_KEY}
-                    required
                   />
                   <FormSelect
                     label={TEXT.integrity}
@@ -468,7 +462,6 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     changeCallback={(value: string) =>
                       updateField("leftFrontIntegrity", value)
                     }
-                    required
                   />
 
                   <FormSelectFilterAdd
@@ -482,7 +475,6 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     initialValue={watch("rightFrontModel") ?? ""}
                     options={TIRE_BRANDS}
                     storageToken={TIRE_BRANDS_KEY}
-                    required
                   />
                   <FormSelect
                     label={TEXT.integrity}
@@ -493,7 +485,6 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     changeCallback={(value: string) =>
                       updateField("rightFrontIntegrity", value)
                     }
-                    required
                   />
 
                   <FormSelectFilterAdd
@@ -507,7 +498,6 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     initialValue={watch("leftBackModel") ?? ""}
                     options={TIRE_BRANDS}
                     storageToken={TIRE_BRANDS_KEY}
-                    required
                   />
                   <FormSelect
                     label={TEXT.integrity}
@@ -518,7 +508,6 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     changeCallback={(value: string) =>
                       updateField("leftBackIntegrity", value)
                     }
-                    required
                   />
 
                   <FormSelectFilterAdd
@@ -532,7 +521,6 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     initialValue={watch("rightBackModel") ?? ""}
                     options={TIRE_BRANDS}
                     storageToken={TIRE_BRANDS_KEY}
-                    required
                   />
                   <FormSelect
                     label={TEXT.integrity}
@@ -543,7 +531,6 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     changeCallback={(value: string) =>
                       updateField("rightBackIntegrity", value)
                     }
-                    required
                   />
 
                   <FormSelectFilterAdd
@@ -557,7 +544,6 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     initialValue={watch("spareModel") ?? ""}
                     options={TIRE_BRANDS}
                     storageToken={TIRE_BRANDS_KEY}
-                    required
                   />
                   <FormSelect
                     label={TEXT.integrity}
@@ -568,7 +554,6 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     changeCallback={(value: string) =>
                       updateField("spareIntegrity", value)
                     }
-                    required
                   />
                 </form>
               </IonCardContent>

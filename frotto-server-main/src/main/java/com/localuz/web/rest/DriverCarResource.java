@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -86,9 +87,6 @@ public class DriverCarResource {
         if (driverCar.getId() != null) {
             throw new BadRequestAlertException("A new driverCar cannot already have an ID", ENTITY_NAME, "idexists");
         }
-        if (driverCar.getDriver() == null) {
-            throw new BadRequestAlertException("Driver is empty", ENTITY_NAME, "driverempty");
-        }
         Optional<Car> existingCarOpt = carRepository.findByCurrentUserAndId(carId);
         if (!existingCarOpt.isPresent()) {
             throw new BadRequestAlertException("Car not found for current user", ENTITY_NAME, "notcurrentuser");
@@ -106,24 +104,28 @@ public class DriverCarResource {
         }
         driverCar.setCar(existingCarOpt.get());
 
-        Optional<Driver> driver = driverRepository.findByCpf(driverCar.getDriver().getCpf());
         Driver updatedDriver = driverCar.getDriver();
-        Long existingAddressId = null;
-        if (driver.isPresent()) {
-            updatedDriver.setId(driver.get().getId());
-            if (driver.get().getAddress() != null) {
-                existingAddressId = driver.get().getAddress().getId();
+        if (updatedDriver != null) {
+            Optional<Driver> driver = StringUtils.hasText(updatedDriver.getCpf())
+                ? driverRepository.findByCpf(updatedDriver.getCpf())
+                : Optional.empty();
+            Long existingAddressId = null;
+            if (driver.isPresent()) {
+                updatedDriver.setId(driver.get().getId());
+                if (driver.get().getAddress() != null) {
+                    existingAddressId = driver.get().getAddress().getId();
+                }
             }
-        }
-        if (updatedDriver.getAddress() != null) {
-            if (existingAddressId != null) {
-                updatedDriver.getAddress().setId(existingAddressId);
+            if (updatedDriver.getAddress() != null) {
+                if (existingAddressId != null) {
+                    updatedDriver.getAddress().setId(existingAddressId);
+                }
+                addressRepository.save(updatedDriver.getAddress());
             }
-            addressRepository.save(updatedDriver.getAddress());
-        }
 
-        Driver savedDriver = driverRepository.save(updatedDriver);
-        driverCar.setDriver(savedDriver);
+            Driver savedDriver = driverRepository.save(updatedDriver);
+            driverCar.setDriver(savedDriver);
+        }
         DriverCar result = driverCarRepository.save(driverCar);
 
         return ResponseEntity
@@ -158,12 +160,6 @@ public class DriverCarResource {
         if (!Objects.equals(id, driverCar.getId())) {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
-        if (driverCar.getDriver() == null || driverCar.getDriver().getId() == null) {
-            throw new BadRequestAlertException("Driver is empty, no id provided", ENTITY_NAME, "driverempty");
-        }
-        if (driverCar.getDriver().getAddress() == null || driverCar.getDriver().getAddress().getId() == null) {
-            throw new BadRequestAlertException("Driver Address is empty, no id provided", ENTITY_NAME, "driverempty");
-        }
         Optional<DriverCar> existingCarOpt = driverCarRepository.findByCurrentUserAndId(id);
         if (!existingCarOpt.isPresent()) {
             throw new BadRequestAlertException("Car not found for current user", ENTITY_NAME, "notcurrentuser");
@@ -181,8 +177,24 @@ public class DriverCarResource {
 
         DriverCar existingDriverCar = existingCarOpt.get();
 
-        addressRepository.save(driverCar.getDriver().getAddress());
-        Driver savedDriver = driverRepository.save(driverCar.getDriver());
+        Driver updatedDriver = driverCar.getDriver();
+        if (updatedDriver != null) {
+            Driver existingDriver = existingDriverCar.getDriver();
+            if (updatedDriver.getId() == null && existingDriver != null) {
+                updatedDriver.setId(existingDriver.getId());
+            }
+            if (updatedDriver.getAddress() != null) {
+                boolean shouldReuseAddressId =
+                    updatedDriver.getAddress().getId() == null && existingDriver != null && existingDriver.getAddress() != null;
+                if (shouldReuseAddressId) {
+                    updatedDriver.getAddress().setId(existingDriver.getAddress().getId());
+                }
+                addressRepository.save(updatedDriver.getAddress());
+            }
+            existingDriverCar.setDriver(driverRepository.save(updatedDriver));
+        } else {
+            existingDriverCar.setDriver(null);
+        }
 
         existingDriverCar.setStartDate(driverCar.getStartDate());
         existingDriverCar.setEndDate(driverCar.getEndDate());
@@ -191,7 +203,6 @@ public class DriverCarResource {
         existingDriverCar.setDebt(driverCar.getDebt());
         existingDriverCar.setConcluded(driverCar.getConcluded());
         existingDriverCar.setContractNumber(driverCar.getContractNumber());
-        existingDriverCar.setDriver(savedDriver);
 
         DriverCar result = driverCarRepository.save(existingDriverCar);
         return ResponseEntity

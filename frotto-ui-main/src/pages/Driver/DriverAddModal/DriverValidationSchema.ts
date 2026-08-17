@@ -1,8 +1,6 @@
 import { CarDriverModel } from "../../../constants/CarModels";
 import * as Yup from "yup";
-import { TEXT } from "../../../constants/texts";
 import { DATE_TODAY } from "../../../constants/form";
-import { isValidCPF } from "../../../constants/validations";
 
 export const initialDriverValues = (initialValues: CarDriverModel) => {
   return {
@@ -44,41 +42,33 @@ export const initialDriverValues = (initialValues: CarDriverModel) => {
 };
 
 export const driverAddValidationSchema = Yup.object().shape({
-  id: Yup.number().nullable(),
-  startDate: Yup.string().required(TEXT.requiredField),
-  endDate: Yup.string(),
-  warranty: Yup.number()
-    .typeError(TEXT.requiredField)
-    .required(TEXT.requiredField),
-  contractNumber: Yup.string(),
-  score: Yup.number().typeError(TEXT.requiredField),
-  debt: Yup.number().typeError(TEXT.requiredField),
-  concluded: Yup.boolean(),
+  id: optionalNumber(),
+  startDate: optionalString(),
+  endDate: optionalString(),
+  warranty: optionalNumber(),
+  contractNumber: optionalString(),
+  score: optionalNumber(),
+  debt: optionalNumber(),
+  concluded: Yup.boolean().nullable().notRequired(),
 
-  driverId: Yup.number().nullable(),
-  driverName: Yup.string().required(TEXT.requiredField),
-  driverCpf: Yup.string()
-    .required(TEXT.requiredField)
-    .test({
-      name: "isValidCpf",
-      message: TEXT.invalidCPF,
-      test: (value) => isValidCPF(value),
-    }),
-  driverContact: Yup.string().required(TEXT.requiredField),
-  driverEmail: Yup.string().email(TEXT.invalidEmail),
-  driverEmergencyContact: Yup.string(),
-  driverEmergencyContactSecond: Yup.string(),
-  driverDocumentDriverLicense: Yup.string(),
-  driverDocumentDriverRegister: Yup.string(),
-  driverPublicScore: Yup.string(),
+  driverId: optionalNumber(),
+  driverName: optionalString(),
+  driverCpf: optionalString(),
+  driverContact: optionalString(),
+  driverEmail: optionalString(),
+  driverEmergencyContact: optionalString(),
+  driverEmergencyContactSecond: optionalString(),
+  driverDocumentDriverLicense: optionalString(),
+  driverDocumentDriverRegister: optionalString(),
+  driverPublicScore: optionalString(),
 
-  driverAddressId: Yup.number().nullable(),
-  driverAddressCountry: Yup.string().required(TEXT.requiredField),
-  driverAddressZip: Yup.string().required(TEXT.requiredField),
-  driverAddressState: Yup.string().required(TEXT.requiredField),
-  driverAddressCity: Yup.string().required(TEXT.requiredField),
-  driverAddressDistrict: Yup.string().required(TEXT.requiredField),
-  driverAddressName: Yup.string().required(TEXT.requiredField),
+  driverAddressId: optionalNumber(),
+  driverAddressCountry: optionalString(),
+  driverAddressZip: optionalString(),
+  driverAddressState: optionalString(),
+  driverAddressCity: optionalString(),
+  driverAddressDistrict: optionalString(),
+  driverAddressName: optionalString(),
 });
 
 export interface DriverForm {
@@ -158,4 +148,21 @@ function normalizeOptionalNumber(value?: string | number): number | undefined {
 
   const parsedValue = Number(value);
   return Number.isFinite(parsedValue) ? parsedValue : undefined;
+}
+
+function optionalString() {
+  return Yup.string().nullable().notRequired();
+}
+
+function optionalNumber() {
+  return Yup.number()
+    .transform((value, originalValue) => {
+      if (originalValue === "" || originalValue === null || originalValue === undefined) {
+        return undefined;
+      }
+
+      return Number.isNaN(value) ? undefined : value;
+    })
+    .nullable()
+    .notRequired();
 }

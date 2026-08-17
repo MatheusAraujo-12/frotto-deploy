@@ -374,7 +374,6 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             presentation="date"
             errorsObj={errors}
             errorName="startDate"
-            required
             formCallBack={(value: string) => {
               updateField("startDate", value);
             }}
@@ -388,7 +387,6 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             changeCallback={(value: number) => {
               updateField("warranty", value);
             }}
-            required
           />
           <FormInput
             label="Número do contrato"
@@ -429,7 +427,6 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
                 changeCallback={(value: number) => {
                   updateField("debt", value);
                 }}
-                required
               />
               <IonItem className="app-form-item">
                 <FormInputLabel name={TEXT.score}></FormInputLabel>
@@ -463,7 +460,6 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
               updateField("driverCpf", value);
               loadDriverByCpf(value);
             }}
-            required
           />
           <FormInput
             label={TEXT.name}
@@ -474,7 +470,6 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             changeCallback={(value: string) => {
               updateField("driverName", value);
             }}
-            required
           />
           {watch("driverId") && (
             <IonItem className="app-form-item">
@@ -502,7 +497,6 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             changeCallback={(value: string) => {
               updateField("driverContact", value);
             }}
-            required
           />
           <FormInput
             label={TEXT.email}
@@ -581,7 +575,6 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             changeCallback={(value: string) => {
               updateField("driverAddressCountry", value);
             }}
-            required
           />
           <FormInputMask
             label={TEXT.zip}
@@ -595,7 +588,6 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             changeCallback={(value: string) => {
               updateField("driverAddressZip", value);
             }}
-            required
           />
           <FormSelect
             label={TEXT.state}
@@ -606,7 +598,6 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             changeCallback={(value: string) => {
               updateField("driverAddressState", value);
             }}
-            required
           />
           <FormInput
             label={TEXT.city}
@@ -617,7 +608,6 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             changeCallback={(value: string) => {
               updateField("driverAddressCity", value);
             }}
-            required
           />
           <FormInput
             label={TEXT.district}
@@ -628,7 +618,6 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             changeCallback={(value: string) => {
               updateField("driverAddressDistrict", value);
             }}
-            required
           />
           <FormInput
             label={TEXT.address}
@@ -639,7 +628,6 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             changeCallback={(value: string) => {
               updateField("driverAddressName", value);
             }}
-            required
           />
         </form>
       </IonContent>

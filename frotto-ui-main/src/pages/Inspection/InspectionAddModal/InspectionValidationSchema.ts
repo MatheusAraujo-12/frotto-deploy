@@ -4,7 +4,6 @@ import {
   InspectionModel,
 } from "./../../../constants/CarModels";
 import * as Yup from "yup";
-import { TEXT } from "../../../constants/texts";
 import { DATE_TODAY } from "../../../constants/form";
 
 export const initialInspectionValues = (initialValues: InspectionModel) => {
@@ -40,24 +39,22 @@ export const initialInspectionValues = (initialValues: InspectionModel) => {
 };
 
 export const inspectionAddValidationSchema = Yup.object().shape({
-  id: Yup.number().nullable(),
-  date: Yup.string().required(TEXT.requiredField),
-  driverName: Yup.string().required(TEXT.requiredField),
-  odometer: Yup.number()
-    .typeError(TEXT.requiredField)
-    .required(TEXT.requiredField),
-  internalCleaning: Yup.string().required(TEXT.requiredField),
-  externalCleaning: Yup.string().required(TEXT.requiredField),
-  leftFrontModel: Yup.string().required(TEXT.requiredField),
-  rightFrontModel: Yup.string().required(TEXT.requiredField),
-  leftBackModel: Yup.string().required(TEXT.requiredField),
-  rightBackModel: Yup.string().required(TEXT.requiredField),
-  spareModel: Yup.string().required(TEXT.requiredField),
-  leftFrontIntegrity: Yup.string().required(TEXT.requiredField),
-  rightFrontIntegrity: Yup.string().required(TEXT.requiredField),
-  leftBackIntegrity: Yup.string().required(TEXT.requiredField),
-  rightBackIntegrity: Yup.string().required(TEXT.requiredField),
-  spareIntegrity: Yup.string().required(TEXT.requiredField),
+  id: optionalNumber(),
+  date: optionalString(),
+  driverName: optionalString(),
+  odometer: optionalNumber(),
+  internalCleaning: optionalString(),
+  externalCleaning: optionalString(),
+  leftFrontModel: optionalString(),
+  rightFrontModel: optionalString(),
+  leftBackModel: optionalString(),
+  rightBackModel: optionalString(),
+  spareModel: optionalString(),
+  leftFrontIntegrity: optionalString(),
+  rightFrontIntegrity: optionalString(),
+  leftBackIntegrity: optionalString(),
+  rightBackIntegrity: optionalString(),
+  spareIntegrity: optionalString(),
 });
 
 export interface InspectionForm {
@@ -148,3 +145,20 @@ export const calculateInspectionCost = (inspectionForm: InspectionForm): number 
 export const calculateScore = (): number => {
   return 10;
 };
+
+function optionalString() {
+  return Yup.string().nullable().notRequired();
+}
+
+function optionalNumber() {
+  return Yup.number()
+    .transform((value, originalValue) => {
+      if (originalValue === "" || originalValue === null || originalValue === undefined) {
+        return undefined;
+      }
+
+      return Number.isNaN(value) ? undefined : value;
+    })
+    .nullable()
+    .notRequired();
+}
