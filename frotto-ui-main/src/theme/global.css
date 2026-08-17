@@ -4,11 +4,21 @@
 
 body,
 ion-app,
+ion-router-outlet,
+#main,
 ion-page,
+.ion-page,
 ion-content {
   background: var(--ion-background-color);
   background-image: var(--app-gradient);
   color: var(--ion-text-color);
+}
+
+ion-router-outlet,
+#main,
+.ion-page {
+  background: var(--ion-background-color);
+  background-image: var(--app-gradient);
 }
 
 ion-content {
@@ -40,7 +50,10 @@ ion-modal ion-content::part(background) {
 
 body.dark,
 body.dark ion-app,
+body.dark ion-router-outlet,
+body.dark #main,
 body.dark ion-page,
+body.dark .ion-page,
 body.dark ion-content {
   background: var(--ion-background-color);
   background-image: var(--app-gradient);
@@ -66,8 +79,20 @@ ion-toolbar,
   --background: var(--ion-toolbar-background);
   --color: #ffffff;
   --border-color: transparent;
+  background: var(--ion-toolbar-background);
   border-bottom: 1px solid var(--ion-border-color);
   overflow-x: clip;
+}
+
+ion-header,
+ion-header.header-md,
+ion-header.header-ios {
+  background: var(--ion-toolbar-background);
+}
+
+ion-toolbar::part(background),
+.app-toolbar-clean::part(background) {
+  background: var(--ion-toolbar-background);
 }
 
 body.dark ion-toolbar,
@@ -83,9 +108,16 @@ ion-title {
 }
 
 .app-subtoolbar {
-  --background: transparent;
+  --background: var(--ion-background-color);
+  background: var(--ion-background-color);
+  background-image: var(--app-gradient);
   border-bottom: 1px solid var(--ion-border-color);
   padding: 8px 18px 10px;
+}
+
+.app-subtoolbar::part(background) {
+  background: var(--ion-background-color);
+  background-image: var(--app-gradient);
 }
 
 ion-card,
@@ -340,7 +372,9 @@ body.dark .app-toolbar-clean {
 }
 
 body.dark .app-subtoolbar {
-  --background: transparent;
+  --background: var(--ion-background-color);
+  background: var(--ion-background-color);
+  background-image: var(--app-gradient);
 }
 
 body.dark ion-card,
@@ -1208,8 +1242,13 @@ ion-button.app-semantic-btn:not([fill="outline"]):not([fill="clear"]) {
 /* ============================================ */
 
 ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
-  --background: transparent;
+  --background: var(--ion-background-color);
   border-bottom: 1px solid var(--ion-border-color);
+}
+
+ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar)::part(background) {
+  background: var(--ion-background-color);
+  background-image: var(--app-gradient);
 }
 
 .section-shell {
