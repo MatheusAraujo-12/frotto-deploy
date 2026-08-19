@@ -45,11 +45,7 @@ public class PricingService {
     }
 
     public PricingResult calculateMonthlyPrice(int vehicleCount) {
-        if (vehicleCount < 0) {
-            throw new IllegalArgumentException("vehicleCount must be >= 0, got " + vehicleCount);
-        }
-
-        Plan plan = resolvePlan(vehicleCount);
+        Plan plan = resolvePlanForVehicleCount(vehicleCount);
         List<PlanPricingTier> tiers = planPricingTierRepository.findByPlanIdOrderByTierOrderAsc(plan.getId());
 
         if (tiers.isEmpty()) {
@@ -76,7 +72,15 @@ public class PricingService {
         return new PricingResult(plan.getCode(), plan.getName(), vehicleCount, scale(total), components);
     }
 
-    private Plan resolvePlan(int vehicleCount) {
+    /**
+     * The plan whose [minVehicles, maxVehicles] range covers vehicleCount, regardless of what
+     * plan any given user is actually contracted for. Used both by calculateMonthlyPrice and by
+     * EntitlementService to compute a user's "required plan" independently of their "current plan".
+     */
+    public Plan resolvePlanForVehicleCount(int vehicleCount) {
+        if (vehicleCount < 0) {
+            throw new IllegalArgumentException("vehicleCount must be >= 0, got " + vehicleCount);
+        }
         return planRepository
             .findByActiveTrueOrderByMinVehiclesAsc()
             .stream()

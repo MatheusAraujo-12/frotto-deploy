@@ -192,6 +192,17 @@ class PricingServiceTest {
     }
 
     @Test
+    void resolvePlanForVehicleCountReturnsTheSamePlanCalculateMonthlyPriceWouldUse() {
+        assertThat(pricingService.resolvePlanForVehicleCount(50).getCode()).isEqualTo(PlanCode.PLATINUM);
+        assertThat(pricingService.resolvePlanForVehicleCount(0).getCode()).isEqualTo(PlanCode.FREE);
+    }
+
+    @Test
+    void resolvePlanForVehicleCountRejectsNegativeVehicleCount() {
+        assertThrows(IllegalArgumentException.class, () -> pricingService.resolvePlanForVehicleCount(-1));
+    }
+
+    @Test
     void handlesVeryLargeFleetsWithoutOverflowOrPrecisionLoss() {
         int hugeCount = 10_000_000;
         PricingResult result = pricingService.calculateMonthlyPrice(hugeCount);
