@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260818000001-1" author="claude">
+        <createTable tableName="plan_pricing_tier">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="plan_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tier_order" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="from_vehicle_count" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="to_vehicle_count" type="int">
+                <constraints nullable="true"/>
+            </column>
+            <column name="price_per_vehicle" type="decimal(21,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="datetime(6)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="datetime(6)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="20260818000001-2" author="claude">
+        <addUniqueConstraint
+            tableName="plan_pricing_tier"
+            columnNames="plan_id, tier_order"
+            constraintName="ux_plan_pricing_tier_plan_order"/>
+
+        <createIndex tableName="plan_pricing_tier" indexName="idx_plan_pricing_tier_plan_id">
+            <column name="plan_id"/>
+        </createIndex>
+
+        <addForeignKeyConstraint
+            baseTableName="plan_pricing_tier"
+            baseColumnNames="plan_id"
+            constraintName="fk_plan_pricing_tier_plan_id"
+            referencedTableName="plan"
+            referencedColumnNames="id"/>
+    </changeSet>
+
+    <changeSet id="20260818000001-3" author="claude">
+        <!-- Looked up by plan.code (not a hardcoded plan_id) so this seed does not depend on
+             autoincrement values assigned by the previous changeset. -->
+        <sql>
+            INSERT INTO plan_pricing_tier (plan_id, tier_order, from_vehicle_count, to_vehicle_count, price_per_vehicle, created_at, updated_at)
+            SELECT id, 1, 31, 100, 2.50, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6) FROM plan WHERE code = 'PLATINUM';
+
+            INSERT INTO plan_pricing_tier (plan_id, tier_order, from_vehicle_count, to_vehicle_count, price_per_vehicle, created_at, updated_at)
+            SELECT id, 1, 101, 200, 2.00, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6) FROM plan WHERE code = 'FROTTA';
+
+            INSERT INTO plan_pricing_tier (plan_id, tier_order, from_vehicle_count, to_vehicle_count, price_per_vehicle, created_at, updated_at)
+            SELECT id, 2, 201, 500, 1.50, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6) FROM plan WHERE code = 'FROTTA';
+
+            INSERT INTO plan_pricing_tier (plan_id, tier_order, from_vehicle_count, to_vehicle_count, price_per_vehicle, created_at, updated_at)
+            SELECT id, 3, 501, NULL, 1.00, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6) FROM plan WHERE code = 'FROTTA';
+        </sql>
+        <rollback>
+            <!-- Deletes only the 4 rows this changeset inserted, matched by (plan.code, tier_order) -
+                 that pair is unique per ux_plan_pricing_tier_plan_order, so this cannot touch tiers
+                 added by any other changeset, past or future. -->
+            <sql>
+                DELETE FROM plan_pricing_tier WHERE tier_order = 1 AND plan_id IN (SELECT id FROM plan WHERE code = 'PLATINUM');
+                DELETE FROM plan_pricing_tier WHERE tier_order = 1 AND plan_id IN (SELECT id FROM plan WHERE code = 'FROTTA');
+                DELETE FROM plan_pricing_tier WHERE tier_order = 2 AND plan_id IN (SELECT id FROM plan WHERE code = 'FROTTA');
+                DELETE FROM plan_pricing_tier WHERE tier_order = 3 AND plan_id IN (SELECT id FROM plan WHERE code = 'FROTTA');
+            </sql>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

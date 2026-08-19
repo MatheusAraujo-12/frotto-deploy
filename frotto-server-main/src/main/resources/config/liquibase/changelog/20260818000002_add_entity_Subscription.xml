@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260818000002-1" author="claude">
+        <createTable tableName="subscription">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="jhi_user_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="plan_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="billing_cycle" type="varchar(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="varchar(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="start_date" type="datetime(6)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="current_period_start" type="datetime(6)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="current_period_end" type="datetime(6)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="canceled_at" type="datetime(6)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="cancel_at_period_end" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="contracted_price" type="decimal(21,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="contracted_vehicle_count" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="external_provider" type="varchar(64)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="external_subscription_id" type="varchar(128)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="created_at" type="datetime(6)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="datetime(6)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="20260818000002-2" author="claude">
+        <createIndex tableName="subscription" indexName="idx_subscription_user_id">
+            <column name="jhi_user_id"/>
+        </createIndex>
+
+        <createIndex tableName="subscription" indexName="idx_subscription_plan_id">
+            <column name="plan_id"/>
+        </createIndex>
+
+        <createIndex tableName="subscription" indexName="idx_subscription_status">
+            <column name="status"/>
+        </createIndex>
+
+        <createIndex tableName="subscription" indexName="idx_subscription_external_subscription_id">
+            <column name="external_subscription_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="20260818000002-3" author="claude">
+        <addForeignKeyConstraint
+            baseTableName="subscription"
+            baseColumnNames="jhi_user_id"
+            constraintName="fk_subscription_user_id"
+            referencedTableName="jhi_user"
+            referencedColumnNames="id"/>
+
+        <addForeignKeyConstraint
+            baseTableName="subscription"
+            baseColumnNames="plan_id"
+            constraintName="fk_subscription_plan_id"
+            referencedTableName="plan"
+            referencedColumnNames="id"/>
+    </changeSet>
+</databaseChangeLog>

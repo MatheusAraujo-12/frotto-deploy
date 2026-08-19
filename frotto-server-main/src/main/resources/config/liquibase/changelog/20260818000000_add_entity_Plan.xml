@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260818000000-1" author="claude">
+        <createTable tableName="plan">
+            <column name="id" type="bigint" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="code" type="varchar(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="varchar(60)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="min_vehicles" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="max_vehicles" type="int">
+                <constraints nullable="true"/>
+            </column>
+            <column name="monthly_base_price" type="decimal(21,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="active" type="boolean" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="datetime(6)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="datetime(6)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="20260818000000-2" author="claude">
+        <addUniqueConstraint tableName="plan" columnNames="code" constraintName="ux_plan_code"/>
+
+        <createIndex tableName="plan" indexName="idx_plan_active">
+            <column name="active"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="20260818000000-3" author="claude">
+        <insert tableName="plan">
+            <column name="code" value="FREE"/>
+            <column name="name" value="Gratuito"/>
+            <column name="min_vehicles" valueNumeric="0"/>
+            <column name="max_vehicles" valueNumeric="2"/>
+            <column name="monthly_base_price" valueNumeric="0.00"/>
+            <column name="active" valueBoolean="true"/>
+            <column name="created_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+        </insert>
+        <insert tableName="plan">
+            <column name="code" value="BRONZE"/>
+            <column name="name" value="Bronze"/>
+            <column name="min_vehicles" valueNumeric="3"/>
+            <column name="max_vehicles" valueNumeric="5"/>
+            <column name="monthly_base_price" valueNumeric="15.90"/>
+            <column name="active" valueBoolean="true"/>
+            <column name="created_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+        </insert>
+        <insert tableName="plan">
+            <column name="code" value="SILVER"/>
+            <column name="name" value="Prata"/>
+            <column name="min_vehicles" valueNumeric="6"/>
+            <column name="max_vehicles" valueNumeric="15"/>
+            <column name="monthly_base_price" valueNumeric="44.90"/>
+            <column name="active" valueBoolean="true"/>
+            <column name="created_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+        </insert>
+        <insert tableName="plan">
+            <column name="code" value="GOLD"/>
+            <column name="name" value="Ouro"/>
+            <column name="min_vehicles" valueNumeric="16"/>
+            <column name="max_vehicles" valueNumeric="30"/>
+            <column name="monthly_base_price" valueNumeric="79.90"/>
+            <column name="active" valueBoolean="true"/>
+            <column name="created_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+        </insert>
+        <insert tableName="plan">
+            <column name="code" value="PLATINUM"/>
+            <column name="name" value="Platinum"/>
+            <column name="min_vehicles" valueNumeric="31"/>
+            <column name="max_vehicles" valueNumeric="100"/>
+            <column name="monthly_base_price" valueNumeric="79.90"/>
+            <column name="active" valueBoolean="true"/>
+            <column name="created_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+        </insert>
+        <insert tableName="plan">
+            <column name="code" value="FROTTA"/>
+            <column name="name" value="Frotta"/>
+            <column name="min_vehicles" valueNumeric="101"/>
+            <column name="max_vehicles"/>
+            <column name="monthly_base_price" valueNumeric="254.90"/>
+            <column name="active" valueBoolean="true"/>
+            <column name="created_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+            <column name="updated_at" valueComputed="CURRENT_TIMESTAMP(6)"/>
+        </insert>
+    </changeSet>
+</databaseChangeLog>

@@ -52,4 +52,6 @@ public interface CarRepository extends JpaRepository<Car, Long> {
     List<Car> findAllByUserId(Long userId);
 
     Optional<Car> findByIdAndUser(Long id, User user);
+
+    long countByUserIdAndActiveTrue(Long userId);
 }
