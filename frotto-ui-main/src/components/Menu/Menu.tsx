@@ -16,13 +16,16 @@ import {
 } from "@ionic/react";
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { car, clipboard, documentTextOutline, logOutOutline, personCircleOutline } from "ionicons/icons";
+import { car, cardOutline, clipboard, documentTextOutline, logOutOutline, personCircleOutline } from "ionicons/icons";
 
+import accountService from "../../services/accountService";
 import api from "../../services/axios/axios";
 import { removeToken } from "../../services/localStorage/localstorage";
 import profileService, { MeResponseDTO } from "../../services/profileService";
 import { resolveApiUrl } from "../../services/resolveApiUrl";
 import { TEXT } from "../../constants/texts";
+
+const ROLE_ADMIN = "ROLE_ADMIN";
 
 const resolveMenuDisplayName = (profile: MeResponseDTO | null): string => {
   if (!profile) {
@@ -180,6 +183,7 @@ const Menu: React.FC = () => {
   const [isDark, setIsDark] = useState<boolean>(false);
   const [profile, setProfile] = useState<MeResponseDTO | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState<boolean>(true);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [menuAvatarSrc, setMenuAvatarSrc] = useState<string>("");
   const [menuAvatarLoadFailed, setMenuAvatarLoadFailed] = useState<boolean>(false);
   const isPublicRoute = location.pathname === "/" || location.pathname === "/cadastro";
@@ -225,6 +229,29 @@ const Menu: React.FC = () => {
     };
 
     loadProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAccount = async () => {
+      try {
+        const account = await accountService.getAccount();
+        if (isMounted) {
+          setIsAdmin(Array.isArray(account.authorities) && account.authorities.includes(ROLE_ADMIN));
+        }
+      } catch (_error) {
+        if (isMounted) {
+          setIsAdmin(false);
+        }
+      }
+    };
+
+    void loadAccount();
 
     return () => {
       isMounted = false;
@@ -372,6 +399,23 @@ const Menu: React.FC = () => {
               <IonLabel className="menu-item__label">Meu Painel</IonLabel>
             </IonItem>
           </IonMenuToggle>
+
+          {isAdmin && (
+            <>
+              <div className="menu-hero__divider" />
+              <div className="menu-section-title">Administração</div>
+              <IonMenuToggle>
+                <IonItem
+                  className="menu-item menu-item--nested"
+                  routerLink="/menu/admin/billing"
+                  routerDirection="none"
+                >
+                  <IonIcon icon={cardOutline} slot="start"></IonIcon>
+                  <IonLabel className="menu-item__label">Billing</IonLabel>
+                </IonItem>
+              </IonMenuToggle>
+            </>
+          )}
 
           <div className="menu-footer">
             <IonItem lines="none" className="menu-theme-toggle">

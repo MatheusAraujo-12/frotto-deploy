@@ -10,18 +10,24 @@ import com.localuz.service.GrandfatheringService;
 import com.localuz.service.SubscriptionAdminService;
 import com.localuz.service.UserService;
 import com.localuz.service.dto.AdminBillingUserDTO;
+import com.localuz.service.dto.AdminUserSearchDTO;
 import com.localuz.service.dto.GrandfatherPreviewDTO;
 import com.localuz.service.dto.GrandfatherResultDTO;
 import com.localuz.service.dto.GrantPlanRequestDTO;
 import com.localuz.service.dto.SubscriptionAdminDTO;
 import com.localuz.web.rest.errors.BadRequestAlertException;
+import java.util.List;
+import java.util.stream.Collectors;
 import javax.validation.Valid;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -75,6 +81,22 @@ public class AdminBillingResource {
     public SubscriptionAdminDTO revokeGrant(@PathVariable Long subscriptionId) {
         Subscription revoked = subscriptionAdminService.revokeGrant(subscriptionId);
         return SubscriptionAdminDTO.from(revoked);
+    }
+
+    /**
+     * "/users/search" is a literal path segment, matched before "/users/{userId}" ever gets a
+     * chance to capture it as an id - no route ambiguity between the two.
+     */
+    @GetMapping("/users/search")
+    public List<AdminUserSearchDTO> searchUsers(@RequestParam(required = false, defaultValue = "") String query) {
+        if (StringUtils.isBlank(query)) {
+            return List.of();
+        }
+        return userRepository
+            .findByLoginContainingIgnoreCaseOrEmailContainingIgnoreCase(query, query, PageRequest.of(0, 20))
+            .map(AdminUserSearchDTO::from)
+            .stream()
+            .collect(Collectors.toList());
     }
 
     @GetMapping("/users/{userId}")

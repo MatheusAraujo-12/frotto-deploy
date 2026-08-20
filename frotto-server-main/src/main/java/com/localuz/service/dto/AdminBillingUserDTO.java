@@ -17,6 +17,10 @@ import java.util.stream.Collectors;
  * BillingMeDTO (reuses EntitlementSnapshot, not a second implementation of the same logic)
  * plus admin-only audit data: source, grant metadata, and a summarized subscription history.
  * Never externalProvider/externalSubscriptionId.
+ *
+ * currentSubscriptionId is the id of the *effective* Subscription row (null when FREE) - it's
+ * exposed specifically so an admin UI can call POST /grants/{subscriptionId}/revoke without
+ * having to reverse-engineer which history entry is "the current one".
  */
 public class AdminBillingUserDTO {
 
@@ -24,6 +28,7 @@ public class AdminBillingUserDTO {
     private final String userLogin;
     private final String userEmail;
 
+    private final Long currentSubscriptionId;
     private final PlanCode planCode;
     private final String planName;
     private final SubscriptionSource source;
@@ -46,6 +51,7 @@ public class AdminBillingUserDTO {
         Long userId,
         String userLogin,
         String userEmail,
+        Long currentSubscriptionId,
         PlanCode planCode,
         String planName,
         SubscriptionSource source,
@@ -65,6 +71,7 @@ public class AdminBillingUserDTO {
         this.userId = userId;
         this.userLogin = userLogin;
         this.userEmail = userEmail;
+        this.currentSubscriptionId = currentSubscriptionId;
         this.planCode = planCode;
         this.planName = planName;
         this.source = source;
@@ -91,6 +98,7 @@ public class AdminBillingUserDTO {
             user.getId(),
             user.getLogin(),
             user.getEmail(),
+            subscription != null ? subscription.getId() : null,
             currentPlan.getCode(),
             currentPlan.getName(),
             subscription != null ? subscription.getSource() : null,
@@ -119,6 +127,10 @@ public class AdminBillingUserDTO {
 
     public String getUserEmail() {
         return userEmail;
+    }
+
+    public Long getCurrentSubscriptionId() {
+        return currentSubscriptionId;
     }
 
     public PlanCode getPlanCode() {

@@ -981,6 +981,19 @@ ion-button.app-semantic-btn:not([fill="outline"]):not([fill="clear"]) {
   word-break: break-word;
 }
 
+.menu-section-title {
+  margin: 4px 10px 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+}
+
+.menu-item--nested {
+  margin-left: 14px;
+}
+
 .menu-theme-toggle {
   line-height: 1.35;
 }

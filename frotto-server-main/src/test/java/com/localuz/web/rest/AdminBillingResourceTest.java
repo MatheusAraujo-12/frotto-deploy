@@ -15,6 +15,7 @@ import com.localuz.service.GrandfatheringService;
 import com.localuz.service.SubscriptionAdminService;
 import com.localuz.service.UserService;
 import com.localuz.service.dto.AdminBillingUserDTO;
+import com.localuz.service.dto.AdminUserSearchDTO;
 import com.localuz.service.dto.EntitlementSnapshot;
 import com.localuz.service.dto.GrandfatherPreviewDTO;
 import com.localuz.service.dto.GrandfatherResultDTO;
@@ -26,6 +27,8 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 
 /**
  * Plain unit tests for the business logic AdminBillingResource delegates to. ROLE_ADMIN
@@ -179,5 +182,31 @@ class AdminBillingResourceTest {
         when(userRepository.findById(404L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> adminBillingResource.applyGrandfathering(404L)).isInstanceOf(BadRequestAlertException.class);
+    }
+
+    @Test
+    void searchUsersReturnsMatchesFromLoginOrEmail() {
+        Page<User> page = new PageImpl<>(List.of(targetUser));
+        when(
+            userRepository.findByLoginContainingIgnoreCaseOrEmailContainingIgnoreCase(
+                Mockito.eq("cliente"),
+                Mockito.eq("cliente"),
+                Mockito.any()
+            )
+        )
+            .thenReturn(page);
+
+        List<AdminUserSearchDTO> results = adminBillingResource.searchUsers("cliente");
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).getLogin()).isEqualTo("cliente");
+    }
+
+    @Test
+    void searchUsersReturnsEmptyForABlankQueryWithoutHittingTheRepository() {
+        List<AdminUserSearchDTO> results = adminBillingResource.searchUsers("   ");
+
+        assertThat(results).isEmpty();
+        Mockito.verifyNoInteractions(userRepository);
     }
 }

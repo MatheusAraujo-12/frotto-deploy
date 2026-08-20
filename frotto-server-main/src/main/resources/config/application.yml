@@ -117,18 +117,18 @@ spring:
   jpa:
     open-in-view: false
     properties:
-      hibernate.jdbc.time_zone: UTC
-      hibernate.id.new_generator_mappings: true
-      hibernate.connection.provider_disables_autocommit: true
-      hibernate.cache.use_second_level_cache: true
-      hibernate.cache.use_query_cache: false
-      hibernate.generate_statistics: false
+      "[hibernate.jdbc.time_zone]": UTC
+      "[hibernate.id.new_generator_mappings]": true
+      "[hibernate.connection.provider_disables_autocommit]": true
+      "[hibernate.cache.use_second_level_cache]": true
+      "[hibernate.cache.use_query_cache]": false
+      "[hibernate.generate_statistics]": false
       # modify batch size as necessary
-      hibernate.jdbc.batch_size: 25
-      hibernate.order_inserts: true
-      hibernate.order_updates: true
-      hibernate.query.fail_on_pagination_over_collection_fetch: true
-      hibernate.query.in_clause_parameter_padding: true
+      "[hibernate.jdbc.batch_size]": 25
+      "[hibernate.order_inserts]": true
+      "[hibernate.order_updates]": true
+      "[hibernate.query.fail_on_pagination_over_collection_fetch]": true
+      "[hibernate.query.in_clause_parameter_padding]": true
     hibernate:
       ddl-auto: none
       naming:
@@ -156,7 +156,7 @@ spring:
     mode: HTML
   output:
     ansi:
-      console-available: true
+      enabled: always
 
 server:
   servlet:
@@ -225,3 +225,13 @@ aws:
 billing:
   enforcement:
     enabled: ${BILLING_ENFORCEMENT_ENABLED:false}
+
+# Billing Etapa 4A: one-shot operational bootstrap to promote a single pre-existing user to
+# ROLE_ADMIN. Must stay disabled by default in every environment - only ever meant to be
+# flipped to true for one deploy in staging (or, later, production), then flipped back to
+# false. Never set admin.bootstrap.login in a committed file - pass it via
+# ADMIN_BOOTSTRAP_LOGIN at deploy time only. See com.localuz.config.AdminBootstrap.
+admin:
+  bootstrap:
+    enabled: ${ADMIN_BOOTSTRAP_ENABLED:false}
+    login: ${ADMIN_BOOTSTRAP_LOGIN:}

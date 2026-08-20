@@ -125,6 +125,14 @@ const endpoints = {
   ME_TAX_DATA: apiEndpoint("/me/tax-data"),
   ME_CHANGE_PASSWORD: apiEndpoint("/me/change-password"),
   ME_AVATAR: apiEndpoint("/me/avatar"),
+  ACCOUNT: apiEndpoint("/account"),
+
+  ADMIN_BILLING_USERS_SEARCH: apiEndpoint("/admin/billing/users/search"),
+  ADMIN_BILLING_USER: apiEndpoint("/admin/billing/users/{userId}"),
+  ADMIN_BILLING_GRANTS: apiEndpoint("/admin/billing/grants"),
+  ADMIN_BILLING_GRANT_REVOKE: apiEndpoint("/admin/billing/grants/{subscriptionId}/revoke"),
+  ADMIN_BILLING_GRANDFATHER_PREVIEW: apiEndpoint("/admin/billing/grandfather/{userId}/preview"),
+  ADMIN_BILLING_GRANDFATHER_APPLY: apiEndpoint("/admin/billing/grandfather/{userId}"),
 
   CARS: apiEndpoint("/cars"),
   CARS_ACTIVE: apiEndpoint("/cars-drivers/active"),

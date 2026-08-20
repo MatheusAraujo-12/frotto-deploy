@@ -1,0 +1,49 @@
+{
+  "properties": [
+    {
+      "name": "aws.region",
+      "type": "java.lang.String",
+      "description": "AWS region configured for infrastructure integrations."
+    },
+    {
+      "name": "aws.accessKeyId",
+      "type": "java.lang.String",
+      "description": "AWS access key id used by the S3 client when explicit credentials are provided."
+    },
+    {
+      "name": "aws.secretAccessKey",
+      "type": "java.lang.String",
+      "description": "AWS secret access key used by the S3 client when explicit credentials are provided."
+    },
+    {
+      "name": "aws.key",
+      "type": "java.lang.String",
+      "description": "Legacy AWS access key alias used by the S3 client."
+    },
+    {
+      "name": "aws.secret",
+      "type": "java.lang.String",
+      "description": "Legacy AWS secret key alias used by the S3 client."
+    },
+    {
+      "name": "aws.bucketName",
+      "type": "java.lang.String",
+      "description": "S3 bucket name used by file upload, download and delete operations."
+    },
+    {
+      "name": "billing.enforcement.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enables billing entitlement enforcement for vehicle creation."
+    },
+    {
+      "name": "admin.bootstrap.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enables one-shot admin role bootstrap for an existing user."
+    },
+    {
+      "name": "admin.bootstrap.login",
+      "type": "java.lang.String",
+      "description": "Existing user login promoted by the one-shot admin bootstrap."
+    }
+  ]
+}

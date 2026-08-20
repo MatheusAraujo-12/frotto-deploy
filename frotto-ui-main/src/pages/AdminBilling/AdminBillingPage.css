@@ -1,0 +1,188 @@
+#admin-billing-page .admin-billing-shell {
+  max-width: 980px;
+}
+
+#admin-billing-page .admin-billing-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+}
+
+#admin-billing-page ion-card {
+  margin: 0;
+}
+
+#admin-billing-page ion-card-content {
+  display: grid;
+  gap: 12px;
+}
+
+#admin-billing-page ion-card-content h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+#admin-billing-page .admin-billing-search-results {
+  padding: 0;
+}
+
+#admin-billing-page .admin-billing-search-result {
+  --border-radius: 12px;
+  border: 1px solid var(--ion-border-color);
+  margin-bottom: 8px;
+}
+
+#admin-billing-page .admin-billing-search-result:last-child {
+  margin-bottom: 0;
+}
+
+#admin-billing-page .admin-billing-muted {
+  margin: 2px 0 0;
+  color: var(--ion-color-medium);
+  font-size: 0.88rem;
+}
+
+#admin-billing-page .admin-billing-user-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+#admin-billing-page .admin-billing-user-header h3 {
+  margin: 0;
+}
+
+#admin-billing-page .admin-billing-user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+#admin-billing-page .admin-billing-user-actions ion-button {
+  margin: 0;
+}
+
+#admin-billing-page .admin-billing-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+  margin-top: 4px;
+}
+
+#admin-billing-page .admin-billing-fact {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--ion-border-color);
+  border-radius: 12px;
+  background: var(--app-card-strong);
+}
+
+#admin-billing-page .admin-billing-fact__label {
+  font-size: 0.76rem;
+  color: var(--ion-color-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+#admin-billing-page .admin-billing-fact__value {
+  font-weight: 700;
+  font-size: 0.94rem;
+}
+
+#admin-billing-page .admin-billing-fact__value--warning {
+  color: var(--ion-color-warning-shade, var(--ion-color-warning));
+}
+
+#admin-billing-page .admin-billing-badges {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+#admin-billing-page .admin-billing-history-row {
+  --padding-top: 12px;
+  --padding-bottom: 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--ion-border-color);
+  border-radius: 12px;
+}
+
+#admin-billing-page .admin-billing-history-row:last-child {
+  margin-bottom: 0;
+}
+
+#admin-billing-page .admin-billing-history-row h2 {
+  margin: 0 0 4px;
+  font-size: 0.94rem;
+  font-weight: 700;
+}
+
+#admin-billing-page .admin-billing-history-row p {
+  margin: 0;
+  color: var(--ion-color-medium);
+  line-height: 1.45;
+}
+
+#admin-billing-page .admin-billing-grandfather-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+#admin-billing-page .admin-billing-grandfather-actions ion-button {
+  margin: 0;
+}
+
+#admin-billing-page .admin-billing-grandfather-preview {
+  padding: 10px 12px;
+  border: 1px dashed var(--ion-border-color);
+  border-radius: 12px;
+}
+
+#admin-billing-page .admin-billing-grandfather-preview p {
+  margin: 0 0 4px;
+}
+
+#admin-billing-page .admin-billing-grandfather-preview p:last-child {
+  margin-bottom: 0;
+}
+
+#admin-billing-page .admin-billing-validity-field {
+  display: grid;
+  gap: 6px;
+}
+
+#admin-billing-page .admin-billing-validity-label {
+  font-weight: 600;
+  opacity: 0.88;
+  font-size: 0.88rem;
+}
+
+#admin-billing-page .admin-billing-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+#admin-billing-page .admin-billing-modal-actions ion-button {
+  margin: 0;
+}
+
+@media (max-width: 700px) {
+  #admin-billing-page .admin-billing-user-actions,
+  #admin-billing-page .admin-billing-modal-actions {
+    justify-content: stretch;
+  }
+
+  #admin-billing-page .admin-billing-user-actions ion-button,
+  #admin-billing-page .admin-billing-modal-actions ion-button {
+    flex: 1 1 100%;
+  }
+}

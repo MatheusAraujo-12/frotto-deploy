@@ -34,4 +34,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findOneWithAuthoritiesByEmailIgnoreCase(String email);
 
     Page<User> findAllByIdNotNullAndActivatedIsTrue(Pageable pageable);
+
+    /**
+     * Backs GET /api/admin/billing/users/search - the existing GET /api/admin/users only
+     * paginates the full user list with no text filter, which isn't practical for finding one
+     * user among many from the Billing admin panel; this is a purpose-built, minimal query for
+     * that specific case, not a duplicate of the general user-management listing.
+     */
+    Page<User> findByLoginContainingIgnoreCaseOrEmailContainingIgnoreCase(String loginQuery, String emailQuery, Pageable pageable);
 }
