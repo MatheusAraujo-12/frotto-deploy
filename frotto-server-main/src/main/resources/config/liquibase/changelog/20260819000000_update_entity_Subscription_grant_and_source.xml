@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Billing Etapa 3: origin/audit trail for a Subscription (SubscriptionSource,
+        admin-grant metadata). Incremental on top of the Etapa 1 subscription table
+        (20260818000002) - that changelog is not modified, per Liquibase best practice for
+        a changeSet already applied in staging. This changelog itself was revised before its
+        own first application to staging (source's column-level default was removed - see
+        below), which is why it is edited in place rather than superseded by a new file.
+
+        source is added nullable with NO column-level default, then explicitly backfilled for
+        any pre-existing row (from Etapa 1/2 staging validation, before ADMIN_GRANT/
+        GRANDFATHERED existed as concepts) via a one-time UPDATE, and only then made NOT NULL.
+        This is deliberate: a permanent DB-level default of PAYMENT_PROVIDER would silently
+        mislabel any future INSERT that forgets to set source as a real payment, which is
+        exactly what must never happen (see SubscriptionAdminService/GrandfatheringService,
+        both of which always set source explicitly). After this changeset sequence, an INSERT
+        that omits source simply fails the NOT NULL constraint instead of being misclassified.
+    -->
+    <changeSet id="20260819000000-1" author="claude">
+        <addColumn tableName="subscription">
+            <column name="source" type="varchar(32)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="granted_by_user_id" type="bigint">
+                <constraints nullable="true"/>
+            </column>
+            <column name="granted_at" type="datetime(6)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="grant_reason" type="varchar(500)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="grant_expires_at" type="datetime(6)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="20260819000000-2" author="claude">
+        <!--
+            One-time backfill only, not a standing default: rows created before this column
+            existed (Etapa 1/2 staging validation) predate ADMIN_GRANT/GRANDFATHERED, so
+            PAYMENT_PROVIDER is the only classification that was ever true for them. No
+            column-level default is set anywhere in this changelog, so this UPDATE is the only
+            place PAYMENT_PROVIDER is ever assigned outside of a real future gateway flow.
+        -->
+        <update tableName="subscription">
+            <column name="source" value="PAYMENT_PROVIDER"/>
+            <where>source IS NULL</where>
+        </update>
+    </changeSet>
+
+    <changeSet id="20260819000000-3" author="claude">
+        <addNotNullConstraint tableName="subscription" columnName="source" columnDataType="varchar(32)"/>
+    </changeSet>
+
+    <changeSet id="20260819000000-4" author="claude">
+        <createIndex tableName="subscription" indexName="idx_subscription_source">
+            <column name="source"/>
+        </createIndex>
+
+        <createIndex tableName="subscription" indexName="idx_subscription_granted_by_user_id">
+            <column name="granted_by_user_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="20260819000000-5" author="claude">
+        <addForeignKeyConstraint
+            baseTableName="subscription"
+            baseColumnNames="granted_by_user_id"
+            constraintName="fk_subscription_granted_by_user_id"
+            referencedTableName="jhi_user"
+            referencedColumnNames="id"/>
+    </changeSet>
+</databaseChangeLog>

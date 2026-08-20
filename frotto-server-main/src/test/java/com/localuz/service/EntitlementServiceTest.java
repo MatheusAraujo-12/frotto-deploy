@@ -191,6 +191,54 @@ class EntitlementServiceTest {
         assertThat(snapshot.getSubscription()).isNull();
     }
 
+    @Test
+    void frottaGrantIsUnlimited() {
+        // Etapa 3 scenario: "FROTTA ilimitado" - an ADMIN_GRANT of FROTTA has maxVehicles=null,
+        // same unbounded contract as any other source of FROTTA (see nullLimitMeansUnbounded).
+        when(subscriptionService.getEffectivePlan(user)).thenReturn(planWithLimit(PlanCode.FROTTA, null));
+        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(10_000L);
+
+        assertThat(entitlementService.canAddVehicle(user)).isTrue();
+    }
+
+    @Test
+    void goldGrantLimitsUserToThirtyVehicles() {
+        // Etapa 3 scenario: "grant GOLD limitando 30".
+        when(subscriptionService.getEffectivePlan(user)).thenReturn(planWithLimit(PlanCode.GOLD, 30));
+
+        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(29L);
+        assertThat(entitlementService.canAddVehicle(user)).isTrue();
+
+        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(30L);
+        assertThat(entitlementService.canAddVehicle(user)).isFalse();
+    }
+
+    @Test
+    void grandfatheredSilverCanGrowUpToFifteen() {
+        // Etapa 3 scenario: "grandfathered SILVER crescendo até 15" - a legacy user with 10
+        // cars, grandfathered into SILVER (max 15), can keep adding up to the 15th.
+        when(subscriptionService.getEffectivePlan(user)).thenReturn(planWithLimit(PlanCode.SILVER, 15));
+        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(14L);
+
+        assertThat(entitlementService.canAddVehicle(user)).isTrue();
+    }
+
+    @Test
+    void grandfatheredSilverBlocksTheSixteenthVehicle() {
+        // Etapa 3 scenario: "bloqueando 16º" - at 15/15, the user is still within SILVER's own
+        // range (6-15), so requiredPlan for their *current* count is still SILVER (not GOLD -
+        // getRequiredPlan answers "what fits today", not "what would fit after one more");
+        // canAddVehicle is what actually blocks the 16th, and is what the frontend should use
+        // to know an upgrade is needed before the user can grow further.
+        when(subscriptionService.getEffectivePlan(user)).thenReturn(planWithLimit(PlanCode.SILVER, 15));
+        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(15L);
+        when(pricingService.resolvePlanForVehicleCount(15)).thenReturn(planWithLimit(PlanCode.SILVER, 15));
+
+        assertThat(entitlementService.canAddVehicle(user)).isFalse();
+        assertThat(entitlementService.needsUpgrade(user)).isTrue();
+        assertThat(entitlementService.getRequiredPlan(user).getCode()).isEqualTo(PlanCode.SILVER);
+    }
+
     private static Subscription subscriptionWith(PlanCode planCode, Integer maxVehicles, SubscriptionStatus status) {
         Subscription subscription = new Subscription();
         subscription.setPlan(planWithLimit(planCode, maxVehicles));

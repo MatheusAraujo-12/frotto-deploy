@@ -1,6 +1,7 @@
 package com.localuz.domain;
 
 import com.localuz.domain.enumeration.BillingCycle;
+import com.localuz.domain.enumeration.SubscriptionSource;
 import com.localuz.domain.enumeration.SubscriptionStatus;
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -29,6 +30,20 @@ import org.hibernate.annotations.CacheConcurrencyStrategy;
  * so that later changes to Plan pricing never retroactively change what an existing
  * subscription is recorded as having cost. externalProvider/externalSubscriptionId are
  * unused placeholders for a future payment gateway integration (not implemented here).
+ *
+ * source distinguishes how this row came to exist (see SubscriptionSource). For
+ * ADMIN_GRANT/GRANDFATHERED, contractedPrice is always 0.00 - neither represents a real
+ * charge (no payment gateway exists yet), so recording a non-zero "would normally cost"
+ * figure here would misrepresent this row as billing when it is not; the reference price
+ * for a plan is already available via PricingService/GET /api/billing/plans without
+ * duplicating it here.
+ *
+ * grantedBy/grantedAt/grantReason/grantExpiresAt are only meaningful for source=ADMIN_GRANT
+ * (null otherwise). grantExpiresAt is evaluated dynamically by SubscriptionService on every
+ * read (no scheduler): an expired grant is simply skipped when picking the current
+ * subscription, never mutated. Revocation reuses the existing status=CANCELED/canceledAt
+ * fields rather than a separate revokedAt column, so SubscriptionService's existing
+ * ACTIVE/PAST_DUE filtering already excludes revoked grants with no additional logic.
  */
 @Entity
 @Table(name = "subscription")
@@ -86,6 +101,24 @@ public class Subscription implements Serializable {
     @Size(max = 128)
     @Column(name = "external_subscription_id", length = 128)
     private String externalSubscriptionId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source", length = 32, nullable = false)
+    private SubscriptionSource source;
+
+    @ManyToOne
+    @JoinColumn(name = "granted_by_user_id")
+    private User grantedBy;
+
+    @Column(name = "granted_at")
+    private Instant grantedAt;
+
+    @Size(max = 500)
+    @Column(name = "grant_reason", length = 500)
+    private String grantReason;
+
+    @Column(name = "grant_expires_at")
+    private Instant grantExpiresAt;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -223,6 +256,46 @@ public class Subscription implements Serializable {
 
     public void setExternalSubscriptionId(String externalSubscriptionId) {
         this.externalSubscriptionId = externalSubscriptionId;
+    }
+
+    public SubscriptionSource getSource() {
+        return source;
+    }
+
+    public void setSource(SubscriptionSource source) {
+        this.source = source;
+    }
+
+    public User getGrantedBy() {
+        return grantedBy;
+    }
+
+    public void setGrantedBy(User grantedBy) {
+        this.grantedBy = grantedBy;
+    }
+
+    public Instant getGrantedAt() {
+        return grantedAt;
+    }
+
+    public void setGrantedAt(Instant grantedAt) {
+        this.grantedAt = grantedAt;
+    }
+
+    public String getGrantReason() {
+        return grantReason;
+    }
+
+    public void setGrantReason(String grantReason) {
+        this.grantReason = grantReason;
+    }
+
+    public Instant getGrantExpiresAt() {
+        return grantExpiresAt;
+    }
+
+    public void setGrantExpiresAt(Instant grantExpiresAt) {
+        this.grantExpiresAt = grantExpiresAt;
     }
 
     public Instant getCreatedAt() {

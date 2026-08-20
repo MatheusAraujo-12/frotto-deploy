@@ -216,3 +216,12 @@ aws:
   region: us-east-1
   accessKeyId: ${AWS_ACCESS_KEY_ID:}
   secretAccessKey: ${AWS_SECRET_ACCESS_KEY:}
+
+# Billing Etapa 3 feature flag. Must stay false unless explicitly overridden - staging can set
+# BILLING_ENFORCEMENT_ENABLED=true (Spring relaxed env-var binding); production with no
+# explicit override keeps this default. See CarResource#createCarInternal for the enforcement
+# point this gates, and the Billing Etapa 3 report for the grandfathering rollout that should
+# land before this is ever turned on anywhere real users exist.
+billing:
+  enforcement:
+    enabled: ${BILLING_ENFORCEMENT_ENABLED:false}

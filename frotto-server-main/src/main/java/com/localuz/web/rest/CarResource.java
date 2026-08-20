@@ -12,11 +12,14 @@ import com.localuz.repository.CarRepository;
 import com.localuz.repository.DriverCarRepository;
 import com.localuz.repository.InspectionRepository;
 import com.localuz.repository.MaintenanceRepository;
+import com.localuz.service.EntitlementService;
 import com.localuz.service.UserService;
 import com.localuz.service.dto.CarSearchDTO;
 import com.localuz.service.dto.CarDTO;
 import com.localuz.service.dto.CarFormDTO;
+import com.localuz.service.dto.EntitlementSnapshot;
 import com.localuz.web.rest.errors.BadRequestAlertException;
+import com.localuz.web.rest.errors.VehicleLimitReachedException;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -60,25 +63,33 @@ public class CarResource {
     @Value("${jhipster.clientApp.name}")
     private String applicationName;
 
+    // Billing Etapa 3 feature flag - see application.yml. Defaults false so behavior is
+    // unchanged for every existing deployment unless explicitly overridden (BILLING_ENFORCEMENT_ENABLED=true).
+    @Value("${billing.enforcement.enabled:false}")
+    private boolean billingEnforcementEnabled;
+
     private final CarRepository carRepository;
     private final DriverCarRepository driverCarRepository;
     private final InspectionRepository inspectionRepository;
     private final MaintenanceRepository maintenanceRepository;
 
     private final UserService userService;
+    private final EntitlementService entitlementService;
 
     public CarResource(
         CarRepository carRepository,
         UserService userService,
         DriverCarRepository driverCarRepository,
         InspectionRepository inspectionRepository,
-        MaintenanceRepository maintenanceRepository
+        MaintenanceRepository maintenanceRepository,
+        EntitlementService entitlementService
     ) {
         this.carRepository = carRepository;
         this.userService = userService;
         this.driverCarRepository = driverCarRepository;
         this.inspectionRepository = inspectionRepository;
         this.maintenanceRepository = maintenanceRepository;
+        this.entitlementService = entitlementService;
     }
 
     @GetMapping("/cars")
@@ -218,6 +229,7 @@ public class CarResource {
         if (!currentUser.isPresent()) {
             throw new BadRequestAlertException("A new car cannot have an empty User", ENTITY_NAME, "emptyuser");
         }
+        enforceVehicleLimitIfEnabled(currentUser.get());
         applyCommissionDefaults(car);
         applyAdminStatusDefault(car);
         if (car.getCommissionType() == null) {
@@ -231,6 +243,31 @@ public class CarResource {
             .created(new URI("/api/cars/" + result.getId()))
             .headers(HeaderUtil.createEntityCreationAlert(applicationName, false, ENTITY_NAME, result.getId().toString()))
             .body(result);
+    }
+
+    /**
+     * The single enforcement point for the Billing Etapa 3 vehicle limit: both createCar
+     * (JSON) and createCarMultipart funnel through createCarInternal, so gating it here covers
+     * every car-creation path with no other changes. Deliberately not called from
+     * partialUpdateCarInternal/softDeleteCar/any read path - edits, deletes, and reactivation
+     * are unaffected per the Etapa 3 spec ("não interferir em edição/exclusão/reativação").
+     *
+     * No-op entirely when the flag is off (the default everywhere until explicitly enabled),
+     * so this is a zero-behavior-change addition until then.
+     */
+    private void enforceVehicleLimitIfEnabled(User currentUser) {
+        if (!billingEnforcementEnabled) {
+            return;
+        }
+        EntitlementSnapshot snapshot = entitlementService.getSnapshot(currentUser);
+        if (!snapshot.isCanAddVehicle()) {
+            throw new VehicleLimitReachedException(
+                snapshot.getCurrentPlan().getCode(),
+                snapshot.getActiveVehicleCount(),
+                snapshot.getVehicleLimit(),
+                snapshot.getRequiredPlan().getCode()
+            );
+        }
     }
 
     private ResponseEntity<Car> partialUpdateCarInternal(Long id, Car car) {
