@@ -27,6 +27,7 @@ import {
 } from "./carAddValidationSchema";
 import FormDate from "../../../components/Form/FormDate";
 import api from "../../../services/axios/axios";
+import { getApiErrorMessage } from "../../../services/apiErrorMessage";
 import endpoints from "../../../constants/endpoints";
 import {
   CarAdminStatus,
@@ -46,6 +47,9 @@ import {
   buildCarLegacyName,
   resolveCarIdentity,
 } from "../../../components/Car/carIdentity";
+
+const VEHICLE_LIMIT_REACHED_MESSAGE =
+  "Você atingiu o limite de veículos do seu plano. Faça upgrade para cadastrar outro veículo.";
 
 interface CarAddModalProps {
   closeModal: (response?: CarModel) => void;
@@ -104,7 +108,11 @@ const CarAdd: React.FC<CarAddModalProps> = ({ closeModal, initialValues }) => {
       closeModal(responseCar);
     } catch (e) {
       setisLoading(false);
-      showErrorAlert(TEXT.saveFailed);
+      showErrorAlert(
+        getApiErrorMessage(e, TEXT.saveFailed, {
+          VEHICLE_LIMIT_REACHED: VEHICLE_LIMIT_REACHED_MESSAGE,
+        })
+      );
     }
   };
 

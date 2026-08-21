@@ -33,3 +33,22 @@ describe("getApiErrorMessage - Billing Etapa 4A admin panel error handling", () 
     expect(getApiErrorMessage(errorWithStatus(418), "Fallback message")).toBe("Fallback message");
   });
 });
+
+describe("getApiErrorMessage - vehicle limit", () => {
+  it("uses the specific upgrade message for VehicleLimitReachedException/409", () => {
+    const message =
+      "Você atingiu o limite de veículos do seu plano. Faça upgrade para cadastrar outro veículo.";
+    const error = {
+      response: {
+        status: 409,
+        data: { message: "error.VEHICLE_LIMIT_REACHED" },
+      },
+    };
+
+    expect(
+      getApiErrorMessage(error, "Falha ao salvar", {
+        VEHICLE_LIMIT_REACHED: message,
+      })
+    ).toBe(message);
+  });
+});

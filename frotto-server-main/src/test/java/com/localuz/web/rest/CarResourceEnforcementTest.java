@@ -13,6 +13,7 @@ import com.localuz.repository.InspectionRepository;
 import com.localuz.repository.MaintenanceRepository;
 import com.localuz.service.EntitlementService;
 import com.localuz.service.UserService;
+import com.localuz.service.dto.CarFormDTO;
 import com.localuz.service.dto.EntitlementSnapshot;
 import com.localuz.web.rest.errors.VehicleLimitReachedException;
 import java.lang.reflect.Field;
@@ -80,6 +81,12 @@ class CarResourceEnforcementTest {
         return car;
     }
 
+    private void mockSnapshotAtLimit(PlanCode code, int limit) {
+        Plan currentPlan = plan(code, limit);
+        when(entitlementService.getSnapshot(currentUser))
+            .thenReturn(new EntitlementSnapshot(null, currentPlan, currentPlan, limit, limit, false, true));
+    }
+
     @Test
     void flagDisabledAllowsCreationRegardlessOfLimit() throws Exception {
         setEnforcementFlag(false);
@@ -102,6 +109,17 @@ class CarResourceEnforcementTest {
     }
 
     @Test
+    void flagEnabledAllowsFirstFreeVehicle() throws Exception {
+        setEnforcementFlag(true);
+        Plan free = plan(PlanCode.FREE, 2);
+        when(entitlementService.getSnapshot(currentUser)).thenReturn(new EntitlementSnapshot(null, free, free, 0L, 2, true, false));
+
+        carResource.createCar(newCar());
+
+        Mockito.verify(carRepository).save(Mockito.any(Car.class));
+    }
+
+    @Test
     void flagEnabledBlocksCreationWhenAtLimit() throws Exception {
         setEnforcementFlag(true);
         Plan free = plan(PlanCode.FREE, 2);
@@ -111,6 +129,64 @@ class CarResourceEnforcementTest {
 
         assertThatThrownBy(() -> carResource.createCar(newCar())).isInstanceOf(VehicleLimitReachedException.class);
 
+        Mockito.verify(carRepository, Mockito.never()).save(Mockito.any(Car.class));
+    }
+
+    @Test
+    void flagEnabledBlocksBronzeSixthVehicle() throws Exception {
+        setEnforcementFlag(true);
+        mockSnapshotAtLimit(PlanCode.BRONZE, 5);
+
+        assertThatThrownBy(() -> carResource.createCar(newCar())).isInstanceOf(VehicleLimitReachedException.class);
+        Mockito.verify(carRepository, Mockito.never()).save(Mockito.any(Car.class));
+    }
+
+    @Test
+    void flagEnabledBlocksSilverSixteenthVehicle() throws Exception {
+        setEnforcementFlag(true);
+        mockSnapshotAtLimit(PlanCode.SILVER, 15);
+
+        assertThatThrownBy(() -> carResource.createCar(newCar())).isInstanceOf(VehicleLimitReachedException.class);
+        Mockito.verify(carRepository, Mockito.never()).save(Mockito.any(Car.class));
+    }
+
+    @Test
+    void flagEnabledBlocksGoldThirtyFirstVehicle() throws Exception {
+        setEnforcementFlag(true);
+        mockSnapshotAtLimit(PlanCode.GOLD, 30);
+
+        assertThatThrownBy(() -> carResource.createCar(newCar())).isInstanceOf(VehicleLimitReachedException.class);
+        Mockito.verify(carRepository, Mockito.never()).save(Mockito.any(Car.class));
+    }
+
+    @Test
+    void flagEnabledBlocksPlatinumOneHundredFirstVehicle() throws Exception {
+        setEnforcementFlag(true);
+        mockSnapshotAtLimit(PlanCode.PLATINUM, 100);
+
+        assertThatThrownBy(() -> carResource.createCar(newCar())).isInstanceOf(VehicleLimitReachedException.class);
+        Mockito.verify(carRepository, Mockito.never()).save(Mockito.any(Car.class));
+    }
+
+    @Test
+    void flagEnabledAllowsUnlimitedFrottaCreation() throws Exception {
+        setEnforcementFlag(true);
+        Plan frotta = plan(PlanCode.FROTTA, null);
+        when(entitlementService.getSnapshot(currentUser))
+            .thenReturn(new EntitlementSnapshot(null, frotta, frotta, 10_000L, null, true, false));
+
+        carResource.createCar(newCar());
+
+        Mockito.verify(carRepository).save(Mockito.any(Car.class));
+    }
+
+    @Test
+    void multipartCreationUsesTheSameEnforcement() throws Exception {
+        setEnforcementFlag(true);
+        mockSnapshotAtLimit(PlanCode.FREE, 2);
+
+        assertThatThrownBy(() -> carResource.createCarMultipart(new CarFormDTO()))
+            .isInstanceOf(VehicleLimitReachedException.class);
         Mockito.verify(carRepository, Mockito.never()).save(Mockito.any(Car.class));
     }
 
