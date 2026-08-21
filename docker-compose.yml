@@ -7,6 +7,8 @@ services:
       - "5000"
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      ADMIN_BOOTSTRAP_ENABLED: ${ADMIN_BOOTSTRAP_ENABLED:-false}
+      ADMIN_BOOTSTRAP_LOGIN: ${ADMIN_BOOTSTRAP_LOGIN:-}
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
