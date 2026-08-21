@@ -59,4 +59,11 @@ describe("Menu - Billing Etapa 4A admin visibility", () => {
     await waitFor(() => expect(mockedAccountService.getAccount).toHaveBeenCalled());
     expect(screen.queryByText("Painel do Administrador")).not.toBeInTheDocument();
   });
+
+  it("does not show the admin item when authorities are undefined", async () => {
+    mockedAccountService.getAccount.mockResolvedValue({ authorities: undefined });
+    renderMenu();
+    await waitFor(() => expect(mockedAccountService.getAccount).toHaveBeenCalled());
+    expect(screen.queryByText("Painel do Administrador")).not.toBeInTheDocument();
+  });
 });
