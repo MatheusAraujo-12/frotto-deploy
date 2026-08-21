@@ -19,13 +19,12 @@ import { useLocation } from "react-router-dom";
 import { car, cardOutline, clipboard, documentTextOutline, logOutOutline, personCircleOutline } from "ionicons/icons";
 
 import accountService from "../../services/accountService";
+import { accountIsAdmin } from "../../services/authorization";
 import api from "../../services/axios/axios";
 import { removeToken } from "../../services/localStorage/localstorage";
 import profileService, { MeResponseDTO } from "../../services/profileService";
 import { resolveApiUrl } from "../../services/resolveApiUrl";
 import { TEXT } from "../../constants/texts";
-
-const ROLE_ADMIN = "ROLE_ADMIN";
 
 const resolveMenuDisplayName = (profile: MeResponseDTO | null): string => {
   if (!profile) {
@@ -242,7 +241,7 @@ const Menu: React.FC = () => {
       try {
         const account = await accountService.getAccount();
         if (isMounted) {
-          setIsAdmin(Array.isArray(account.authorities) && account.authorities.includes(ROLE_ADMIN));
+          setIsAdmin(accountIsAdmin(account));
         }
       } catch (_error) {
         if (isMounted) {
@@ -411,7 +410,9 @@ const Menu: React.FC = () => {
                   routerDirection="none"
                 >
                   <IonIcon icon={cardOutline} slot="start"></IonIcon>
-                  <IonLabel className="menu-item__label">Billing</IonLabel>
+                  <IonLabel className="menu-item__label menu-item__label--admin">
+                    Painel do Administrador
+                  </IonLabel>
                 </IonItem>
               </IonMenuToggle>
             </>

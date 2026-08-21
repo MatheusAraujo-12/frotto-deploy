@@ -31,7 +31,7 @@ describe("Menu - Billing Etapa 4A admin visibility", () => {
     renderMenu();
 
     await waitFor(() => expect(mockedAccountService.getAccount).toHaveBeenCalled());
-    expect(screen.queryByText("Billing")).not.toBeInTheDocument();
+    expect(screen.queryByText("Painel do Administrador")).not.toBeInTheDocument();
     expect(screen.queryByText("Administração")).not.toBeInTheDocument();
   });
 
@@ -40,7 +40,7 @@ describe("Menu - Billing Etapa 4A admin visibility", () => {
 
     renderMenu();
 
-    expect(await screen.findByText("Billing", {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText("Painel do Administrador", {}, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.getByText("Administração")).toBeInTheDocument();
   });
 
@@ -50,6 +50,13 @@ describe("Menu - Billing Etapa 4A admin visibility", () => {
     renderMenu();
 
     await waitFor(() => expect(mockedAccountService.getAccount).toHaveBeenCalled());
-    expect(screen.queryByText("Billing")).not.toBeInTheDocument();
+    expect(screen.queryByText("Painel do Administrador")).not.toBeInTheDocument();
+  });
+
+  it("does not show the admin item when authorities are empty", async () => {
+    mockedAccountService.getAccount.mockResolvedValue({ authorities: [] });
+    renderMenu();
+    await waitFor(() => expect(mockedAccountService.getAccount).toHaveBeenCalled());
+    expect(screen.queryByText("Painel do Administrador")).not.toBeInTheDocument();
   });
 });

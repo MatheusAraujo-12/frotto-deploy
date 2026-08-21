@@ -41,13 +41,12 @@ import {
   STATUS_LABELS,
 } from "../../constants/AdminBillingModels";
 import accountService from "../../services/accountService";
+import { accountIsAdmin } from "../../services/authorization";
 import adminBillingService from "../../services/adminBillingService";
 import { getApiErrorMessage } from "../../services/apiErrorMessage";
 import { useAlert } from "../../services/hooks/useAlert";
 import { buildGrantPayload, canRevokeSubscription, validateGrantForm } from "./adminBillingPageLogic";
 import "./AdminBillingPage.css";
-
-const ROLE_ADMIN = "ROLE_ADMIN";
 
 const formatDateTime = (value?: string | null): string => {
   if (!value) {
@@ -120,7 +119,7 @@ const AdminBillingPage: React.FC = () => {
       try {
         const account = await accountService.getAccount();
         if (isMounted) {
-          setIsAuthorized(Array.isArray(account.authorities) && account.authorities.includes(ROLE_ADMIN));
+          setIsAuthorized(accountIsAdmin(account));
         }
       } catch (_error) {
         if (isMounted) {

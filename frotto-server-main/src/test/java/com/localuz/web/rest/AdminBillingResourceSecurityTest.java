@@ -5,8 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.localuz.security.AuthoritiesConstants;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import org.aopalliance.intercept.MethodInvocation;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.expression.spel.standard.SpelExpressionParser;
 
 /**
  * Structural safety net for "every /api/admin/billing/** endpoint requires ROLE_ADMIN",
@@ -48,5 +52,41 @@ class AdminBillingResourceSecurityTest {
                 .as("AdminBillingResource#%s must be covered by @PreAuthorize(ROLE_ADMIN), directly or via the class", method.getName())
                 .isTrue();
         }
+    }
+
+    @Test
+    void roleAdminSatisfiesTheEndpointPreAuthorizeExpression() {
+        assertThat(evaluateClassAuthorization(AuthoritiesConstants.ADMIN)).isTrue();
+    }
+
+    @Test
+    void roleUserDoesNotSatisfyTheEndpointPreAuthorizeExpression() {
+        assertThat(evaluateClassAuthorization(AuthoritiesConstants.USER)).isFalse();
+    }
+
+    @Test
+    void anonymousDoesNotSatisfyTheEndpointPreAuthorizeExpression() {
+        assertThat(evaluateClassAuthorization(AuthoritiesConstants.ANONYMOUS)).isFalse();
+    }
+
+    private boolean evaluateClassAuthorization(String authority) {
+        PreAuthorize annotation = AdminBillingResource.class.getAnnotation(PreAuthorize.class);
+        TestingAuthenticationToken authentication = new TestingAuthenticationToken("caller", "token", authority);
+        DefaultMethodSecurityExpressionHandler handler = new DefaultMethodSecurityExpressionHandler();
+        MethodInvocation invocation = org.mockito.Mockito.mock(MethodInvocation.class);
+        org.mockito.Mockito.when(invocation.getThis()).thenReturn(org.mockito.Mockito.mock(AdminBillingResource.class));
+        try {
+            org.mockito.Mockito
+                .when(invocation.getMethod())
+                .thenReturn(AdminBillingResource.class.getMethod("searchUsers", String.class));
+        } catch (NoSuchMethodException exception) {
+            throw new AssertionError(exception);
+        }
+
+        return Boolean.TRUE.equals(
+            new SpelExpressionParser()
+                .parseExpression(annotation.value())
+                .getValue(handler.createEvaluationContext(authentication, invocation), Boolean.class)
+        );
     }
 }
