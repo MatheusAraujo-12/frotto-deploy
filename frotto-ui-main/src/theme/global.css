@@ -981,6 +981,10 @@ ion-button.app-semantic-btn:not([fill="outline"]):not([fill="clear"]) {
   word-break: break-word;
 }
 
+.menu-item__label--admin {
+  font-size: 0.9rem;
+}
+
 .menu-section-title {
   margin: 4px 10px 2px;
   font-size: 0.72rem;
