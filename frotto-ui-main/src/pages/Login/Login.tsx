@@ -53,7 +53,6 @@ const Login: React.FC = () => {
       });
       const token = "Bearer " + response.data["id_token"];
       setToken(token);
-      api.defaults.headers.common["Authorization"] = token;
       history.push("/menu", "none", "replace");
       setisLoading(false);
     } catch (e) {

@@ -1,4 +1,5 @@
 const TOKEN_KEY = "TOKEN";
+const TOKEN_CHANGED_EVENT = "frotto:token-changed";
 export const BODY_DAMAGE_KEY = "BODY_DAMAGE_KEY";
 export const EXPENSES_KEY = "EXPENSES_KEY";
 export const SERVICES_KEY = "SERVICES_KEY";
@@ -12,10 +13,17 @@ export const getToken = (): string | null => {
 
 export const setToken = (value: string) => {
   localStorage.setItem(TOKEN_KEY, value);
+  window.dispatchEvent(new Event(TOKEN_CHANGED_EVENT));
 };
 
 export const removeToken = (): void => {
   localStorage.removeItem(TOKEN_KEY);
+  window.dispatchEvent(new Event(TOKEN_CHANGED_EVENT));
+};
+
+export const subscribeToTokenChanges = (listener: () => void): (() => void) => {
+  window.addEventListener(TOKEN_CHANGED_EVENT, listener);
+  return () => window.removeEventListener(TOKEN_CHANGED_EVENT, listener);
 };
 
 export const getArrays = (key: string): string[] => {

@@ -27,7 +27,7 @@ import {
   useIonToast,
 } from "@ionic/react";
 import { closeCircleOutline, searchOutline } from "ionicons/icons";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Redirect } from "react-router-dom";
 import {
   AdminBillingUser,
@@ -40,11 +40,10 @@ import {
   SOURCE_LABELS,
   STATUS_LABELS,
 } from "../../constants/AdminBillingModels";
-import accountService from "../../services/accountService";
-import { accountIsAdmin } from "../../services/authorization";
 import adminBillingService from "../../services/adminBillingService";
 import { getApiErrorMessage } from "../../services/apiErrorMessage";
 import { useAlert } from "../../services/hooks/useAlert";
+import { useAccountAuthorization } from "../../services/hooks/useAccountAuthorization";
 import { buildGrantPayload, canRevokeSubscription, validateGrantForm } from "./adminBillingPageLogic";
 import "./AdminBillingPage.css";
 
@@ -81,8 +80,7 @@ const AdminBillingPage: React.FC = () => {
   const { showErrorAlert } = useAlert();
   const [presentToast] = useIonToast();
 
-  const [isCheckingAuthorization, setIsCheckingAuthorization] = useState(true);
-  const [isAuthorized, setIsAuthorized] = useState(false);
+  const { isAdmin: isAuthorized, isLoading: isCheckingAuthorization } = useAccountAuthorization();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<AdminUserSearchResult[]>([]);
@@ -111,33 +109,6 @@ const AdminBillingPage: React.FC = () => {
     },
     [presentToast]
   );
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const checkAuthorization = async () => {
-      try {
-        const account = await accountService.getAccount();
-        if (isMounted) {
-          setIsAuthorized(accountIsAdmin(account));
-        }
-      } catch (_error) {
-        if (isMounted) {
-          setIsAuthorized(false);
-        }
-      } finally {
-        if (isMounted) {
-          setIsCheckingAuthorization(false);
-        }
-      }
-    };
-
-    void checkAuthorization();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   const loadUserBilling = useCallback(
     async (userId: number) => {

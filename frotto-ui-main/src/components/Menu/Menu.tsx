@@ -18,9 +18,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { car, cardOutline, clipboard, documentTextOutline, logOutOutline, personCircleOutline } from "ionicons/icons";
 
-import accountService from "../../services/accountService";
-import { accountIsAdmin } from "../../services/authorization";
 import api from "../../services/axios/axios";
+import { useAccountAuthorization } from "../../services/hooks/useAccountAuthorization";
 import { removeToken } from "../../services/localStorage/localstorage";
 import profileService, { MeResponseDTO } from "../../services/profileService";
 import { resolveApiUrl } from "../../services/resolveApiUrl";
@@ -182,7 +181,7 @@ const Menu: React.FC = () => {
   const [isDark, setIsDark] = useState<boolean>(false);
   const [profile, setProfile] = useState<MeResponseDTO | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState<boolean>(true);
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const { isAdmin } = useAccountAuthorization();
   const [menuAvatarSrc, setMenuAvatarSrc] = useState<string>("");
   const [menuAvatarLoadFailed, setMenuAvatarLoadFailed] = useState<boolean>(false);
   const isPublicRoute = location.pathname === "/" || location.pathname === "/cadastro";
@@ -228,29 +227,6 @@ const Menu: React.FC = () => {
     };
 
     loadProfile();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadAccount = async () => {
-      try {
-        const account = await accountService.getAccount();
-        if (isMounted) {
-          setIsAdmin(accountIsAdmin(account));
-        }
-      } catch (_error) {
-        if (isMounted) {
-          setIsAdmin(false);
-        }
-      }
-    };
-
-    void loadAccount();
 
     return () => {
       isMounted = false;

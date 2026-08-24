@@ -28,7 +28,7 @@ import {
   useIonRouter,
 } from "@ionic/react";
 import { IonReactRouter } from "@ionic/react-router";
-import { getToken, removeToken } from "./services/localStorage/localstorage";
+import { removeToken } from "./services/localStorage/localstorage";
 import api from "./services/axios/axios";
 import Login from "./pages/Login/Login";
 import Register from "./pages/Register/Register";
@@ -71,11 +71,6 @@ const AppSetup: FC = () => {
         return Promise.reject(error);
       }
     );
-
-    const token = getToken();
-    if (token) {
-      api.defaults.headers.common["Authorization"] = token;
-    }
 
     import("./services/theme").then((mod) => mod.initTheme());
 
