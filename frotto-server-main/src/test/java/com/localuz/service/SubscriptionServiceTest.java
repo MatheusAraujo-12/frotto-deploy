@@ -150,6 +150,7 @@ class SubscriptionServiceTest {
 
         assertThat(current).contains(olderPaymentProvider);
         assertThat(current.get().getSource()).isEqualTo(SubscriptionSource.PAYMENT_PROVIDER);
+        assertThat(current.get().getGrantExpiresAt()).isNull();
     }
 
     @Test
@@ -234,6 +235,20 @@ class SubscriptionServiceTest {
             .thenReturn(List.of(paymentProvider));
 
         assertThat(subscriptionService.getEffectivePlan(user).getCode()).isEqualTo(PlanCode.PLATINUM);
+    }
+
+    @Test
+    void revokedAdminGrantFallsBackToTheUnderlyingGrandfatheredSubscription() {
+        Plan silver = plan(3L, PlanCode.SILVER);
+        Subscription grandfathered = subscription(silver, SubscriptionSource.GRANDFATHERED, null);
+        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList()))
+            .thenReturn(List.of(grandfathered));
+
+        Optional<Subscription> current = subscriptionService.getCurrentSubscription(user);
+
+        assertThat(current).contains(grandfathered);
+        assertThat(current.get().getSource()).isEqualTo(SubscriptionSource.GRANDFATHERED);
+        assertThat(current.get().getGrantExpiresAt()).isNull();
     }
 
     @Test

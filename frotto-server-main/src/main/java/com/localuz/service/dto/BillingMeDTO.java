@@ -4,6 +4,7 @@ import com.localuz.domain.Plan;
 import com.localuz.domain.Subscription;
 import com.localuz.domain.enumeration.BillingCycle;
 import com.localuz.domain.enumeration.PlanCode;
+import com.localuz.domain.enumeration.SubscriptionSource;
 import com.localuz.domain.enumeration.SubscriptionStatus;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -24,6 +25,7 @@ public class BillingMeDTO {
     private final String planName;
     private final SubscriptionStatus subscriptionStatus;
     private final BillingCycle billingCycle;
+    private final SubscriptionSource subscriptionSource;
 
     private final long activeVehicleCount;
     private final Integer vehicleLimit;
@@ -37,6 +39,7 @@ public class BillingMeDTO {
 
     private final Instant currentPeriodStart;
     private final Instant currentPeriodEnd;
+    private final Instant grantExpiresAt;
     private final boolean cancelAtPeriodEnd;
 
     public BillingMeDTO(
@@ -44,6 +47,7 @@ public class BillingMeDTO {
         String planName,
         SubscriptionStatus subscriptionStatus,
         BillingCycle billingCycle,
+        SubscriptionSource subscriptionSource,
         long activeVehicleCount,
         Integer vehicleLimit,
         boolean canAddVehicle,
@@ -53,12 +57,14 @@ public class BillingMeDTO {
         BigDecimal currentMonthlyPrice,
         Instant currentPeriodStart,
         Instant currentPeriodEnd,
+        Instant grantExpiresAt,
         boolean cancelAtPeriodEnd
     ) {
         this.planCode = planCode;
         this.planName = planName;
         this.subscriptionStatus = subscriptionStatus;
         this.billingCycle = billingCycle;
+        this.subscriptionSource = subscriptionSource;
         this.activeVehicleCount = activeVehicleCount;
         this.vehicleLimit = vehicleLimit;
         this.canAddVehicle = canAddVehicle;
@@ -68,6 +74,7 @@ public class BillingMeDTO {
         this.currentMonthlyPrice = currentMonthlyPrice;
         this.currentPeriodStart = currentPeriodStart;
         this.currentPeriodEnd = currentPeriodEnd;
+        this.grantExpiresAt = grantExpiresAt;
         this.cancelAtPeriodEnd = cancelAtPeriodEnd;
     }
 
@@ -83,6 +90,7 @@ public class BillingMeDTO {
             currentPlan.getName(),
             subscription != null ? subscription.getStatus() : null,
             subscription != null ? subscription.getBillingCycle() : null,
+            subscription != null ? subscription.getSource() : null,
             snapshot.getActiveVehicleCount(),
             snapshot.getVehicleLimit(),
             snapshot.isCanAddVehicle(),
@@ -92,6 +100,9 @@ public class BillingMeDTO {
             currentMonthlyPrice,
             subscription != null ? subscription.getCurrentPeriodStart() : null,
             subscription != null ? subscription.getCurrentPeriodEnd() : null,
+            subscription != null && subscription.getSource() == SubscriptionSource.ADMIN_GRANT
+                ? subscription.getGrantExpiresAt()
+                : null,
             subscription != null && Boolean.TRUE.equals(subscription.getCancelAtPeriodEnd())
         );
     }
@@ -110,6 +121,10 @@ public class BillingMeDTO {
 
     public BillingCycle getBillingCycle() {
         return billingCycle;
+    }
+
+    public SubscriptionSource getSubscriptionSource() {
+        return subscriptionSource;
     }
 
     public long getActiveVehicleCount() {
@@ -146,6 +161,10 @@ public class BillingMeDTO {
 
     public Instant getCurrentPeriodEnd() {
         return currentPeriodEnd;
+    }
+
+    public Instant getGrantExpiresAt() {
+        return grantExpiresAt;
     }
 
     public boolean isCancelAtPeriodEnd() {
