@@ -6,20 +6,26 @@ import static org.mockito.Mockito.when;
 
 import com.localuz.domain.Plan;
 import com.localuz.domain.PlanPricingTier;
+import com.localuz.domain.BillingCheckout;
 import com.localuz.domain.User;
+import com.localuz.domain.enumeration.BillingCheckoutStatus;
 import com.localuz.domain.enumeration.BillingCycle;
 import com.localuz.domain.enumeration.PlanCode;
 import com.localuz.repository.PlanPricingTierRepository;
 import com.localuz.repository.PlanRepository;
 import com.localuz.service.EntitlementService;
+import com.localuz.service.BillingCheckoutService;
 import com.localuz.service.PricingService;
 import com.localuz.service.UserService;
 import com.localuz.service.dto.BillingMeDTO;
+import com.localuz.service.dto.BillingCheckoutDTO;
+import com.localuz.service.dto.BillingCheckoutRequest;
 import com.localuz.service.dto.EntitlementSnapshot;
 import com.localuz.service.dto.PricePreviewDTO;
 import com.localuz.service.dto.PricingResult;
 import com.localuz.web.rest.errors.BadRequestAlertException;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +45,7 @@ class BillingResourceTest {
     private PricingService pricingService;
     private PlanRepository planRepository;
     private PlanPricingTierRepository planPricingTierRepository;
+    private BillingCheckoutService billingCheckoutService;
     private BillingResource billingResource;
     private User currentUser;
 
@@ -49,10 +56,39 @@ class BillingResourceTest {
         pricingService = Mockito.mock(PricingService.class);
         planRepository = Mockito.mock(PlanRepository.class);
         planPricingTierRepository = Mockito.mock(PlanPricingTierRepository.class);
-        billingResource = new BillingResource(userService, entitlementService, pricingService, planRepository, planPricingTierRepository);
+        billingCheckoutService = Mockito.mock(BillingCheckoutService.class);
+        billingResource = new BillingResource(userService, entitlementService, pricingService, planRepository, planPricingTierRepository, billingCheckoutService);
 
         currentUser = new User();
         currentUser.setId(9L);
+    }
+
+    @Test
+    void createCheckoutUsesOnlyTheAuthenticatedUserAndRequestedPlanCode() {
+        when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));
+        Plan silver = plan(PlanCode.SILVER, 20);
+        BillingCheckout checkout = new BillingCheckout();
+        checkout.setId(7L);
+        checkout.setPlan(silver);
+        checkout.setQuotedPrice(new BigDecimal("99.90"));
+        checkout.setBillingCycle(BillingCycle.MONTHLY);
+        checkout.setStatus(BillingCheckoutStatus.PROVIDER_PENDING);
+        checkout.setInitPoint("https://mp.test/checkout");
+        when(billingCheckoutService.createCheckout(currentUser, PlanCode.SILVER)).thenReturn(checkout);
+        BillingCheckoutRequest request = new BillingCheckoutRequest();
+        request.setPlanCode(PlanCode.SILVER);
+
+        BillingCheckoutDTO result = billingResource.createCheckout(request);
+
+        assertThat(result.getCheckoutId()).isEqualTo(7L);
+        assertThat(result.getCheckoutUrl()).isEqualTo("https://mp.test/checkout");
+        Mockito.verify(billingCheckoutService).createCheckout(currentUser, PlanCode.SILVER);
+    }
+
+    @Test
+    void checkoutRequestDoesNotExposeAUserIdField() {
+        assertThat(Arrays.stream(BillingCheckoutRequest.class.getDeclaredFields()).map(field -> field.getName()))
+            .containsExactly("planCode");
     }
 
     private static Plan plan(PlanCode code, Integer maxVehicles) {

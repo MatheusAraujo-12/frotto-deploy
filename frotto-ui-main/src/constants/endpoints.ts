@@ -130,6 +130,7 @@ const endpoints = {
   BILLING_ME: apiEndpoint("/billing/me"),
   BILLING_PLANS: apiEndpoint("/billing/plans"),
   BILLING_PRICE_PREVIEW: apiEndpoint("/billing/price-preview"),
+  BILLING_CHECKOUT: apiEndpoint("/billing/checkout"),
 
   ADMIN_BILLING_USERS_SEARCH: apiEndpoint("/admin/billing/users/search"),
   ADMIN_BILLING_USER: apiEndpoint("/admin/billing/users/{userId}"),

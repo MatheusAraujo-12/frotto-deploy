@@ -14,6 +14,7 @@ import com.localuz.service.dto.PricingResult;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,12 @@ class PricingServiceTest {
 
         when(planRepository.findByActiveTrueOrderByMinVehiclesAsc())
             .thenReturn(List.of(free, bronze, silver, gold, platinum, frotta));
+        when(planRepository.findByCode(PlanCode.FREE)).thenReturn(Optional.of(free));
+        when(planRepository.findByCode(PlanCode.BRONZE)).thenReturn(Optional.of(bronze));
+        when(planRepository.findByCode(PlanCode.SILVER)).thenReturn(Optional.of(silver));
+        when(planRepository.findByCode(PlanCode.GOLD)).thenReturn(Optional.of(gold));
+        when(planRepository.findByCode(PlanCode.PLATINUM)).thenReturn(Optional.of(platinum));
+        when(planRepository.findByCode(PlanCode.FROTTA)).thenReturn(Optional.of(frotta));
 
         when(tierRepository.findByPlanIdOrderByTierOrderAsc(free.getId())).thenReturn(List.of());
         when(tierRepository.findByPlanIdOrderByTierOrderAsc(bronze.getId())).thenReturn(List.of());
@@ -120,6 +127,33 @@ class PricingServiceTest {
         assertThat(result.getPlanCode()).isEqualTo(expectedPlan);
         assertThat(result.getVehicleCount()).isEqualTo(vehicleCount);
         assertThat(result.getMonthlyPrice()).isEqualByComparingTo(new BigDecimal(expectedPrice));
+    }
+
+    private static Stream<Arguments> explicitPlanExamples() {
+        return Stream.of(
+            Arguments.of(2, PlanCode.BRONZE, "15.90"), Arguments.of(2, PlanCode.SILVER, "44.90"),
+            Arguments.of(2, PlanCode.GOLD, "79.90"), Arguments.of(2, PlanCode.PLATINUM, "79.90"),
+            Arguments.of(2, PlanCode.FROTTA, "254.90"), Arguments.of(10, PlanCode.SILVER, "44.90"),
+            Arguments.of(10, PlanCode.GOLD, "79.90"), Arguments.of(20, PlanCode.GOLD, "79.90"),
+            Arguments.of(31, PlanCode.PLATINUM, "82.40"), Arguments.of(50, PlanCode.PLATINUM, "129.90"),
+            Arguments.of(100, PlanCode.PLATINUM, "254.90"), Arguments.of(101, PlanCode.FROTTA, "256.90"),
+            Arguments.of(150, PlanCode.FROTTA, "354.90"), Arguments.of(200, PlanCode.FROTTA, "454.90"),
+            Arguments.of(201, PlanCode.FROTTA, "456.40"), Arguments.of(500, PlanCode.FROTTA, "904.90"),
+            Arguments.of(501, PlanCode.FROTTA, "905.90"), Arguments.of(1000, PlanCode.FROTTA, "1404.90")
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("explicitPlanExamples")
+    void pricesExplicitPlanFromDatabaseConfiguration(int vehicles, PlanCode plan, String price) {
+        assertThat(pricingService.calculatePriceForPlan(plan, vehicles).getMonthlyPrice()).isEqualByComparingTo(price);
+    }
+
+    @Test
+    void rejectsVehicleCountAboveExplicitPlanMaximum() {
+        assertThrows(IllegalArgumentException.class, () -> pricingService.calculatePriceForPlan(PlanCode.BRONZE, 10));
+        assertThrows(IllegalArgumentException.class, () -> pricingService.calculatePriceForPlan(PlanCode.SILVER, 20));
+        assertThrows(IllegalArgumentException.class, () -> pricingService.calculatePriceForPlan(PlanCode.PLATINUM, 101));
     }
 
     private static Stream<Arguments> planTransitionBoundaries() {

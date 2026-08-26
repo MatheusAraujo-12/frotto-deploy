@@ -1,6 +1,7 @@
 package com.localuz;
 
 import com.localuz.config.ApplicationProperties;
+import com.localuz.config.MercadoPagoProperties;
 import com.localuz.config.CRLFLogConverter;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -20,7 +21,7 @@ import tech.jhipster.config.DefaultProfileUtil;
 import tech.jhipster.config.JHipsterConstants;
 
 @SpringBootApplication
-@EnableConfigurationProperties({ LiquibaseProperties.class, ApplicationProperties.class })
+@EnableConfigurationProperties({ LiquibaseProperties.class, ApplicationProperties.class, MercadoPagoProperties.class })
 public class LocalmaisApp {
 
     private static final Logger log = LoggerFactory.getLogger(LocalmaisApp.class);

@@ -6,11 +6,14 @@ import com.localuz.repository.PlanPricingTierRepository;
 import com.localuz.repository.PlanRepository;
 import com.localuz.service.EntitlementService;
 import com.localuz.service.PricingService;
+import com.localuz.service.BillingCheckoutService;
 import com.localuz.service.UserService;
 import com.localuz.service.dto.BillingMeDTO;
 import com.localuz.service.dto.PlanDTO;
 import com.localuz.service.dto.PricePreviewDTO;
 import com.localuz.service.dto.PricingResult;
+import com.localuz.service.dto.BillingCheckoutDTO;
+import com.localuz.service.dto.BillingCheckoutRequest;
 import com.localuz.web.rest.errors.BadRequestAlertException;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -18,6 +21,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import javax.validation.Valid;
 
 /**
  * Read-only Billing API for the currently authenticated user. All three endpoints require
@@ -40,19 +46,27 @@ public class BillingResource {
     private final PricingService pricingService;
     private final PlanRepository planRepository;
     private final PlanPricingTierRepository planPricingTierRepository;
+    private final BillingCheckoutService billingCheckoutService;
 
     public BillingResource(
         UserService userService,
         EntitlementService entitlementService,
         PricingService pricingService,
         PlanRepository planRepository,
-        PlanPricingTierRepository planPricingTierRepository
+        PlanPricingTierRepository planPricingTierRepository,
+        BillingCheckoutService billingCheckoutService
     ) {
         this.userService = userService;
         this.entitlementService = entitlementService;
         this.pricingService = pricingService;
         this.planRepository = planRepository;
         this.planPricingTierRepository = planPricingTierRepository;
+        this.billingCheckoutService = billingCheckoutService;
+    }
+
+    @PostMapping("/checkout")
+    public BillingCheckoutDTO createCheckout(@Valid @RequestBody BillingCheckoutRequest request) {
+        return BillingCheckoutDTO.from(billingCheckoutService.createCheckout(getCurrentUser(), request.getPlanCode()));
     }
 
     @GetMapping("/me")

@@ -1,4 +1,4 @@
-import { BillingMeDTO, PlanDTO, PricePreviewDTO } from "../constants/BillingModels";
+import { BillingCheckoutDTO, BillingMeDTO, PlanCode, PlanDTO, PricePreviewDTO } from "../constants/BillingModels";
 import endpoints from "../constants/endpoints";
 import api from "./axios/axios";
 
@@ -15,6 +15,10 @@ const billingService = {
     const { data } = await api.get<PricePreviewDTO>(
       endpoints.BILLING_PRICE_PREVIEW({ query: { vehicleCount } })
     );
+    return data;
+  },
+  async createCheckout(planCode: PlanCode): Promise<BillingCheckoutDTO> {
+    const { data } = await api.post<BillingCheckoutDTO>(endpoints.BILLING_CHECKOUT(), { planCode });
     return data;
   },
 };

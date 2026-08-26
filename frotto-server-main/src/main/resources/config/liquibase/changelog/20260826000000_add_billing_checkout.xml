@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+ <changeSet id="20260826000000-1" author="openai">
+  <createTable tableName="billing_checkout">
+   <column name="id" type="bigint" autoIncrement="true"><constraints primaryKey="true" nullable="false"/></column>
+   <column name="jhi_user_id" type="bigint"><constraints nullable="false"/></column><column name="plan_id" type="bigint"><constraints nullable="false"/></column>
+   <column name="vehicle_count" type="int"><constraints nullable="false"/></column><column name="quoted_price" type="decimal(21,2)"><constraints nullable="false"/></column>
+   <column name="billing_cycle" type="varchar(16)"><constraints nullable="false"/></column><column name="external_reference" type="varchar(36)"><constraints nullable="false" unique="true"/></column>
+   <column name="provider" type="varchar(32)"><constraints nullable="false"/></column><column name="provider_subscription_id" type="varchar(128)"/>
+   <column name="status" type="varchar(32)"><constraints nullable="false"/></column><column name="created_at" type="datetime(6)"><constraints nullable="false"/></column><column name="expires_at" type="datetime(6)"><constraints nullable="false"/></column>
+  </createTable>
+  <createIndex tableName="billing_checkout" indexName="idx_billing_checkout_user"><column name="jhi_user_id"/></createIndex>
+  <createIndex tableName="billing_checkout" indexName="idx_billing_checkout_provider_id"><column name="provider_subscription_id"/></createIndex>
+  <addForeignKeyConstraint baseTableName="billing_checkout" baseColumnNames="jhi_user_id" constraintName="fk_billing_checkout_user" referencedTableName="jhi_user" referencedColumnNames="id"/>
+  <addForeignKeyConstraint baseTableName="billing_checkout" baseColumnNames="plan_id" constraintName="fk_billing_checkout_plan" referencedTableName="plan" referencedColumnNames="id"/>
+ </changeSet>
+ <changeSet id="20260826000000-2" author="openai">
+  <createTable tableName="mercadopago_webhook_event"><column name="id" type="bigint" autoIncrement="true"><constraints primaryKey="true" nullable="false"/></column><column name="request_id" type="varchar(128)"><constraints nullable="false"/></column><column name="event_type" type="varchar(64)"><constraints nullable="false"/></column><column name="resource_id" type="varchar(128)"><constraints nullable="false"/></column><column name="received_at" type="datetime(6)"><constraints nullable="false"/></column></createTable>
+  <addUniqueConstraint tableName="mercadopago_webhook_event" columnNames="request_id,event_type,resource_id" constraintName="ux_mp_webhook_delivery"/>
+ </changeSet>
+</databaseChangeLog>

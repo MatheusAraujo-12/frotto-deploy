@@ -57,6 +57,15 @@ export interface PricePreviewDTO {
   components: PricingComponent[];
 }
 
+export interface BillingCheckoutDTO {
+  checkoutId: number;
+  planCode: PlanCode;
+  quotedPrice: number;
+  billingCycle: BillingCycle;
+  status: "PROVIDER_PENDING";
+  checkoutUrl: string;
+}
+
 export const PLAN_LABELS: Record<PlanCode, string> = {
   FREE: "Gratuito", BRONZE: "Bronze", SILVER: "Prata", GOLD: "Ouro",
   PLATINUM: "Platinum", FROTTA: "Frotta",

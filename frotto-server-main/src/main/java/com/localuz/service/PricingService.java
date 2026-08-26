@@ -3,6 +3,7 @@ package com.localuz.service;
 import com.localuz.domain.Plan;
 import com.localuz.domain.PlanPricingTier;
 import com.localuz.domain.enumeration.BillingCycle;
+import com.localuz.domain.enumeration.PlanCode;
 import com.localuz.repository.PlanPricingTierRepository;
 import com.localuz.repository.PlanRepository;
 import java.math.BigDecimal;
@@ -46,6 +47,26 @@ public class PricingService {
 
     public PricingResult calculateMonthlyPrice(int vehicleCount) {
         Plan plan = resolvePlanForVehicleCount(vehicleCount);
+        return calculateForPlan(plan, vehicleCount);
+    }
+
+    /** Prices an explicitly selected plan. Values below its minimum pay the configured base;
+     * values above its maximum are incompatible. Progressive tiers remain database-driven. */
+    public PricingResult calculatePriceForPlan(PlanCode planCode, int vehicleCount) {
+        if (vehicleCount < 0) {
+            throw new IllegalArgumentException("vehicleCount must be >= 0, got " + vehicleCount);
+        }
+        Plan plan = planRepository
+            .findByCode(planCode)
+            .filter(candidate -> Boolean.TRUE.equals(candidate.getActive()))
+            .orElseThrow(() -> new IllegalArgumentException("Plan is not active: " + planCode));
+        if (plan.getMaxVehicles() != null && vehicleCount > plan.getMaxVehicles()) {
+            throw new IllegalArgumentException("Vehicle count exceeds plan limit");
+        }
+        return calculateForPlan(plan, vehicleCount);
+    }
+
+    private PricingResult calculateForPlan(Plan plan, int vehicleCount) {
         List<PlanPricingTier> tiers = planPricingTierRepository.findByPlanIdOrderByTierOrderAsc(plan.getId());
 
         if (tiers.isEmpty()) {

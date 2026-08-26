@@ -11,6 +11,7 @@ import billingService from "../../services/billingService";
 import { getToken, subscribeToTokenChanges } from "../../services/localStorage/localstorage";
 import { fleetUsage, friendlyPlan, isPlanCompatible, money, sourceDetail, sourceLabel, statusLabel, usageState, vehicleRange } from "./myPlanLogic";
 import "./MyPlanPage.css";
+import { navigateToCheckout } from "./checkoutNavigation";
 
 const MyPlanPage: React.FC = () => {
   const [billing, setBilling] = useState<BillingMeDTO | null>(null);
@@ -22,6 +23,8 @@ const MyPlanPage: React.FC = () => {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
   const [selectedPlan, setSelectedPlan] = useState<PlanDTO | null>(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
   const plansRef = useRef<HTMLDivElement>(null);
   const loadId = useRef(0);
 
@@ -60,6 +63,17 @@ const MyPlanPage: React.FC = () => {
   }, [vehicleInput]);
 
   const openUpgrade = (plan: PlanDTO) => setSelectedPlan(plan);
+  const continueToPayment = async () => {
+    if (!selectedPlan || checkoutLoading) return;
+    setCheckoutError(""); setCheckoutLoading(true);
+    try {
+      const checkout = await billingService.createCheckout(selectedPlan.code);
+      navigateToCheckout(checkout.checkoutUrl);
+    } catch (requestError) {
+      setCheckoutError(getApiErrorMessage(requestError, "Não foi possível iniciar o pagamento. Tente novamente."));
+      setCheckoutLoading(false);
+    }
+  };
 
   if (loading) return <IonPage id="my-plan-page"><PageHeader /><IonContent><div className="section-shell"><Loading /></div></IonContent></IonPage>;
   if (error || !billing) return <IonPage id="my-plan-page"><PageHeader /><IonContent><div className="section-shell"><div className="my-plan-state"><IonIcon icon={informationCircleOutline} /><h2>Não foi possível carregar seu plano</h2><p>{error || "Entre novamente para consultar seus dados."}</p><IonButton onClick={() => void load()}>Tentar novamente</IonButton></div></div></IonContent></IonPage>;
@@ -96,7 +110,7 @@ const MyPlanPage: React.FC = () => {
         </section>
       </div>
     </IonContent>
-    <IonModal isOpen={Boolean(selectedPlan)} onDidDismiss={() => setSelectedPlan(null)} className="my-plan-modal"><IonHeader><IonToolbar><IonTitle>Resumo do plano</IonTitle><IonButtons slot="end"><IonButton aria-label="Fechar" onClick={() => setSelectedPlan(null)}><IonIcon slot="icon-only" icon={closeOutline} /></IonButton></IonButtons></IonToolbar></IonHeader><IonContent>{selectedPlan && <div className="my-plan-modal__body"><IonIcon icon={cardOutline} /><h2>{PLAN_LABELS[selectedPlan.code]}</h2><div><span>Frota atual</span><strong>{billing.activeVehicleCount} veículos</strong></div><div><span>Preço estimado</span><strong>{preview?.vehicleCount === billing.activeVehicleCount && preview.planCode === selectedPlan.code ? money(preview.monthlyPrice) : `${money(selectedPlan.monthlyBasePrice)} (base)`}</strong></div><div><span>Ciclo</span><strong>Mensal</strong></div><p>O pagamento online será disponibilizado na próxima etapa.</p><IonButton expand="block" disabled>Continuar para pagamento</IonButton></div>}</IonContent></IonModal>
+    <IonModal isOpen={Boolean(selectedPlan)} onDidDismiss={() => { if (!checkoutLoading) { setSelectedPlan(null); setCheckoutError(""); } }} className="my-plan-modal"><IonHeader><IonToolbar><IonTitle>Resumo do plano</IonTitle><IonButtons slot="end"><IonButton aria-label="Fechar" disabled={checkoutLoading} onClick={() => setSelectedPlan(null)}><IonIcon slot="icon-only" icon={closeOutline} /></IonButton></IonButtons></IonToolbar></IonHeader><IonContent>{selectedPlan && <div className="my-plan-modal__body"><IonIcon icon={cardOutline} /><h2>{PLAN_LABELS[selectedPlan.code]}</h2><div><span>Frota atual</span><strong>{billing.activeVehicleCount} veículos</strong></div><div><span>Preço estimado</span><strong>{preview?.vehicleCount === billing.activeVehicleCount && preview.planCode === selectedPlan.code ? money(preview.monthlyPrice) : `${money(selectedPlan.monthlyBasePrice)} (base)`}</strong></div><div><span>Ciclo</span><strong>Mensal</strong></div><p>Você será direcionado ao ambiente seguro do Mercado Pago.</p>{checkoutError && <p className="my-plan-preview-error" role="alert">{checkoutError}</p>}<IonButton expand="block" disabled={checkoutLoading} onClick={() => void continueToPayment()}>{checkoutLoading ? <><IonSpinner name="crescent" /> Processando...</> : "Continuar para pagamento"}</IonButton></div>}</IonContent></IonModal>
   </IonPage>;
 };
 

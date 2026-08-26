@@ -6,6 +6,24 @@ import accountService from "../../services/accountService";
 import { setToken } from "../../services/localStorage/localstorage";
 
 jest.mock("../../services/accountService");
+jest.mock("@ionic/react", () => {
+  const React = jest.requireActual("react");
+  const component = (tag: string) => ({ children, ...props }: any) =>
+    React.createElement(tag, props, children);
+  const modal = ({ children, isOpen }: any) => isOpen ? React.createElement("div", {}, children) : null;
+
+  return {
+    IonApp: component("div"), IonBadge: component("span"), IonButton: component("button"),
+    IonButtons: component("div"), IonCard: component("section"), IonCardContent: component("div"),
+    IonContent: component("main"), IonHeader: component("header"), IonIcon: component("span"),
+    IonInput: component("input"), IonItem: component("div"), IonLabel: component("label"),
+    IonList: component("div"), IonMenuButton: component("button"), IonModal: modal,
+    IonPage: component("div"), IonProgressBar: component("progress"), IonSearchbar: component("input"),
+    IonSegment: component("div"), IonSegmentButton: component("button"), IonSelect: component("select"),
+    IonSelectOption: component("option"), IonSpinner: component("span"), IonTextarea: component("textarea"),
+    IonTitle: component("h1"), IonToolbar: component("div"), useIonToast: () => [jest.fn()],
+  };
+});
 jest.mock("react-router-dom", () => ({
   ...jest.requireActual("react-router-dom"),
   Redirect: ({ to }: { to: string }) => <div data-testid="redirect-target">{to}</div>,

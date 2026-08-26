@@ -16,6 +16,14 @@
 
 ---
 # Conditionally disable springdoc on missing api-docs profile
+mercadopago:
+  enabled: ${MERCADOPAGO_ENABLED:false}
+  access-token: ${MERCADOPAGO_ACCESS_TOKEN:}
+  webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:}
+  back-url: ${MERCADOPAGO_BACK_URL:}
+  connect-timeout-millis: ${MERCADOPAGO_CONNECT_TIMEOUT_MILLIS:3000}
+  read-timeout-millis: ${MERCADOPAGO_READ_TIMEOUT_MILLIS:7000}
+
 spring:
   servlet:
     multipart:
