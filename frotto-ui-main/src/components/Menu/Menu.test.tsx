@@ -37,6 +37,7 @@ describe("Menu - Billing Etapa 4A admin visibility", () => {
     renderMenu();
 
     await waitFor(() => expect(mockedAccountService.getAccount).toHaveBeenCalled());
+    expect(screen.getByText("Meu Plano")).toBeInTheDocument();
     expect(screen.queryByText("Painel do Administrador")).not.toBeInTheDocument();
     expect(screen.queryByText("Administração")).not.toBeInTheDocument();
   });
@@ -47,6 +48,7 @@ describe("Menu - Billing Etapa 4A admin visibility", () => {
     renderMenu();
 
     expect(await screen.findByText("Painel do Administrador", {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.getByText("Meu Plano")).toBeInTheDocument();
     expect(screen.getByText("Administração")).toBeInTheDocument();
   });
 

@@ -374,6 +374,12 @@ const Menu: React.FC = () => {
               <IonLabel className="menu-item__label">Meu Painel</IonLabel>
             </IonItem>
           </IonMenuToggle>
+          <IonMenuToggle>
+            <IonItem className="menu-item" routerLink="/menu/meu-plano" routerDirection="none">
+              <IonIcon icon={cardOutline} slot="start"></IonIcon>
+              <IonLabel className="menu-item__label">Meu Plano</IonLabel>
+            </IonItem>
+          </IonMenuToggle>
 
           {isAdmin && (
             <>

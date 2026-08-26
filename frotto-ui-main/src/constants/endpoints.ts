@@ -127,6 +127,10 @@ const endpoints = {
   ME_AVATAR: apiEndpoint("/me/avatar"),
   ACCOUNT: apiEndpoint("/account"),
 
+  BILLING_ME: apiEndpoint("/billing/me"),
+  BILLING_PLANS: apiEndpoint("/billing/plans"),
+  BILLING_PRICE_PREVIEW: apiEndpoint("/billing/price-preview"),
+
   ADMIN_BILLING_USERS_SEARCH: apiEndpoint("/admin/billing/users/search"),
   ADMIN_BILLING_USER: apiEndpoint("/admin/billing/users/{userId}"),
   ADMIN_BILLING_GRANTS: apiEndpoint("/admin/billing/grants"),

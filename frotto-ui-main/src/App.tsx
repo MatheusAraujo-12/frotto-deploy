@@ -47,6 +47,7 @@ import MyPanelPage from "./pages/MyPanel/MyPanelPage";
 import Reminders from "./pages/Reminders/Reminders";
 import Reports from "./pages/Reports/Reports";
 import AdminBillingPage from "./pages/AdminBilling/AdminBillingPage";
+import MyPlanPage from "./pages/MyPlan/MyPlanPage";
 
 setupIonicReact();
 
@@ -107,6 +108,7 @@ const App: FC = () => {
           <Route exact path="/menu/relatorios" component={Reports} />
           <Route exact path="/documents" component={DocumentsPage} />
           <Route exact path="/menu/meu-painel" component={MyPanelPage} />
+          <Route exact path="/menu/meu-plano" component={MyPlanPage} />
           <Route exact path="/menu/admin/billing" component={AdminBillingPage} />
           <Route exact path="/meu-painel" component={MyPanelPage} />
           <Route exact path="/my-panel" component={MyPanelPage} />
