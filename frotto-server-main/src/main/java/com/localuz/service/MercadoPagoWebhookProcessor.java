@@ -54,8 +54,11 @@ public class MercadoPagoWebhookProcessor {
     private void reconcile(BillingCheckout checkout,MercadoPagoPreapproval provider,boolean activateExisting){
         String status=provider.getStatus().toLowerCase(java.util.Locale.ROOT);
         if("authorized".equals(status)){
-            checkout.setStatus(BillingCheckoutStatus.AUTHORIZED);
             Optional<Subscription> existing=subscriptions.findByExternalProviderAndExternalSubscriptionId("MERCADO_PAGO",provider.getId());
+            if(existing.filter(subscription->subscription.getStatus()==SubscriptionStatus.CANCELED).isPresent()){
+                checkout.setStatus(BillingCheckoutStatus.CANCELED);checkouts.save(checkout);return;
+            }
+            checkout.setStatus(BillingCheckoutStatus.AUTHORIZED);
             Subscription subscription=existing.orElseGet(Subscription::new);
             subscription.setUser(checkout.getUser());subscription.setPlan(checkout.getPlan());subscription.setBillingCycle(checkout.getBillingCycle());
             if(existing.isEmpty()||activateExisting)subscription.setStatus(SubscriptionStatus.ACTIVE);subscription.setSource(SubscriptionSource.PAYMENT_PROVIDER);
@@ -80,6 +83,7 @@ public class MercadoPagoWebhookProcessor {
         String invoice=normalize(payment.getStatus()); String result=normalize(payment.getPaymentStatus());
         if(!"processed".equals(invoice))return;
         subscriptions.findByExternalProviderAndExternalSubscriptionId("MERCADO_PAGO",providerSubscriptionId).ifPresent(subscription->{
+            if(subscription.getStatus()==SubscriptionStatus.CANCELED)return;
             if("approved".equals(result)){subscription.setStatus(SubscriptionStatus.ACTIVE);subscriptions.save(subscription);}
             else if("rejected".equals(result)){subscription.setStatus(SubscriptionStatus.PAST_DUE);subscriptions.save(subscription);}
         });

@@ -150,8 +150,8 @@ describe("MyPlanPage - checkout modal", () => {
     expect(mockedNavigate).not.toHaveBeenCalled();
   });
 
-  it("ignora query string de sucesso e usa somente o backend", async () => {
-    window.history.pushState({}, "", "/menu/meu-plano?status=approved");
+  it.each(["status=approved", "status=success", "collection_status=approved"])("ignora query string %s e usa somente o backend", async (query) => {
+    window.history.pushState({}, "", `/menu/meu-plano?${query}`);
     mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, planCode: "FREE", planName: "Free", subscriptionStatus: null, subscriptionSource: null });
     const { container } = render(<MyPlanPage />);
     await screen.findByRole("heading", { name: /Planos dispon/ });
@@ -169,5 +169,16 @@ describe("MyPlanPage - checkout modal", () => {
     expect(container.querySelector(".my-plan-current h1")).toHaveTextContent("Ouro");
     removeToken();
     await waitFor(() => expect(container.querySelector(".my-plan-current")).not.toBeInTheDocument());
+  });
+
+  it("não navega com resposta tardia do checkout da sessão anterior", async () => {
+    const oldCheckout = deferred<any>();
+    mockedBillingService.createCheckout.mockReturnValue(oldCheckout.promise);
+    await renderLoadedPage(); chooseSilver();
+    fireEvent.click(screen.getByRole("button", { name: "Continuar para pagamento" }));
+    setToken("Bearer user-b");
+    oldCheckout.resolve({ checkoutId: 91, planCode: "SILVER", quotedPrice: 99.9, billingCycle: "MONTHLY", status: "PROVIDER_PENDING", checkoutUrl: "https://mp.test/user-a" });
+    await waitFor(() => expect(mockedBillingService.getMyBilling).toHaveBeenCalledTimes(2));
+    expect(mockedNavigate).not.toHaveBeenCalled();
   });
 });
