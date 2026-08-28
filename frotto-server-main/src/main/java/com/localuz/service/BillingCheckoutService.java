@@ -17,6 +17,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class BillingCheckoutService {
     private final MercadoPagoProperties properties; private final PricingService pricingService;
     private final PlanRepository planRepository; private final BillingCheckoutRepository repository; private final MercadoPagoClient client; private final CarRepository cars; private final Clock clock;
+    @Autowired
     public BillingCheckoutService(MercadoPagoProperties p,PricingService pricing,PlanRepository plans,BillingCheckoutRepository repo,MercadoPagoClient client,CarRepository cars){this(p,pricing,plans,repo,client,cars,Clock.systemUTC());}
     BillingCheckoutService(MercadoPagoProperties p,PricingService pricing,PlanRepository plans,BillingCheckoutRepository repo,MercadoPagoClient client,CarRepository cars,Clock clock){this.properties=p;this.pricingService=pricing;this.planRepository=plans;this.repository=repo;this.client=client;this.cars=cars;this.clock=clock;}
     @Transactional

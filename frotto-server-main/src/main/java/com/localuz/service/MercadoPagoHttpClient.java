@@ -12,6 +12,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -21,6 +22,7 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
     private final ObjectMapper mapper;
     private final HttpClient client;
 
+    @Autowired
     public MercadoPagoHttpClient(MercadoPagoProperties properties, ObjectMapper mapper) {
         this(properties, mapper, HttpClient.newBuilder()
             .connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis())).build());
