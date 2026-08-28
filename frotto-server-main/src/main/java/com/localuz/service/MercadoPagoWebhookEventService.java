@@ -9,6 +9,6 @@ import org.springframework.transaction.annotation.Transactional;
  public MercadoPagoWebhookEventService(MercadoPagoWebhookEventRepository repository){this.repository=repository;}
  @Transactional public boolean registerDelivery(String requestId,String eventType,String resourceId){
   if(repository.existsByRequestIdAndEventTypeAndResourceId(requestId,eventType,resourceId))return false;
-  MercadoPagoWebhookEvent event=new MercadoPagoWebhookEvent();event.setRequestId(requestId);event.setEventType(eventType);event.setResourceId(resourceId);event.setReceivedAt(Instant.now());repository.save(event);return true;
+  Instant now=Instant.now();MercadoPagoWebhookEvent event=new MercadoPagoWebhookEvent();event.setRequestId(requestId);event.setEventType(eventType);event.setResourceId(resourceId);event.setReceivedAt(now);event.setProcessedAt(now);repository.save(event);return true;
  }
 }

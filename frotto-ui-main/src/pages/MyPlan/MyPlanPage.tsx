@@ -5,17 +5,18 @@ import {
 } from "@ionic/react";
 import { cardOutline, closeOutline, informationCircleOutline } from "ionicons/icons";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BillingMeDTO, PLAN_LABELS, PlanDTO, PricePreviewDTO } from "../../constants/BillingModels";
+import { BillingMeDTO, BillingPaymentStateDTO, PLAN_LABELS, PlanDTO, PricePreviewDTO } from "../../constants/BillingModels";
 import { getApiErrorMessage } from "../../services/apiErrorMessage";
 import billingService from "../../services/billingService";
 import { getToken, subscribeToTokenChanges } from "../../services/localStorage/localstorage";
-import { fleetUsage, friendlyPlan, isPlanCompatible, money, sourceDetail, sourceLabel, statusLabel, usageState, vehicleRange } from "./myPlanLogic";
+import { checkoutBlocksPurchase, checkoutNeedsRefresh, fleetUsage, friendlyPlan, isCheckoutInProgressError, isPlanCompatible, money, paymentNotice, sourceDetail, sourceLabel, statusLabel, usageState, vehicleRange } from "./myPlanLogic";
 import "./MyPlanPage.css";
 import { navigateToCheckout } from "./checkoutNavigation";
 
 const MyPlanPage: React.FC = () => {
   const [billing, setBilling] = useState<BillingMeDTO | null>(null);
   const [plans, setPlans] = useState<PlanDTO[]>([]);
+  const [paymentState, setPaymentState] = useState<BillingPaymentStateDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [vehicleInput, setVehicleInput] = useState("");
@@ -27,15 +28,17 @@ const MyPlanPage: React.FC = () => {
   const [checkoutError, setCheckoutError] = useState("");
   const plansRef = useRef<HTMLDivElement>(null);
   const loadId = useRef(0);
+  const previewLoadId = useRef(0);
 
   const load = useCallback(async () => {
     const id = ++loadId.current;
-    setBilling(null); setPlans([]); setPreview(null); setError(""); setLoading(true);
+    previewLoadId.current += 1;
+    setBilling(null); setPlans([]); setPaymentState(null); setPreview(null); setSelectedPlan(null); setCheckoutLoading(false); setCheckoutError(""); setError(""); setLoading(true);
     if (!getToken()) { setLoading(false); return; }
     try {
-      const [me, availablePlans] = await Promise.all([billingService.getMyBilling(), billingService.getPlans()]);
+      const [me, payment, availablePlans] = await Promise.all([billingService.getMyBilling(), billingService.getBillingPaymentState(), billingService.getPlans()]);
       if (id !== loadId.current) return;
-      setBilling(me); setPlans(availablePlans); setVehicleInput(String(me.activeVehicleCount));
+      setBilling(me); setPaymentState(payment); setPlans(availablePlans); setVehicleInput(String(me.activeVehicleCount));
     } catch (requestError) {
       if (id === loadId.current) setError(getApiErrorMessage(requestError, "Não foi possível carregar os dados do seu plano."));
     } finally {
@@ -46,30 +49,40 @@ const MyPlanPage: React.FC = () => {
   useEffect(() => {
     void load();
     const unsubscribe = subscribeToTokenChanges(() => void load());
-    return () => { loadId.current += 1; unsubscribe(); };
+    return () => { loadId.current += 1; previewLoadId.current += 1; unsubscribe(); };
   }, [load]);
 
   useEffect(() => {
     const count = Number(vehicleInput);
     setPreview(null); setPreviewError("");
     if (!Number.isInteger(count) || count < 0) return;
+    const requestId = ++previewLoadId.current;
     const timer = window.setTimeout(async () => {
       setPreviewLoading(true);
-      try { setPreview(await billingService.getPricePreview(count)); }
-      catch (requestError) { setPreviewError(getApiErrorMessage(requestError, "Não foi possível calcular a estimativa.")); }
-      finally { setPreviewLoading(false); }
+      try { const result = await billingService.getPricePreview(count); if (requestId === previewLoadId.current) setPreview(result); }
+      catch (requestError) { if (requestId === previewLoadId.current) setPreviewError(getApiErrorMessage(requestError, "Não foi possível calcular a estimativa.")); }
+      finally { if (requestId === previewLoadId.current) setPreviewLoading(false); }
     }, 450);
     return () => window.clearTimeout(timer);
   }, [vehicleInput]);
 
   const openUpgrade = (plan: PlanDTO) => setSelectedPlan(plan);
   const continueToPayment = async () => {
-    if (!selectedPlan || checkoutLoading) return;
+    if (!selectedPlan || checkoutLoading || checkoutBlocksPurchase(paymentState)) return;
+    const sessionId = loadId.current;
     setCheckoutError(""); setCheckoutLoading(true);
     try {
       const checkout = await billingService.createCheckout(selectedPlan.code);
+      if (sessionId !== loadId.current) return;
       navigateToCheckout(checkout.checkoutUrl);
     } catch (requestError) {
+      if (sessionId !== loadId.current) return;
+      if (isCheckoutInProgressError(requestError)) {
+        setCheckoutError("Já existe um pagamento em andamento. Aguarde a confirmação antes de tentar novamente.");
+        setCheckoutLoading(false);
+        try { setPaymentState(await billingService.getBillingPaymentState()); } catch { /* Keep the safe blocked message. */ }
+        return;
+      }
       setCheckoutError(getApiErrorMessage(requestError, "Não foi possível iniciar o pagamento. Tente novamente."));
       setCheckoutLoading(false);
     }
@@ -81,12 +94,15 @@ const MyPlanPage: React.FC = () => {
   const state = usageState(billing);
   const progress = billing.vehicleLimit == null ? 0 : Math.min(1, billing.activeVehicleCount / billing.vehicleLimit);
   const currentPrice = billing.subscriptionSource === "ADMIN_GRANT" ? "Sem cobrança" : money(billing.currentMonthlyPrice);
+  const rawNotice = paymentNotice(paymentState);
+  const notice = rawNotice?.title === "Assinatura ativa" && billing.subscriptionSource === "PAYMENT_PROVIDER" && billing.subscriptionStatus === "ACTIVE" ? null : rawNotice;
+  const checkoutBlocked = checkoutBlocksPurchase(paymentState);
 
   return <IonPage id="my-plan-page">
     <PageHeader />
     <IonContent>
       <div className="section-shell my-plan-shell">
-        {billing.subscriptionStatus === "PAST_DUE" && <div className="my-plan-alert" role="alert"><strong>Há uma pendência na sua assinatura.</strong><span>Entre em contato com o suporte.</span></div>}
+        {notice && <div className={`my-plan-alert my-plan-alert--${notice.tone}`} role={notice.tone === "warning" || notice.tone === "danger" ? "alert" : "status"}><strong>{notice.title}</strong><span>{notice.detail}</span>{checkoutNeedsRefresh(paymentState) && <IonButton size="small" fill="outline" onClick={() => void load()}>Atualizar status</IonButton>}</div>}
         <IonCard className="my-plan-current">
           <IonCardContent>
             <div className="my-plan-current__header"><div><span className="my-plan-eyebrow">Seu plano</span><h1>{friendlyPlan(billing.planCode)}</h1><p>{sourceDetail(billing)}</p></div><IonBadge>{sourceLabel(billing.subscriptionSource)}</IonBadge></div>
@@ -101,7 +117,7 @@ const MyPlanPage: React.FC = () => {
           {plans.map((plan) => { const current = plan.code === billing.planCode; const recommended = plan.code === billing.requiredPlanCode; const compatible = isPlanCompatible(plan, billing.activeVehicleCount); return <IonCard key={plan.code} className={`my-plan-plan${recommended ? " my-plan-plan--recommended" : ""}`}><IonCardContent>
             <div className="my-plan-plan__badges">{current && <IonBadge color="primary">Seu plano atual</IonBadge>}{recommended && <IonBadge color="success">Recomendado para sua frota</IonBadge>}</div><h3>{PLAN_LABELS[plan.code]}</h3><p className="my-plan-range">{vehicleRange(plan)}</p><div className="my-plan-price">{plan.billingModel === "PROGRESSIVE" && <small>Base </small>}<strong>{money(plan.monthlyBasePrice)}</strong><small>/mês</small></div><p>{plan.billingModel === "PROGRESSIVE" ? "Cobrança progressiva conforme a frota" : "Valor mensal fixo"}</p>
             {plan.billingModel === "PROGRESSIVE" && plan.tiers.map((tier) => <small key={`${tier.fromVehicleCount}-${tier.toVehicleCount}`}>+ {money(tier.pricePerVehicle)} por veículo de {tier.fromVehicleCount}{tier.toVehicleCount ? ` a ${tier.toVehicleCount}` : " em diante"}</small>)}
-            {!current && <IonButton expand="block" fill={compatible ? "solid" : "outline"} disabled={!compatible} onClick={() => openUpgrade(plan)}>Escolher plano</IonButton>}{!compatible && <p className="my-plan-incompatible">Sua frota atual excede o limite deste plano.</p>}
+            {!current && <IonButton expand="block" fill={compatible ? "solid" : "outline"} disabled={!compatible || checkoutBlocked} onClick={() => openUpgrade(plan)}>Escolher plano</IonButton>}{!compatible && <p className="my-plan-incompatible">Sua frota atual excede o limite deste plano.</p>}{compatible && checkoutBlocked && <p className="my-plan-payment-blocked">Aguarde a confirmação do pagamento em andamento.</p>}
           </IonCardContent></IonCard>; })}
         </div></section>
 
@@ -110,7 +126,7 @@ const MyPlanPage: React.FC = () => {
         </section>
       </div>
     </IonContent>
-    <IonModal isOpen={Boolean(selectedPlan)} onDidDismiss={() => { if (!checkoutLoading) { setSelectedPlan(null); setCheckoutError(""); } }} className="my-plan-modal"><IonHeader><IonToolbar><IonTitle>Resumo do plano</IonTitle><IonButtons slot="end"><IonButton aria-label="Fechar" disabled={checkoutLoading} onClick={() => setSelectedPlan(null)}><IonIcon slot="icon-only" icon={closeOutline} /></IonButton></IonButtons></IonToolbar></IonHeader><IonContent>{selectedPlan && <div className="my-plan-modal__body"><IonIcon icon={cardOutline} /><h2>{PLAN_LABELS[selectedPlan.code]}</h2><div><span>Frota atual</span><strong>{billing.activeVehicleCount} veículos</strong></div><div><span>Preço estimado</span><strong>{preview?.vehicleCount === billing.activeVehicleCount && preview.planCode === selectedPlan.code ? money(preview.monthlyPrice) : `${money(selectedPlan.monthlyBasePrice)} (base)`}</strong></div><div><span>Ciclo</span><strong>Mensal</strong></div><p>Você será direcionado ao ambiente seguro do Mercado Pago.</p>{checkoutError && <p className="my-plan-preview-error" role="alert">{checkoutError}</p>}<IonButton expand="block" disabled={checkoutLoading} onClick={() => void continueToPayment()}>{checkoutLoading ? <><IonSpinner name="crescent" /> Processando...</> : "Continuar para pagamento"}</IonButton></div>}</IonContent></IonModal>
+    <IonModal isOpen={Boolean(selectedPlan)} onDidDismiss={() => { if (!checkoutLoading) { setSelectedPlan(null); setCheckoutError(""); } }} className="my-plan-modal"><IonHeader><IonToolbar><IonTitle>Resumo do plano</IonTitle><IonButtons slot="end"><IonButton aria-label="Fechar" disabled={checkoutLoading} onClick={() => setSelectedPlan(null)}><IonIcon slot="icon-only" icon={closeOutline} /></IonButton></IonButtons></IonToolbar></IonHeader><IonContent>{selectedPlan && <div className="my-plan-modal__body"><IonIcon icon={cardOutline} /><h2>{PLAN_LABELS[selectedPlan.code]}</h2><div><span>Frota atual</span><strong>{billing.activeVehicleCount} veículos</strong></div><div><span>Preço estimado</span><strong>{preview?.vehicleCount === billing.activeVehicleCount && preview.planCode === selectedPlan.code ? money(preview.monthlyPrice) : `${money(selectedPlan.monthlyBasePrice)} (base)`}</strong></div><div><span>Ciclo</span><strong>Mensal</strong></div><p>Você será direcionado ao ambiente seguro do Mercado Pago.</p>{checkoutError && <p className="my-plan-preview-error" role="alert">{checkoutError}</p>}<IonButton expand="block" disabled={checkoutLoading || checkoutBlocked} onClick={() => void continueToPayment()}>{checkoutLoading ? <><IonSpinner name="crescent" /> Processando...</> : "Continuar para pagamento"}</IonButton></div>}</IonContent></IonModal>
   </IonPage>;
 };
 

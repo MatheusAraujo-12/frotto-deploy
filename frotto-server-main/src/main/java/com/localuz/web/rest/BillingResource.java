@@ -7,6 +7,7 @@ import com.localuz.repository.PlanRepository;
 import com.localuz.service.EntitlementService;
 import com.localuz.service.PricingService;
 import com.localuz.service.BillingCheckoutService;
+import com.localuz.service.BillingPaymentStateService;
 import com.localuz.service.UserService;
 import com.localuz.service.dto.BillingMeDTO;
 import com.localuz.service.dto.PlanDTO;
@@ -14,6 +15,7 @@ import com.localuz.service.dto.PricePreviewDTO;
 import com.localuz.service.dto.PricingResult;
 import com.localuz.service.dto.BillingCheckoutDTO;
 import com.localuz.service.dto.BillingCheckoutRequest;
+import com.localuz.service.dto.BillingPaymentStateDTO;
 import com.localuz.web.rest.errors.BadRequestAlertException;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -47,6 +49,7 @@ public class BillingResource {
     private final PlanRepository planRepository;
     private final PlanPricingTierRepository planPricingTierRepository;
     private final BillingCheckoutService billingCheckoutService;
+    private final BillingPaymentStateService billingPaymentStateService;
 
     public BillingResource(
         UserService userService,
@@ -54,7 +57,8 @@ public class BillingResource {
         PricingService pricingService,
         PlanRepository planRepository,
         PlanPricingTierRepository planPricingTierRepository,
-        BillingCheckoutService billingCheckoutService
+        BillingCheckoutService billingCheckoutService,
+        BillingPaymentStateService billingPaymentStateService
     ) {
         this.userService = userService;
         this.entitlementService = entitlementService;
@@ -62,6 +66,7 @@ public class BillingResource {
         this.planRepository = planRepository;
         this.planPricingTierRepository = planPricingTierRepository;
         this.billingCheckoutService = billingCheckoutService;
+        this.billingPaymentStateService = billingPaymentStateService;
     }
 
     @PostMapping("/checkout")
@@ -72,6 +77,11 @@ public class BillingResource {
     @GetMapping("/me")
     public BillingMeDTO getMyBilling() {
         return BillingMeDTO.from(entitlementService.getSnapshot(getCurrentUser()));
+    }
+
+    @GetMapping("/payment-state")
+    public BillingPaymentStateDTO getMyPaymentState() {
+        return billingPaymentStateService.getState(getCurrentUser());
     }
 
     @GetMapping("/price-preview")

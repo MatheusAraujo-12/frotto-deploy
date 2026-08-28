@@ -15,6 +15,7 @@ import com.localuz.repository.PlanPricingTierRepository;
 import com.localuz.repository.PlanRepository;
 import com.localuz.service.EntitlementService;
 import com.localuz.service.BillingCheckoutService;
+import com.localuz.service.BillingPaymentStateService;
 import com.localuz.service.PricingService;
 import com.localuz.service.UserService;
 import com.localuz.service.dto.BillingMeDTO;
@@ -46,6 +47,7 @@ class BillingResourceTest {
     private PlanRepository planRepository;
     private PlanPricingTierRepository planPricingTierRepository;
     private BillingCheckoutService billingCheckoutService;
+    private BillingPaymentStateService billingPaymentStateService;
     private BillingResource billingResource;
     private User currentUser;
 
@@ -57,7 +59,8 @@ class BillingResourceTest {
         planRepository = Mockito.mock(PlanRepository.class);
         planPricingTierRepository = Mockito.mock(PlanPricingTierRepository.class);
         billingCheckoutService = Mockito.mock(BillingCheckoutService.class);
-        billingResource = new BillingResource(userService, entitlementService, pricingService, planRepository, planPricingTierRepository, billingCheckoutService);
+        billingPaymentStateService = Mockito.mock(BillingPaymentStateService.class);
+        billingResource = new BillingResource(userService, entitlementService, pricingService, planRepository, planPricingTierRepository, billingCheckoutService, billingPaymentStateService);
 
         currentUser = new User();
         currentUser.setId(9L);
@@ -118,6 +121,13 @@ class BillingResourceTest {
         when(userService.getUserWithAuthorities()).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> billingResource.getMyBilling()).isInstanceOf(BadRequestAlertException.class);
+    }
+
+    @Test
+    void paymentStateUsesOnlyTheAuthenticatedUser() {
+        when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));
+        billingResource.getMyPaymentState();
+        Mockito.verify(billingPaymentStateService).getState(currentUser);
     }
 
     @Test

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+ <changeSet id="20260828000000-1" author="openai">
+  <addColumn tableName="mercadopago_webhook_event"><column name="processed_at" type="datetime(6)"/></addColumn>
+  <update tableName="mercadopago_webhook_event"><column name="processed_at" valueComputed="received_at"/></update>
+  <addNotNullConstraint tableName="mercadopago_webhook_event" columnName="processed_at" columnDataType="datetime(6)"/>
+  <addUniqueConstraint tableName="billing_checkout" columnNames="provider_subscription_id" constraintName="ux_billing_checkout_provider_subscription"/>
+  <addUniqueConstraint tableName="subscription" columnNames="external_provider,external_subscription_id" constraintName="ux_subscription_provider_external_id"/>
+ </changeSet>
+</databaseChangeLog>

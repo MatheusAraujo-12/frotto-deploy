@@ -9,6 +9,8 @@ import com.localuz.repository.BillingCheckoutRepository;
 import com.localuz.repository.CarRepository;
 import com.localuz.repository.PlanPricingTierRepository;
 import com.localuz.repository.PlanRepository;
+import com.localuz.repository.SubscriptionRepository;
+import com.localuz.repository.UserRepository;
 import com.localuz.web.rest.BillingResource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -21,12 +23,15 @@ class BillingCheckoutApplicationContextTest {
         .withBean(PlanRepository.class, () -> mock(PlanRepository.class))
         .withBean(PlanPricingTierRepository.class, () -> mock(PlanPricingTierRepository.class))
         .withBean(BillingCheckoutRepository.class, () -> mock(BillingCheckoutRepository.class))
+        .withBean(SubscriptionRepository.class, () -> mock(SubscriptionRepository.class))
         .withBean(CarRepository.class, () -> mock(CarRepository.class))
+        .withBean(UserRepository.class, () -> mock(UserRepository.class))
         .withBean(UserService.class, () -> mock(UserService.class))
         .withBean(EntitlementService.class, () -> mock(EntitlementService.class))
         .withBean(PricingService.class)
         .withBean(MercadoPagoHttpClient.class)
-        .withBean(BillingCheckoutService.class);
+        .withBean(BillingCheckoutService.class)
+        .withBean(BillingPaymentStateService.class);
 
     @Test
     void springCreatesBillingCheckoutServiceWithTheConcreteMercadoPagoClient() {

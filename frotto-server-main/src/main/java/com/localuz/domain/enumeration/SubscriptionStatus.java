@@ -9,6 +9,7 @@ package com.localuz.domain.enumeration;
 public enum SubscriptionStatus {
     ACTIVE,
     PAST_DUE,
+    PAUSED,
     CANCELED,
     EXPIRED,
 }

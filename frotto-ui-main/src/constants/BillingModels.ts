@@ -1,6 +1,6 @@
 export type PlanCode = "FREE" | "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" | "FROTTA";
 export type SubscriptionSource = "PAYMENT_PROVIDER" | "ADMIN_GRANT" | "GRANDFATHERED";
-export type SubscriptionStatus = "ACTIVE" | "PAST_DUE" | "CANCELED" | "EXPIRED";
+export type SubscriptionStatus = "ACTIVE" | "PAST_DUE" | "PAUSED" | "CANCELED" | "EXPIRED";
 export type BillingCycle = "MONTHLY" | "YEARLY";
 export type BillingModel = "FLAT" | "PROGRESSIVE";
 
@@ -64,6 +64,25 @@ export interface BillingCheckoutDTO {
   billingCycle: BillingCycle;
   status: "PROVIDER_PENDING";
   checkoutUrl: string;
+}
+
+export type BillingCheckoutStatus = "CREATED" | "PROVIDER_PENDING" | "PROVIDER_UNKNOWN" | "AUTHORIZED" | "FAILED" | "CANCELED";
+
+export interface PaymentProviderSubscriptionState {
+  status: SubscriptionStatus;
+  planCode: PlanCode;
+  billingCycle: BillingCycle;
+}
+
+export interface LatestCheckoutState {
+  status: BillingCheckoutStatus;
+  planCode: PlanCode;
+  createdAt: string;
+}
+
+export interface BillingPaymentStateDTO {
+  paymentProviderSubscription: PaymentProviderSubscriptionState | null;
+  latestCheckout: LatestCheckoutState | null;
 }
 
 export const PLAN_LABELS: Record<PlanCode, string> = {

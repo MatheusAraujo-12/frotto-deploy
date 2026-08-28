@@ -8,12 +8,20 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import javax.persistence.LockModeType;
 
 /** Spring Data JPA repository for the {@link User} entity. */
 public interface UserRepository extends JpaRepository<User, Long> {
     String USERS_BY_LOGIN_CACHE = "usersByLogin";
 
     String USERS_BY_EMAIL_CACHE = "usersByEmail";
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select user from User user where user.id = :id")
+    Optional<User> findByIdForBillingCheckoutLock(@Param("id") Long id);
 
     Optional<User> findOneByActivationKey(String activationKey);
 

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import MyPlanPage from "./MyPlanPage";
 import billingService from "../../services/billingService";
-import { setToken } from "../../services/localStorage/localstorage";
+import { removeToken, setToken } from "../../services/localStorage/localstorage";
 import { navigateToCheckout } from "./checkoutNavigation";
 import { BillingMeDTO, PlanDTO } from "../../constants/BillingModels";
 
@@ -63,6 +63,7 @@ describe("MyPlanPage - checkout modal", () => {
     localStorage.clear();
     setToken("Bearer user-token");
     mockedBillingService.getMyBilling.mockResolvedValue(billing);
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({ paymentProviderSubscription: null, latestCheckout: null });
     mockedBillingService.getPlans.mockResolvedValue(plans);
     mockedBillingService.getPricePreview.mockImplementation(() => new Promise(() => {}));
   });
@@ -128,5 +129,45 @@ describe("MyPlanPage - checkout modal", () => {
     expect((await screen.findAllByText("Bronze")).length).toBeGreaterThan(0);
     expect(mockedBillingService.getMyBilling).toHaveBeenCalledTimes(2);
     expect(mockedBillingService.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it.each(["CREATED", "PROVIDER_PENDING", "PROVIDER_UNKNOWN"] as const)("bloqueia nova contratação durante %s", async (status) => {
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({ paymentProviderSubscription: null, latestCheckout: { status, planCode: "SILVER", createdAt: "2026-08-28T12:00:00Z" } });
+    await renderLoadedPage();
+    const silverCard = screen.getByText("Prata").closest("section")!;
+    expect(Array.from(silverCard.querySelectorAll("button")).find((button) => button.textContent === "Escolher plano")).toBeDisabled();
+    expect(mockedBillingService.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it("trata 409 como pagamento em andamento e atualiza payment-state", async () => {
+    mockedBillingService.getBillingPaymentState.mockResolvedValueOnce({ paymentProviderSubscription: null, latestCheckout: null }).mockResolvedValueOnce({ paymentProviderSubscription: null, latestCheckout: { status: "PROVIDER_PENDING", planCode: "SILVER", createdAt: "2026-08-28T12:00:00Z" } });
+    mockedBillingService.createCheckout.mockRejectedValue({ response: { status: 409, data: { message: "error.BILLING_CHECKOUT_IN_PROGRESS" } } });
+    await renderLoadedPage(); chooseSilver();
+    fireEvent.click(screen.getByRole("button", { name: "Continuar para pagamento" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Já existe um pagamento em andamento");
+    expect(mockedBillingService.getBillingPaymentState).toHaveBeenCalledTimes(2);
+    expect(mockedBillingService.createCheckout).toHaveBeenCalledTimes(1);
+    expect(mockedNavigate).not.toHaveBeenCalled();
+  });
+
+  it("ignora query string de sucesso e usa somente o backend", async () => {
+    window.history.pushState({}, "", "/menu/meu-plano?status=approved");
+    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, planCode: "FREE", planName: "Free", subscriptionStatus: null, subscriptionSource: null });
+    const { container } = render(<MyPlanPage />);
+    await screen.findByRole("heading", { name: /Planos dispon/ });
+    expect(container.querySelector(".my-plan-current h1")).toHaveTextContent("Gratuito");
+    expect(mockedBillingService.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it("descarta resposta atrasada ao trocar de sessão e limpa no logout", async () => {
+    const userA = deferred<BillingMeDTO>();
+    mockedBillingService.getMyBilling.mockReturnValueOnce(userA.promise).mockResolvedValueOnce({ ...billing, planCode: "GOLD", planName: "Gold" });
+    const { container } = render(<MyPlanPage />);
+    setToken("Bearer user-b");
+    await waitFor(() => expect(container.querySelector(".my-plan-current h1")).toHaveTextContent("Ouro"));
+    userA.resolve(billing); await Promise.resolve();
+    expect(container.querySelector(".my-plan-current h1")).toHaveTextContent("Ouro");
+    removeToken();
+    await waitFor(() => expect(container.querySelector(".my-plan-current")).not.toBeInTheDocument());
   });
 });

@@ -76,6 +76,8 @@ public class SecurityConfiguration {
                     .permitAll()
                     .antMatchers("/api/account/reset-password/finish")
                     .permitAll()
+                    .antMatchers(HttpMethod.POST, "/api/webhooks/mercadopago")
+                    .permitAll()
                     .antMatchers("/api/admin/**")
                     .hasAuthority(AuthoritiesConstants.ADMIN)
                     .antMatchers("/api/**")

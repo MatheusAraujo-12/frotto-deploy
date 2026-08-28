@@ -8,5 +8,7 @@ public class MercadoPagoWebhookEvent {
  @Column(name="event_type",length=64,nullable=false) private String eventType;
  @Column(name="resource_id",length=128,nullable=false) private String resourceId;
  @Column(name="received_at",nullable=false) private Instant receivedAt;
+ @Column(name="processed_at",nullable=false) private Instant processedAt;
  public void setRequestId(String v){requestId=v;} public void setEventType(String v){eventType=v;} public void setResourceId(String v){resourceId=v;} public void setReceivedAt(Instant v){receivedAt=v;}
+ public void setProcessedAt(Instant v){processedAt=v;}
 }

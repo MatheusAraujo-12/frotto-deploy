@@ -287,4 +287,28 @@ class SubscriptionServiceTest {
 
         assertThat(subscriptionService.getCurrentSubscription(user)).isEmpty();
     }
+
+    @Test
+    void pausedPaymentProviderDoesNotGrantEntitlement() {
+        Subscription paused = subscription(plan(5L, PlanCode.PLATINUM), SubscriptionSource.PAYMENT_PROVIDER, null);
+        paused.setStatus(SubscriptionStatus.PAUSED);
+        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), eq(List.of(SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE))))
+            .thenReturn(List.of());
+        Plan free = plan(1L, PlanCode.FREE); when(planRepository.findByCode(PlanCode.FREE)).thenReturn(Optional.of(free));
+        assertThat(subscriptionService.getEffectivePlan(user).getCode()).isEqualTo(PlanCode.FREE);
+    }
+
+    @Test
+    void activeAdminGrantRemainsEffectiveWhilePaymentProviderIsPaused() {
+        Subscription grant = subscription(plan(4L, PlanCode.GOLD), SubscriptionSource.ADMIN_GRANT, Instant.now().plusSeconds(3600));
+        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList())).thenReturn(List.of(grant));
+        assertThat(subscriptionService.getEffectivePlan(user).getCode()).isEqualTo(PlanCode.GOLD);
+    }
+
+    @Test
+    void grandfatheredBecomesEffectiveWhilePaymentProviderIsPaused() {
+        Subscription grandfathered = subscription(plan(3L, PlanCode.SILVER), SubscriptionSource.GRANDFATHERED, null);
+        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList())).thenReturn(List.of(grandfathered));
+        assertThat(subscriptionService.getEffectivePlan(user).getCode()).isEqualTo(PlanCode.SILVER);
+    }
 }

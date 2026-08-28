@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.localuz.config.MercadoPagoProperties;
 import com.localuz.service.dto.MercadoPagoPreapproval;
 import com.localuz.service.dto.MercadoPagoPreapprovalRequest;
+import com.localuz.service.dto.MercadoPagoAuthorizedPayment;
 import java.math.BigDecimal;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -88,6 +89,19 @@ class MercadoPagoHttpClientTest {
         when(response.statusCode()).thenReturn(201); when(response.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"pending\"}");
         assertThatThrownBy(() -> client.createPreapproval(request(), "idem-1"))
             .isInstanceOf(MercadoPagoException.class).hasMessageContaining("invalid response");
+    }
+
+    @Test
+    void getsAuthorizedPaymentFromOfficialResource() throws Exception {
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("{\"id\":\"pay-1\",\"status\":\"processed\",\"preapproval_id\":\"pre-1\",\"payment\":{\"status\":\"approved\"}}");
+        MercadoPagoAuthorizedPayment payment = client.getAuthorizedPayment("pay-1");
+        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http).send(captor.capture(), any(HttpResponse.BodyHandler.class));
+        assertThat(captor.getValue().uri().toString()).isEqualTo("https://api.mercadopago.com/authorized_payments/pay-1");
+        assertThat(payment.getPreapprovalId()).isEqualTo("pre-1");
+        assertThat(payment.getStatus()).isEqualTo("processed");
+        assertThat(payment.getPaymentStatus()).isEqualTo("approved");
     }
 
     private MercadoPagoPreapprovalRequest request() {

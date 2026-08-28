@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.localuz.config.MercadoPagoProperties;
 import com.localuz.service.dto.MercadoPagoPreapproval;
 import com.localuz.service.dto.MercadoPagoPreapprovalRequest;
+import com.localuz.service.dto.MercadoPagoAuthorizedPayment;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class MercadoPagoHttpClient implements MercadoPagoClient {
     private static final URI PREAPPROVAL = URI.create("https://api.mercadopago.com/preapproval");
+    private static final URI AUTHORIZED_PAYMENTS = URI.create("https://api.mercadopago.com/authorized_payments");
     private final MercadoPagoProperties properties;
     private final ObjectMapper mapper;
     private final HttpClient client;
@@ -47,13 +49,22 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
     @Override public MercadoPagoPreapproval getPreapproval(String id) {
         return exchange("GET", resource(id), null, null, false);
     }
+    @Override public MercadoPagoAuthorizedPayment getAuthorizedPayment(String id) {
+        JsonNode node = getJson(resource(AUTHORIZED_PAYMENTS, id));
+        String returnedId = text(node, "id"); String status = text(node, "status"); String preapprovalId = text(node, "preapproval_id");
+        if (returnedId == null || status == null || preapprovalId == null) throw new MercadoPagoException("Mercado Pago returned an invalid response", false);
+        return new MercadoPagoAuthorizedPayment(returnedId, status, preapprovalId, text(node.path("payment"), "status"));
+    }
     @Override public MercadoPagoPreapproval cancelPreapproval(String id, String idempotencyKey) {
         return exchange("PUT", resource(id), Map.of("status", "canceled"), idempotencyKey, true);
     }
 
     private URI resource(String id) {
-        if (id == null || !id.matches("[A-Za-z0-9_-]+")) throw new IllegalArgumentException("Invalid provider subscription id");
-        return URI.create(PREAPPROVAL + "/" + id);
+        return resource(PREAPPROVAL, id);
+    }
+    private URI resource(URI base, String id) {
+        if (id == null || !id.matches("[A-Za-z0-9_-]+")) throw new IllegalArgumentException("Invalid provider resource id");
+        return URI.create(base + "/" + id);
     }
 
     private MercadoPagoPreapproval exchange(String method, URI uri, Object body, String key, boolean mutable) {
@@ -74,7 +85,7 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
             if (id == null || status == null || (mutable && "POST".equals(method) && text(node, "init_point") == null)) {
                 throw new MercadoPagoException("Mercado Pago returned an invalid response", mutable);
             }
-            return new MercadoPagoPreapproval(id, status, text(node, "external_reference"), text(node, "init_point"));
+            return new MercadoPagoPreapproval(id, status, text(node, "external_reference"), text(node, "init_point"), instant(node, "date_created"), instant(node, "next_payment_date"), instant(node, "last_modified"));
         } catch (MercadoPagoException exception) { throw exception;
         } catch (java.net.http.HttpTimeoutException exception) {
             throw new MercadoPagoException("Mercado Pago request timed out", mutable, exception);
@@ -84,7 +95,22 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
             throw new MercadoPagoException("Mercado Pago communication failed", mutable, exception);
         }
     }
+    private JsonNode getJson(URI uri) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder(uri).timeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
+                .header("Authorization", "Bearer " + properties.getAccessToken()).header("Content-Type", "application/json").GET().build();
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) throw new MercadoPagoException("Mercado Pago request failed with status " + response.statusCode(), false);
+            return mapper.readTree(response.body());
+        } catch (MercadoPagoException exception) { throw exception;
+        } catch (InterruptedException exception) { Thread.currentThread().interrupt(); throw new MercadoPagoException("Mercado Pago request interrupted", false, exception);
+        } catch (Exception exception) { throw new MercadoPagoException("Mercado Pago communication failed", false, exception); }
+    }
     private String text(JsonNode node, String field) {
         JsonNode value = node.get(field); return value == null || value.isNull() || !value.isValueNode() ? null : value.asText();
+    }
+    private java.time.Instant instant(JsonNode node, String field) {
+        String value = text(node, field); if (value == null) return null;
+        try { return java.time.OffsetDateTime.parse(value).toInstant(); } catch (java.time.format.DateTimeParseException ignored) { return null; }
     }
 }

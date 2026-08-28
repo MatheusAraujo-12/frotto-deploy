@@ -56,6 +56,7 @@
     <include file="config/liquibase/changelog/20260819000000_update_entity_Subscription_grant_and_source.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260826000000_add_billing_checkout.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260826010000_complete_billing_checkout.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20260828000000_billing_webhook_reconciliation.xml" relativeToChangelogFile="false"/>
     <!-- jhipster-needle-liquibase-add-changelog - JHipster will add liquibase changelogs here -->
     <include file="config/liquibase/changelog/20220930140417_added_entity_constraints_Car.xml" relativeToChangelogFile="false"/>
     <!-- jhipster-needle-liquibase-add-constraints-changelog - JHipster will add liquibase constraints changelogs here -->

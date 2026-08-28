@@ -19,6 +19,12 @@ describe("billingService", () => {
     await expect(billingService.getPlans()).resolves.toEqual([]);
     expect(mockedGet).toHaveBeenCalledWith(endpoints.BILLING_PLANS());
   });
+  it("loads the safe payment state contract", async () => {
+    const data = { paymentProviderSubscription: null, latestCheckout: null };
+    mockedGet.mockResolvedValue({ data });
+    await expect(billingService.getBillingPaymentState()).resolves.toBe(data);
+    expect(mockedGet).toHaveBeenCalledWith(endpoints.BILLING_PAYMENT_STATE());
+  });
   it.each([35, 150])("requests backend preview for %s vehicles", async (vehicleCount) => {
     mockedGet.mockResolvedValue({ data: { vehicleCount } });
     await billingService.getPricePreview(vehicleCount);

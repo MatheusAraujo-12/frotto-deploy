@@ -25,4 +25,5 @@ public class MercadoPagoProperties {
     public int getReadTimeoutMillis() { return readTimeoutMillis; }
     public void setReadTimeoutMillis(int value) { this.readTimeoutMillis = value; }
     public boolean hasAccessToken() { return accessToken != null && !accessToken.isBlank(); }
+    public boolean hasWebhookSecret() { return webhookSecret != null && !webhookSecret.isBlank(); }
 }
