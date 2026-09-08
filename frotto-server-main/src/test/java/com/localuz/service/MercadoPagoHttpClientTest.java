@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,6 +54,7 @@ class MercadoPagoHttpClientTest {
         assertThat(sent.uri().toString()).isEqualTo("https://api.mercadopago.com/preapproval");
         assertThat(sent.headers().firstValue("Authorization")).contains("Bearer secret-token");
         assertThat(sent.headers().firstValue("X-Idempotency-Key")).contains("idem-1");
+        assertThat(sent.headers().firstValue("Content-Type")).contains("application/json");
         String body = body(sent); JsonNode json = mapper.readTree(body);
         assertThat(json.path("reason").asText()).isEqualTo("Frotto GOLD");
         assertThat(json.path("external_reference").asText()).isEqualTo("ref-1");
@@ -62,6 +64,8 @@ class MercadoPagoHttpClientTest {
         assertThat(json.path("auto_recurring").path("frequency").asInt()).isEqualTo(1);
         assertThat(json.path("auto_recurring").path("frequency_type").asText()).isEqualTo("months");
         assertThat(json.path("auto_recurring").path("transaction_amount").decimalValue()).isEqualByComparingTo("79.90");
+        // The configured ObjectMapper emits a JSON number and normalizes the scale (79.90 -> 79.9).
+        assertThat(json.path("auto_recurring").path("transaction_amount").toString()).isEqualTo("79.9");
         assertThat(json.path("auto_recurring").path("currency_id").asText()).isEqualTo("BRL");
         assertThat(body).doesNotContain("userId", "secret-token", "vehicleCount");
         assertThat(result.getId()).isEqualTo("pre-1"); assertThat(result.getInitPoint()).isEqualTo("https://mp.test/checkout");
@@ -70,11 +74,35 @@ class MercadoPagoHttpClientTest {
     static Stream<Integer> errorStatuses() { return Stream.of(400, 401, 403, 404, 409, 429, 500, 503); }
 
     @ParameterizedTest @MethodSource("errorStatuses")
-    void mapsHttpErrorsWithoutLeakingProviderBody(int status) {
+    void mapsHttpErrorsWithoutLeakingUnstructuredProviderBody(int status) {
         when(response.statusCode()).thenReturn(status); when(response.body()).thenReturn("provider-secret-body");
         assertThatThrownBy(() -> client.createPreapproval(request(), "idem-1"))
             .isInstanceOf(MercadoPagoException.class).hasMessage("Mercado Pago request failed with status " + status)
             .hasMessageNotContaining("provider-secret-body");
+    }
+
+    @Test
+    void preservesStructuredProviderErrorAndSanitizesSecrets() {
+        when(response.statusCode()).thenReturn(400);
+        when(response.body()).thenReturn("{\"message\":\"payer invalid; Authorization: Bearer secret-token; eyJabc.def.ghi\",\"error\":\"bad_request\",\"cause\":[{\"code\":\"PA400\",\"description\":\"invalid payer\"}],\"access_token\":\"must-not-be-retained\"}");
+        assertThatThrownBy(() -> client.createPreapproval(request(), "idem-1"))
+            .isInstanceOfSatisfying(MercadoPagoException.class, exception -> {
+                assertThat(exception.getHttpStatus()).isEqualTo(400);
+                assertThat(exception.getProviderCode()).isEqualTo("bad_request, PA400");
+                assertThat(exception.getProviderMessage()).contains("payer invalid", "invalid payer", "[REDACTED]")
+                    .doesNotContain("secret-token", "eyJabc.def.ghi", "must-not-be-retained");
+                assertThat(exception.getMessage()).doesNotContain("secret-token", "eyJabc.def.ghi", "must-not-be-retained");
+            });
+    }
+
+    @Test
+    void timeoutRemainsAmbiguousForMutableRequest() throws Exception {
+        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenThrow(new HttpTimeoutException("timed out"));
+        assertThatThrownBy(() -> client.createPreapproval(request(), "idem-1"))
+            .isInstanceOfSatisfying(MercadoPagoException.class, exception -> {
+                assertThat(exception.isAmbiguous()).isTrue();
+                assertThat(exception.getMessage()).isEqualTo("Mercado Pago request timed out");
+            });
     }
 
     @Test

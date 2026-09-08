@@ -13,6 +13,9 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -23,6 +26,8 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
     private final MercadoPagoProperties properties;
     private final ObjectMapper mapper;
     private final HttpClient client;
+    private static final Pattern BEARER = Pattern.compile("(?i)Bearer\\s+[^\\s,;]+");
+    private static final Pattern JWT = Pattern.compile("\\beyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\b");
 
     @Autowired
     public MercadoPagoHttpClient(MercadoPagoProperties properties, ObjectMapper mapper) {
@@ -78,7 +83,7 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
             builder.method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(json));
             HttpResponse<String> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new MercadoPagoException("Mercado Pago request failed with status " + response.statusCode(), false);
+                throw providerError(response);
             }
             JsonNode node = mapper.readTree(response.body());
             String id = text(node, "id"); String status = text(node, "status");
@@ -100,7 +105,7 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
             HttpRequest request = HttpRequest.newBuilder(uri).timeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
                 .header("Authorization", "Bearer " + properties.getAccessToken()).header("Content-Type", "application/json").GET().build();
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) throw new MercadoPagoException("Mercado Pago request failed with status " + response.statusCode(), false);
+            if (response.statusCode() < 200 || response.statusCode() >= 300) throw providerError(response);
             return mapper.readTree(response.body());
         } catch (MercadoPagoException exception) { throw exception;
         } catch (InterruptedException exception) { Thread.currentThread().interrupt(); throw new MercadoPagoException("Mercado Pago request interrupted", false, exception);
@@ -112,5 +117,46 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
     private java.time.Instant instant(JsonNode node, String field) {
         String value = text(node, field); if (value == null) return null;
         try { return java.time.OffsetDateTime.parse(value).toInstant(); } catch (java.time.format.DateTimeParseException ignored) { return null; }
+    }
+
+    private MercadoPagoException providerError(HttpResponse<String> response) {
+        ProviderError details = providerError(response.body());
+        String message = "Mercado Pago request failed with status " + response.statusCode();
+        if (details.code != null) message += " [code=" + details.code + "]";
+        if (details.message != null) message += ": " + details.message;
+        return new MercadoPagoException(message, false, response.statusCode(), details.code, details.message);
+    }
+
+    /** Only known Mercado Pago error fields are retained; arbitrary response JSON is never logged. */
+    private ProviderError providerError(String body) {
+        if (body == null || body.isBlank()) return new ProviderError(null, null);
+        try {
+            JsonNode root = mapper.readTree(body);
+            List<String> codes = new ArrayList<>();
+            List<String> messages = new ArrayList<>();
+            add(codes, text(root, "error")); add(codes, text(root, "code"));
+            add(messages, text(root, "message"));
+            JsonNode causes = root.path("cause");
+            if (causes.isArray()) for (JsonNode cause : causes) {
+                add(codes, text(cause, "code")); add(messages, text(cause, "description"));
+            }
+            return new ProviderError(sanitize(String.join(", ", codes)), sanitize(String.join("; ", messages)));
+        } catch (Exception ignored) {
+            return new ProviderError(null, null);
+        }
+    }
+
+    private void add(List<String> values, String value) { if (value != null && !value.isBlank()) values.add(value); }
+    private String sanitize(String value) {
+        if (value == null || value.isBlank()) return null;
+        String sanitized = BEARER.matcher(value).replaceAll("Bearer [REDACTED]");
+        sanitized = JWT.matcher(sanitized).replaceAll("[REDACTED]");
+        String token = properties.getAccessToken();
+        if (token != null && !token.isBlank()) sanitized = sanitized.replace(token, "[REDACTED]");
+        return sanitized.length() > 500 ? sanitized.substring(0, 500) : sanitized;
+    }
+    private static final class ProviderError {
+        private final String code; private final String message;
+        private ProviderError(String code, String message) { this.code = code; this.message = message; }
     }
 }

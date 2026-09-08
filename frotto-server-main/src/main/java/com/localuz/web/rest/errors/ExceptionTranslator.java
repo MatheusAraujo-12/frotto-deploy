@@ -5,6 +5,7 @@ import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletRequest;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
+import com.localuz.service.MercadoPagoException;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Collection;
@@ -200,6 +201,18 @@ public class ExceptionTranslator implements ProblemHandling, SecurityAdviceTrait
     @ExceptionHandler
     public ResponseEntity<Problem> handleConcurrencyFailure(ConcurrencyFailureException ex, NativeWebRequest request) {
         Problem problem = Problem.builder().withStatus(Status.CONFLICT).with(MESSAGE_KEY, ErrorConstants.ERR_CONCURRENCY_FAILURE).build();
+        return create(ex, problem, request);
+    }
+
+    @ExceptionHandler(MercadoPagoException.class)
+    public ResponseEntity<Problem> handleMercadoPagoFailure(MercadoPagoException ex, NativeWebRequest request) {
+        Problem problem = Problem.builder()
+            .withType(ErrorConstants.DEFAULT_TYPE)
+            .withTitle("Payment provider unavailable")
+            .withStatus(Status.BAD_GATEWAY)
+            .withDetail("Unable to create payment checkout")
+            .with(MESSAGE_KEY, "error.payment.provider")
+            .build();
         return create(ex, problem, request);
     }
 
