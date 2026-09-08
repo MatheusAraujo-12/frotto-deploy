@@ -23,6 +23,8 @@ mercadopago:
   back-url: ${MERCADOPAGO_BACK_URL:}
   connect-timeout-millis: ${MERCADOPAGO_CONNECT_TIMEOUT_MILLIS:3000}
   read-timeout-millis: ${MERCADOPAGO_READ_TIMEOUT_MILLIS:7000}
+  test-mode: ${MERCADOPAGO_TEST_MODE:false}
+  test-payer-email: ${MERCADOPAGO_TEST_PAYER_EMAIL:}
 
 spring:
   servlet:

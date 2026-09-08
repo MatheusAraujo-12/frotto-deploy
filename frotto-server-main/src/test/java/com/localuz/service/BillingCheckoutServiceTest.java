@@ -23,4 +23,45 @@ class BillingCheckoutServiceTest {
  @Test void serializedSecondRequestSeesFirstIntentAndDoesNotCallProviderAgain(){Plan free=plan(PlanCode.FREE,0,2);plan(PlanCode.GOLD,16,30);when(cars.countByUserIdAndActiveTrue(7L)).thenReturn(2L);when(pricing.resolvePlanForVehicleCount(2)).thenReturn(free);when(pricing.calculatePriceForPlan(PlanCode.GOLD,2)).thenReturn(new PricingResult(PlanCode.GOLD,"GOLD",2,new BigDecimal("79.90"),List.of()));when(checkouts.existsByUserIdAndStatusIn(eq(7L),anyList())).thenReturn(false,true);when(client.createPreapproval(any(),any())).thenAnswer(i->{com.localuz.service.dto.MercadoPagoPreapprovalRequest r=i.getArgument(0);return new com.localuz.service.dto.MercadoPagoPreapproval("pre-1","pending",r.getExternalReference(),"https://mp.test/checkout");});service.createCheckout(user,PlanCode.GOLD);assertThatThrownBy(()->service.createCheckout(user,PlanCode.GOLD)).isInstanceOf(com.localuz.web.rest.errors.BillingCheckoutInProgressException.class);verify(users,times(2)).findByIdForBillingCheckoutLock(7L);verify(client,times(1)).createPreapproval(any(),any());}
  @Test void repositoryLockAndTransactionSerializeTheCheckThenCreateSection() throws Exception {org.springframework.data.jpa.repository.Lock lock=UserRepository.class.getMethod("findByIdForBillingCheckoutLock",Long.class).getAnnotation(org.springframework.data.jpa.repository.Lock.class);assertThat(lock).isNotNull();assertThat(lock.value()).isEqualTo(javax.persistence.LockModeType.PESSIMISTIC_WRITE);assertThat(BillingCheckoutService.class.getMethod("createCheckout",User.class,PlanCode.class).getAnnotation(org.springframework.transaction.annotation.Transactional.class)).isNotNull();}
  @Test void serviceHasNoSubscriptionDependency(){assertThat(Arrays.stream(BillingCheckoutService.class.getDeclaredFields()).map(java.lang.reflect.Field::getType).map(Class::getSimpleName)).noneMatch(name->name.contains("Subscription"));}
+
+ private void stubGoldCheckoutPricing(){Plan free=plan(PlanCode.FREE,0,2);plan(PlanCode.GOLD,16,30);when(cars.countByUserIdAndActiveTrue(7L)).thenReturn(2L);when(pricing.resolvePlanForVehicleCount(2)).thenReturn(free);when(pricing.calculatePriceForPlan(PlanCode.GOLD,2)).thenReturn(new PricingResult(PlanCode.GOLD,"GOLD",2,new BigDecimal("79.90"),List.of()));}
+ private ArgumentCaptor<com.localuz.service.dto.MercadoPagoPreapprovalRequest> stubProviderSuccessAndCaptureRequest(){ArgumentCaptor<com.localuz.service.dto.MercadoPagoPreapprovalRequest> captor=ArgumentCaptor.forClass(com.localuz.service.dto.MercadoPagoPreapprovalRequest.class);when(client.createPreapproval(captor.capture(),any())).thenAnswer(i->{com.localuz.service.dto.MercadoPagoPreapprovalRequest r=i.getArgument(0);return new com.localuz.service.dto.MercadoPagoPreapproval("pre-1","pending",r.getExternalReference(),"https://mp.test/checkout");});return captor;}
+
+ @Test void testModeDisabledIgnoresConfiguredTestPayerEmailAndUsesFrottoUserEmail(){
+  properties.setTestMode(false); properties.setTestPayerEmail("buyer-test@testuser.com");
+  stubGoldCheckoutPricing(); var captor=stubProviderSuccessAndCaptureRequest();
+  BillingCheckout result=service.createCheckout(user,PlanCode.GOLD);
+  assertThat(captor.getValue().getPayerEmail()).isEqualTo("payer@example.com");
+  assertThat(captor.getValue().getExternalReference()).isEqualTo(result.getExternalReference());
+  assertThat(captor.getValue().getReason()).isEqualTo("Frotto - plano GOLD");
+  assertThat(captor.getValue().getTransactionAmount()).isEqualByComparingTo("79.90");
+  assertThat(captor.getValue().getCurrencyId()).isEqualTo("BRL");
+  assertThat(captor.getValue().getBackUrl()).isEqualTo("https://frotto.test/menu/meu-plano");
+ }
+
+ @Test void testModeEnabledWithConfiguredEmailUsesTestPayerEmailAndLeavesRestOfPayloadUnchanged(){
+  properties.setTestMode(true); properties.setTestPayerEmail("buyer-test@testuser.com");
+  stubGoldCheckoutPricing(); var captor=stubProviderSuccessAndCaptureRequest();
+  BillingCheckout result=service.createCheckout(user,PlanCode.GOLD);
+  assertThat(captor.getValue().getPayerEmail()).isEqualTo("buyer-test@testuser.com");
+  assertThat(captor.getValue().getExternalReference()).isEqualTo(result.getExternalReference());
+  assertThat(captor.getValue().getReason()).isEqualTo("Frotto - plano GOLD");
+  assertThat(captor.getValue().getTransactionAmount()).isEqualByComparingTo("79.90");
+  assertThat(captor.getValue().getCurrencyId()).isEqualTo("BRL");
+  assertThat(captor.getValue().getBackUrl()).isEqualTo("https://frotto.test/menu/meu-plano");
+ }
+
+ @Test void testModeEnabledWithoutConfiguredEmailFailsBeforeCallingProvider(){
+  properties.setTestMode(true); properties.setTestPayerEmail("   ");
+  stubGoldCheckoutPricing();
+  assertThatThrownBy(()->service.createCheckout(user,PlanCode.GOLD)).isInstanceOf(IllegalStateException.class).hasMessageContaining("test payer email");
+  verifyNoInteractions(client);
+ }
+
+ @Test void missingTestOverrideConfigurationKeepsCurrentBehavior(){
+  assertThat(properties.isTestMode()).isFalse(); assertThat(properties.hasTestPayerEmail()).isFalse();
+  stubGoldCheckoutPricing(); var captor=stubProviderSuccessAndCaptureRequest();
+  service.createCheckout(user,PlanCode.GOLD);
+  assertThat(captor.getValue().getPayerEmail()).isEqualTo("payer@example.com");
+ }
 }

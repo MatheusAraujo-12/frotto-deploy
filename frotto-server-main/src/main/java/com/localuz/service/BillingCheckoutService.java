@@ -58,8 +58,9 @@ public class BillingCheckoutService {
         if(repository.existsByUserIdAndStatusIn(lockedUser.getId(),BLOCKING_STATUSES))throw new BillingCheckoutInProgressException();
         int vehicleCount = Math.toIntExact(cars.countByUserIdAndActiveTrue(user.getId()));
         BillingCheckout checkout = createIntent(lockedUser, requestedPlan, vehicleCount);
+        String payerEmail = resolvePayerEmail(email);
         MercadoPagoPreapprovalRequest request = new MercadoPagoPreapprovalRequest(
-            checkout.getExternalReference(), email, "Frotto - plano " + requestedPlan,
+            checkout.getExternalReference(), payerEmail, "Frotto - plano " + requestedPlan,
             checkout.getQuotedPrice(), "BRL", properties.getBackUrl());
         try {
             MercadoPagoPreapproval preapproval = client.createPreapproval(request, checkout.getIdempotencyKey());
@@ -71,5 +72,16 @@ public class BillingCheckoutService {
             checkout.setStatus(exception.isAmbiguous() ? BillingCheckoutStatus.PROVIDER_UNKNOWN : BillingCheckoutStatus.FAILED);
             repository.save(checkout); throw exception;
         }
+    }
+
+    /**
+     * Mercado Pago sandbox rejects a real payer against a TEST collector ("Both payer and
+     * collector must be real or test users"). testMode must be explicitly enabled in addition to
+     * testPayerEmail being set so this override cannot activate from a stray env var in production.
+     */
+    private String resolvePayerEmail(String authenticatedUserEmail) {
+        if (!properties.isTestMode()) return authenticatedUserEmail;
+        if (!properties.hasTestPayerEmail()) throw new IllegalStateException("Mercado Pago test mode is enabled but no test payer email is configured");
+        return properties.getTestPayerEmail();
     }
 }

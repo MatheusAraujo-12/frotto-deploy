@@ -11,6 +11,9 @@ public class MercadoPagoProperties {
     private String backUrl;
     private int connectTimeoutMillis = 3000;
     private int readTimeoutMillis = 7000;
+    /** Sandbox-only escape hatch: must never be honored unless testMode is also true. */
+    private boolean testMode = false;
+    private String testPayerEmail;
 
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
@@ -24,6 +27,11 @@ public class MercadoPagoProperties {
     public void setConnectTimeoutMillis(int value) { this.connectTimeoutMillis = value; }
     public int getReadTimeoutMillis() { return readTimeoutMillis; }
     public void setReadTimeoutMillis(int value) { this.readTimeoutMillis = value; }
+    public boolean isTestMode() { return testMode; }
+    public void setTestMode(boolean testMode) { this.testMode = testMode; }
+    public String getTestPayerEmail() { return testPayerEmail; }
+    public void setTestPayerEmail(String testPayerEmail) { this.testPayerEmail = testPayerEmail; }
     public boolean hasAccessToken() { return accessToken != null && !accessToken.isBlank(); }
     public boolean hasWebhookSecret() { return webhookSecret != null && !webhookSecret.isBlank(); }
+    public boolean hasTestPayerEmail() { return testPayerEmail != null && !testPayerEmail.isBlank(); }
 }
