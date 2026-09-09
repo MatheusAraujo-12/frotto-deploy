@@ -29,7 +29,14 @@ public class BillingPaymentStateDTO {
 
     public static class LatestCheckout {
         private final BillingCheckoutStatus status; private final PlanCode planCode; private final Instant createdAt;
-        LatestCheckout(BillingCheckout checkout) { status=checkout.getStatus();planCode=checkout.getPlan().getCode();createdAt=checkout.getCreatedAt(); }
+        private final boolean canResume; private final String checkoutUrl;
+        LatestCheckout(BillingCheckout checkout) {
+            status=checkout.getStatus();planCode=checkout.getPlan().getCode();createdAt=checkout.getCreatedAt();
+            String initPoint=checkout.getInitPoint();
+            canResume=status.isResumable() && initPoint!=null && !initPoint.isBlank();
+            checkoutUrl=canResume?initPoint:null;
+        }
         public BillingCheckoutStatus getStatus(){return status;} public PlanCode getPlanCode(){return planCode;} public Instant getCreatedAt(){return createdAt;}
+        public boolean isCanResume(){return canResume;} public String getCheckoutUrl(){return checkoutUrl;}
     }
 }

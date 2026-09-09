@@ -89,6 +89,20 @@ class BillingResourceTest {
     }
 
     @Test
+    void createCheckoutStillPropagatesTheInProgressConflictUnchanged() {
+        when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));
+        when(billingCheckoutService.createCheckout(currentUser, PlanCode.BRONZE))
+            .thenThrow(new com.localuz.web.rest.errors.BillingCheckoutInProgressException());
+        BillingCheckoutRequest request = new BillingCheckoutRequest();
+        request.setPlanCode(PlanCode.BRONZE);
+
+        assertThatThrownBy(() -> billingResource.createCheckout(request))
+            .isInstanceOf(com.localuz.web.rest.errors.BillingCheckoutInProgressException.class)
+            .extracting("status.statusCode")
+            .isEqualTo(409);
+    }
+
+    @Test
     void checkoutRequestDoesNotExposeAUserIdField() {
         assertThat(Arrays.stream(BillingCheckoutRequest.class.getDeclaredFields()).map(field -> field.getName()))
             .containsExactly("planCode");

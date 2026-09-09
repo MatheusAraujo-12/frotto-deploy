@@ -78,6 +78,8 @@ export interface LatestCheckoutState {
   status: BillingCheckoutStatus;
   planCode: PlanCode;
   createdAt: string;
+  canResume: boolean;
+  checkoutUrl: string | null;
 }
 
 export interface BillingPaymentStateDTO {

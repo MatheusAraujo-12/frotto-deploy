@@ -78,6 +78,16 @@ export const paymentNotice = (state: BillingPaymentStateDTO | null): PaymentNoti
   return null;
 };
 
+/**
+ * Trusts the backend's `canResume` flag rather than re-deriving eligibility here, so the
+ * resumable-status rule (BillingCheckoutStatus#isResumable + init_point presence) lives in one
+ * place only.
+ */
+export const resumableCheckoutUrl = (state: BillingPaymentStateDTO | null): string | null => {
+  const checkout = state?.latestCheckout;
+  return checkout?.canResume ? checkout.checkoutUrl : null;
+};
+
 export const isCheckoutInProgressError = (error: unknown): boolean => {
   const response = (error as { response?: { status?: number; data?: { message?: string; errorKey?: string } } })?.response;
   const key = response?.data?.message || response?.data?.errorKey || "";

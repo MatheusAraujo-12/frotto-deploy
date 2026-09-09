@@ -132,7 +132,7 @@ describe("MyPlanPage - checkout modal", () => {
   });
 
   it.each(["CREATED", "PROVIDER_PENDING", "PROVIDER_UNKNOWN"] as const)("bloqueia nova contratação durante %s", async (status) => {
-    mockedBillingService.getBillingPaymentState.mockResolvedValue({ paymentProviderSubscription: null, latestCheckout: { status, planCode: "SILVER", createdAt: "2026-08-28T12:00:00Z" } });
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({ paymentProviderSubscription: null, latestCheckout: { status, planCode: "SILVER", createdAt: "2026-08-28T12:00:00Z", canResume: false, checkoutUrl: null } });
     await renderLoadedPage();
     const silverCard = screen.getByText("Prata").closest("section")!;
     expect(Array.from(silverCard.querySelectorAll("button")).find((button) => button.textContent === "Escolher plano")).toBeDisabled();
@@ -140,7 +140,7 @@ describe("MyPlanPage - checkout modal", () => {
   });
 
   it("trata 409 como pagamento em andamento e atualiza payment-state", async () => {
-    mockedBillingService.getBillingPaymentState.mockResolvedValueOnce({ paymentProviderSubscription: null, latestCheckout: null }).mockResolvedValueOnce({ paymentProviderSubscription: null, latestCheckout: { status: "PROVIDER_PENDING", planCode: "SILVER", createdAt: "2026-08-28T12:00:00Z" } });
+    mockedBillingService.getBillingPaymentState.mockResolvedValueOnce({ paymentProviderSubscription: null, latestCheckout: null }).mockResolvedValueOnce({ paymentProviderSubscription: null, latestCheckout: { status: "PROVIDER_PENDING", planCode: "SILVER", createdAt: "2026-08-28T12:00:00Z", canResume: false, checkoutUrl: null } });
     mockedBillingService.createCheckout.mockRejectedValue({ response: { status: 409, data: { message: "error.BILLING_CHECKOUT_IN_PROGRESS" } } });
     await renderLoadedPage(); chooseSilver();
     fireEvent.click(screen.getByRole("button", { name: "Continuar para pagamento" }));
@@ -169,6 +169,50 @@ describe("MyPlanPage - checkout modal", () => {
     expect(container.querySelector(".my-plan-current h1")).toHaveTextContent("Ouro");
     removeToken();
     await waitFor(() => expect(container.querySelector(".my-plan-current")).not.toBeInTheDocument());
+  });
+
+  it("mostra Continuar pagamento quando canResume=true e redireciona sem criar novo checkout", async () => {
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({
+      paymentProviderSubscription: null,
+      latestCheckout: { status: "PROVIDER_PENDING", planCode: "BRONZE", createdAt: "2026-08-28T12:00:00Z", canResume: true, checkoutUrl: "https://mp.test/resume" },
+    });
+    await renderLoadedPage();
+
+    const resumeButton = screen.getByRole("button", { name: "Continuar pagamento" });
+    fireEvent.click(resumeButton);
+
+    expect(mockedNavigate).toHaveBeenCalledWith("https://mp.test/resume");
+    expect(mockedBillingService.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it("esconde Continuar pagamento quando canResume=false", async () => {
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({
+      paymentProviderSubscription: null,
+      latestCheckout: { status: "FAILED", planCode: "BRONZE", createdAt: "2026-08-28T12:00:00Z", canResume: false, checkoutUrl: null },
+    });
+    await renderLoadedPage();
+
+    expect(screen.queryByRole("button", { name: "Continuar pagamento" })).not.toBeInTheDocument();
+  });
+
+  it("preserva Atualizar status junto de Continuar pagamento", async () => {
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({
+      paymentProviderSubscription: null,
+      latestCheckout: { status: "PROVIDER_PENDING", planCode: "BRONZE", createdAt: "2026-08-28T12:00:00Z", canResume: true, checkoutUrl: "https://mp.test/resume" },
+    });
+    await renderLoadedPage();
+
+    expect(screen.getByRole("button", { name: "Continuar pagamento" })).toBeInTheDocument();
+    const refreshButton = screen.getByRole("button", { name: "Atualizar status" });
+    fireEvent.click(refreshButton);
+    await waitFor(() => expect(mockedBillingService.getBillingPaymentState).toHaveBeenCalledTimes(2));
+  });
+
+  it("não quebra a página quando não existe checkout", async () => {
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({ paymentProviderSubscription: null, latestCheckout: null });
+    await renderLoadedPage();
+
+    expect(screen.queryByRole("button", { name: "Continuar pagamento" })).not.toBeInTheDocument();
   });
 
   it("não navega com resposta tardia do checkout da sessão anterior", async () => {

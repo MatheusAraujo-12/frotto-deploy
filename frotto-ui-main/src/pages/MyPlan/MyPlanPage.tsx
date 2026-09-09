@@ -9,7 +9,7 @@ import { BillingMeDTO, BillingPaymentStateDTO, PLAN_LABELS, PlanDTO, PricePrevie
 import { getApiErrorMessage } from "../../services/apiErrorMessage";
 import billingService from "../../services/billingService";
 import { getToken, subscribeToTokenChanges } from "../../services/localStorage/localstorage";
-import { checkoutBlocksPurchase, checkoutNeedsRefresh, fleetUsage, friendlyPlan, isCheckoutInProgressError, isPlanCompatible, money, paymentNotice, sourceDetail, sourceLabel, statusLabel, usageState, vehicleRange } from "./myPlanLogic";
+import { checkoutBlocksPurchase, checkoutNeedsRefresh, fleetUsage, friendlyPlan, isCheckoutInProgressError, isPlanCompatible, money, paymentNotice, resumableCheckoutUrl, sourceDetail, sourceLabel, statusLabel, usageState, vehicleRange } from "./myPlanLogic";
 import "./MyPlanPage.css";
 import { navigateToCheckout } from "./checkoutNavigation";
 
@@ -97,12 +97,13 @@ const MyPlanPage: React.FC = () => {
   const rawNotice = paymentNotice(paymentState);
   const notice = rawNotice?.title === "Assinatura ativa" && billing.subscriptionSource === "PAYMENT_PROVIDER" && billing.subscriptionStatus === "ACTIVE" ? null : rawNotice;
   const checkoutBlocked = checkoutBlocksPurchase(paymentState);
+  const resumeUrl = resumableCheckoutUrl(paymentState);
 
   return <IonPage id="my-plan-page">
     <PageHeader />
     <IonContent>
       <div className="section-shell my-plan-shell">
-        {notice && <div className={`my-plan-alert my-plan-alert--${notice.tone}`} role={notice.tone === "warning" || notice.tone === "danger" ? "alert" : "status"}><strong>{notice.title}</strong><span>{notice.detail}</span>{checkoutNeedsRefresh(paymentState) && <IonButton size="small" fill="outline" onClick={() => void load()}>Atualizar status</IonButton>}</div>}
+        {notice && <div className={`my-plan-alert my-plan-alert--${notice.tone}`} role={notice.tone === "warning" || notice.tone === "danger" ? "alert" : "status"}><strong>{notice.title}</strong><span>{notice.detail}</span>{resumeUrl && <IonButton size="small" onClick={() => navigateToCheckout(resumeUrl)}>Continuar pagamento</IonButton>}{checkoutNeedsRefresh(paymentState) && <IonButton size="small" fill="outline" onClick={() => void load()}>Atualizar status</IonButton>}</div>}
         <IonCard className="my-plan-current">
           <IonCardContent>
             <div className="my-plan-current__header"><div><span className="my-plan-eyebrow">Seu plano</span><h1>{friendlyPlan(billing.planCode)}</h1><p>{sourceDetail(billing)}</p></div><IonBadge>{sourceLabel(billing.subscriptionSource)}</IonBadge></div>

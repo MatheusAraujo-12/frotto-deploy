@@ -52,7 +52,51 @@ class BillingPaymentStateServiceTest {
 
     @Test void contractDoesNotExposeProviderOrOwnershipIdentifiers(){
         List<String> fields=Stream.of(BillingPaymentStateDTO.class,BillingPaymentStateDTO.PaymentProviderSubscription.class,BillingPaymentStateDTO.LatestCheckout.class).flatMap(type->Stream.of(type.getDeclaredFields())).map(field->field.getName()).toList();
-        assertThat(fields).doesNotContain("providerSubscriptionId","externalSubscriptionId","externalReference","idempotencyKey","userId","checkoutUrl");
+        // checkoutUrl is intentionally exposed since it is the resumable checkout's own init_point,
+        // the same URL createCheckout already returns for the browser to redirect to.
+        assertThat(fields).doesNotContain("providerSubscriptionId","externalSubscriptionId","externalReference","idempotencyKey","userId");
+    }
+
+    @ParameterizedTest @MethodSource("resumeEligibility")
+    void computesCanResumeFromStatusAndInitPointPresence(BillingCheckoutStatus status, boolean hasInitPoint, boolean expectedCanResume){
+        BillingCheckout checkout=checkout(status);
+        if(hasInitPoint) checkout.setInitPoint("https://mp.test/checkout/resume");
+        when(checkouts.findFirstByUserIdOrderByCreatedAtDesc(42L)).thenReturn(Optional.of(checkout));
+        BillingPaymentStateDTO result=service.getState(user);
+        assertThat(result.getLatestCheckout().isCanResume()).isEqualTo(expectedCanResume);
+        assertThat(result.getLatestCheckout().getCheckoutUrl()).isEqualTo(expectedCanResume?"https://mp.test/checkout/resume":null);
+    }
+
+    @Test void neverExposesAnotherUsersCheckoutUrl(){
+        User userA=new User();userA.setId(1L);User userB=new User();userB.setId(2L);
+        BillingCheckout checkoutA=checkout(BillingCheckoutStatus.PROVIDER_PENDING);checkoutA.setInitPoint("https://mp.test/user-a");
+        BillingCheckout checkoutB=checkout(BillingCheckoutStatus.PROVIDER_PENDING);checkoutB.setInitPoint("https://mp.test/user-b");
+        when(checkouts.findFirstByUserIdOrderByCreatedAtDesc(1L)).thenReturn(Optional.of(checkoutA));
+        when(checkouts.findFirstByUserIdOrderByCreatedAtDesc(2L)).thenReturn(Optional.of(checkoutB));
+
+        BillingPaymentStateDTO resultA=service.getState(userA);
+        BillingPaymentStateDTO resultB=service.getState(userB);
+
+        assertThat(resultA.getLatestCheckout().getCheckoutUrl()).isEqualTo("https://mp.test/user-a");
+        assertThat(resultB.getLatestCheckout().getCheckoutUrl()).isEqualTo("https://mp.test/user-b");
+        org.mockito.Mockito.verify(checkouts).findFirstByUserIdOrderByCreatedAtDesc(1L);
+        org.mockito.Mockito.verify(checkouts).findFirstByUserIdOrderByCreatedAtDesc(2L);
+        org.mockito.Mockito.verifyNoMoreInteractions(checkouts);
+    }
+
+    static Stream<org.junit.jupiter.params.provider.Arguments> resumeEligibility(){
+        return Stream.of(
+            org.junit.jupiter.params.provider.Arguments.of(BillingCheckoutStatus.CREATED,true,true),
+            org.junit.jupiter.params.provider.Arguments.of(BillingCheckoutStatus.CREATED,false,false),
+            org.junit.jupiter.params.provider.Arguments.of(BillingCheckoutStatus.PROVIDER_PENDING,true,true),
+            org.junit.jupiter.params.provider.Arguments.of(BillingCheckoutStatus.PROVIDER_PENDING,false,false),
+            org.junit.jupiter.params.provider.Arguments.of(BillingCheckoutStatus.PROVIDER_UNKNOWN,true,true),
+            org.junit.jupiter.params.provider.Arguments.of(BillingCheckoutStatus.PROVIDER_UNKNOWN,false,false),
+            org.junit.jupiter.params.provider.Arguments.of(BillingCheckoutStatus.AUTHORIZED,true,false),
+            org.junit.jupiter.params.provider.Arguments.of(BillingCheckoutStatus.FAILED,true,false),
+            org.junit.jupiter.params.provider.Arguments.of(BillingCheckoutStatus.EXPIRED,true,false),
+            org.junit.jupiter.params.provider.Arguments.of(BillingCheckoutStatus.CANCELED,true,false)
+        );
     }
 
     static Stream<SubscriptionStatus> subscriptionStatuses(){return Stream.of(SubscriptionStatus.ACTIVE,SubscriptionStatus.PAST_DUE,SubscriptionStatus.PAUSED,SubscriptionStatus.CANCELED);}
