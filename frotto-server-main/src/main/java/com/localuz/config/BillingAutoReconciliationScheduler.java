@@ -50,6 +50,18 @@ import org.springframework.stereotype.Component;
  * checkouts already stuck locally and calls the same read-only reconciliation path the webhook
  * uses, so the ADMIN_GRANT > PAYMENT_PROVIDER > GRANDFATHERED precedence in SubscriptionService
  * is inherited unchanged - this class never writes to Subscription itself.
+ *
+ * Etapa 5E.4: a checkout that never resolves must not be polled every cycle forever. Age-based
+ * backoff (see BillingAutoReconciliationBackoffPolicy) decides, per checkout, whether this cycle
+ * reconciles it or skips it - it only ever throttles how often we call Mercado Pago, it never
+ * gives up on a checkout by age alone. A checkout stuck for months is still reconciled, just at
+ * most once every 24h: the corresponding preapproval could still legitimately resolve on Mercado
+ * Pago's side, and locally marking it EXPIRED (which frees the user to start a second checkout,
+ * per BillingCheckoutService's BLOCKING_STATUSES) while the old preapproval is still pending would
+ * risk ending up with two concurrent provider subscriptions if it later completed. Deciding to
+ * stop polling and explicitly cancel an abandoned preapproval on the provider is deferred to a
+ * later stage. Whatever state Mercado Pago eventually returns - including a terminal one - is
+ * still handled by the normal MercadoPagoWebhookProcessor#process path, unchanged here.
  */
 @Component
 public class BillingAutoReconciliationScheduler {
@@ -125,25 +137,52 @@ public class BillingAutoReconciliationScheduler {
             return;
         }
 
-        long windowBucket = Instant.now(clock).getEpochSecond() / Math.max(1L, (long) intervalMinutes * 60);
-        log.info("Billing auto-reconciliation: {} eligible checkout(s) found for window={}", eligible.size(), windowBucket);
+        Instant now = Instant.now(clock);
+        long windowBucket = now.getEpochSecond() / Math.max(1L, (long) intervalMinutes * 60);
 
+        int processed = 0;
+        int failed = 0;
+        int skippedBackoff = 0;
         for (BillingCheckout checkout : eligible) {
-            reconcileOne(checkout, windowBucket);
+            BillingAutoReconciliationBackoffPolicy.Decision decision = BillingAutoReconciliationBackoffPolicy.decide(
+                checkout.getCreatedAt(),
+                now,
+                windowBucket,
+                intervalMinutes
+            );
+            if (decision == BillingAutoReconciliationBackoffPolicy.Decision.SKIP_BACKOFF) {
+                skippedBackoff++;
+                continue;
+            }
+            if (reconcileOne(checkout, windowBucket)) {
+                processed++;
+            } else {
+                failed++;
+            }
         }
+        log.info(
+            "Billing auto-reconciliation summary: eligible={} processed={} skippedBackoff={} failed={} window={}",
+            eligible.size(),
+            processed,
+            skippedBackoff,
+            failed,
+            windowBucket
+        );
     }
 
-    private void reconcileOne(BillingCheckout checkout, long windowBucket) {
+    private boolean reconcileOne(BillingCheckout checkout, long windowBucket) {
         if (StringUtils.isBlank(checkout.getProviderSubscriptionId())) {
             log.warn("Billing auto-reconciliation: checkoutId={} has no providerSubscriptionId; skipping.", checkout.getId());
-            return;
+            return false;
         }
         String requestId = "auto-reconcile-" + checkout.getId() + "-" + windowBucket;
         try {
             MercadoPagoWebhookProcessor.Result result = processor.process(requestId, PREAPPROVAL_TOPIC, checkout.getProviderSubscriptionId());
             log.info("Billing auto-reconciliation: checkoutId={} result={}", checkout.getId(), result);
+            return true;
         } catch (Exception exception) {
             log.error("Billing auto-reconciliation: checkoutId={} failed: {}", checkout.getId(), exception.getMessage());
+            return false;
         }
     }
 }

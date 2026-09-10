@@ -89,11 +89,17 @@ class BillingAutoReconciliationSchedulerTest {
         }
     }
 
+    /** Defaults createdAt to 10 minutes before FIXED_NOW: past minAgeMinutes (5) but well inside the "recent, reconcile every cycle" backoff tier (&lt;1h), so existing tests that don't care about age keep their original always-eligible behavior. */
     private static BillingCheckout checkout(Long id, String providerSubscriptionId, BillingCheckoutStatus status) {
+        return checkoutAged(id, providerSubscriptionId, status, FIXED_NOW.minusSeconds(10 * 60));
+    }
+
+    private static BillingCheckout checkoutAged(Long id, String providerSubscriptionId, BillingCheckoutStatus status, Instant createdAt) {
         BillingCheckout checkout = new BillingCheckout();
         checkout.setId(id);
         checkout.setProviderSubscriptionId(providerSubscriptionId);
         checkout.setStatus(status);
+        checkout.setCreatedAt(createdAt);
         return checkout;
     }
 
@@ -276,5 +282,118 @@ class BillingAutoReconciliationSchedulerTest {
         scheduler(FIXED_NOW).reconcilePendingCheckouts();
 
         assertThat(logAppender.list).allMatch(event -> event.getLevel() == Level.INFO || event.getLevel() == Level.WARN || event.getLevel() == Level.ERROR);
+    }
+
+    // --- Etapa 5E.4: age-based backoff / expiry ---
+
+    private static final Instant ALIGNED_NOW = Instant.EPOCH; // windowBucket=0, divisible by every backoff tier
+    private static final Instant UNALIGNED_NOW = Instant.EPOCH.plusSeconds(15 * 60); // windowBucket=1, aligned to nothing
+
+    @Test
+    void underOneHourOldIsReconciledEveryCycleRegardlessOfWindow() {
+        BillingCheckout recent = checkoutAged(1L, "pre-1", BillingCheckoutStatus.PROVIDER_PENDING, UNALIGNED_NOW.minusSeconds(30 * 60));
+        when(checkoutRepository.findByStatusInAndProviderSubscriptionIdIsNotNullAndCreatedAtBefore(any(), any())).thenReturn(List.of(recent));
+        when(processor.process(anyString(), anyString(), anyString())).thenReturn(MercadoPagoWebhookProcessor.Result.PROCESSED);
+
+        scheduler(UNALIGNED_NOW).reconcilePendingCheckouts();
+
+        verify(processor, times(1)).process(anyString(), anyString(), eq("pre-1"));
+    }
+
+    @Test
+    void between1hAnd24hSkipsUnalignedWindowsAndReconcilesOnlyOncePerHour() {
+        BillingCheckout stale = checkoutAged(2L, "pre-2", BillingCheckoutStatus.PROVIDER_PENDING, UNALIGNED_NOW.minusSeconds(5 * 3600));
+        when(checkoutRepository.findByStatusInAndProviderSubscriptionIdIsNotNullAndCreatedAtBefore(any(), any())).thenReturn(List.of(stale));
+
+        scheduler(UNALIGNED_NOW).reconcilePendingCheckouts();
+        verifyNoInteractions(processor);
+
+        BillingCheckout staleAtAlignedTime = checkoutAged(2L, "pre-2", BillingCheckoutStatus.PROVIDER_PENDING, ALIGNED_NOW.minusSeconds(5 * 3600));
+        when(checkoutRepository.findByStatusInAndProviderSubscriptionIdIsNotNullAndCreatedAtBefore(any(), any())).thenReturn(List.of(staleAtAlignedTime));
+        when(processor.process(anyString(), anyString(), anyString())).thenReturn(MercadoPagoWebhookProcessor.Result.PROCESSED);
+
+        scheduler(ALIGNED_NOW).reconcilePendingCheckouts();
+        verify(processor, times(1)).process(anyString(), anyString(), eq("pre-2"));
+    }
+
+    @Test
+    void between24hAnd7dSkipsUnalignedWindowsAndReconcilesOnlyOnceEverySixHours() {
+        BillingCheckout stale = checkoutAged(3L, "pre-3", BillingCheckoutStatus.PROVIDER_UNKNOWN, UNALIGNED_NOW.minusSeconds(3 * 24 * 3600L));
+        when(checkoutRepository.findByStatusInAndProviderSubscriptionIdIsNotNullAndCreatedAtBefore(any(), any())).thenReturn(List.of(stale));
+
+        scheduler(UNALIGNED_NOW).reconcilePendingCheckouts();
+        verifyNoInteractions(processor);
+
+        BillingCheckout staleAtAlignedTime = checkoutAged(3L, "pre-3", BillingCheckoutStatus.PROVIDER_UNKNOWN, ALIGNED_NOW.minusSeconds(3 * 24 * 3600L));
+        when(checkoutRepository.findByStatusInAndProviderSubscriptionIdIsNotNullAndCreatedAtBefore(any(), any())).thenReturn(List.of(staleAtAlignedTime));
+        when(processor.process(anyString(), anyString(), anyString())).thenReturn(MercadoPagoWebhookProcessor.Result.PROCESSED);
+
+        scheduler(ALIGNED_NOW).reconcilePendingCheckouts();
+        verify(processor, times(1)).process(anyString(), anyString(), eq("pre-3"));
+    }
+
+    @Test
+    void atLeastSevenDaysOldReconcilesOnlyInTheDailyAlignedWindow() {
+        BillingCheckout ancient = checkoutAged(4L, "pre-4", BillingCheckoutStatus.PROVIDER_PENDING, UNALIGNED_NOW.minusSeconds(30 * 24 * 3600L));
+        when(checkoutRepository.findByStatusInAndProviderSubscriptionIdIsNotNullAndCreatedAtBefore(any(), any())).thenReturn(List.of(ancient));
+
+        scheduler(UNALIGNED_NOW).reconcilePendingCheckouts();
+        verifyNoInteractions(processor);
+
+        BillingCheckout ancientAtAlignedTime = checkoutAged(4L, "pre-4", BillingCheckoutStatus.PROVIDER_PENDING, ALIGNED_NOW.minusSeconds(30 * 24 * 3600L));
+        when(checkoutRepository.findByStatusInAndProviderSubscriptionIdIsNotNullAndCreatedAtBefore(any(), any())).thenReturn(List.of(ancientAtAlignedTime));
+        when(processor.process(anyString(), anyString(), anyString())).thenReturn(MercadoPagoWebhookProcessor.Result.PROCESSED);
+
+        scheduler(ALIGNED_NOW).reconcilePendingCheckouts();
+        verify(processor, times(1)).process(anyString(), anyString(), eq("pre-4"));
+    }
+
+    @Test
+    void atLeastSevenDaysOldNeverWritesExpiredStatusAndKeepsGoingThroughTheNormalProcessorPath() {
+        BillingCheckout ancient = checkoutAged(5L, "pre-5", BillingCheckoutStatus.PROVIDER_UNKNOWN, ALIGNED_NOW.minusSeconds(90 * 24 * 3600L));
+        when(checkoutRepository.findByStatusInAndProviderSubscriptionIdIsNotNullAndCreatedAtBefore(any(), any())).thenReturn(List.of(ancient));
+        // Whatever Mercado Pago returns - including a terminal state - is passed straight through
+        // to the existing processor; this scheduler never inspects or acts on the Result itself.
+        when(processor.process(anyString(), anyString(), anyString())).thenReturn(MercadoPagoWebhookProcessor.Result.PROCESSED);
+
+        scheduler(ALIGNED_NOW).reconcilePendingCheckouts();
+
+        verify(processor, times(1)).process(anyString(), anyString(), eq("pre-5"));
+        verify(checkoutRepository, never()).save(any());
+        verify(checkoutRepository, never()).findById(any());
+    }
+
+    @Test
+    void neverTouchesSubscriptionRegardlessOfCheckoutAge() {
+        boolean hasSubscriptionRepositoryField = false;
+        for (Field field : BillingAutoReconciliationScheduler.class.getDeclaredFields()) {
+            if (field.getType().getSimpleName().equals("SubscriptionRepository")) {
+                hasSubscriptionRepositoryField = true;
+            }
+        }
+        assertThat(hasSubscriptionRepositoryField).isFalse();
+    }
+
+    @Test
+    void hasNoDecisionThatGivesUpOnACheckoutByAgeAlone() {
+        for (BillingAutoReconciliationBackoffPolicy.Decision decision : BillingAutoReconciliationBackoffPolicy.Decision.values()) {
+            assertThat(decision.name()).isNotEqualTo("EXPIRE");
+        }
+    }
+
+    @Test
+    void summaryLogReportsEligibleProcessedSkippedAndFailedCounts() {
+        BillingCheckout recent = checkoutAged(10L, "pre-10", BillingCheckoutStatus.PROVIDER_PENDING, FIXED_NOW.minusSeconds(10 * 60));
+        BillingCheckout alsoRecentButFails = checkoutAged(12L, "pre-12", BillingCheckoutStatus.PROVIDER_PENDING, FIXED_NOW.minusSeconds(10 * 60));
+        when(checkoutRepository.findByStatusInAndProviderSubscriptionIdIsNotNullAndCreatedAtBefore(any(), any())).thenReturn(List.of(recent, alsoRecentButFails));
+        when(processor.process(anyString(), anyString(), eq("pre-10"))).thenReturn(MercadoPagoWebhookProcessor.Result.PROCESSED);
+        when(processor.process(anyString(), anyString(), eq("pre-12"))).thenThrow(new MercadoPagoException("boom", false));
+
+        scheduler(FIXED_NOW).reconcilePendingCheckouts();
+
+        assertThat(loggedMessages()).anyMatch(
+            message -> message.contains("eligible=2") && message.contains("processed=1") && message.contains("failed=1") && message.contains("skippedBackoff=0")
+        );
+        assertThat(loggedMessages()).noneMatch(message -> message.contains("expired="));
     }
 }
