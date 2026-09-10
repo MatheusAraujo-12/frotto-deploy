@@ -236,6 +236,16 @@ billing:
   enforcement:
     enabled: ${BILLING_ENFORCEMENT_ENABLED:false}
 
+# Billing operational one-off: reconciles a single user's already-authorized Mercado Pago
+# subscription without waiting for (or resending) a webhook, and without any new charge - see
+# com.localuz.config.BillingReconciliationRunner. Must stay disabled by default in every
+# environment; the runner itself refuses to act unless mercadopago.test-mode is also true, so it
+# can never fire against production even if left enabled by mistake. Same one-deploy-then-revert
+# discipline as admin.bootstrap above.
+  reconciliation:
+    enabled: ${BILLING_RECONCILIATION_ENABLED:false}
+    user-login: ${BILLING_RECONCILIATION_USER_LOGIN:}
+
 # Billing Etapa 4A: one-shot operational bootstrap to promote a single pre-existing user to
 # ROLE_ADMIN. Must stay disabled by default in every environment - only ever meant to be
 # flipped to true for one deploy in staging (or, later, production), then flipped back to

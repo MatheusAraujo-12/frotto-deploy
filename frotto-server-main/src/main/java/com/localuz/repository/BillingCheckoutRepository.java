@@ -8,5 +8,6 @@ public interface BillingCheckoutRepository extends JpaRepository<BillingCheckout
     Optional<BillingCheckout> findByExternalReference(String externalReference);
     Optional<BillingCheckout> findByProviderSubscriptionId(String providerSubscriptionId);
     Optional<BillingCheckout> findFirstByUserIdOrderByCreatedAtDesc(Long userId);
+    Optional<BillingCheckout> findFirstByUserIdAndStatusInOrderByCreatedAtDesc(Long userId, List<BillingCheckoutStatus> statuses);
     boolean existsByUserIdAndStatusIn(Long userId, List<BillingCheckoutStatus> statuses);
 }
