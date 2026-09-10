@@ -245,6 +245,14 @@ billing:
   reconciliation:
     enabled: ${BILLING_RECONCILIATION_ENABLED:false}
     user-login: ${BILLING_RECONCILIATION_USER_LOGIN:}
+    # Etapa 5E.3: periodic safety net behind the webhook - see
+    # com.localuz.config.BillingAutoReconciliationScheduler. Disabled by default everywhere;
+    # staging may turn it on. Read-only against Mercado Pago (GET only), never charges, never
+    # creates/cancels a preapproval.
+    auto:
+      enabled: ${BILLING_RECONCILIATION_AUTO_ENABLED:false}
+      interval-minutes: ${BILLING_RECONCILIATION_AUTO_INTERVAL_MINUTES:15}
+      min-age-minutes: ${BILLING_RECONCILIATION_AUTO_MIN_AGE_MINUTES:5}
 
 # Billing Etapa 4A: one-shot operational bootstrap to promote a single pre-existing user to
 # ROLE_ADMIN. Must stay disabled by default in every environment - only ever meant to be

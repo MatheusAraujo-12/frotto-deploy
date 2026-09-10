@@ -30,23 +30,46 @@ public class MercadoPagoWebhookProcessor {
 
     @Transactional
     public Result process(String requestId,String type,String resourceId){
-        if(events.existsByRequestIdAndEventTypeAndResourceId(requestId,type,resourceId))return Result.DUPLICATE;
+        if(events.existsByRequestIdAndEventTypeAndResourceId(requestId,type,resourceId)){
+            LOG.info("Mercado Pago webhook event duplicate requestId={} eventType={} resourceId={}",requestId,type,resourceId);
+            return Result.DUPLICATE;
+        }
+        LOG.info("Mercado Pago webhook event started requestId={} eventType={} resourceId={}",requestId,type,resourceId);
         MercadoPagoPreapproval preapproval; MercadoPagoAuthorizedPayment payment=null;
-        if(PREAPPROVAL.equals(type)){preapproval=client.getPreapproval(resourceId);}
-        else if(AUTHORIZED_PAYMENT.equals(type)){
-            payment=client.getAuthorizedPayment(resourceId);
-            preapproval=client.getPreapproval(payment.getPreapprovalId());
-        } else {return Result.IGNORED;}
-        if(preapproval.getId()==null){saveEvent(requestId,type,resourceId);return Result.IGNORED;}
+        try {
+            if(PREAPPROVAL.equals(type)){preapproval=client.getPreapproval(resourceId);}
+            else if(AUTHORIZED_PAYMENT.equals(type)){
+                payment=client.getAuthorizedPayment(resourceId);
+                preapproval=client.getPreapproval(payment.getPreapprovalId());
+            } else {
+                LOG.info("Mercado Pago webhook event ignored requestId={} eventType={} resourceId={} reason=unknown_event_type",requestId,type,resourceId);
+                return Result.IGNORED;
+            }
+        } catch (RuntimeException providerFailure) {
+            LOG.warn("Mercado Pago webhook provider GET failed requestId={} eventType={} resourceId={}",requestId,type,resourceId);
+            throw providerFailure;
+        }
+        if(preapproval.getId()==null){
+            LOG.info("Mercado Pago webhook event ignored requestId={} eventType={} resourceId={} reason=invalid_provider_response",requestId,type,resourceId);
+            saveEvent(requestId,type,resourceId);return Result.IGNORED;
+        }
         Optional<BillingCheckout> byProvider=checkouts.findByProviderSubscriptionId(preapproval.getId());
         Optional<BillingCheckout> byReference=checkouts.findByExternalReference(preapproval.getExternalReference());
-        if(byProvider.isPresent() && byReference.isPresent() && !byProvider.get().getId().equals(byReference.get().getId())){LOG.warn("Mercado Pago ownership mismatch for resource {}",resourceId);saveEvent(requestId,type,resourceId);return Result.IGNORED;}
+        if(byProvider.isPresent() && byReference.isPresent() && !byProvider.get().getId().equals(byReference.get().getId())){
+            LOG.warn("Mercado Pago webhook event ignored requestId={} eventType={} resourceId={} reason=ownership_mismatch",requestId,type,resourceId);
+            saveEvent(requestId,type,resourceId);return Result.IGNORED;
+        }
         BillingCheckout checkout=byProvider.orElseGet(()->byReference.orElse(null));
-        if(checkout==null || !checkout.getExternalReference().equals(preapproval.getExternalReference()) || (checkout.getProviderSubscriptionId()!=null && !checkout.getProviderSubscriptionId().equals(preapproval.getId()))){LOG.warn("Mercado Pago resource {} has no matching checkout",resourceId);saveEvent(requestId,type,resourceId);return Result.IGNORED;}
+        if(checkout==null || !checkout.getExternalReference().equals(preapproval.getExternalReference()) || (checkout.getProviderSubscriptionId()!=null && !checkout.getProviderSubscriptionId().equals(preapproval.getId()))){
+            LOG.warn("Mercado Pago webhook event ignored requestId={} eventType={} resourceId={} reason=no_matching_checkout",requestId,type,resourceId);
+            saveEvent(requestId,type,resourceId);return Result.IGNORED;
+        }
         checkout.setProviderSubscriptionId(preapproval.getId()); checkout.setProviderStatus(preapproval.getStatus());
         reconcile(checkout,preapproval,PREAPPROVAL.equals(type));
         if(payment!=null && "authorized".equalsIgnoreCase(preapproval.getStatus()))reconcilePayment(preapproval.getId(),payment);
-        saveEvent(requestId,type,resourceId); return Result.PROCESSED;
+        saveEvent(requestId,type,resourceId);
+        LOG.info("Mercado Pago webhook event processed requestId={} eventType={} resourceId={} providerStatus={}",requestId,type,resourceId,preapproval.getStatus());
+        return Result.PROCESSED;
     }
 
     private void saveEvent(String requestId,String type,String resourceId){Instant now=Instant.now();MercadoPagoWebhookEvent event=new MercadoPagoWebhookEvent();event.setRequestId(requestId);event.setEventType(type);event.setResourceId(resourceId);event.setReceivedAt(now);event.setProcessedAt(now);events.saveAndFlush(event);}
