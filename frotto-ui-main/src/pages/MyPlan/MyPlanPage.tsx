@@ -95,7 +95,7 @@ const MyPlanPage: React.FC = () => {
   };
 
   const cancelSubscription = async () => {
-    if (!billing || !isSubscriptionCancelable(billing) || cancelInFlight.current || cancellation?.state === "CONFIRMED") return;
+    if (!billing || !isSubscriptionCancelable(billing) || cancelInFlight.current || (cancellation?.state ?? billing.cancellationState) === "CONFIRMED") return;
     const sessionId = loadId.current;
     cancelInFlight.current = true;
     setCancelLoading(true); setCancelError("");
@@ -131,8 +131,9 @@ const MyPlanPage: React.FC = () => {
   const notice = rawNotice?.title === "Assinatura ativa" && billing.subscriptionSource === "PAYMENT_PROVIDER" && billing.subscriptionStatus === "ACTIVE" ? null : rawNotice;
   const checkoutBlocked = checkoutBlocksPurchase(paymentState);
   const cancelable = isSubscriptionCancelable(billing);
-  const confirmed = cancellation?.state === "CONFIRMED";
-  const pending = cancellation?.state === "PENDING_CONFIRMATION";
+  const cancellationState = cancellation?.state ?? billing.cancellationState;
+  const confirmed = cancellationState === "CONFIRMED";
+  const pending = cancellationState === "PENDING_CONFIRMATION";
   const periodEnd = cancellation?.currentPeriodEnd ?? billing.currentPeriodEnd;
   const endDate = periodEnd && formatDate(periodEnd) !== "—" ? formatDate(periodEnd) : null;
   const resumeUrl = resumableCheckoutUrl(paymentState);
@@ -148,8 +149,7 @@ const MyPlanPage: React.FC = () => {
             {confirmed && <div className="my-plan-alert" role="status"><IonBadge color="success">Cancelamento agendado</IonBadge><span>{endDate ? `Seu plano ficará ativo até ${endDate}. Não haverá nova renovação.` : "Seu plano ficará ativo até o fim do período atual. Não haverá nova renovação."}</span></div>}
             {pending && <div className="my-plan-alert" role="status">Estamos confirmando o cancelamento com o Mercado Pago.</div>}
             {cancelable && !confirmed && <>
-              {!pending && billing.cancelAtPeriodEnd && <div className="my-plan-alert" role="status">Existe uma solicitação de cancelamento. Verifique a confirmação.</div>}
-              <IonButton fill="outline" disabled={cancelLoading} onClick={() => { if (pending || billing.cancelAtPeriodEnd) void cancelSubscription(); else { setCancelError(""); setCancelModalOpen(true); } }}>{cancelLoading ? <><IonSpinner name="crescent" /> Cancelando...</> : pending || billing.cancelAtPeriodEnd ? "Tentar novamente" : "Cancelar assinatura"}</IonButton>
+              <IonButton fill="outline" disabled={cancelLoading} onClick={() => { if (pending) void cancelSubscription(); else { setCancelError(""); setCancelModalOpen(true); } }}>{cancelLoading ? <><IonSpinner name="crescent" /> Cancelando...</> : pending ? "Tentar novamente" : "Cancelar assinatura"}</IonButton>
             </>}
             {cancelError && !cancelModalOpen && <p className="my-plan-preview-error" role="alert">{cancelError}</p>}
             <div className="my-plan-facts"><div><span>Preço atual</span><strong>{currentPrice}</strong></div><div><span>Status</span><strong>{statusLabel(billing.subscriptionStatus)}</strong></div><div><span>Uso da frota</span><strong>{fleetUsage(billing)}</strong></div></div>

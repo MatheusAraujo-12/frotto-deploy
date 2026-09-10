@@ -280,6 +280,21 @@ class BillingResourceTest {
         assertThatThrownBy(() -> billingResource.cancelSubscription()).isInstanceOf(BadRequestAlertException.class);
     }
 
+    @Test
+    void getMyBillingExposesPersistedCancellationStateWithoutCallingCancellationOrCheckout() {
+        when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));
+        Subscription paid = subscription(PlanCode.SILVER, true, null);
+        when(entitlementService.getSnapshot(currentUser)).thenReturn(
+            new EntitlementSnapshot(paid, paid.getPlan(), paid.getPlan(), 1L, 10, true, false)
+        );
+        assertThat(billingResource.getMyBilling().getCancellationState())
+            .isEqualTo(com.localuz.service.dto.SubscriptionCancellationState.PENDING_CONFIRMATION);
+        paid.setCanceledAt(Instant.now());
+        assertThat(billingResource.getMyBilling().getCancellationState())
+            .isEqualTo(com.localuz.service.dto.SubscriptionCancellationState.CONFIRMED);
+        Mockito.verifyNoInteractions(subscriptionCancellationService, billingCheckoutService);
+    }
+
     private static java.lang.reflect.Method getMethod(String name) {
         try {
             return BillingResource.class.getDeclaredMethod(name);

@@ -45,6 +45,7 @@ class BillingMeDTOTest {
         assertThat(dto.getCurrentPeriodStart()).isNull();
         assertThat(dto.getCurrentPeriodEnd()).isNull();
         assertThat(dto.isCancelAtPeriodEnd()).isFalse();
+        assertThat(dto.getCancellationState()).isEqualTo(SubscriptionCancellationState.NONE);
         assertThat(dto.isCanAddVehicle()).isFalse();
         assertThat(dto.isNeedsUpgrade()).isTrue();
         assertThat(dto.getActiveVehicleCount()).isEqualTo(2L);
@@ -161,6 +162,47 @@ class BillingMeDTOTest {
                 .as("BillingMeDTO must not declare a field named '%s'", field.getName())
                 .isFalse();
         }
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource(value = {
+        "false, null, NONE",
+        "null, null, NONE",
+        "true, null, PENDING_CONFIRMATION",
+        "true, 2026-09-10T00:00:00Z, CONFIRMED",
+        "false, 2026-09-10T00:00:00Z, NONE",
+        "null, 2026-09-10T00:00:00Z, NONE"
+    }, nullValues = "null")
+    void derivesCancellationStateOnlyFromPersistedFlags(Boolean requested, String confirmedAt, SubscriptionCancellationState expected) {
+        Plan bronze = plan(PlanCode.BRONZE, "Bronze", 10, "59.90");
+        Subscription paid = subscription(bronze, SubscriptionSource.PAYMENT_PROVIDER);
+        paid.setCancelAtPeriodEnd(requested);
+        paid.setCanceledAt(confirmedAt == null ? null : Instant.parse(confirmedAt));
+        BillingMeDTO dto = BillingMeDTO.from(new EntitlementSnapshot(paid, bronze, bronze, 1L, 10, true, false));
+        assertThat(dto.getCancellationState()).isEqualTo(expected);
+        assertThat(dto.isCancelAtPeriodEnd()).isEqualTo(Boolean.TRUE.equals(requested));
+    }
+
+    @Test
+    void serializedContractAddsOnlySafeCancellationState() throws Exception {
+        Plan bronze = plan(PlanCode.BRONZE, "Bronze", 10, "59.90");
+        Subscription paid = subscription(bronze, SubscriptionSource.PAYMENT_PROVIDER);
+        paid.setCancelAtPeriodEnd(true);
+        paid.setCanceledAt(Instant.now());
+        paid.setExternalProvider("MERCADO_PAGO");
+        paid.setExternalSubscriptionId("private-provider-id");
+        BillingMeDTO dto = BillingMeDTO.from(new EntitlementSnapshot(paid, bronze, bronze, 1L, 10, true, false));
+        com.fasterxml.jackson.databind.JsonNode json = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules().valueToTree(dto);
+        java.util.List<String> names = new java.util.ArrayList<>();
+        json.fieldNames().forEachRemaining(names::add);
+        assertThat(names).containsExactlyInAnyOrder(
+            "planCode", "planName", "subscriptionStatus", "billingCycle", "subscriptionSource",
+            "activeVehicleCount", "vehicleLimit", "canAddVehicle", "needsUpgrade", "requiredPlanCode",
+            "requiredPlanName", "currentMonthlyPrice", "currentPeriodStart", "currentPeriodEnd",
+            "grantExpiresAt", "cancelAtPeriodEnd", "cancellationState"
+        );
+        assertThat(json.get("cancellationState").asText()).isEqualTo("CONFIRMED");
+        assertThat(json.toString()).doesNotContain("private-provider-id", "canceledAt", "idempotencyKey", "webhook");
     }
 
     private static Subscription subscription(Plan plan, SubscriptionSource source) {

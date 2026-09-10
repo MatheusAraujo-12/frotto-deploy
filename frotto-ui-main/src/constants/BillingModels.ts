@@ -3,6 +3,7 @@ export type SubscriptionSource = "PAYMENT_PROVIDER" | "ADMIN_GRANT" | "GRANDFATH
 export type SubscriptionStatus = "ACTIVE" | "PAST_DUE" | "PAUSED" | "CANCELED" | "EXPIRED";
 export type BillingCycle = "MONTHLY" | "YEARLY";
 export type BillingModel = "FLAT" | "PROGRESSIVE";
+export type SubscriptionCancellationState = "NONE" | "PENDING_CONFIRMATION" | "CONFIRMED";
 
 export interface BillingMeDTO {
   planCode: PlanCode;
@@ -21,6 +22,7 @@ export interface BillingMeDTO {
   currentPeriodEnd: string | null;
   grantExpiresAt: string | null;
   cancelAtPeriodEnd: boolean;
+  cancellationState: SubscriptionCancellationState;
 }
 
 export interface SubscriptionCancellationResultDTO {

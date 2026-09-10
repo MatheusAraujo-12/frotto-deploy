@@ -311,4 +311,27 @@ class SubscriptionServiceTest {
         when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList())).thenReturn(List.of(grandfathered));
         assertThat(subscriptionService.getEffectivePlan(user).getCode()).isEqualTo(PlanCode.SILVER);
     }
+    @Test
+    void confirmedCancellationKeepsEntitlementUntilPeriodEndThenFallsBackWithoutScheduler() {
+        Subscription paid = subscription(plan(2L, PlanCode.BRONZE), SubscriptionSource.PAYMENT_PROVIDER, null);
+        paid.setCancelAtPeriodEnd(true);
+        paid.setCanceledAt(Instant.now());
+        paid.setCurrentPeriodEnd(Instant.now().plusSeconds(3600));
+        Subscription legacy = subscription(plan(3L, PlanCode.SILVER), SubscriptionSource.GRANDFATHERED, null);
+        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList()))
+            .thenReturn(List.of(paid, legacy));
+        assertThat(subscriptionService.getEffectivePlan(user).getCode()).isEqualTo(PlanCode.BRONZE);
+        paid.setCurrentPeriodEnd(Instant.now().minusSeconds(3600));
+        assertThat(subscriptionService.getEffectivePlan(user).getCode()).isEqualTo(PlanCode.SILVER);
+        Subscription grant = subscription(plan(4L, PlanCode.GOLD), SubscriptionSource.ADMIN_GRANT, Instant.now().plusSeconds(3600));
+        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList()))
+            .thenReturn(List.of(paid, legacy, grant));
+        assertThat(subscriptionService.getEffectivePlan(user).getCode()).isEqualTo(PlanCode.GOLD);
+        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList()))
+            .thenReturn(List.of(paid));
+        when(planRepository.findByCode(PlanCode.FREE)).thenReturn(Optional.of(plan(1L, PlanCode.FREE)));
+        assertThat(subscriptionService.getEffectivePlan(user).getCode()).isEqualTo(PlanCode.FREE);
+        Mockito.verify(subscriptionRepository, Mockito.never()).save(Mockito.any());
+    }
+
 }

@@ -41,6 +41,7 @@ public class BillingMeDTO {
     private final Instant currentPeriodEnd;
     private final Instant grantExpiresAt;
     private final boolean cancelAtPeriodEnd;
+    private final SubscriptionCancellationState cancellationState;
 
     public BillingMeDTO(
         PlanCode planCode,
@@ -58,7 +59,8 @@ public class BillingMeDTO {
         Instant currentPeriodStart,
         Instant currentPeriodEnd,
         Instant grantExpiresAt,
-        boolean cancelAtPeriodEnd
+        boolean cancelAtPeriodEnd,
+        SubscriptionCancellationState cancellationState
     ) {
         this.planCode = planCode;
         this.planName = planName;
@@ -76,6 +78,7 @@ public class BillingMeDTO {
         this.currentPeriodEnd = currentPeriodEnd;
         this.grantExpiresAt = grantExpiresAt;
         this.cancelAtPeriodEnd = cancelAtPeriodEnd;
+        this.cancellationState = cancellationState;
     }
 
     public static BillingMeDTO from(EntitlementSnapshot snapshot) {
@@ -103,7 +106,9 @@ public class BillingMeDTO {
             subscription != null && subscription.getSource() == SubscriptionSource.ADMIN_GRANT
                 ? subscription.getGrantExpiresAt()
                 : null,
-            subscription != null && Boolean.TRUE.equals(subscription.getCancelAtPeriodEnd())
+            subscription != null && Boolean.TRUE.equals(subscription.getCancelAtPeriodEnd()),
+            subscription == null ? SubscriptionCancellationState.NONE
+                : SubscriptionCancellationState.from(subscription.getCancelAtPeriodEnd(), subscription.getCanceledAt())
         );
     }
 
@@ -169,5 +174,9 @@ public class BillingMeDTO {
 
     public boolean isCancelAtPeriodEnd() {
         return cancelAtPeriodEnd;
+    }
+
+    public SubscriptionCancellationState getCancellationState() {
+        return cancellationState;
     }
 }

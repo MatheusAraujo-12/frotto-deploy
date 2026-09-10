@@ -56,14 +56,25 @@ class MercadoPagoWebhookProcessorTest {
         processor.process("req","subscription_preapproval","pre-1");
         assertThat(existing.getStatus()).isEqualTo(SubscriptionStatus.CANCELED);
     }
-    @Test void externalCancellationWithCancelAtPeriodEndFalseCancelsImmediatelyEvenWithFuturePeriodEnd(){
+    @Test void externalCancellationPreservesPaidAccessAndSurvivesStaleAuthorizedWebhook(){
         Subscription existing=existing(SubscriptionStatus.ACTIVE);
         existing.setCancelAtPeriodEnd(false);
-        existing.setCurrentPeriodEnd(Instant.now().plusSeconds(3600));
+        Instant periodEnd=Instant.now().plusSeconds(3600);
+        existing.setCurrentPeriodEnd(periodEnd);
         when(subscriptions.findByExternalProviderAndExternalSubscriptionId("MERCADO_PAGO","pre-1")).thenReturn(Optional.of(existing));
         when(client.getPreapproval("pre-1")).thenReturn(preapproval("cancelled"));
         processor.process("req","subscription_preapproval","pre-1");
-        assertThat(existing.getStatus()).isEqualTo(SubscriptionStatus.CANCELED);
+        assertThat(existing.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(existing.getCancelAtPeriodEnd()).isTrue();
+        Instant confirmedAt=existing.getCanceledAt();
+        assertThat(confirmedAt).isNotNull();
+        when(client.getPreapproval("pre-1")).thenReturn(preapproval("authorized"));
+        processor.process("stale-authorized","subscription_preapproval","pre-1");
+        assertThat(existing.getCanceledAt()).isEqualTo(confirmedAt);
+        assertThat(existing.getCancelAtPeriodEnd()).isTrue();
+        assertThat(existing.getCurrentPeriodEnd()).isEqualTo(periodEnd);
+        verify(subscriptions,times(1)).save(existing);
+        verify(checkouts,times(2)).save(same(checkout));
     }
     @Test void duplicateCancelledWebhookIsIdempotentAndNeverReProcessesTheSubscription(){
         Subscription existing=existing(SubscriptionStatus.ACTIVE);

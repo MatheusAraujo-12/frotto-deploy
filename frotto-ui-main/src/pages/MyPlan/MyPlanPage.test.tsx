@@ -31,7 +31,7 @@ const billing: BillingMeDTO = {
   planCode: "BRONZE", planName: "Bronze", subscriptionStatus: "ACTIVE", billingCycle: "MONTHLY",
   subscriptionSource: "PAYMENT_PROVIDER", activeVehicleCount: 6, vehicleLimit: 10, canAddVehicle: true,
   needsUpgrade: false, requiredPlanCode: "BRONZE", requiredPlanName: "Bronze", currentMonthlyPrice: 59.9,
-  currentPeriodStart: null, currentPeriodEnd: null, grantExpiresAt: null, cancelAtPeriodEnd: false,
+  currentPeriodStart: null, currentPeriodEnd: null, grantExpiresAt: null, cancelAtPeriodEnd: false, cancellationState: "NONE",
 };
 
 const plans: PlanDTO[] = [
@@ -295,7 +295,7 @@ describe("MyPlanPage - checkout modal", () => {
     mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, cancelAtPeriodEnd: true, currentPeriodEnd });
     await renderLoadedPage();
     expect(screen.queryByText("Cancelamento agendado")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Tentar novamente" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Cancelar assinatura" })).toBeEnabled();
     expect(mockedBillingService.cancelSubscription).not.toHaveBeenCalled();
   });
 
@@ -310,4 +310,43 @@ describe("MyPlanPage - checkout modal", () => {
     expect(screen.queryByText("Cancelamento agendado")).not.toBeInTheDocument();
   });
 
+  it("carrega CONFIRMED do GET com data, sem cancelar novamente", async () => {
+    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, cancellationState: "CONFIRMED", cancelAtPeriodEnd: true, currentPeriodEnd: "2026-10-10T00:00:00Z" });
+    await renderLoadedPage();
+    expect(screen.getByText("Cancelamento agendado")).toBeInTheDocument();
+    expect(screen.getByText("Seu plano ficará ativo até 10/10/2026. Não haverá nova renovação.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancelar assinatura" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tentar novamente" })).not.toBeInTheDocument();
+    expect(mockedBillingService.cancelSubscription).not.toHaveBeenCalled();
+  });
+
+  it.each(["ACTIVE", "PAST_DUE"] as const)("carrega pendência do GET em %s e retry chama apenas cancelamento", async (subscriptionStatus) => {
+    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, subscriptionStatus, cancellationState: "PENDING_CONFIRMATION", cancelAtPeriodEnd: true });
+    mockedBillingService.cancelSubscription.mockResolvedValue({ state: "CONFIRMED", planCode: "BRONZE", subscriptionStatus: "ACTIVE", currentPeriodEnd: null });
+    await renderLoadedPage();
+    expect(screen.getByText("Estamos confirmando o cancelamento com o Mercado Pago.")).toBeInTheDocument();
+    expect(screen.queryByText("Cancelamento agendado")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    expect(await screen.findByText("Cancelamento agendado")).toBeInTheDocument();
+    expect(mockedBillingService.cancelSubscription).toHaveBeenCalledTimes(1);
+    expect(mockedBillingService.cancelSubscription).toHaveBeenCalledWith();
+    expect(mockedBillingService.createCheckout).not.toHaveBeenCalled();
+    expect(mockedNavigate).not.toHaveBeenCalled();
+  });
+
+  it.each(["NONE", "PENDING_CONFIRMATION", "CONFIRMED"] as const)("após remontar usa GET %s em vez da confirmação anterior do POST", async (cancellationState) => {
+    mockedBillingService.cancelSubscription.mockResolvedValue({ state: "CONFIRMED", planCode: "BRONZE", subscriptionStatus: "ACTIVE", currentPeriodEnd: null });
+    const first = render(<MyPlanPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Cancelar assinatura" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar cancelamento" }));
+    await screen.findByText("Cancelamento agendado");
+    first.unmount();
+    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, cancellationState, cancelAtPeriodEnd: cancellationState !== "NONE" });
+    await renderLoadedPage();
+    if (cancellationState === "CONFIRMED") expect(screen.getByText("Cancelamento agendado")).toBeInTheDocument();
+    else expect(screen.queryByText("Cancelamento agendado")).not.toBeInTheDocument();
+    if (cancellationState === "NONE") expect(screen.getByRole("button", { name: "Cancelar assinatura" })).toBeEnabled();
+    if (cancellationState === "PENDING_CONFIRMATION") expect(screen.getByText("Estamos confirmando o cancelamento com o Mercado Pago.")).toBeInTheDocument();
+    expect(mockedBillingService.cancelSubscription).toHaveBeenCalledTimes(1);
+  });
 });

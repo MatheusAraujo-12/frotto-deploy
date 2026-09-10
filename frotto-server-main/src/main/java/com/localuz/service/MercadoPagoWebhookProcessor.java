@@ -103,16 +103,15 @@ public class MercadoPagoWebhookProcessor {
         } else if("cancelled".equals(status)||"canceled".equals(status)){
             checkout.setStatus(BillingCheckoutStatus.CANCELED);
             subscriptions.findByExternalProviderAndExternalSubscriptionId("MERCADO_PAGO",provider.getId()).ifPresent(subscription->{
-                // Etapa 5F.1: a cancellation Frotto itself initiated (SubscriptionCancellationSteps
-                // already committed cancelAtPeriodEnd=true before ever calling the provider - see
-                // that class's javadoc) must not lose paid access early just because the provider's
-                // confirmation arrived here first. An externally-initiated cancellation (cancelAtPeriodEnd
-                // still false - the user never asked Frotto to cancel) keeps the prior, unconditional
-                // behavior exactly as before: this deferral only ever applies to a cancellation Frotto
-                // marked itself.
-                boolean deferToPeriodEnd = Boolean.TRUE.equals(subscription.getCancelAtPeriodEnd())
+                // A confirmed cancellation must preserve an existing paid period regardless
+                // of where it was requested. Do not reactivate a paused/closed subscription.
+                boolean deferToPeriodEnd = (subscription.getStatus() == SubscriptionStatus.ACTIVE
+                    || subscription.getStatus() == SubscriptionStatus.PAST_DUE)
                     && subscription.getCurrentPeriodEnd() != null
                     && subscription.getCurrentPeriodEnd().isAfter(Instant.now());
+                if (deferToPeriodEnd) {
+                    subscription.setCancelAtPeriodEnd(true);
+                }
                 if(subscription.getCanceledAt()==null){
                     subscription.setCanceledAt(provider.getLastModified()!=null?provider.getLastModified():Instant.now());
                 }
