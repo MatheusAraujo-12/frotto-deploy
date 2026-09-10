@@ -31,7 +31,9 @@ class BillingCheckoutApplicationContextTest {
         .withBean(PricingService.class)
         .withBean(MercadoPagoHttpClient.class)
         .withBean(BillingCheckoutService.class)
-        .withBean(BillingPaymentStateService.class);
+        .withBean(BillingPaymentStateService.class)
+        .withBean(SubscriptionCancellationSteps.class)
+        .withBean(SubscriptionCancellationService.class);
 
     @Test
     void springCreatesBillingCheckoutServiceWithTheConcreteMercadoPagoClient() {

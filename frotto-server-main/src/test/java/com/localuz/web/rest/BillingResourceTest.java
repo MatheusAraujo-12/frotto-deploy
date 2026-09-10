@@ -13,10 +13,14 @@ import com.localuz.domain.enumeration.BillingCycle;
 import com.localuz.domain.enumeration.PlanCode;
 import com.localuz.repository.PlanPricingTierRepository;
 import com.localuz.repository.PlanRepository;
+import com.localuz.domain.Subscription;
+import com.localuz.domain.enumeration.SubscriptionSource;
+import com.localuz.domain.enumeration.SubscriptionStatus;
 import com.localuz.service.EntitlementService;
 import com.localuz.service.BillingCheckoutService;
 import com.localuz.service.BillingPaymentStateService;
 import com.localuz.service.PricingService;
+import com.localuz.service.SubscriptionCancellationService;
 import com.localuz.service.UserService;
 import com.localuz.service.dto.BillingMeDTO;
 import com.localuz.service.dto.BillingCheckoutDTO;
@@ -24,8 +28,11 @@ import com.localuz.service.dto.BillingCheckoutRequest;
 import com.localuz.service.dto.EntitlementSnapshot;
 import com.localuz.service.dto.PricePreviewDTO;
 import com.localuz.service.dto.PricingResult;
+import com.localuz.service.dto.SubscriptionCancellationResultDTO;
 import com.localuz.web.rest.errors.BadRequestAlertException;
+import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -48,6 +55,7 @@ class BillingResourceTest {
     private PlanPricingTierRepository planPricingTierRepository;
     private BillingCheckoutService billingCheckoutService;
     private BillingPaymentStateService billingPaymentStateService;
+    private SubscriptionCancellationService subscriptionCancellationService;
     private BillingResource billingResource;
     private User currentUser;
 
@@ -60,7 +68,17 @@ class BillingResourceTest {
         planPricingTierRepository = Mockito.mock(PlanPricingTierRepository.class);
         billingCheckoutService = Mockito.mock(BillingCheckoutService.class);
         billingPaymentStateService = Mockito.mock(BillingPaymentStateService.class);
-        billingResource = new BillingResource(userService, entitlementService, pricingService, planRepository, planPricingTierRepository, billingCheckoutService, billingPaymentStateService);
+        subscriptionCancellationService = Mockito.mock(SubscriptionCancellationService.class);
+        billingResource = new BillingResource(
+            userService,
+            entitlementService,
+            pricingService,
+            planRepository,
+            planPricingTierRepository,
+            billingCheckoutService,
+            billingPaymentStateService,
+            subscriptionCancellationService
+        );
 
         currentUser = new User();
         currentUser.setId(9L);
@@ -195,5 +213,78 @@ class BillingResourceTest {
         assertThat(plans).hasSize(1);
         assertThat(plans.get(0).getCode()).isEqualTo(PlanCode.PLATINUM);
         assertThat(plans.get(0).getTiers()).hasSize(1);
+    }
+
+    // --- Etapa 5F.1: POST /api/billing/cancel ---
+
+    private static Subscription subscription(PlanCode planCode, boolean cancelAtPeriodEnd, Instant canceledAt) {
+        Subscription subscription = new Subscription();
+        subscription.setPlan(plan(planCode, 10));
+        subscription.setStatus(SubscriptionStatus.ACTIVE);
+        subscription.setSource(SubscriptionSource.PAYMENT_PROVIDER);
+        subscription.setCancelAtPeriodEnd(cancelAtPeriodEnd);
+        subscription.setCanceledAt(canceledAt);
+        subscription.setCurrentPeriodEnd(Instant.now().plusSeconds(3600));
+        return subscription;
+    }
+
+    @Test
+    void cancelSubscriptionResolvesOnlyTheAuthenticatedUserNeverAnyIdFromTheRequest() {
+        when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));
+        Subscription confirmed = subscription(PlanCode.SILVER, true, Instant.now());
+        when(subscriptionCancellationService.cancel(currentUser)).thenReturn(confirmed);
+
+        billingResource.cancelSubscription();
+
+        Mockito.verify(subscriptionCancellationService).cancel(currentUser);
+    }
+
+    @Test
+    void cancelSubscriptionEndpointAcceptsNoParameters() {
+        // The method signature itself is the proof: no @RequestBody/@RequestParam/@PathVariable
+        // of any kind, so there is no way for a client to supply a userId (or anything else).
+        assertThat(getMethod("cancelSubscription").getParameterCount()).isZero();
+    }
+
+    @Test
+    void cancelSubscriptionResponseNeverExposesProviderSubscriptionIdOrIdempotencyKey() {
+        when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));
+        Subscription confirmed = subscription(PlanCode.SILVER, true, Instant.now());
+        when(subscriptionCancellationService.cancel(currentUser)).thenReturn(confirmed);
+
+        SubscriptionCancellationResultDTO response = billingResource.cancelSubscription();
+
+        assertThat(Arrays.stream(SubscriptionCancellationResultDTO.class.getDeclaredFields()).map(Field::getName))
+            .doesNotContain("providerSubscriptionId", "externalSubscriptionId", "idempotencyKey");
+        assertThat(response.getState()).isEqualTo(SubscriptionCancellationResultDTO.CancellationState.CONFIRMED);
+    }
+
+    @Test
+    void cancelSubscriptionResponseDistinguishesConfirmedFromPendingConfirmation() {
+        when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));
+        Subscription pending = subscription(PlanCode.SILVER, true, null);
+        when(subscriptionCancellationService.cancel(currentUser)).thenReturn(pending);
+
+        SubscriptionCancellationResultDTO response = billingResource.cancelSubscription();
+
+        // A provider-unconfirmed cancellation must never be reported the same way as a confirmed one.
+        assertThat(response.getState()).isEqualTo(SubscriptionCancellationResultDTO.CancellationState.PENDING_CONFIRMATION);
+    }
+
+    @Test
+    void cancelSubscriptionSurfacesAControlledErrorWhenNothingCanBeCancelled() {
+        when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));
+        when(subscriptionCancellationService.cancel(currentUser))
+            .thenThrow(new BadRequestAlertException("No active payment-provider subscription to cancel", "subscriptionCancellation", "nosubscriptiontocancel"));
+
+        assertThatThrownBy(() -> billingResource.cancelSubscription()).isInstanceOf(BadRequestAlertException.class);
+    }
+
+    private static java.lang.reflect.Method getMethod(String name) {
+        try {
+            return BillingResource.class.getDeclaredMethod(name);
+        } catch (NoSuchMethodException e) {
+            throw new IllegalStateException(e);
+        }
     }
 }

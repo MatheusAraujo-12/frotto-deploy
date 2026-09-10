@@ -8,6 +8,7 @@ import com.localuz.service.EntitlementService;
 import com.localuz.service.PricingService;
 import com.localuz.service.BillingCheckoutService;
 import com.localuz.service.BillingPaymentStateService;
+import com.localuz.service.SubscriptionCancellationService;
 import com.localuz.service.UserService;
 import com.localuz.service.dto.BillingMeDTO;
 import com.localuz.service.dto.PlanDTO;
@@ -16,6 +17,7 @@ import com.localuz.service.dto.PricingResult;
 import com.localuz.service.dto.BillingCheckoutDTO;
 import com.localuz.service.dto.BillingCheckoutRequest;
 import com.localuz.service.dto.BillingPaymentStateDTO;
+import com.localuz.service.dto.SubscriptionCancellationResultDTO;
 import com.localuz.web.rest.errors.BadRequestAlertException;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -50,6 +52,7 @@ public class BillingResource {
     private final PlanPricingTierRepository planPricingTierRepository;
     private final BillingCheckoutService billingCheckoutService;
     private final BillingPaymentStateService billingPaymentStateService;
+    private final SubscriptionCancellationService subscriptionCancellationService;
 
     public BillingResource(
         UserService userService,
@@ -58,7 +61,8 @@ public class BillingResource {
         PlanRepository planRepository,
         PlanPricingTierRepository planPricingTierRepository,
         BillingCheckoutService billingCheckoutService,
-        BillingPaymentStateService billingPaymentStateService
+        BillingPaymentStateService billingPaymentStateService,
+        SubscriptionCancellationService subscriptionCancellationService
     ) {
         this.userService = userService;
         this.entitlementService = entitlementService;
@@ -67,11 +71,30 @@ public class BillingResource {
         this.planPricingTierRepository = planPricingTierRepository;
         this.billingCheckoutService = billingCheckoutService;
         this.billingPaymentStateService = billingPaymentStateService;
+        this.subscriptionCancellationService = subscriptionCancellationService;
     }
 
     @PostMapping("/checkout")
     public BillingCheckoutDTO createCheckout(@Valid @RequestBody BillingCheckoutRequest request) {
         return BillingCheckoutDTO.from(billingCheckoutService.createCheckout(getCurrentUser(), request.getPlanCode()));
+    }
+
+    /**
+     * Cancels the caller's own PAYMENT_PROVIDER subscription - the user is always resolved
+     * server-side (see class javadoc), never accepted from the request. Schedules the
+     * cancellation for the end of the already-paid period rather than revoking access
+     * immediately; see SubscriptionCancellationService for the full flow and how the PUT/webhook
+     * race is avoided.
+     *
+     * Deliberately does NOT reuse BillingMeDTO here: cancelAtPeriodEnd alone cannot distinguish a
+     * cancellation the provider has actually confirmed from one only recorded locally as pending
+     * (see SubscriptionCancellationSteps#markIntent) - SubscriptionCancellationResultDTO makes
+     * that distinction explicit via its CONFIRMED/PENDING_CONFIRMATION state, same safe-field
+     * philosophy as BillingMeDTO (no provider identifiers, no idempotency keys).
+     */
+    @PostMapping("/cancel")
+    public SubscriptionCancellationResultDTO cancelSubscription() {
+        return SubscriptionCancellationResultDTO.from(subscriptionCancellationService.cancel(getCurrentUser()));
     }
 
     @GetMapping("/me")
