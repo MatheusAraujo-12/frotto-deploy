@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -74,6 +75,14 @@ public class BillingAutoReconciliationScheduler {
     private final MercadoPagoWebhookProcessor processor;
     private final Clock clock;
 
+    // @Autowired is required here (unlike BillingReconciliationRunner, which only has one
+    // constructor): with two constructors and none annotated, Spring cannot pick a candidate and
+    // falls back to a no-arg constructor that does not exist, failing bean creation at startup
+    // with NoSuchMethodException(<init>()) - even with the feature flag disabled, since Spring
+    // must still instantiate the bean regardless of what the flag later does at runtime. See
+    // BillingAutoReconciliationSchedulerBootstrapTest, which boots a real (minimal) Spring
+    // context to catch this class of bug instead of just grepping the source for "@Autowired".
+    @Autowired
     public BillingAutoReconciliationScheduler(
         MercadoPagoProperties mercadoPagoProperties,
         BillingCheckoutRepository checkoutRepository,
