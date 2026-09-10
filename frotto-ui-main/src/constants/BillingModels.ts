@@ -23,6 +23,13 @@ export interface BillingMeDTO {
   cancelAtPeriodEnd: boolean;
 }
 
+export interface SubscriptionCancellationResultDTO {
+  state: "CONFIRMED" | "PENDING_CONFIRMATION";
+  planCode: PlanCode;
+  subscriptionStatus: SubscriptionStatus;
+  currentPeriodEnd: string | null;
+}
+
 export interface PlanPricingTierDTO {
   fromVehicleCount: number;
   toVehicleCount: number | null;

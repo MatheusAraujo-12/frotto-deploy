@@ -5,11 +5,11 @@ import {
 } from "@ionic/react";
 import { cardOutline, closeOutline, informationCircleOutline } from "ionicons/icons";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BillingMeDTO, BillingPaymentStateDTO, PLAN_LABELS, PlanDTO, PricePreviewDTO } from "../../constants/BillingModels";
+import { SubscriptionCancellationResultDTO, BillingMeDTO, BillingPaymentStateDTO, PLAN_LABELS, PlanDTO, PricePreviewDTO } from "../../constants/BillingModels";
 import { getApiErrorMessage } from "../../services/apiErrorMessage";
 import billingService from "../../services/billingService";
 import { getToken, subscribeToTokenChanges } from "../../services/localStorage/localstorage";
-import { checkoutBlocksPurchase, checkoutNeedsRefresh, fleetUsage, friendlyPlan, isCheckoutInProgressError, isPlanCompatible, money, paymentNotice, resumableCheckoutUrl, sourceDetail, sourceLabel, statusLabel, usageState, vehicleRange } from "./myPlanLogic";
+import { formatDate, isSubscriptionCancelable, checkoutBlocksPurchase, checkoutNeedsRefresh, fleetUsage, friendlyPlan, isCheckoutInProgressError, isPlanCompatible, money, paymentNotice, resumableCheckoutUrl, sourceDetail, sourceLabel, statusLabel, usageState, vehicleRange } from "./myPlanLogic";
 import "./MyPlanPage.css";
 import { navigateToCheckout } from "./checkoutNavigation";
 
@@ -26,6 +26,11 @@ const MyPlanPage: React.FC = () => {
   const [selectedPlan, setSelectedPlan] = useState<PlanDTO | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancellation, setCancellation] = useState<SubscriptionCancellationResultDTO | null>(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelError, setCancelError] = useState("");
+  const cancelInFlight = useRef(false);
   const plansRef = useRef<HTMLDivElement>(null);
   const loadId = useRef(0);
   const previewLoadId = useRef(0);
@@ -33,6 +38,7 @@ const MyPlanPage: React.FC = () => {
   const load = useCallback(async () => {
     const id = ++loadId.current;
     previewLoadId.current += 1;
+    setCancelModalOpen(false); setCancellation(null); setCancelLoading(false); setCancelError(""); cancelInFlight.current = false;
     setBilling(null); setPlans([]); setPaymentState(null); setPreview(null); setSelectedPlan(null); setCheckoutLoading(false); setCheckoutError(""); setError(""); setLoading(true);
     if (!getToken()) { setLoading(false); return; }
     try {
@@ -88,6 +94,33 @@ const MyPlanPage: React.FC = () => {
     }
   };
 
+  const cancelSubscription = async () => {
+    if (!billing || !isSubscriptionCancelable(billing) || cancelInFlight.current || cancellation?.state === "CONFIRMED") return;
+    const sessionId = loadId.current;
+    cancelInFlight.current = true;
+    setCancelLoading(true); setCancelError("");
+    try {
+      const result = await billingService.cancelSubscription();
+      if (sessionId !== loadId.current) return;
+      setCancellation(result);
+      setCancelLoading(false);
+      setCancelModalOpen(false);
+      if (result.state === "CONFIRMED") {
+        try {
+          const me = await billingService.getMyBilling();
+          if (sessionId === loadId.current) setBilling(me);
+        } catch {
+          if (sessionId === loadId.current) setCancelError("O cancelamento foi confirmado, mas não foi possível atualizar os dados do plano. Atualize a página para consultar os dados atuais.");
+        }
+      }
+    } catch {
+      // Do not expose gateway details or identifiers from an HTTP error payload.
+      if (sessionId === loadId.current) setCancelError("Não foi possível solicitar o cancelamento. Tente novamente.");
+    } finally {
+      if (sessionId === loadId.current) { cancelInFlight.current = false; setCancelLoading(false); }
+    }
+  };
+
   if (loading) return <IonPage id="my-plan-page"><PageHeader /><IonContent><div className="section-shell"><Loading /></div></IonContent></IonPage>;
   if (error || !billing) return <IonPage id="my-plan-page"><PageHeader /><IonContent><div className="section-shell"><div className="my-plan-state"><IonIcon icon={informationCircleOutline} /><h2>Não foi possível carregar seu plano</h2><p>{error || "Entre novamente para consultar seus dados."}</p><IonButton onClick={() => void load()}>Tentar novamente</IonButton></div></div></IonContent></IonPage>;
 
@@ -97,6 +130,11 @@ const MyPlanPage: React.FC = () => {
   const rawNotice = paymentNotice(paymentState);
   const notice = rawNotice?.title === "Assinatura ativa" && billing.subscriptionSource === "PAYMENT_PROVIDER" && billing.subscriptionStatus === "ACTIVE" ? null : rawNotice;
   const checkoutBlocked = checkoutBlocksPurchase(paymentState);
+  const cancelable = isSubscriptionCancelable(billing);
+  const confirmed = cancellation?.state === "CONFIRMED";
+  const pending = cancellation?.state === "PENDING_CONFIRMATION";
+  const periodEnd = cancellation?.currentPeriodEnd ?? billing.currentPeriodEnd;
+  const endDate = periodEnd && formatDate(periodEnd) !== "—" ? formatDate(periodEnd) : null;
   const resumeUrl = resumableCheckoutUrl(paymentState);
 
   return <IonPage id="my-plan-page">
@@ -107,6 +145,13 @@ const MyPlanPage: React.FC = () => {
         <IonCard className="my-plan-current">
           <IonCardContent>
             <div className="my-plan-current__header"><div><span className="my-plan-eyebrow">Seu plano</span><h1>{friendlyPlan(billing.planCode)}</h1><p>{sourceDetail(billing)}</p></div><IonBadge>{sourceLabel(billing.subscriptionSource)}</IonBadge></div>
+            {confirmed && <div className="my-plan-alert" role="status"><IonBadge color="success">Cancelamento agendado</IonBadge><span>{endDate ? `Seu plano ficará ativo até ${endDate}. Não haverá nova renovação.` : "Seu plano ficará ativo até o fim do período atual. Não haverá nova renovação."}</span></div>}
+            {pending && <div className="my-plan-alert" role="status">Estamos confirmando o cancelamento com o Mercado Pago.</div>}
+            {cancelable && !confirmed && <>
+              {!pending && billing.cancelAtPeriodEnd && <div className="my-plan-alert" role="status">Existe uma solicitação de cancelamento. Verifique a confirmação.</div>}
+              <IonButton fill="outline" disabled={cancelLoading} onClick={() => { if (pending || billing.cancelAtPeriodEnd) void cancelSubscription(); else { setCancelError(""); setCancelModalOpen(true); } }}>{cancelLoading ? <><IonSpinner name="crescent" /> Cancelando...</> : pending || billing.cancelAtPeriodEnd ? "Tentar novamente" : "Cancelar assinatura"}</IonButton>
+            </>}
+            {cancelError && !cancelModalOpen && <p className="my-plan-preview-error" role="alert">{cancelError}</p>}
             <div className="my-plan-facts"><div><span>Preço atual</span><strong>{currentPrice}</strong></div><div><span>Status</span><strong>{statusLabel(billing.subscriptionStatus)}</strong></div><div><span>Uso da frota</span><strong>{fleetUsage(billing)}</strong></div></div>
             <div className={`my-plan-usage my-plan-usage--${state}`}><div><strong>{state === "reached" ? "Limite atingido" : state === "near" ? "Próximo do limite" : "Dentro do limite"}</strong><span>{fleetUsage(billing)}</span></div>{billing.vehicleLimit != null && <IonProgressBar value={progress} aria-label={fleetUsage(billing)} />}</div>
             {!billing.canAddVehicle && <div className="my-plan-limit"><span>Você atingiu o limite de veículos do seu plano.</span><IonButton size="small" onClick={() => plansRef.current?.scrollIntoView({ behavior: "smooth" })}>Ver opções de upgrade</IonButton></div>}
@@ -127,6 +172,16 @@ const MyPlanPage: React.FC = () => {
         </section>
       </div>
     </IonContent>
+    <IonModal isOpen={cancelModalOpen} canDismiss={!cancelLoading} backdropDismiss={!cancelLoading} onDidDismiss={() => { if (!cancelInFlight.current) setCancelModalOpen(false); }} className="my-plan-modal">
+      <IonHeader><IonToolbar><IonTitle>Cancelar assinatura</IonTitle></IonToolbar></IonHeader>
+      <IonContent><div className="my-plan-modal__body">
+        <h2>Cancelar sua assinatura?</h2>
+        <p>{endDate ? `Você continuará com acesso ao plano até ${endDate}.` : "Você continuará com acesso ao plano até o fim do período atual."} Após essa data, não haverá nova cobrança e sua conta seguirá o plano disponível conforme as regras atuais do Frotto.</p>
+        {cancelError && <p className="my-plan-preview-error" role="alert">{cancelError}</p>}
+        <IonButton expand="block" fill="outline" disabled={cancelLoading} onClick={() => setCancelModalOpen(false)}>Manter assinatura</IonButton>
+        <IonButton expand="block" disabled={cancelLoading} onClick={() => void cancelSubscription()}>{cancelLoading ? <><IonSpinner name="crescent" /> Cancelando...</> : "Confirmar cancelamento"}</IonButton>
+      </div></IonContent>
+    </IonModal>
     <IonModal isOpen={Boolean(selectedPlan)} onDidDismiss={() => { if (!checkoutLoading) { setSelectedPlan(null); setCheckoutError(""); } }} className="my-plan-modal"><IonHeader><IonToolbar><IonTitle>Resumo do plano</IonTitle><IonButtons slot="end"><IonButton aria-label="Fechar" disabled={checkoutLoading} onClick={() => setSelectedPlan(null)}><IonIcon slot="icon-only" icon={closeOutline} /></IonButton></IonButtons></IonToolbar></IonHeader><IonContent>{selectedPlan && <div className="my-plan-modal__body"><IonIcon icon={cardOutline} /><h2>{PLAN_LABELS[selectedPlan.code]}</h2><div><span>Frota atual</span><strong>{billing.activeVehicleCount} veículos</strong></div><div><span>Preço estimado</span><strong>{preview?.vehicleCount === billing.activeVehicleCount && preview.planCode === selectedPlan.code ? money(preview.monthlyPrice) : `${money(selectedPlan.monthlyBasePrice)} (base)`}</strong></div><div><span>Ciclo</span><strong>Mensal</strong></div><p>Você será direcionado ao ambiente seguro do Mercado Pago.</p>{checkoutError && <p className="my-plan-preview-error" role="alert">{checkoutError}</p>}<IonButton expand="block" disabled={checkoutLoading || checkoutBlocked} onClick={() => void continueToPayment()}>{checkoutLoading ? <><IonSpinner name="crescent" /> Processando...</> : "Continuar para pagamento"}</IonButton></div>}</IonContent></IonModal>
   </IonPage>;
 };

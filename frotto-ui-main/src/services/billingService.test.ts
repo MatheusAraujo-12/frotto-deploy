@@ -39,4 +39,12 @@ describe("billingService", () => {
     expect(mockedPost.mock.calls[0][1]).not.toHaveProperty("userId");
     expect(mockedPost.mock.calls[0][1]).not.toHaveProperty("vehicleCount");
   });
+  it.each(["CONFIRMED", "PENDING_CONFIRMATION"])("cancels with no body, userId or provider ID: %s", async (state) => {
+    const data = { state, planCode: "BRONZE", subscriptionStatus: "ACTIVE", currentPeriodEnd: null };
+    mockedPost.mockResolvedValue({ data });
+    await expect(billingService.cancelSubscription()).resolves.toBe(data);
+    expect(mockedPost.mock.calls).toEqual([[endpoints.BILLING_CANCEL()]]);
+    expect(endpoints.BILLING_CANCEL()).toMatch(/\/api\/billing\/cancel$/);
+  });
+
 });

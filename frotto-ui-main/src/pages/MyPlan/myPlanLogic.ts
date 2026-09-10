@@ -1,5 +1,8 @@
 import { BillingCheckoutStatus, BillingMeDTO, BillingPaymentStateDTO, PLAN_LABELS, PlanDTO, SubscriptionSource, SubscriptionStatus } from "../../constants/BillingModels";
 
+export const isSubscriptionCancelable = (billing: BillingMeDTO): boolean =>
+  billing.planCode !== "FREE" && billing.subscriptionSource === "PAYMENT_PROVIDER" && billing.subscriptionStatus === "ACTIVE";
+
 export const money = (value: number): string =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 

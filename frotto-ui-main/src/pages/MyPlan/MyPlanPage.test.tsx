@@ -60,6 +60,7 @@ const chooseSilver = () => {
 describe("MyPlanPage - checkout modal", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockedBillingService.cancelSubscription.mockReset();
     localStorage.clear();
     setToken("Bearer user-token");
     mockedBillingService.getMyBilling.mockResolvedValue(billing);
@@ -225,4 +226,88 @@ describe("MyPlanPage - checkout modal", () => {
     await waitFor(() => expect(mockedBillingService.getMyBilling).toHaveBeenCalledTimes(2));
     expect(mockedNavigate).not.toHaveBeenCalled();
   });
+  const openCancellation = async () => {
+    await renderLoadedPage();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar assinatura" }));
+  };
+
+  it("abre confirmação com data formatada e permite manter sem cancelar", async () => {
+    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, currentPeriodEnd: "2026-10-10T00:00:00Z" });
+    await openCancellation();
+    expect(screen.getByRole("dialog")).toHaveTextContent("até 10/10/2026");
+    fireEvent.click(screen.getByRole("button", { name: "Manter assinatura" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockedBillingService.cancelSubscription).not.toHaveBeenCalled();
+  });
+
+  it("envia uma única vez sem argumentos, bloqueia durante loading e exibe confirmação do POST", async () => {
+    const request = deferred<any>();
+    mockedBillingService.cancelSubscription.mockReturnValue(request.promise);
+    await openCancellation();
+    const button = screen.getByRole("button", { name: "Confirmar cancelamento" });
+    fireEvent.click(button); fireEvent.click(button);
+    expect(button).toBeDisabled();
+    expect(button).toHaveTextContent("Cancelando...");
+    expect(screen.getByRole("button", { name: "Manter assinatura" })).toBeDisabled();
+    expect(mockedBillingService.cancelSubscription).toHaveBeenCalledTimes(1);
+    expect(mockedBillingService.cancelSubscription).toHaveBeenCalledWith();
+    request.resolve({ state: "CONFIRMED", currentPeriodEnd: "2026-10-10T00:00:00Z", providerSubscriptionId: "private-provider-id" });
+    expect(await screen.findByText("Cancelamento agendado")).toBeInTheDocument();
+    expect(screen.getByText("Seu plano ficará ativo até 10/10/2026. Não haverá nova renovação.")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancelar assinatura" })).not.toBeInTheDocument();
+    expect(mockedBillingService.getMyBilling).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(/private-provider-id/)).not.toBeInTheDocument();
+  });
+
+  it("mostra pendência sem confirmar, e permite retry", async () => {
+    mockedBillingService.cancelSubscription.mockResolvedValueOnce({ state: "PENDING_CONFIRMATION", planCode: "BRONZE", subscriptionStatus: "ACTIVE", currentPeriodEnd: null }).mockResolvedValueOnce({ state: "CONFIRMED", planCode: "BRONZE", subscriptionStatus: "ACTIVE", currentPeriodEnd: null });
+    await openCancellation();
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar cancelamento" }));
+    expect(await screen.findByText("Estamos confirmando o cancelamento com o Mercado Pago.")).toBeInTheDocument();
+    expect(screen.queryByText("Cancelamento agendado")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    expect(await screen.findByText("Cancelamento agendado")).toBeInTheDocument();
+    expect(mockedBillingService.cancelSubscription).toHaveBeenCalledTimes(2);
+  });
+
+  it("mostra feedback HTTP sem expor identificadores e libera nova tentativa", async () => {
+    mockedBillingService.cancelSubscription.mockRejectedValue({ response: { status: 400, data: { fieldErrors: [{ field: "providerSubscriptionId", message: "private-provider-id" }] } } });
+    await openCancellation();
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar cancelamento" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível solicitar o cancelamento. Tente novamente.");
+    expect(screen.getByRole("button", { name: "Confirmar cancelamento" })).toBeEnabled();
+    expect(document.body).not.toHaveTextContent("private-provider-id");
+  });
+
+  it.each([
+    { planCode: "FREE" as const },
+    { subscriptionSource: "ADMIN_GRANT" as const },
+    { subscriptionSource: "GRANDFATHERED" as const },
+    { subscriptionStatus: "EXPIRED" as const },
+  ])("não oferece cancelamento para %o", async (changes) => {
+    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, ...changes });
+    await renderLoadedPage();
+    expect(screen.queryByRole("button", { name: "Cancelar assinatura" })).not.toBeInTheDocument();
+  });
+
+  it.each([null, "2026-10-10T00:00:00Z"])("não infere confirmação no reload com cancelAtPeriodEnd=true e data %s", async (currentPeriodEnd) => {
+    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, cancelAtPeriodEnd: true, currentPeriodEnd });
+    await renderLoadedPage();
+    expect(screen.queryByText("Cancelamento agendado")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tentar novamente" })).toBeEnabled();
+    expect(mockedBillingService.cancelSubscription).not.toHaveBeenCalled();
+  });
+
+  it("ignora confirmação tardia de outra sessão", async () => {
+    const request = deferred<any>();
+    mockedBillingService.cancelSubscription.mockReturnValue(request.promise);
+    await openCancellation();
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar cancelamento" }));
+    setToken("Bearer user-b");
+    request.resolve({ state: "CONFIRMED", currentPeriodEnd: null });
+    await waitFor(() => expect(mockedBillingService.getMyBilling).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Cancelamento agendado")).not.toBeInTheDocument();
+  });
+
 });

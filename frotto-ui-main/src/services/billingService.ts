@@ -1,8 +1,12 @@
-import { BillingCheckoutDTO, BillingMeDTO, BillingPaymentStateDTO, PlanCode, PlanDTO, PricePreviewDTO } from "../constants/BillingModels";
+import { SubscriptionCancellationResultDTO, BillingCheckoutDTO, BillingMeDTO, BillingPaymentStateDTO, PlanCode, PlanDTO, PricePreviewDTO } from "../constants/BillingModels";
 import endpoints from "../constants/endpoints";
 import api from "./axios/axios";
 
 const billingService = {
+  async cancelSubscription(): Promise<SubscriptionCancellationResultDTO> {
+    const { data } = await api.post<SubscriptionCancellationResultDTO>(endpoints.BILLING_CANCEL());
+    return data;
+  },
   async getMyBilling(): Promise<BillingMeDTO> {
     const { data } = await api.get<BillingMeDTO>(endpoints.BILLING_ME());
     return data;

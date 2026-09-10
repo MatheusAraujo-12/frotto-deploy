@@ -131,6 +131,7 @@ const endpoints = {
   BILLING_PAYMENT_STATE: apiEndpoint("/billing/payment-state"),
   BILLING_PLANS: apiEndpoint("/billing/plans"),
   BILLING_PRICE_PREVIEW: apiEndpoint("/billing/price-preview"),
+  BILLING_CANCEL: apiEndpoint("/billing/cancel"),
   BILLING_CHECKOUT: apiEndpoint("/billing/checkout"),
 
   ADMIN_BILLING_USERS_SEARCH: apiEndpoint("/admin/billing/users/search"),
