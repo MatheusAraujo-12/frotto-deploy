@@ -4,6 +4,7 @@ import com.localuz.domain.Subscription;
 import com.localuz.domain.User;
 import com.localuz.service.SubscriptionCancellationSteps.IntentOutcome;
 import com.localuz.service.dto.MercadoPagoPreapproval;
+import com.localuz.web.rest.errors.BillingCancellationProviderRejectedException;
 import org.springframework.stereotype.Service;
 
 /**
@@ -48,23 +49,22 @@ public class SubscriptionCancellationService {
         Subscription subscription = intent.getSubscription();
         String idempotencyKey = "cancel-" + subscription.getExternalSubscriptionId();
 
+        MercadoPagoPreapproval result;
         try {
-            MercadoPagoPreapproval result = client.cancelPreapproval(subscription.getExternalSubscriptionId(), idempotencyKey);
-            if (SubscriptionCancellationSteps.isTerminalCancelled(result.getStatus())) {
-                return steps.finalizeConfirmedCancellation(subscription.getId(), result.getLastModified());
-            }
-            // Provider responded, but not with a cancelled status - never assumed successful
-            // without confirmation.
-            return steps.resolveAfterUnconfirmedResponse(subscription.getId());
+            result = client.cancelPreapproval(subscription.getExternalSubscriptionId(), idempotencyKey);
         } catch (MercadoPagoException exception) {
             if (!exception.isAmbiguous()) {
                 // A definite rejection: the provider was never told to cancel, safe to undo.
                 steps.rollbackIntent(subscription.getId());
-                throw exception;
+                throw new BillingCancellationProviderRejectedException();
             }
             // Timeout/5xx/connection failure: unknown whether the provider processed it.
             // Resolved by a read-only confirming GET, never by guessing.
             return steps.resolveAfterUnconfirmedResponse(subscription.getId());
         }
+        if (SubscriptionCancellationSteps.isTerminalCancelled(result.getStatus())) {
+            return steps.finalizeConfirmedCancellation(subscription.getId(), result.getLastModified());
+        }
+        return steps.resolveAfterUnconfirmedResponse(subscription.getId());
     }
 }

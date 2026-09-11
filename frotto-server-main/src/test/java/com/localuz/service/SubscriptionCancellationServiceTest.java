@@ -21,6 +21,7 @@ import com.localuz.repository.SubscriptionRepository;
 import com.localuz.repository.UserRepository;
 import com.localuz.service.dto.MercadoPagoPreapproval;
 import com.localuz.web.rest.errors.BadRequestAlertException;
+import com.localuz.web.rest.errors.BillingCancellationProviderRejectedException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -49,7 +50,7 @@ class SubscriptionCancellationServiceTest {
         userRepository = mock(UserRepository.class);
         subscriptionRepository = mock(SubscriptionRepository.class);
         client = mock(MercadoPagoClient.class);
-        steps = new SubscriptionCancellationSteps(userRepository, subscriptionRepository, client, Clock.fixed(NOW, ZoneOffset.UTC));
+        steps = Mockito.spy(new SubscriptionCancellationSteps(userRepository, subscriptionRepository, client, Clock.fixed(NOW, ZoneOffset.UTC)));
         service = new SubscriptionCancellationService(steps, client);
 
         user = new User();
@@ -116,7 +117,7 @@ class SubscriptionCancellationServiceTest {
         when(client.cancelPreapproval(eq("pre-3"), anyString())).thenReturn(new MercadoPagoPreapproval("pre-3", "authorized", "ref", null));
         when(client.getPreapproval("pre-3")).thenReturn(new MercadoPagoPreapproval("pre-3", "authorized", "ref", null));
 
-        assertThatThrownBy(() -> service.cancel(user)).isInstanceOf(MercadoPagoException.class);
+        assertThatThrownBy(() -> service.cancel(user)).isInstanceOf(BillingCancellationProviderRejectedException.class);
 
         assertThat(subscription.getCancelAtPeriodEnd()).isFalse();
     }
@@ -227,7 +228,7 @@ class SubscriptionCancellationServiceTest {
         stubFindById(subscription);
         when(client.cancelPreapproval(eq("pre-7"), anyString())).thenThrow(new MercadoPagoException("rejected", false));
 
-        assertThatThrownBy(() -> service.cancel(user)).isInstanceOf(MercadoPagoException.class);
+        assertThatThrownBy(() -> service.cancel(user)).isInstanceOf(BillingCancellationProviderRejectedException.class);
 
         assertThat(subscription.getCancelAtPeriodEnd()).isFalse();
         Mockito.verify(client, never()).getPreapproval(anyString());
@@ -325,4 +326,63 @@ class SubscriptionCancellationServiceTest {
         verify(client).cancelPreapproval(anyString(), idempotencyKeyCaptor.capture());
         assertThat(idempotencyKeyCaptor.getValue()).isEqualTo("cancel-pre-13").doesNotContain("@", "token", "secret", "password");
     }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = SubscriptionStatus.class, names = {"ACTIVE", "PAST_DUE"})
+    void conclusive400RollsBackPendingIntentAndPreservesSubscription(SubscriptionStatus status) {
+        Subscription subscription = subscription(31L, status, true, PERIOD_END, "pre-rejected");
+        Plan plan = subscription.getPlan();
+        when(subscriptionRepository.findByUserIdAndSourceAndStatusIn(1L, SubscriptionSource.PAYMENT_PROVIDER, SubscriptionCancellationSteps.CANCELLABLE_STATUSES)).thenReturn(List.of(subscription));
+        stubFindById(subscription);
+        when(client.cancelPreapproval(anyString(), anyString())).thenThrow(new MercadoPagoException("Invalid preapproval status param: canceled", false, 400, null, "raw provider data"));
+        assertThatThrownBy(() -> service.cancel(user)).isInstanceOf(BillingCancellationProviderRejectedException.class);
+        verify(steps).rollbackIntent(31L);
+        assertThat(subscription.getCancelAtPeriodEnd()).isFalse();
+        assertThat(subscription.getCanceledAt()).isNull();
+        assertThat(subscription.getStatus()).isEqualTo(status);
+        assertThat(subscription.getPlan()).isSameAs(plan);
+        assertThat(subscription.getCurrentPeriodEnd()).isEqualTo(PERIOD_END);
+        assertThat(com.localuz.service.dto.SubscriptionCancellationState.from(subscription.getCancelAtPeriodEnd(), subscription.getCanceledAt())).isEqualTo(com.localuz.service.dto.SubscriptionCancellationState.NONE);
+        verify(client, never()).getPreapproval(anyString());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"timeout,canceled", "500,canceled", "timeout,authorized", "500,authorized", "timeout,failure", "500,failure"})
+    void ambiguousPutUsesOneAuthoritativeGet(String failure, String getResult) {
+        Subscription subscription = subscription(32L, SubscriptionStatus.ACTIVE, false, PERIOD_END, "pre-ambiguous");
+        when(subscriptionRepository.findByUserIdAndSourceAndStatusIn(1L, SubscriptionSource.PAYMENT_PROVIDER, SubscriptionCancellationSteps.CANCELLABLE_STATUSES)).thenReturn(List.of(subscription));
+        stubFindById(subscription);
+        when(client.cancelPreapproval(anyString(), anyString())).thenThrow(new MercadoPagoException(failure, true, "500".equals(failure) ? 500 : null, null, null));
+        if ("failure".equals(getResult)) when(client.getPreapproval("pre-ambiguous")).thenThrow(new MercadoPagoException("GET failed", false, 400, null, null));
+        else when(client.getPreapproval("pre-ambiguous")).thenReturn(new MercadoPagoPreapproval("pre-ambiguous", getResult, "ref", null));
+        if ("canceled".equals(getResult)) {
+            assertThat(service.cancel(user).getCanceledAt()).isNotNull();
+        } else {
+            assertThatThrownBy(() -> service.cancel(user)).isInstanceOf("failure".equals(getResult) ? MercadoPagoException.class : BillingCancellationProviderRejectedException.class);
+            assertThat(subscription.getCanceledAt()).isNull();
+        }
+        assertThat(subscription.getCancelAtPeriodEnd()).isEqualTo(!"authorized".equals(getResult));
+        assertThat(subscription.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(subscription.getCurrentPeriodEnd()).isEqualTo(PERIOD_END);
+        verify(client).getPreapproval("pre-ambiguous");
+        verify(steps, never()).rollbackIntent(any());
+    }
+
+    @Test
+    void authoritativeRejectionCommitsRollbackThroughTransactionProxy() {
+        Subscription subscription = subscription(33L, SubscriptionStatus.ACTIVE, true, PERIOD_END, "pre-transaction");
+        stubFindById(subscription);
+        when(client.getPreapproval("pre-transaction")).thenReturn(new MercadoPagoPreapproval("pre-transaction", "authorized", "ref", null));
+        org.springframework.transaction.PlatformTransactionManager manager = mock(org.springframework.transaction.PlatformTransactionManager.class);
+        org.springframework.transaction.TransactionStatus transaction = new org.springframework.transaction.support.SimpleTransactionStatus();
+        when(manager.getTransaction(any())).thenReturn(transaction);
+        org.springframework.aop.framework.ProxyFactory factory = new org.springframework.aop.framework.ProxyFactory(
+            new SubscriptionCancellationSteps(userRepository, subscriptionRepository, client, Clock.fixed(NOW, ZoneOffset.UTC)));
+        factory.addAdvice(new org.springframework.transaction.interceptor.TransactionInterceptor(manager, new org.springframework.transaction.annotation.AnnotationTransactionAttributeSource()));
+        SubscriptionCancellationSteps proxy = (SubscriptionCancellationSteps) factory.getProxy();
+        assertThatThrownBy(() -> proxy.resolveAfterUnconfirmedResponse(33L)).isInstanceOf(BillingCancellationProviderRejectedException.class);
+        verify(manager).commit(transaction);
+        verify(manager, never()).rollback(any());
+        assertThat(subscription.getCancelAtPeriodEnd()).isFalse();
+    }
+
 }

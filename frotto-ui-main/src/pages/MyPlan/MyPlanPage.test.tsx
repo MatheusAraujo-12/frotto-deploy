@@ -349,4 +349,38 @@ describe("MyPlanPage - checkout modal", () => {
     if (cancellationState === "PENDING_CONFIRMATION") expect(screen.getByText("Estamos confirmando o cancelamento com o Mercado Pago.")).toBeInTheDocument();
     expect(mockedBillingService.cancelSubscription).toHaveBeenCalledTimes(1);
   });
+  it.each([true, false])("rejeição conclusiva limpa pendência e atualiza GET (pendente=%s)", async (pending) => {
+    mockedBillingService.getMyBilling.mockResolvedValueOnce({ ...billing, cancellationState: pending ? "PENDING_CONFIRMATION" : "NONE", cancelAtPeriodEnd: pending }).mockResolvedValue({ ...billing, cancellationState: "NONE", cancelAtPeriodEnd: false });
+    mockedBillingService.cancelSubscription.mockRejectedValue({ response: { status: 502, data: {
+      message: "error.BILLING_CANCELLATION_PROVIDER_REJECTED", detail: "Invalid preapproval status param: canceled private-provider-id secret-token", requestId: "private-request"
+    } } });
+    await renderLoadedPage();
+    fireEvent.click(screen.getByRole("button", { name: pending ? "Tentar novamente" : "Cancelar assinatura" }));
+    if (!pending) fireEvent.click(screen.getByRole("button", { name: "Confirmar cancelamento" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("O Mercado Pago não aceitou o cancelamento neste momento. Sua assinatura permanece ativa e nenhuma alteração de cobrança foi confirmada.");
+    await waitFor(() => expect(mockedBillingService.getMyBilling).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("button", { name: "Cancelar assinatura" })).toBeEnabled();
+    expect(screen.queryByText("Estamos confirmando o cancelamento com o Mercado Pago.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cancelamento agendado")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/private-provider-id|secret-token|private-request|Invalid preapproval/);
+    expect(mockedBillingService.cancelSubscription).toHaveBeenCalledTimes(1);
+    expect(mockedBillingService.createCheckout).not.toHaveBeenCalled();
+    expect(mockedNavigate).not.toHaveBeenCalled();
+  });
+
+  it("rejeição conclusiva limpa resultado pendente em memória mesmo se refresh falhar", async () => {
+    mockedBillingService.cancelSubscription.mockResolvedValueOnce({ state: "PENDING_CONFIRMATION", planCode: "BRONZE", subscriptionStatus: "ACTIVE", currentPeriodEnd: null })
+      .mockRejectedValueOnce({ response: { status: 502, data: { message: "error.BILLING_CANCELLATION_PROVIDER_REJECTED" } } });
+    await openCancellation();
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar cancelamento" }));
+    await screen.findByText("Estamos confirmando o cancelamento com o Mercado Pago.");
+    mockedBillingService.getMyBilling.mockRejectedValueOnce(new Error("offline"));
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    await screen.findByRole("alert");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Cancelar assinatura" })).toBeEnabled());
+    expect(screen.queryByText("Estamos confirmando o cancelamento com o Mercado Pago.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cancelamento agendado")).not.toBeInTheDocument();
+  });
+
 });

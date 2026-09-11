@@ -83,7 +83,13 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
             builder.method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(json));
             HttpResponse<String> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw providerError(response);
+                MercadoPagoException failure = providerError(response);
+                // A failed cancellation PUT may have been applied before a timeout/5xx response.
+                // Keep the existing classification for creation and read-only requests.
+                if ("PUT".equals(method) && (response.statusCode() >= 500 || response.statusCode() == 408)) {
+                    throw new MercadoPagoException(failure.getMessage(), true, failure.getHttpStatus(), failure.getProviderCode(), failure.getProviderMessage());
+                }
+                throw failure;
             }
             JsonNode node = mapper.readTree(response.body());
             String id = text(node, "id"); String status = text(node, "status");

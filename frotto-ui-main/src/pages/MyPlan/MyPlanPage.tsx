@@ -113,9 +113,23 @@ const MyPlanPage: React.FC = () => {
           if (sessionId === loadId.current) setCancelError("O cancelamento foi confirmado, mas não foi possível atualizar os dados do plano. Atualize a página para consultar os dados atuais.");
         }
       }
-    } catch {
+    } catch (requestError) {
       // Do not expose gateway details or identifiers from an HTTP error payload.
-      if (sessionId === loadId.current) setCancelError("Não foi possível solicitar o cancelamento. Tente novamente.");
+      if (sessionId !== loadId.current) return;
+      const rejectedMessage = "O Mercado Pago não aceitou o cancelamento neste momento. Sua assinatura permanece ativa e nenhuma alteração de cobrança foi confirmada.";
+      const message = getApiErrorMessage(requestError, "", { BILLING_CANCELLATION_PROVIDER_REJECTED: rejectedMessage });
+      if (message === rejectedMessage) {
+        setCancellation(null);
+        setBilling({ ...billing, cancelAtPeriodEnd: false, cancellationState: "NONE" });
+        setCancelLoading(false); setCancelModalOpen(false);
+        setCancelError(rejectedMessage);
+        try {
+          const me = await billingService.getMyBilling();
+          if (sessionId === loadId.current) setBilling(me);
+        } catch { /* The controlled rejection already establishes the rollback. */ }
+      } else {
+        setCancelError("Não foi possível solicitar o cancelamento. Tente novamente.");
+      }
     } finally {
       if (sessionId === loadId.current) { cancelInFlight.current = false; setCancelLoading(false); }
     }

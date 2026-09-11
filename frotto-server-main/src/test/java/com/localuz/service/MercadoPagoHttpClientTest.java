@@ -132,6 +132,33 @@ class MercadoPagoHttpClientTest {
         assertThat(payment.getPaymentStatus()).isEqualTo("approved");
     }
 
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"400,false", "401,false", "403,false", "404,false", "408,true", "500,true", "502,true", "503,true"})
+    void cancellationClassifiesHttpFailuresWithoutChangingOfficialPayload(int status, boolean ambiguous) throws Exception {
+        when(response.statusCode()).thenReturn(status);
+        when(response.body()).thenReturn("{\"message\":\"Invalid preapproval status param: canceled\",\"status\":400}");
+        assertThatThrownBy(() -> client.cancelPreapproval("pre-1", "cancel-pre-1"))
+            .isInstanceOfSatisfying(MercadoPagoException.class, error -> {
+                assertThat(error.getHttpStatus()).isEqualTo(status);
+                assertThat(error.isAmbiguous()).isEqualTo(ambiguous);
+            });
+        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http).send(captor.capture(), any(HttpResponse.BodyHandler.class));
+        assertThat(captor.getValue().method()).isEqualTo("PUT");
+        assertThat(captor.getValue().uri().toString()).isEqualTo("https://api.mercadopago.com/preapproval/pre-1");
+        assertThat(body(captor.getValue())).isEqualTo("{\"status\":\"canceled\"}");
+        assertThat(captor.getValue().headers().firstValue("X-Idempotency-Key")).contains("cancel-pre-1");
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
+    void cancellationTimeoutAndConnectionFailureRemainAmbiguous(boolean timeout) throws Exception {
+        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenThrow(timeout ? new HttpTimeoutException("timeout") : new java.io.IOException("connection failed"));
+        assertThatThrownBy(() -> client.cancelPreapproval("pre-1", "cancel-pre-1"))
+            .isInstanceOfSatisfying(MercadoPagoException.class, error -> assertThat(error.isAmbiguous()).isTrue());
+    }
+
     private MercadoPagoPreapprovalRequest request() {
         return new MercadoPagoPreapprovalRequest("ref-1", "payer@example.com", "Frotto GOLD", new BigDecimal("79.90"), "BRL", "https://frotto.test/menu/meu-plano");
     }

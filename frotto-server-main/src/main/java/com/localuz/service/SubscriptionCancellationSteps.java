@@ -7,6 +7,7 @@ import com.localuz.repository.SubscriptionRepository;
 import com.localuz.repository.UserRepository;
 import com.localuz.service.dto.MercadoPagoPreapproval;
 import com.localuz.web.rest.errors.BadRequestAlertException;
+import com.localuz.web.rest.errors.BillingCancellationProviderRejectedException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -177,7 +178,7 @@ public class SubscriptionCancellationSteps {
      *   worst case is a stale "cancellation scheduled" flag until a retry or a real webhook
      *   resolves it, never a wrongly-lost subscription.
      */
-    @Transactional
+    @Transactional(noRollbackFor = BillingCancellationProviderRejectedException.class)
     public Subscription resolveAfterUnconfirmedResponse(Long subscriptionId) {
         Subscription subscription = subscriptionRepository
             .findById(subscriptionId)
@@ -202,7 +203,7 @@ public class SubscriptionCancellationSteps {
             subscription.setCancelAtPeriodEnd(false);
             subscriptionRepository.save(subscription);
         }
-        throw new MercadoPagoException("Mercado Pago did not confirm the cancellation", true);
+        throw new BillingCancellationProviderRejectedException();
     }
 
     public static final class IntentOutcome {

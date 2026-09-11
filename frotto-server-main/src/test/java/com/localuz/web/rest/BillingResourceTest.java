@@ -302,4 +302,23 @@ class BillingResourceTest {
             throw new IllegalStateException(e);
         }
     }
+    @Test
+    void rejectedCancellationReturnsSafeProblemWithoutProviderDetails() throws Exception {
+        when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));
+        when(subscriptionCancellationService.cancel(currentUser)).thenThrow(new com.localuz.web.rest.errors.BillingCancellationProviderRejectedException());
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper()
+            .registerModule(new org.zalando.problem.jackson.ProblemModule());
+        org.springframework.test.web.servlet.MockMvc mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(billingResource)
+            .setControllerAdvice(new com.localuz.web.rest.errors.ExceptionTranslator(Mockito.mock(org.springframework.core.env.Environment.class)))
+            .setMessageConverters(new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(mapper)).build();
+        String body = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/billing/cancel"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadGateway())
+            .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        com.fasterxml.jackson.databind.JsonNode json = mapper.readTree(body);
+        assertThat(json.path("message").asText()).isEqualTo("error.BILLING_CANCELLATION_PROVIDER_REJECTED");
+        assertThat(json.path("detail").asText()).contains("Sua assinatura permanece ativa");
+        assertThat(body).doesNotContain("providerSubscriptionId", "requestId", "access_token", "stackTrace", "Invalid preapproval", "PENDING_CONFIRMATION", "CONFIRMED");
+        Mockito.verifyNoInteractions(billingCheckoutService);
+    }
+
 }
