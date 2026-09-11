@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <changeSet id="20260911000000-1" author="openai">
+        <createTable tableName="billing_invoice">
+            <column name="id" type="bigint" autoIncrement="true"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="version" type="bigint" defaultValueNumeric="0"><constraints nullable="false"/></column>
+            <column name="subscription_id" type="bigint"><constraints nullable="false"/></column>
+            <column name="external_authorized_payment_id" type="varchar(128)"></column>
+            <column name="status" type="varchar(32)"><constraints nullable="false"/></column>
+            <column name="amount" type="decimal(21,2)"><constraints nullable="false"/></column>
+            <column name="currency" type="varchar(3)"><constraints nullable="false"/></column>
+            <column name="period_start" type="datetime(6)"><constraints nullable="false"/></column>
+            <column name="period_end" type="datetime(6)"><constraints nullable="false"/></column>
+            <column name="due_at" type="datetime(6)"><constraints nullable="false"/></column>
+            <column name="grace_period_end" type="datetime(6)"><constraints nullable="false"/></column>
+            <column name="paid_at" type="datetime(6)"></column>
+            <column name="refunded_at" type="datetime(6)"></column>
+            <column name="last_reconciled_at" type="datetime(6)"></column>
+            <column name="provider" type="varchar(64)"><constraints nullable="false"/></column>
+            <column name="provider_status" type="varchar(64)"></column>
+            <column name="provider_created_at" type="datetime(6)"></column>
+            <column name="provider_updated_at" type="datetime(6)"></column>
+            <column name="created_at" type="datetime(6)"><constraints nullable="false"/></column>
+            <column name="updated_at" type="datetime(6)"><constraints nullable="false"/></column>
+        </createTable>
+        <addUniqueConstraint tableName="billing_invoice" columnNames="provider,external_authorized_payment_id" constraintName="ux_billing_invoice_provider_id"/>
+        <addUniqueConstraint tableName="billing_invoice" columnNames="subscription_id,period_start,period_end" constraintName="ux_billing_invoice_period"/>
+        <createIndex tableName="billing_invoice" indexName="idx_billing_invoice_status_due"><column name="status"/><column name="due_at"/></createIndex>
+        <createIndex tableName="billing_invoice" indexName="idx_billing_invoice_status_grace"><column name="status"/><column name="grace_period_end"/></createIndex>
+        <createIndex tableName="billing_invoice" indexName="idx_billing_invoice_reconciled"><column name="last_reconciled_at"/></createIndex>
+        <addForeignKeyConstraint baseTableName="billing_invoice" baseColumnNames="subscription_id"
+            constraintName="fk_billing_invoice_subscription" referencedTableName="subscription"
+            referencedColumnNames="id" onDelete="RESTRICT" onUpdate="RESTRICT"/>
+    </changeSet>
+    <changeSet id="20260911000000-2" author="openai">
+        <createTable tableName="payment_attempt">
+            <column name="id" type="bigint" autoIncrement="true"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="version" type="bigint" defaultValueNumeric="0"><constraints nullable="false"/></column>
+            <column name="billing_invoice_id" type="bigint"><constraints nullable="false"/></column>
+            <column name="external_payment_id" type="varchar(128)"></column>
+            <column name="external_attempt_id" type="varchar(128)"></column>
+            <column name="status" type="varchar(32)"><constraints nullable="false"/></column>
+            <column name="status_detail" type="varchar(128)"></column>
+            <column name="amount" type="decimal(21,2)"><constraints nullable="false"/></column>
+            <column name="refunded_amount" type="decimal(21,2)"></column>
+            <column name="currency" type="varchar(3)"><constraints nullable="false"/></column>
+            <column name="attempted_at" type="datetime(6)"></column>
+            <column name="approved_at" type="datetime(6)"></column>
+            <column name="observed_at" type="datetime(6)"></column>
+            <column name="provider" type="varchar(64)"><constraints nullable="false"/></column>
+            <column name="provider_status" type="varchar(64)"></column>
+            <column name="provider_created_at" type="datetime(6)"></column>
+            <column name="provider_updated_at" type="datetime(6)"></column>
+            <column name="created_at" type="datetime(6)"><constraints nullable="false"/></column>
+            <column name="updated_at" type="datetime(6)"><constraints nullable="false"/></column>
+        </createTable>
+        <addUniqueConstraint tableName="payment_attempt" columnNames="provider,external_payment_id" constraintName="ux_payment_attempt_provider_id"/>
+        <addUniqueConstraint tableName="payment_attempt" columnNames="provider,external_attempt_id" constraintName="ux_payment_attempt_provider_attempt"/>
+        <createIndex tableName="payment_attempt" indexName="idx_payment_attempt_invoice"><column name="billing_invoice_id"/></createIndex>
+        <addForeignKeyConstraint baseTableName="payment_attempt" baseColumnNames="billing_invoice_id"
+            constraintName="fk_payment_attempt_billing_invoice" referencedTableName="billing_invoice"
+            referencedColumnNames="id" onDelete="RESTRICT" onUpdate="RESTRICT"/>
+    </changeSet>
+</databaseChangeLog>
