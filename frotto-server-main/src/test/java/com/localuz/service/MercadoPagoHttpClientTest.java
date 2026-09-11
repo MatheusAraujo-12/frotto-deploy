@@ -26,7 +26,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 
-@SuppressWarnings({ "rawtypes", "unchecked" }) // Mockito cannot preserve HttpClient.send's generic BodyHandler type token.
+@SuppressWarnings("unchecked") // Mockito cannot preserve HttpClient.send's generic BodyHandler type token.
 class MercadoPagoHttpClientTest {
     private final HttpClient http = mock(HttpClient.class);
     private final HttpResponse<String> response = mock(HttpResponse.class);

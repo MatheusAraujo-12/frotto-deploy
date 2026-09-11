@@ -377,7 +377,10 @@ class SubscriptionCancellationServiceTest {
         when(manager.getTransaction(any())).thenReturn(transaction);
         org.springframework.aop.framework.ProxyFactory factory = new org.springframework.aop.framework.ProxyFactory(
             new SubscriptionCancellationSteps(userRepository, subscriptionRepository, client, Clock.fixed(NOW, ZoneOffset.UTC)));
-        factory.addAdvice(new org.springframework.transaction.interceptor.TransactionInterceptor(manager, new org.springframework.transaction.annotation.AnnotationTransactionAttributeSource()));
+        org.springframework.transaction.interceptor.TransactionInterceptor interceptor = new org.springframework.transaction.interceptor.TransactionInterceptor();
+        interceptor.setTransactionManager(manager);
+        interceptor.setTransactionAttributeSource(new org.springframework.transaction.annotation.AnnotationTransactionAttributeSource());
+        factory.addAdvice(interceptor);
         SubscriptionCancellationSteps proxy = (SubscriptionCancellationSteps) factory.getProxy();
         assertThatThrownBy(() -> proxy.resolveAfterUnconfirmedResponse(33L)).isInstanceOf(BillingCancellationProviderRejectedException.class);
         verify(manager).commit(transaction);

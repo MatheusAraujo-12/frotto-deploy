@@ -303,7 +303,7 @@ class BillingResourceTest {
         }
     }
     @Test
-    void rejectedCancellationReturnsSafeProblemWithoutProviderDetails() throws Exception {
+    void rejectedCancellationReturns409WithSafeProblemWithoutProviderDetails() throws Exception {
         when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));
         when(subscriptionCancellationService.cancel(currentUser)).thenThrow(new com.localuz.web.rest.errors.BillingCancellationProviderRejectedException());
         com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper()
@@ -312,11 +312,12 @@ class BillingResourceTest {
             .setControllerAdvice(new com.localuz.web.rest.errors.ExceptionTranslator(Mockito.mock(org.springframework.core.env.Environment.class)))
             .setMessageConverters(new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(mapper)).build();
         String body = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/billing/cancel"))
-            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadGateway())
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isConflict())
             .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
         com.fasterxml.jackson.databind.JsonNode json = mapper.readTree(body);
         assertThat(json.path("message").asText()).isEqualTo("error.BILLING_CANCELLATION_PROVIDER_REJECTED");
-        assertThat(json.path("detail").asText()).contains("Sua assinatura permanece ativa");
+        assertThat(json.path("status").asInt()).isEqualTo(409).isNotEqualTo(502);
+        assertThat(json.path("detail").asText()).isEqualTo("O Mercado Pago não aceitou o cancelamento neste momento. Sua assinatura permanece ativa e nenhuma alteração de cobrança foi confirmada.");
         assertThat(body).doesNotContain("providerSubscriptionId", "requestId", "access_token", "stackTrace", "Invalid preapproval", "PENDING_CONFIRMATION", "CONFIRMED");
         Mockito.verifyNoInteractions(billingCheckoutService);
     }

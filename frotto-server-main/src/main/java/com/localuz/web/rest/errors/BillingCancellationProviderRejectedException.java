@@ -9,7 +9,7 @@ public class BillingCancellationProviderRejectedException extends AbstractThrowa
     private static final long serialVersionUID = 1L;
 
     public BillingCancellationProviderRejectedException() {
-        super(ErrorConstants.DEFAULT_TYPE, "Cancellation rejected", Status.BAD_GATEWAY,
+        super(ErrorConstants.DEFAULT_TYPE, "Cancellation rejected", Status.CONFLICT,
             "O Mercado Pago não aceitou o cancelamento neste momento. Sua assinatura permanece ativa e nenhuma alteração de cobrança foi confirmada.",
             null, null, Map.of("message", "error.BILLING_CANCELLATION_PROVIDER_REJECTED"));
     }
