@@ -327,13 +327,13 @@ class SubscriptionCancellationServiceTest {
         assertThat(idempotencyKeyCaptor.getValue()).isEqualTo("cancel-pre-13").doesNotContain("@", "token", "secret", "password");
     }
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.EnumSource(value = SubscriptionStatus.class, names = {"ACTIVE", "PAST_DUE"})
-    void conclusive400RollsBackPendingIntentAndPreservesSubscription(SubscriptionStatus status) {
+    @org.junit.jupiter.params.provider.CsvSource({"ACTIVE,400", "PAST_DUE,400", "ACTIVE,409", "PAST_DUE,409"})
+    void conclusiveRejectionRollsBackPendingIntentAndPreservesSubscription(SubscriptionStatus status, int httpStatus) {
         Subscription subscription = subscription(31L, status, true, PERIOD_END, "pre-rejected");
         Plan plan = subscription.getPlan();
         when(subscriptionRepository.findByUserIdAndSourceAndStatusIn(1L, SubscriptionSource.PAYMENT_PROVIDER, SubscriptionCancellationSteps.CANCELLABLE_STATUSES)).thenReturn(List.of(subscription));
         stubFindById(subscription);
-        when(client.cancelPreapproval(anyString(), anyString())).thenThrow(new MercadoPagoException("Invalid preapproval status param: canceled", false, 400, null, "raw provider data"));
+        when(client.cancelPreapproval(anyString(), anyString())).thenThrow(new MercadoPagoException("Provider rejected cancellation", false, httpStatus, null, "raw provider data"));
         assertThatThrownBy(() -> service.cancel(user)).isInstanceOf(BillingCancellationProviderRejectedException.class);
         verify(steps).rollbackIntent(31L);
         assertThat(subscription.getCancelAtPeriodEnd()).isFalse();
@@ -346,15 +346,15 @@ class SubscriptionCancellationServiceTest {
     }
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.CsvSource({"timeout,canceled", "500,canceled", "timeout,authorized", "500,authorized", "timeout,failure", "500,failure"})
+    @org.junit.jupiter.params.provider.CsvSource({"timeout,canceled", "500,canceled", "timeout,cancelled", "500,cancelled", "503,cancelled", "timeout,authorized", "500,authorized", "503,authorized", "timeout,failure", "500,failure", "503,failure"})
     void ambiguousPutUsesOneAuthoritativeGet(String failure, String getResult) {
         Subscription subscription = subscription(32L, SubscriptionStatus.ACTIVE, false, PERIOD_END, "pre-ambiguous");
         when(subscriptionRepository.findByUserIdAndSourceAndStatusIn(1L, SubscriptionSource.PAYMENT_PROVIDER, SubscriptionCancellationSteps.CANCELLABLE_STATUSES)).thenReturn(List.of(subscription));
         stubFindById(subscription);
-        when(client.cancelPreapproval(anyString(), anyString())).thenThrow(new MercadoPagoException(failure, true, "500".equals(failure) ? 500 : null, null, null));
+        when(client.cancelPreapproval(anyString(), anyString())).thenThrow(new MercadoPagoException(failure, true, "timeout".equals(failure) ? null : Integer.valueOf(failure), null, null));
         if ("failure".equals(getResult)) when(client.getPreapproval("pre-ambiguous")).thenThrow(new MercadoPagoException("GET failed", false, 400, null, null));
         else when(client.getPreapproval("pre-ambiguous")).thenReturn(new MercadoPagoPreapproval("pre-ambiguous", getResult, "ref", null));
-        if ("canceled".equals(getResult)) {
+        if ("canceled".equals(getResult) || "cancelled".equals(getResult)) {
             assertThat(service.cancel(user).getCanceledAt()).isNotNull();
         } else {
             assertThatThrownBy(() -> service.cancel(user)).isInstanceOf("failure".equals(getResult) ? MercadoPagoException.class : BillingCancellationProviderRejectedException.class);

@@ -134,7 +134,7 @@ class MercadoPagoHttpClientTest {
 
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.CsvSource({"400,false", "401,false", "403,false", "404,false", "408,true", "500,true", "502,true", "503,true"})
+    @org.junit.jupiter.params.provider.CsvSource({"400,false", "401,false", "403,false", "404,false", "408,true", "409,false", "500,true", "502,true", "503,true"})
     void cancellationClassifiesHttpFailuresWithoutChangingOfficialPayload(int status, boolean ambiguous) throws Exception {
         when(response.statusCode()).thenReturn(status);
         when(response.body()).thenReturn("{\"message\":\"Invalid preapproval status param: canceled\",\"status\":400}");
@@ -147,7 +147,7 @@ class MercadoPagoHttpClientTest {
         verify(http).send(captor.capture(), any(HttpResponse.BodyHandler.class));
         assertThat(captor.getValue().method()).isEqualTo("PUT");
         assertThat(captor.getValue().uri().toString()).isEqualTo("https://api.mercadopago.com/preapproval/pre-1");
-        assertThat(body(captor.getValue())).isEqualTo("{\"status\":\"canceled\"}");
+        assertThat(body(captor.getValue())).isEqualTo("{\"status\":\"cancelled\"}");
         assertThat(captor.getValue().headers().firstValue("X-Idempotency-Key")).contains("cancel-pre-1");
     }
 
@@ -157,6 +157,43 @@ class MercadoPagoHttpClientTest {
         when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenThrow(timeout ? new HttpTimeoutException("timeout") : new java.io.IOException("connection failed"));
         assertThatThrownBy(() -> client.cancelPreapproval("pre-1", "cancel-pre-1"))
             .isInstanceOfSatisfying(MercadoPagoException.class, error -> assertThat(error.isAmbiguous()).isTrue());
+    }
+
+    @Test
+    void cancellationSendsCancelledAndRecognizesSuccessfulResponse() throws Exception {
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"cancelled\"}");
+
+        MercadoPagoPreapproval result = client.cancelPreapproval("pre-1", "cancel-pre-1");
+
+        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http).send(captor.capture(), any(HttpResponse.BodyHandler.class));
+        HttpRequest sent = captor.getValue();
+        assertThat(sent.method()).isEqualTo("PUT");
+        assertThat(sent.uri().toString()).isEqualTo("https://api.mercadopago.com/preapproval/pre-1");
+        assertThat(body(sent)).isEqualTo("{\"status\":\"cancelled\"}").doesNotContain("\"canceled\"");
+        assertThat(sent.headers().firstValue("Authorization")).contains("Bearer secret-token");
+        assertThat(sent.headers().firstValue("Content-Type")).contains("application/json");
+        assertThat(sent.headers().firstValue("X-Idempotency-Key")).contains("cancel-pre-1");
+        assertThat(sent.headers().firstValue("X-scope")).isEmpty();
+        assertThat(result.getStatus()).isEqualTo("cancelled");
+        assertThat(SubscriptionCancellationSteps.isTerminalCancelled(result.getStatus())).isTrue();
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"cancelled,true", "authorized,false", "paused,false"})
+    void getPreapprovalPreservesStatusAndRecognizesCancellation(String status, boolean cancelled) throws Exception {
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"" + status + "\"}");
+
+        MercadoPagoPreapproval result = client.getPreapproval("pre-1");
+
+        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http).send(captor.capture(), any(HttpResponse.BodyHandler.class));
+        assertThat(captor.getValue().method()).isEqualTo("GET");
+        assertThat(captor.getValue().uri().toString()).isEqualTo("https://api.mercadopago.com/preapproval/pre-1");
+        assertThat(result.getStatus()).isEqualTo(status);
+        assertThat(SubscriptionCancellationSteps.isTerminalCancelled(result.getStatus())).isEqualTo(cancelled);
     }
 
     private MercadoPagoPreapprovalRequest request() {

@@ -23,6 +23,7 @@ import org.springframework.stereotype.Component;
 public class MercadoPagoHttpClient implements MercadoPagoClient {
     private static final URI PREAPPROVAL = URI.create("https://api.mercadopago.com/preapproval");
     private static final URI AUTHORIZED_PAYMENTS = URI.create("https://api.mercadopago.com/authorized_payments");
+    private static final URI PAYMENTS = URI.create("https://api.mercadopago.com/v1/payments");
     private final MercadoPagoProperties properties;
     private final ObjectMapper mapper;
     private final HttpClient client;
@@ -56,12 +57,66 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
     }
     @Override public MercadoPagoAuthorizedPayment getAuthorizedPayment(String id) {
         JsonNode node = getJson(resource(AUTHORIZED_PAYMENTS, id));
-        String returnedId = text(node, "id"); String status = text(node, "status"); String preapprovalId = text(node, "preapproval_id");
-        if (returnedId == null || status == null || preapprovalId == null) throw new MercadoPagoException("Mercado Pago returned an invalid response", false);
-        return new MercadoPagoAuthorizedPayment(returnedId, status, preapprovalId, text(node.path("payment"), "status"));
+        MercadoPagoAuthorizedPayment result = authorizedPayment(node);
+        if (!id.equals(result.getId())) throw invalidFinancialResponse();
+        return result;
+    }
+
+    @Override public com.localuz.service.dto.MercadoPagoPayment getPayment(String id) {
+        JsonNode node = getJson(resource(PAYMENTS, id));
+        if (!id.equals(text(node, "id")) || text(node, "status") == null) throw invalidFinancialResponse();
+        return new com.localuz.service.dto.MercadoPagoPayment(id, text(node, "status"), safeCode(node, "status_detail"),
+            decimal(node, "transaction_amount"), text(node, "currency_id"), instant(node, "date_created"),
+            instant(node, "date_approved"), instant(node, "date_last_updated"), text(node, "external_reference"),
+            decimal(node, "transaction_amount_refunded"));
+    }
+
+    @Override public java.util.Optional<MercadoPagoAuthorizedPayment> findAuthorizedPaymentByPaymentId(String id) {
+        resource(PAYMENTS, id); // Validate before constructing the query; never interpolate an arbitrary URL.
+        JsonNode node = getJson(URI.create(AUTHORIZED_PAYMENTS + "/search?payment_id=" + id + "&limit=2&offset=0"));
+        JsonNode results = node.path("results");
+        if (!results.isArray() || !node.path("paging").path("total").canConvertToInt()) throw invalidFinancialResponse();
+        int total = node.path("paging").path("total").asInt();
+        if (total == 0 && results.isEmpty()) return java.util.Optional.empty();
+        if (total != 1 || results.size() != 1) throw invalidFinancialResponse();
+        MercadoPagoAuthorizedPayment match = authorizedPayment(results.get(0));
+        if (!id.equals(match.getPaymentId())) throw invalidFinancialResponse();
+        // Confirm the search result with the authoritative individual resource.
+        MercadoPagoAuthorizedPayment confirmed = getAuthorizedPayment(match.getId());
+        if (!id.equals(confirmed.getPaymentId()) || !match.getPreapprovalId().equals(confirmed.getPreapprovalId())) {
+            throw invalidFinancialResponse();
+        }
+        return java.util.Optional.of(confirmed);
+    }
+
+    private MercadoPagoAuthorizedPayment authorizedPayment(JsonNode node) {
+        String id = text(node, "id"), status = text(node, "status"), preapprovalId = text(node, "preapproval_id");
+        if (id == null || status == null || preapprovalId == null) throw invalidFinancialResponse();
+        resource(AUTHORIZED_PAYMENTS, id);
+        resource(PREAPPROVAL, preapprovalId);
+        return new MercadoPagoAuthorizedPayment(id, status, preapprovalId, text(node.path("payment"), "status"),
+            text(node.path("payment"), "id"), decimal(node, "transaction_amount"), text(node, "currency_id"),
+            instant(node, "date_created"), instant(node, "last_modified"), instant(node, "debit_date"), text(node, "external_reference"));
+    }
+
+    private java.math.BigDecimal decimal(JsonNode node, String field) {
+        String value = text(node, field);
+        if (value == null) return null;
+        try { return new java.math.BigDecimal(value); }
+        catch (NumberFormatException invalid) { throw invalidFinancialResponse(); }
+    }
+
+    private String safeCode(JsonNode node, String field) {
+        String value = text(node, field);
+        return value != null && value.matches("[A-Za-z0-9_-]{1,128}") ? value : null;
+    }
+
+    private MercadoPagoException invalidFinancialResponse() {
+        return new MercadoPagoException("Mercado Pago returned an invalid financial response", false);
     }
     @Override public MercadoPagoPreapproval cancelPreapproval(String id, String idempotencyKey) {
-        return exchange("PUT", resource(id), Map.of("status", "canceled"), idempotencyKey, true);
+        // Mercado Pago preapproval cancellation expects "cancelled" (support ticket WCS-50414).
+        return exchange("PUT", resource(id), Map.of("status", "cancelled"), idempotencyKey, true);
     }
 
     private URI resource(String id) {
