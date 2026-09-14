@@ -37,6 +37,10 @@ public class MercadoPagoWebhookResource {
             return ResponseEntity.ok().build();
         }
         catch(DataIntegrityViolationException duplicate){
+            if (!isDeliveryDuplicate(duplicate)) {
+                LOG.warn("Mercado Pago webhook persistence failure requestId={} dataId={}", requestId, dataId);
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+            }
             LOG.info("Mercado Pago webhook handled requestId={} dataId={} processorResult=DUPLICATE_CONSTRAINT",requestId,dataId);
             return ResponseEntity.ok().build();
         }
@@ -44,5 +48,19 @@ public class MercadoPagoWebhookResource {
             LOG.warn("Mercado Pago webhook provider failure requestId={} dataId={}",requestId,dataId);
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
         }
+    }
+
+    private boolean isDeliveryDuplicate(Throwable error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (cause instanceof org.hibernate.exception.ConstraintViolationException) {
+                org.hibernate.exception.ConstraintViolationException violation =
+                    (org.hibernate.exception.ConstraintViolationException) cause;
+                String constraint = violation.getConstraintName();
+                return ("ux_mp_webhook_delivery".equals(constraint)
+                    || "mercadopago_webhook_event.ux_mp_webhook_delivery".equals(constraint))
+                    && violation.getErrorCode() == 1062;
+            }
+        }
+        return false;
     }
 }

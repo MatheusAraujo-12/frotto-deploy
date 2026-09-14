@@ -12,6 +12,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 /** Persistence queries only; callers remain responsible for financial reconciliation. */
 public interface BillingInvoiceRepository extends JpaRepository<BillingInvoice, Long> {
     List<BillingInvoice> findBySubscriptionIdOrderByPeriodStartAsc(Long subscriptionId);
+    @org.springframework.data.jpa.repository.Lock(javax.persistence.LockModeType.PESSIMISTIC_WRITE)
     Optional<BillingInvoice> findByProviderAndExternalAuthorizedPaymentId(String provider, String externalAuthorizedPaymentId);
     Optional<BillingInvoice> findBySubscriptionIdAndPeriodStartAndPeriodEnd(Long subscriptionId, Instant periodStart, Instant periodEnd);
     Page<BillingInvoice> findByStatusAndDueAtLessThanEqual(BillingInvoiceStatus status, Instant dueAt, Pageable pageable);

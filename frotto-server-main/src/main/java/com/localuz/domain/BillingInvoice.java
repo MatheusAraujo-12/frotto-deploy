@@ -58,20 +58,16 @@ public class BillingInvoice implements Serializable {
     @Column(name = "currency", nullable = false, length = 3)
     private String currency;
 
-    @NotNull
-    @Column(name = "period_start", nullable = false, updatable = false)
+    @Column(name = "period_start")
     private Instant periodStart;
 
-    @NotNull
-    @Column(name = "period_end", nullable = false, updatable = false)
+    @Column(name = "period_end")
     private Instant periodEnd;
 
-    @NotNull
-    @Column(name = "due_at", nullable = false, updatable = false)
+    @Column(name = "due_at")
     private Instant dueAt;
 
-    @NotNull
-    @Column(name = "grace_period_end", nullable = false, updatable = false)
+    @Column(name = "grace_period_end")
     private Instant gracePeriodEnd;
 
     @Column(name = "paid_at")
@@ -123,9 +119,9 @@ public class BillingInvoice implements Serializable {
 
     @AssertTrue(message = "Service period must be positive and grace must end 72 hours after dueAt")
     public boolean isPeriodValid() {
-        return periodStart != null && periodEnd != null && dueAt != null && gracePeriodEnd != null
-            && periodStart.isBefore(periodEnd) && dueAt.equals(periodStart)
-            && gracePeriodEnd.equals(dueAt.plus(Duration.ofHours(72)));
+        return (periodStart == null || periodEnd == null || periodStart.isBefore(periodEnd))
+            && (dueAt == null || periodStart == null || dueAt.equals(periodStart))
+            && (dueAt == null ? gracePeriodEnd == null : dueAt.plus(Duration.ofHours(72)).equals(gracePeriodEnd));
     }
 
     public Long getId() {

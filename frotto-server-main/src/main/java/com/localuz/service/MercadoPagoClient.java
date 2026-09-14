@@ -10,4 +10,6 @@ public interface MercadoPagoClient {
     MercadoPagoPreapproval getPreapproval(String providerSubscriptionId);
     MercadoPagoPreapproval cancelPreapproval(String providerSubscriptionId, String idempotencyKey);
     MercadoPagoAuthorizedPayment getAuthorizedPayment(String authorizedPaymentId);
+    com.localuz.service.dto.MercadoPagoPayment getPayment(String paymentId);
+    java.util.Optional<MercadoPagoAuthorizedPayment> findAuthorizedPaymentByPaymentId(String paymentId);
 }

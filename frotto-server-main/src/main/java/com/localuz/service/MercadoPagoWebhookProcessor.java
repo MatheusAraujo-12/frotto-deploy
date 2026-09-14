@@ -9,7 +9,6 @@ import com.localuz.domain.enumeration.SubscriptionStatus;
 import com.localuz.repository.BillingCheckoutRepository;
 import com.localuz.repository.MercadoPagoWebhookEventRepository;
 import com.localuz.repository.SubscriptionRepository;
-import com.localuz.service.dto.MercadoPagoAuthorizedPayment;
 import com.localuz.service.dto.MercadoPagoPreapproval;
 import java.time.Instant;
 import java.util.Optional;
@@ -26,7 +25,8 @@ public class MercadoPagoWebhookProcessor {
     private static final String AUTHORIZED_PAYMENT="subscription_authorized_payment";
     private final MercadoPagoClient client; private final BillingCheckoutRepository checkouts;
     private final SubscriptionRepository subscriptions; private final MercadoPagoWebhookEventRepository events;
-    public MercadoPagoWebhookProcessor(MercadoPagoClient client,BillingCheckoutRepository checkouts,SubscriptionRepository subscriptions,MercadoPagoWebhookEventRepository events){this.client=client;this.checkouts=checkouts;this.subscriptions=subscriptions;this.events=events;}
+    private final MercadoPagoFinancialIngestion financialIngestion;
+    public MercadoPagoWebhookProcessor(MercadoPagoClient client,BillingCheckoutRepository checkouts,SubscriptionRepository subscriptions,MercadoPagoWebhookEventRepository events,MercadoPagoFinancialIngestion financialIngestion){this.client=client;this.checkouts=checkouts;this.subscriptions=subscriptions;this.events=events;this.financialIngestion=financialIngestion;}
 
     @Transactional
     public Result process(String requestId,String type,String resourceId){
@@ -35,13 +35,15 @@ public class MercadoPagoWebhookProcessor {
             return Result.DUPLICATE;
         }
         LOG.info("Mercado Pago webhook event started requestId={} eventType={} resourceId={}",requestId,type,resourceId);
-        MercadoPagoPreapproval preapproval; MercadoPagoAuthorizedPayment payment=null;
+        if (AUTHORIZED_PAYMENT.equals(type) || "payment".equals(type)) {
+            boolean ingested = financialIngestion.ingest(type, resourceId);
+            saveEvent(requestId,type,resourceId);
+            return ingested ? Result.PROCESSED : Result.IGNORED;
+        }
+        MercadoPagoPreapproval preapproval;
         try {
             if(PREAPPROVAL.equals(type)){preapproval=client.getPreapproval(resourceId);}
-            else if(AUTHORIZED_PAYMENT.equals(type)){
-                payment=client.getAuthorizedPayment(resourceId);
-                preapproval=client.getPreapproval(payment.getPreapprovalId());
-            } else {
+            else {
                 LOG.info("Mercado Pago webhook event ignored requestId={} eventType={} resourceId={} reason=unknown_event_type",requestId,type,resourceId);
                 return Result.IGNORED;
             }
@@ -66,7 +68,6 @@ public class MercadoPagoWebhookProcessor {
         }
         checkout.setProviderSubscriptionId(preapproval.getId()); checkout.setProviderStatus(preapproval.getStatus());
         reconcile(checkout,preapproval,PREAPPROVAL.equals(type));
-        if(payment!=null && "authorized".equalsIgnoreCase(preapproval.getStatus()))reconcilePayment(preapproval.getId(),payment);
         saveEvent(requestId,type,resourceId);
         LOG.info("Mercado Pago webhook event processed requestId={} eventType={} resourceId={} providerStatus={}",requestId,type,resourceId,preapproval.getStatus());
         return Result.PROCESSED;
@@ -129,15 +130,4 @@ public class MercadoPagoWebhookProcessor {
         checkouts.save(checkout);
     }
 
-    private void reconcilePayment(String providerSubscriptionId,MercadoPagoAuthorizedPayment payment){
-        String invoice=normalize(payment.getStatus()); String result=normalize(payment.getPaymentStatus());
-        if(!"processed".equals(invoice))return;
-        subscriptions.findByExternalProviderAndExternalSubscriptionId("MERCADO_PAGO",providerSubscriptionId).ifPresent(subscription->{
-            if(subscription.getStatus()==SubscriptionStatus.CANCELED)return;
-            if("approved".equals(result)){subscription.setStatus(SubscriptionStatus.ACTIVE);subscriptions.save(subscription);}
-            else if("rejected".equals(result)){subscription.setStatus(SubscriptionStatus.PAST_DUE);subscriptions.save(subscription);}
-        });
-    }
-
-    private String normalize(String value){return value==null?"":value.trim().toLowerCase(java.util.Locale.ROOT).replace(' ','_');}
 }

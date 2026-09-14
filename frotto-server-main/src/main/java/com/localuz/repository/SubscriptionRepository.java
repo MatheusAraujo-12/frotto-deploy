@@ -9,6 +9,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 /** Spring Data JPA repository for the Subscription entity. */
 public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
+    /** Serialize financial upserts for an existing provider subscription, including first insert. */
+    @org.springframework.data.jpa.repository.Lock(javax.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select s from Subscription s where s.externalProvider = :provider and s.externalSubscriptionId = :externalId")
+    Optional<Subscription> findForFinancialIngestion(
+        @org.springframework.data.repository.query.Param("provider") String provider,
+        @org.springframework.data.repository.query.Param("externalId") String externalId);
+
     /**
      * All ACTIVE/PAST_DUE rows for a user, most recently started first. Plural (not
      * findFirst...) because SubscriptionService must skip an expired ADMIN_GRANT and fall

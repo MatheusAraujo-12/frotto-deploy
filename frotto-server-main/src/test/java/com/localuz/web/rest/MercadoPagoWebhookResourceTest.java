@@ -19,6 +19,27 @@ class MercadoPagoWebhookResourceTest {
     @Test void rejectsInvalidSignature(){assertThat(resource.receive("bad","req","pre-1",payload("pre-1")).getStatusCodeValue()).isEqualTo(401);verifyNoInteractions(processor);}
     @Test void rejectsManipulatedPayload(){when(validator.isValid(any(),any(),any())).thenReturn(true);assertThat(resource.receive("sig","req","pre-1",payload("attacker-id")).getStatusCodeValue()).isEqualTo(400);verifyNoInteractions(processor);}
     @Test void retriesProviderFailure(){when(validator.isValid(any(),any(),any())).thenReturn(true);doThrow(new MercadoPagoException("temporary",false)).when(processor).process(any(),any(),any());assertThat(resource.receive("sig","req","pre-1",payload("pre-1")).getStatusCodeValue()).isEqualTo(503);}
+    @Test void genuineInvoiceConstraintFailureIsNotAcknowledgedAsDuplicate() {
+        when(validator.isValid(any(), any(), any())).thenReturn(true);
+        doThrow(integrityFailure("ux_billing_invoice_provider_id")).when(processor).process(any(), any(), any());
+        assertThat(resource.receive("sig", "req", "pre-1", payload("pre-1")).getStatusCodeValue()).isEqualTo(503);
+    }
+    @Test void onlyExpectedDeliveryUniqueConstraintIsAcknowledged() {
+        when(validator.isValid(any(), any(), any())).thenReturn(true);
+        doThrow(integrityFailure("mercadopago_webhook_event.ux_mp_webhook_delivery")).when(processor).process(any(), any(), any());
+        assertThat(resource.receive("sig", "req", "pre-1", payload("pre-1")).getStatusCodeValue()).isEqualTo(200);
+    }
+    @Test void unidentifiedIntegrityFailureIsRetriable() {
+        when(validator.isValid(any(), any(), any())).thenReturn(true);
+        doThrow(new org.springframework.dao.DataIntegrityViolationException("unknown constraint"))
+            .when(processor).process(any(), any(), any());
+        assertThat(resource.receive("sig", "req", "pre-1", payload("pre-1")).getStatusCodeValue()).isEqualTo(503);
+    }
+    private org.springframework.dao.DataIntegrityViolationException integrityFailure(String constraint) {
+        return new org.springframework.dao.DataIntegrityViolationException("persistence failure",
+            new org.hibernate.exception.ConstraintViolationException("constraint failure",
+                new java.sql.SQLException("duplicate", "23000", 1062), constraint));
+    }
     @Test void logsNeverContainTheRawSignatureHeaderValue(){
         ch.qos.logback.classic.Logger logbackLogger=(ch.qos.logback.classic.Logger)LoggerFactory.getLogger(MercadoPagoWebhookResource.class);
         ListAppender<ILoggingEvent> appender=new ListAppender<>();

@@ -48,7 +48,7 @@ class RecurringBillingPersistenceTest {
             Liquibase liquibase = new Liquibase("config/liquibase/master.xml", new ClassLoaderResourceAccessor(),
                 DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(connection)));
             // Install the preceding schema first, then keep a real legacy subscription across the new migration.
-            liquibase.getDatabaseChangeLog().getChangeSets().removeIf(change -> change.getId().startsWith("20260911000000-"));
+            liquibase.getDatabaseChangeLog().getChangeSets().removeIf(change -> (change.getId().startsWith("20260911000000-") || change.getId().startsWith("20260914000000-")));
             liquibase.update(new Contexts("test"));
             try (java.sql.ResultSet tables = connection.getMetaData().getTables(connection.getCatalog(), null, "billing_invoice", null)) {
                 assertThat(tables.next()).isFalse();
@@ -319,6 +319,76 @@ class RecurringBillingPersistenceTest {
         invoice.setLastReconciledAt(OCTOBER);
         em.flush();
         assertThat(invoices.findByLastReconciledAtIsNullOrLastReconciledAtBefore(SEPTEMBER, page)).isEmpty();
+    }
+
+    @Test
+    void nullableFinancialDatesPersistAndCanBeEnrichedWithoutInventingPeriods() {
+        BillingInvoice first = newInvoice(SEPTEMBER, OCTOBER, "unknown-period-1");
+        first.setPeriodStart(null);
+        first.setPeriodEnd(null);
+        first.setDueAt(null);
+        first.setGracePeriodEnd(null);
+        invoices.saveAndFlush(first);
+        BillingInvoice second = newInvoice(SEPTEMBER, OCTOBER, "unknown-period-2");
+        second.setPeriodStart(null);
+        second.setPeriodEnd(null);
+        second.setDueAt(null);
+        second.setGracePeriodEnd(null);
+        invoices.saveAndFlush(second);
+        em.clear();
+        BillingInvoice loaded = em.find(BillingInvoice.class, first.getId());
+        assertThat(loaded.getPeriodStart()).isNull();
+        assertThat(loaded.getPeriodEnd()).isNull();
+        assertThat(loaded.getDueAt()).isNull();
+        assertThat(loaded.getGracePeriodEnd()).isNull();
+        loaded.setPeriodStart(SEPTEMBER);
+        loaded.setPeriodEnd(OCTOBER);
+        loaded.setDueAt(SEPTEMBER);
+        loaded.setGracePeriodEnd(SEPTEMBER.plus(Duration.ofHours(72)));
+        em.flush();
+        em.clear();
+        assertThat(em.find(BillingInvoice.class, first.getId()).getDueAt()).isEqualTo(SEPTEMBER);
+        assertThat(em.find(BillingInvoice.class, second.getId()).getDueAt()).isNull();
+    }
+
+    @Test
+    void financialIngestionReplaysAndEnrichesUsingRealRepositories() {
+        subscription.setExternalProvider(PROVIDER);
+        subscription.setExternalSubscriptionId("pre-ingest");
+        em.flush();
+        com.localuz.service.MercadoPagoClient client = org.mockito.Mockito.mock(com.localuz.service.MercadoPagoClient.class);
+        org.mockito.Mockito.when(client.getPreapproval("pre-ingest")).thenReturn(
+            new com.localuz.service.dto.MercadoPagoPreapproval("pre-ingest", "authorized", "ref", null));
+        com.localuz.service.dto.MercadoPagoAuthorizedPayment provisional = new com.localuz.service.dto.MercadoPagoAuthorizedPayment(
+            "charge-ingest", "processed", "pre-ingest", "approved", null, new BigDecimal("100.00"), "BRL", SEPTEMBER, SEPTEMBER, null, "ref");
+        org.mockito.Mockito.when(client.getAuthorizedPayment("charge-ingest")).thenReturn(provisional);
+        com.localuz.service.MercadoPagoFinancialIngestion ingestion = new com.localuz.service.MercadoPagoFinancialIngestion(
+            client, new JpaRepositoryFactory(em).getRepository(SubscriptionRepository.class), invoices, attempts,
+            new com.localuz.service.MercadoPagoBillingStatusMapper());
+        assertThat(ingestion.ingest("subscription_authorized_payment", "charge-ingest")).isTrue();
+        BillingInvoice invoice = invoices.findByProviderAndExternalAuthorizedPaymentId(PROVIDER, "charge-ingest").orElseThrow();
+        Long attemptId = attempts.findByBillingInvoiceIdOrderByIdAsc(invoice.getId()).get(0).getId();
+        org.mockito.Mockito.when(client.findAuthorizedPaymentByPaymentId("payment-ingest")).thenReturn(java.util.Optional.of(
+            new com.localuz.service.dto.MercadoPagoAuthorizedPayment("charge-ingest", "processed", "pre-ingest", "approved", "payment-ingest",
+                new BigDecimal("100.0"), "brl", SEPTEMBER, SEPTEMBER.plusSeconds(20), null, "ref")));
+        org.mockito.Mockito.when(client.getPayment("payment-ingest")).thenReturn(new com.localuz.service.dto.MercadoPagoPayment(
+            "payment-ingest", "approved", "accredited", new BigDecimal("100.0"), "brl", SEPTEMBER,
+            SEPTEMBER.plusSeconds(10), SEPTEMBER.plusSeconds(20), "ref", null));
+        ingestion.ingest("payment", "payment-ingest");
+        em.clear();
+        ingestion.ingest("payment", "payment-ingest");
+        em.clear();
+        BillingInvoice loaded = invoices.findByProviderAndExternalAuthorizedPaymentId(PROVIDER, "charge-ingest").orElseThrow();
+        assertThat(loaded.getId()).isEqualTo(invoice.getId());
+        assertThat(loaded.getStatus()).isEqualTo(BillingInvoiceStatus.PAID);
+        assertThat(loaded.getPeriodStart()).isNull();
+        assertThat(loaded.getDueAt()).isNull();
+        assertThat(attempts.findByBillingInvoiceIdOrderByIdAsc(loaded.getId())).singleElement().satisfies(attempt -> {
+            assertThat(attempt.getId()).isEqualTo(attemptId);
+            assertThat(attempt.getStatus()).isEqualTo(PaymentAttemptStatus.APPROVED);
+            assertThat(attempt.getExternalPaymentId()).isEqualTo("payment-ingest");
+        });
+        assertThat(em.find(Subscription.class, subscription.getId()).getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
     }
 
     private BillingInvoice newInvoice(Instant start, Instant end, String externalId) {

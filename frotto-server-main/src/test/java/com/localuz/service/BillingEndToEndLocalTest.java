@@ -59,7 +59,7 @@ class BillingEndToEndLocalTest {
         when(provider.getPreapproval("pre-local")).thenReturn(new MercadoPagoPreapproval("pre-local","authorized",created.getExternalReference(),null,Instant.parse("2026-08-28T00:00:00Z"),Instant.parse("2026-09-28T00:00:00Z"),Instant.parse("2026-08-28T01:00:00Z")));
         when(subscriptions.findByExternalProviderAndExternalSubscriptionId("MERCADO_PAGO","pre-local")).thenAnswer(call->Optional.ofNullable(subscriptionState.get()));
         when(subscriptions.save(any())).thenAnswer(call->{Subscription value=call.getArgument(0);subscriptionState.set(value);return value;});
-        MercadoPagoWebhookProcessor processor = new MercadoPagoWebhookProcessor(provider,checkouts,subscriptions,events);
+        MercadoPagoWebhookProcessor processor = new MercadoPagoWebhookProcessor(provider,checkouts,subscriptions,events,mock(MercadoPagoFinancialIngestion.class));
         assertThat(processor.process("request-local","subscription_preapproval","pre-local")).isEqualTo(MercadoPagoWebhookProcessor.Result.PROCESSED);
         Subscription paid = subscriptionState.get();
         assertThat(paid.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE); assertThat(paid.getSource()).isEqualTo(SubscriptionSource.PAYMENT_PROVIDER);
