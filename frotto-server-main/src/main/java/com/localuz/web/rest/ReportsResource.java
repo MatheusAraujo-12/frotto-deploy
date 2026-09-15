@@ -276,11 +276,17 @@ public class ReportsResource {
     }
 
     @GetMapping("/reports/maintenance")
-    public List<ReportsDTO> getReportMaintenance(@RequestParam String group, @RequestParam Integer year) {
+    public List<ReportsDTO> getReportMaintenance(
+        @RequestParam(required = false) String group,
+        @RequestParam Integer year,
+        @RequestParam(defaultValue = "false") boolean allGroups
+    ) {
         List<ReportsDTO> reportsDTOList = new ArrayList<>();
 
-        if (!group.isEmpty() && year != null) {
-            List<Car> carsInGroup = carRepository.findActiveByCurrentUserAndGroup(group);
+        if ((allGroups || (group != null && !group.isEmpty())) && year != null) {
+            List<Car> carsInGroup = allGroups
+                ? carRepository.findActiveByCurrentUser()
+                : carRepository.findActiveByCurrentUserAndGroup(group);
 
             for (Car car : carsInGroup) {
                 List<Maintenance> maintenances = maintenanceRepository.findByCarIdAndYear(car.getId(), year);
