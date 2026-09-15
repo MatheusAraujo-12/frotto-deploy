@@ -15,12 +15,16 @@ public class MercadoPagoAuthorizedPayment {
     private final Instant dateCreated;
     private final Instant lastModified;
     private final Instant debitDate;
+    private final java.time.OffsetDateTime debitDateWithOffset;
     private final String externalReference;
     public MercadoPagoAuthorizedPayment(String id, String status, String preapprovalId) { this(id, status, preapprovalId, null); }
     public MercadoPagoAuthorizedPayment(String id, String status, String preapprovalId, String paymentStatus) {
         this(id, status, preapprovalId, paymentStatus, null, null, null, null, null, null, null);
     }
     public MercadoPagoAuthorizedPayment(String id, String status, String preapprovalId, String paymentStatus, String paymentId, BigDecimal transactionAmount, String currencyId, Instant dateCreated, Instant lastModified, Instant debitDate, String externalReference) {
+        this(id, status, preapprovalId, paymentStatus, paymentId, transactionAmount, currencyId, dateCreated, lastModified, debitDate, externalReference, null);
+    }
+    public MercadoPagoAuthorizedPayment(String id, String status, String preapprovalId, String paymentStatus, String paymentId, BigDecimal transactionAmount, String currencyId, Instant dateCreated, Instant lastModified, Instant debitDate, String externalReference, java.time.OffsetDateTime debitDateWithOffset) {
         this.id = id;
         this.status = status;
         this.preapprovalId = preapprovalId;
@@ -31,6 +35,7 @@ public class MercadoPagoAuthorizedPayment {
         this.dateCreated = dateCreated;
         this.lastModified = lastModified;
         this.debitDate = debitDate;
+        this.debitDateWithOffset = debitDateWithOffset;
         this.externalReference = externalReference;
     }
     public String getId() { return id; }
@@ -43,5 +48,6 @@ public class MercadoPagoAuthorizedPayment {
     public Instant getDateCreated() { return dateCreated; }
     public Instant getLastModified() { return lastModified; }
     public Instant getDebitDate() { return debitDate; }
+    public java.time.OffsetDateTime getDebitDateWithOffset() { return debitDateWithOffset; }
     public String getExternalReference() { return externalReference; }
 }

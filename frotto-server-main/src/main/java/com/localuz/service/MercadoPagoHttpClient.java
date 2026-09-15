@@ -96,7 +96,7 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
         resource(PREAPPROVAL, preapprovalId);
         return new MercadoPagoAuthorizedPayment(id, status, preapprovalId, text(node.path("payment"), "status"),
             text(node.path("payment"), "id"), decimal(node, "transaction_amount"), text(node, "currency_id"),
-            instant(node, "date_created"), instant(node, "last_modified"), instant(node, "debit_date"), text(node, "external_reference"));
+            instant(node, "date_created"), instant(node, "last_modified"), instant(node, "debit_date"), text(node, "external_reference"), offsetDateTime(node, "debit_date"));
     }
 
     private java.math.BigDecimal decimal(JsonNode node, String field) {
@@ -151,7 +151,8 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
             if (id == null || status == null || (mutable && "POST".equals(method) && text(node, "init_point") == null)) {
                 throw new MercadoPagoException("Mercado Pago returned an invalid response", mutable);
             }
-            return new MercadoPagoPreapproval(id, status, text(node, "external_reference"), text(node, "init_point"), instant(node, "date_created"), instant(node, "next_payment_date"), instant(node, "last_modified"));
+            return new MercadoPagoPreapproval(id, status, text(node, "external_reference"), text(node, "init_point"), instant(node, "date_created"), instant(node, "next_payment_date"), instant(node, "last_modified"),
+                frequency(node.path("auto_recurring")), text(node.path("auto_recurring"), "frequency_type"));
         } catch (MercadoPagoException exception) { throw exception;
         } catch (java.net.http.HttpTimeoutException exception) {
             throw new MercadoPagoException("Mercado Pago request timed out", mutable, exception);
@@ -176,8 +177,16 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
         JsonNode value = node.get(field); return value == null || value.isNull() || !value.isValueNode() ? null : value.asText();
     }
     private java.time.Instant instant(JsonNode node, String field) {
+        java.time.OffsetDateTime value = offsetDateTime(node, field);
+        return value == null ? null : value.toInstant();
+    }
+    private java.time.OffsetDateTime offsetDateTime(JsonNode node, String field) {
         String value = text(node, field); if (value == null) return null;
-        try { return java.time.OffsetDateTime.parse(value).toInstant(); } catch (java.time.format.DateTimeParseException ignored) { return null; }
+        try { return java.time.OffsetDateTime.parse(value); } catch (java.time.format.DateTimeParseException ignored) { return null; }
+    }
+    private Integer frequency(JsonNode recurring) {
+        JsonNode value = recurring.path("frequency");
+        return value.isIntegralNumber() && value.canConvertToInt() && value.intValue() > 0 ? value.intValue() : null;
     }
 
     private MercadoPagoException providerError(HttpResponse<String> response) {

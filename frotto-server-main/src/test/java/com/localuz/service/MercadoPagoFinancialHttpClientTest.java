@@ -54,6 +54,31 @@ class MercadoPagoFinancialHttpClientTest {
         assertThat(charge.getPreapprovalId()).isEqualTo("pre-1");
         assertThat(charge.getTransactionAmount()).isEqualByComparingTo("100.00");
         assertThat(charge.getDebitDate()).isEqualTo(java.time.Instant.parse("2026-10-01T12:00:00Z"));
+        assertThat(charge.getDebitDateWithOffset()).isEqualTo(java.time.OffsetDateTime.parse("2026-10-01T09:00:00-03:00"));
+        assertThat(charge.getDebitDateWithOffset().getOffset()).isEqualTo(java.time.ZoneOffset.ofHours(-3));
+    }
+
+    @Test void preapprovalParsesContractualFrequencyWithoutAdditionalHttp() throws Exception {
+        when(response.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"authorized\",\"auto_recurring\":{\"frequency\":2,\"frequency_type\":\"months\"},\"next_payment_date\":\"2026-12-01T12:00:00Z\"}");
+        var contract = client.getPreapproval("pre-1");
+        assertThat(contract.getFrequency()).isEqualTo(2);
+        assertThat(contract.getFrequencyType()).isEqualTo("months");
+        assertThat(contract.getNextPaymentDate()).isEqualTo(java.time.Instant.parse("2026-12-01T12:00:00Z"));
+        verify(http, times(1)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"null", "0", "-1", "1.5", "2147483648", "\"1\"", "true", "{}"})
+    void invalidFrequencyIsNotGuessed(String frequency) {
+        when(response.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"authorized\",\"auto_recurring\":{\"frequency\":" + frequency + ",\"frequency_type\":\"months\"}}");
+        assertThat(client.getPreapproval("pre-1").getFrequency()).isNull();
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"null", "\"invalid\"", "\"2026-01-31T12:00:00\""})
+    void invalidOrOffsetlessDebitRemainsUnknown(String debit) {
+        when(response.body()).thenReturn("{\"id\":10,\"preapproval_id\":\"pre-1\",\"status\":\"processed\",\"debit_date\":" + debit + "}");
+        var charge = client.getAuthorizedPayment("10");
+        assertThat(charge.getDebitDate()).isNull();
+        assertThat(charge.getDebitDateWithOffset()).isNull();
     }
 
     @Test void correlatesOnlyUniqueSearchResultAndConfirmsIndividualResource() throws Exception {

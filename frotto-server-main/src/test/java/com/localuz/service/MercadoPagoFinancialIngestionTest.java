@@ -315,6 +315,75 @@ class MercadoPagoFinancialIngestionTest {
         verify(events, never()).saveAndFlush(any());
     }
 
+    @ParameterizedTest @ValueSource(strings = {"payment", "subscription_authorized_payment"})
+    void authoritativeChainEnrichesCompetenceWithoutChangingEntitlement(String type) {
+        temporalSnapshot("2026-01-31T23:30:00-03:00", NOW);
+        assertThat(service.ingest(type, "payment".equals(type) ? "pay-1" : "charge-1")).isTrue();
+        assertThat(invoice().getPeriodStart()).isEqualTo(Instant.parse("2026-02-01T02:30:00Z"));
+        assertThat(invoice().getPeriodEnd()).isEqualTo(Instant.parse("2026-03-01T02:30:00Z"));
+        assertThat(invoice().getDueAt()).isEqualTo(invoice().getPeriodStart());
+        assertThat(invoice().getGracePeriodEnd()).isEqualTo(invoice().getDueAt().plus(Duration.ofHours(72)));
+        verify(subscriptions, never()).save(any());
+        assertThat(subscription.getStatus()).isEqualTo(SubscriptionStatus.PAST_DUE);
+        assertThat(subscription.getCurrentPeriodEnd()).isEqualTo(NOW.plusSeconds(100));
+    }
+
+    @Test void temporalReplayAndRetryDoNotMoveFrozenDatesAndReportConflict() {
+        temporalSnapshot("2026-01-31T23:30:00-03:00", NOW);
+        service.ingest("payment", "pay-1");
+        Instant end = invoice().getPeriodEnd();
+        Instant grace = invoice().getGracePeriodEnd();
+        service.ingest("payment", "pay-1");
+        temporalSnapshot("2026-02-03T23:30:00-03:00", NOW.plusMillis(1));
+        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(MercadoPagoFinancialIngestion.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> log = new ch.qos.logback.core.read.ListAppender<>();
+        log.start();
+        logger.addAppender(log);
+        try {
+            service.ingest("subscription_authorized_payment", "charge-1");
+            assertThat(log.list).anySatisfy(event -> assertThat(event.getFormattedMessage()).contains("reason=competency_mismatch"));
+        } finally {
+            logger.detachAppender(log);
+        }
+        assertThat(storedInvoices).hasSize(1);
+        assertThat(storedAttempts).hasSize(1);
+        assertThat(invoice().getPeriodEnd()).isEqualTo(end);
+        assertThat(invoice().getGracePeriodEnd()).isEqualTo(grace);
+    }
+
+    @ParameterizedTest @org.junit.jupiter.params.provider.CsvSource({"16.00,BRL", "15.90,USD"})
+    void temporalEnrichmentDoesNotOverrideFinancialMismatch(String amount, String currency) {
+        snapshot("charge-1", "pay-1", "approved", amount, currency, NOW);
+        temporalSnapshot("2026-01-31T23:30:00-03:00", NOW);
+        service.ingest("payment", "pay-1");
+        assertThat(invoice().getPeriodEnd()).isNotNull();
+        assertThat(invoice().getStatus()).isNotEqualTo(BillingInvoiceStatus.PAID);
+        assertThat(invoice().getPaidAt()).isNull();
+    }
+
+    @Test void laterIncompleteSnapshotAndOneMillisecondOlderSnapshotCannotErasePeriod() {
+        temporalSnapshot("2026-01-31T23:30:00-03:00", NOW);
+        service.ingest("payment", "pay-1");
+        Instant end = invoice().getPeriodEnd();
+        temporalSnapshot("2026-01-25T12:00:00Z", NOW.minusMillis(1));
+        service.ingest("payment", "pay-1");
+        snapshot("charge-1", "pay-1", "approved", "15.90", "BRL", NOW.plusMillis(1));
+        when(client.getPreapproval("pre-1")).thenReturn(new MercadoPagoPreapproval("pre-1", "authorized", "ref", null));
+        service.ingest("payment", "pay-1");
+        assertThat(invoice().getPeriodEnd()).isEqualTo(end);
+        assertThat(invoice().getDueAt()).isEqualTo(Instant.parse("2026-02-01T02:30:00Z"));
+    }
+
+    private void temporalSnapshot(String debit, Instant updated) {
+        java.time.OffsetDateTime offset = java.time.OffsetDateTime.parse(debit);
+        MercadoPagoAuthorizedPayment charge = new MercadoPagoAuthorizedPayment("charge-1", "processed", "pre-1", "approved", "pay-1",
+            new BigDecimal("15.90"), "BRL", NOW.minusSeconds(500), updated, offset.toInstant(), "ref", offset);
+        when(client.getAuthorizedPayment("charge-1")).thenReturn(charge);
+        when(client.findAuthorizedPaymentByPaymentId("pay-1")).thenReturn(Optional.of(charge));
+        when(client.getPreapproval("pre-1")).thenReturn(new MercadoPagoPreapproval("pre-1", "authorized", "ref", null,
+            NOW.minusSeconds(1000), NOW.plusSeconds(1000), NOW, 1, "months"));
+    }
+
     private void snapshot(String chargeId, String paymentId, String status, String amount, String currency, Instant updated) {
         MercadoPagoAuthorizedPayment charge = charge(chargeId, paymentId, updated);
         when(client.getAuthorizedPayment(chargeId)).thenReturn(charge);

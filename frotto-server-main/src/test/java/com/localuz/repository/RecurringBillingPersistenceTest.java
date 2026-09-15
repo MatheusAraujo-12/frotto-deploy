@@ -351,14 +351,16 @@ class RecurringBillingPersistenceTest {
         assertThat(em.find(BillingInvoice.class, second.getId()).getDueAt()).isNull();
     }
 
-    @Test
-    void financialIngestionReplaysAndEnrichesUsingRealRepositories() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void financialIngestionReplaysAndEnrichesUsingRealRepositories(boolean temporal) {
         subscription.setExternalProvider(PROVIDER);
         subscription.setExternalSubscriptionId("pre-ingest");
         em.flush();
         com.localuz.service.MercadoPagoClient client = org.mockito.Mockito.mock(com.localuz.service.MercadoPagoClient.class);
         org.mockito.Mockito.when(client.getPreapproval("pre-ingest")).thenReturn(
-            new com.localuz.service.dto.MercadoPagoPreapproval("pre-ingest", "authorized", "ref", null));
+            new com.localuz.service.dto.MercadoPagoPreapproval("pre-ingest", "authorized", "ref", null,
+                null, null, null, temporal ? 1 : null, temporal ? "months" : null));
         com.localuz.service.dto.MercadoPagoAuthorizedPayment provisional = new com.localuz.service.dto.MercadoPagoAuthorizedPayment(
             "charge-ingest", "processed", "pre-ingest", "approved", null, new BigDecimal("100.00"), "BRL", SEPTEMBER, SEPTEMBER, null, "ref");
         org.mockito.Mockito.when(client.getAuthorizedPayment("charge-ingest")).thenReturn(provisional);
@@ -368,9 +370,10 @@ class RecurringBillingPersistenceTest {
         assertThat(ingestion.ingest("subscription_authorized_payment", "charge-ingest")).isTrue();
         BillingInvoice invoice = invoices.findByProviderAndExternalAuthorizedPaymentId(PROVIDER, "charge-ingest").orElseThrow();
         Long attemptId = attempts.findByBillingInvoiceIdOrderByIdAsc(invoice.getId()).get(0).getId();
+        java.time.OffsetDateTime debit = java.time.OffsetDateTime.parse("2026-01-31T23:30:00-03:00");
         org.mockito.Mockito.when(client.findAuthorizedPaymentByPaymentId("payment-ingest")).thenReturn(java.util.Optional.of(
             new com.localuz.service.dto.MercadoPagoAuthorizedPayment("charge-ingest", "processed", "pre-ingest", "approved", "payment-ingest",
-                new BigDecimal("100.0"), "brl", SEPTEMBER, SEPTEMBER.plusSeconds(20), null, "ref")));
+                new BigDecimal("100.0"), "brl", SEPTEMBER, SEPTEMBER.plusSeconds(20), temporal ? debit.toInstant() : null, "ref", temporal ? debit : null)));
         org.mockito.Mockito.when(client.getPayment("payment-ingest")).thenReturn(new com.localuz.service.dto.MercadoPagoPayment(
             "payment-ingest", "approved", "accredited", new BigDecimal("100.0"), "brl", SEPTEMBER,
             SEPTEMBER.plusSeconds(10), SEPTEMBER.plusSeconds(20), "ref", null));
@@ -381,8 +384,15 @@ class RecurringBillingPersistenceTest {
         BillingInvoice loaded = invoices.findByProviderAndExternalAuthorizedPaymentId(PROVIDER, "charge-ingest").orElseThrow();
         assertThat(loaded.getId()).isEqualTo(invoice.getId());
         assertThat(loaded.getStatus()).isEqualTo(BillingInvoiceStatus.PAID);
-        assertThat(loaded.getPeriodStart()).isNull();
-        assertThat(loaded.getDueAt()).isNull();
+        if (temporal) {
+            assertThat(loaded.getPeriodStart()).isEqualTo(debit.toInstant());
+            assertThat(loaded.getPeriodEnd()).isEqualTo(Instant.parse("2026-03-01T02:30:00Z"));
+            assertThat(loaded.getDueAt()).isEqualTo(debit.toInstant());
+            assertThat(loaded.getGracePeriodEnd()).isEqualTo(debit.toInstant().plus(Duration.ofHours(72)));
+        } else {
+            assertThat(loaded.getPeriodStart()).isNull();
+            assertThat(loaded.getDueAt()).isNull();
+        }
         assertThat(attempts.findByBillingInvoiceIdOrderByIdAsc(loaded.getId())).singleElement().satisfies(attempt -> {
             assertThat(attempt.getId()).isEqualTo(attemptId);
             assertThat(attempt.getStatus()).isEqualTo(PaymentAttemptStatus.APPROVED);

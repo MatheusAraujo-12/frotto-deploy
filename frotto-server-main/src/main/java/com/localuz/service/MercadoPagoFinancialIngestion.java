@@ -13,7 +13,6 @@ import com.localuz.service.dto.MercadoPagoAuthorizedPayment;
 import com.localuz.service.dto.MercadoPagoPayment;
 import com.localuz.service.dto.MercadoPagoPreapproval;
 import java.math.BigDecimal;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Objects;
@@ -97,14 +96,16 @@ public class MercadoPagoFinancialIngestion {
         }
         boolean chargeMoneyMatches = moneyMatches(invoice, charge.getTransactionAmount(), chargeCurrency);
         if (!chargeMoneyMatches) LOG.warn("Mercado Pago financial inconsistency reason=charge_money_mismatch invoiceId={}", invoice.getId());
+        MercadoPagoInvoiceTemporalEnricher.Result temporal = MercadoPagoInvoiceTemporalEnricher.enrich(invoice, charge, preapproval);
+        if (temporal == MercadoPagoInvoiceTemporalEnricher.Result.CONFLICT) {
+            LOG.warn("Mercado Pago temporal conflict invoiceId={} reason=competency_mismatch", invoice.getId());
+        }
         if (freshInvoice || newer(charge.getLastModified(), invoice.getProviderUpdatedAt())) {
             invoice.setProviderStatus(code(charge.getStatus(), 64));
             invoice.setProviderUpdatedAt(charge.getLastModified());
             if (invoice.getProviderCreatedAt() == null) invoice.setProviderCreatedAt(charge.getDateCreated());
             if (!settled(invoice.getStatus())) mapper.unsettledInvoice(charge.getStatus()).ifPresent(invoice::setStatus);
         }
-        // debit_date is not a proven service-period boundary. Only preserve an already established dueAt.
-        invoice.setGracePeriodEnd(invoice.getDueAt() == null ? null : invoice.getDueAt().plus(Duration.ofHours(72)));
         invoice.setLastReconciledAt(Instant.now());
         invoices.saveAndFlush(invoice);
         upsertAttempt(invoice, charge, payment, chargeMoneyMatches);
