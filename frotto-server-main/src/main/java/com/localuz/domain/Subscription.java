@@ -126,6 +126,12 @@ public class Subscription implements Serializable {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    /** Operational reservation, written only by the atomic repository update, never by ordinary ORM saves. */
+    @Column(name = "last_financial_reconciliation_at", insertable = false, updatable = false)
+    private Instant lastFinancialReconciliationAt;
+
+    public Instant getLastFinancialReconciliationAt() { return lastFinancialReconciliationAt; }
+
     @PrePersist
     public void prePersist() {
         Instant now = Instant.now();

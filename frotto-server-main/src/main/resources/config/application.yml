@@ -233,6 +233,15 @@ aws:
 # point this gates, and the Billing Etapa 3 report for the grandfathering rollout that should
 # land before this is ever turned on anywhere real users exist.
 billing:
+  recurring-reconciliation:
+    enabled: ${BILLING_RECURRING_RECONCILIATION_ENABLED:false}
+    interval-minutes: ${BILLING_RECURRING_RECONCILIATION_INTERVAL_MINUTES:15}
+    min-interval-minutes: ${BILLING_RECURRING_RECONCILIATION_MIN_INTERVAL_MINUTES:60}
+    batch-size: ${BILLING_RECURRING_RECONCILIATION_BATCH_SIZE:10}
+    page-size: ${BILLING_RECURRING_RECONCILIATION_PAGE_SIZE:20}
+    max-pages: ${BILLING_RECURRING_RECONCILIATION_MAX_PAGES:5}
+    max-discovered-items: ${BILLING_RECURRING_RECONCILIATION_MAX_DISCOVERED_ITEMS:100}
+    max-http-calls: ${BILLING_RECURRING_RECONCILIATION_MAX_HTTP_CALLS:100}
   enforcement:
     enabled: ${BILLING_ENFORCEMENT_ENABLED:false}
 

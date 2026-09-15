@@ -48,7 +48,7 @@ class RecurringBillingPersistenceTest {
             Liquibase liquibase = new Liquibase("config/liquibase/master.xml", new ClassLoaderResourceAccessor(),
                 DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(connection)));
             // Install the preceding schema first, then keep a real legacy subscription across the new migration.
-            liquibase.getDatabaseChangeLog().getChangeSets().removeIf(change -> (change.getId().startsWith("20260911000000-") || change.getId().startsWith("20260914000000-")));
+            liquibase.getDatabaseChangeLog().getChangeSets().removeIf(change -> (change.getId().startsWith("20260911000000-") || change.getId().startsWith("20260914000000-") || change.getId().startsWith("20260915010000-")));
             liquibase.update(new Contexts("test"));
             try (java.sql.ResultSet tables = connection.getMetaData().getTables(connection.getCatalog(), null, "billing_invoice", null)) {
                 assertThat(tables.next()).isFalse();
@@ -61,9 +61,31 @@ class RecurringBillingPersistenceTest {
                 "(90001,90001,(SELECT id FROM plan WHERE code='BRONZE'),'MONTHLY','ACTIVE'," +
                 "'2026-09-01 12:00:00',false,100.00,1,'PAYMENT_PROVIDER',NOW(6),NOW(6))");
             connection.commit();
+            try (var columns = connection.getMetaData().getColumns(connection.getCatalog(), null, "subscription", "last_financial_reconciliation_at")) {
+                assertThat(columns.next()).isFalse();
+            }
             liquibase = new Liquibase("config/liquibase/master.xml", new ClassLoaderResourceAccessor(),
                 DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(connection)));
             liquibase.update(new Contexts("test"));
+            try (var columns = connection.getMetaData().getColumns(connection.getCatalog(), null, "subscription", "last_financial_reconciliation_at")) {
+                assertThat(columns.next()).isTrue();
+                assertThat(columns.getInt("NULLABLE")).isEqualTo(java.sql.DatabaseMetaData.columnNullable);
+                assertThat(columns.getString("COLUMN_DEF")).isNull();
+            }
+            try (var columns = connection.createStatement().executeQuery("SELECT DATA_TYPE,DATETIME_PRECISION FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='subscription' AND COLUMN_NAME='last_financial_reconciliation_at'")) {
+                assertThat(columns.next()).isTrue();
+                assertThat(columns.getString(1)).isEqualTo("datetime");
+                assertThat(columns.getInt(2)).isEqualTo(6);
+            }
+            try (var rows = connection.createStatement().executeQuery("SELECT last_financial_reconciliation_at FROM subscription WHERE id=90001")) {
+                assertThat(rows.next()).isTrue();
+                assertThat(rows.getTimestamp(1)).isNull();
+            }
+            try (var rows = connection.createStatement().executeQuery("SELECT COLUMN_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='subscription' AND INDEX_NAME='idx_subscription_financial_reconciliation' ORDER BY SEQ_IN_INDEX")) {
+                java.util.List<String> columns = new java.util.ArrayList<>();
+                while (rows.next()) columns.add(rows.getString(1));
+                assertThat(columns).containsExactly("source", "external_provider", "last_financial_reconciliation_at");
+            }
             try (java.sql.ResultSet rows = connection.createStatement().executeQuery("SELECT COUNT(*) FROM billing_invoice")) {
                 assertThat(rows.next()).isTrue();
                 assertThat(rows.getInt(1)).isZero();
@@ -444,6 +466,125 @@ class RecurringBillingPersistenceTest {
             assertThat(attempt.getExternalPaymentId()).isEqualTo("payment-ingest");
         });
         assertThat(em.find(Subscription.class, subscription.getId()).getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+    }
+
+    @Test void reservationSurvivesRestartAndNormalStaleOrmSave() throws Exception {
+        operationalSetup();
+        EntityManager stale = factory.createEntityManager();
+        try {
+            stale.getTransaction().begin();
+            Subscription loaded = stale.find(Subscription.class, 90001L);
+            assertThat(loaded.getLastFinancialReconciliationAt()).isNull();
+            var candidate = new com.localuz.service.RecurringBillingReservationService.Candidate(90001L, "reserve-pre");
+            assertThat(reservationService().reserve(candidate, NOVEMBER, NOVEMBER.minusSeconds(3600))).isTrue();
+            loaded.setContractedVehicleCount(2);
+            stale.flush();
+            stale.getTransaction().commit();
+            var restarted = reservationService();
+            assertThat(restarted.reserve(candidate, NOVEMBER.plusSeconds(3599), NOVEMBER.minusSeconds(1))).isFalse();
+            assertThat(restarted.candidates(NOVEMBER.minusSeconds(1), 10)).isEmpty();
+            try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
+                 var rows = connection.createStatement().executeQuery("SELECT last_financial_reconciliation_at FROM subscription WHERE id=90001")) {
+                assertThat(rows.next()).isTrue();
+                assertThat(rows.getTimestamp(1).toLocalDateTime()).isEqualTo(java.time.LocalDateTime.ofInstant(NOVEMBER, java.time.ZoneOffset.UTC));
+            }
+            assertThat(restarted.reserve(candidate, NOVEMBER.plusSeconds(3600), NOVEMBER)).isTrue();
+        } finally {
+            if (stale.getTransaction().isActive()) stale.getTransaction().rollback();
+            stale.close(); operationalCleanup();
+        }
+    }
+
+    @Test void exactlyOneConcurrentInstanceReservesTheWindow() throws Exception {
+        operationalSetup();
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            var start = new java.util.concurrent.CountDownLatch(1);
+            var first = reservationService();
+            var second = reservationService();
+            var candidate = new com.localuz.service.RecurringBillingReservationService.Candidate(90001L, "reserve-pre");
+            var a = pool.submit(() -> { start.await(); return first.reserve(candidate, NOVEMBER, OCTOBER); });
+            var b = pool.submit(() -> { start.await(); return second.reserve(candidate, NOVEMBER, OCTOBER); });
+            start.countDown();
+            assertThat(java.util.List.of(a.get(20, java.util.concurrent.TimeUnit.SECONDS), b.get(20, java.util.concurrent.TimeUnit.SECONDS)))
+                .containsExactlyInAnyOrder(true, false);
+        } finally { pool.shutdownNow(); operationalCleanup(); }
+    }
+
+    @Test void selectionExcludesOtherSourcesAndIncludesCancelledWithoutCheckout() throws Exception {
+        operationalSetup();
+        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+            var service = reservationService();
+            for (String source : java.util.List.of("ADMIN_GRANT", "GRANDFATHERED")) {
+                connection.createStatement().executeUpdate("UPDATE subscription SET source='" + source + "' WHERE id=90001");
+                assertThat(service.candidates(NOVEMBER, 1)).isEmpty();
+            }
+            connection.createStatement().executeUpdate("UPDATE subscription SET source='PAYMENT_PROVIDER',status='CANCELED' WHERE id=90001");
+            assertThat(service.candidates(NOVEMBER, 1)).singleElement().extracting(com.localuz.service.RecurringBillingReservationService.Candidate::id).isEqualTo(90001L);
+            connection.createStatement().executeUpdate("UPDATE subscription SET external_provider='OTHER' WHERE id=90001");
+            assertThat(service.candidates(NOVEMBER, 1)).isEmpty();
+            connection.createStatement().executeUpdate("UPDATE subscription SET external_provider='MERCADO_PAGO',external_subscription_id='' WHERE id=90001");
+            assertThat(service.candidates(NOVEMBER, 1)).isEmpty();
+        } finally { operationalCleanup(); }
+    }
+
+    @Test void providerFailureHasNoHttpTransactionAndReservationSurvivesOuterRollback() throws Exception {
+        operationalSetup();
+        try {
+            var manager = new org.springframework.orm.jpa.JpaTransactionManager(factory);
+            var client = org.mockito.Mockito.mock(com.localuz.service.MercadoPagoClient.class);
+            var ingestion = org.mockito.Mockito.mock(com.localuz.service.MercadoPagoFinancialIngestion.class);
+            var config = new com.localuz.config.RecurringBillingReconciliationProperties();
+            var candidate = new com.localuz.service.RecurringBillingReservationService.Candidate(90001L, "reserve-pre");
+            org.mockito.Mockito.when(client.searchAuthorizedPayments(org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt())).thenAnswer(call -> {
+                    assertThat(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+                    // A new service/connection already sees the committed reservation before HTTP completes.
+                    assertThat(reservationService().reserve(candidate, NOVEMBER, NOVEMBER.minusSeconds(3600))).isFalse();
+                    throw new com.localuz.service.MercadoPagoException("simulated timeout", true);
+                });
+            var target = new com.localuz.service.RecurringBillingReconciliationService(client, ingestion, reservationService(), config,
+                java.time.Clock.fixed(NOVEMBER, java.time.ZoneOffset.UTC));
+            var proxy = new org.springframework.aop.framework.ProxyFactory(target);
+            proxy.setProxyTargetClass(true);
+            proxy.addAdvice(new org.springframework.transaction.interceptor.TransactionInterceptor(manager,
+                new org.springframework.transaction.annotation.AnnotationTransactionAttributeSource()));
+            var service = (com.localuz.service.RecurringBillingReconciliationService) proxy.getProxy();
+            new org.springframework.transaction.support.TransactionTemplate(manager).execute(status -> {
+                assertThat(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()).isTrue();
+                assertThat(service.reconcile(candidate, new com.localuz.service.RecurringReconciliationBudget(10)).outcome())
+                    .isEqualTo(com.localuz.service.dto.RecurringReconciliationResult.Outcome.PROVIDER_FAILURE);
+                status.setRollbackOnly();
+                return null;
+            });
+            assertThat(reservationService().reserve(candidate, NOVEMBER, NOVEMBER.minusSeconds(3600))).isFalse();
+            org.mockito.Mockito.verifyNoInteractions(ingestion);
+        } finally { operationalCleanup(); }
+    }
+
+    private com.localuz.service.RecurringBillingReservationService reservationService() {
+        var manager = new org.springframework.orm.jpa.JpaTransactionManager(factory);
+        var shared = org.springframework.orm.jpa.SharedEntityManagerCreator.createSharedEntityManager(factory);
+        var repository = new JpaRepositoryFactory(shared).getRepository(SubscriptionRepository.class);
+        var target = new com.localuz.service.RecurringBillingReservationService(repository);
+        var proxy = new org.springframework.aop.framework.ProxyFactory(target);
+        proxy.setProxyTargetClass(true);
+        proxy.addAdvice(new org.springframework.transaction.interceptor.TransactionInterceptor(manager,
+            new org.springframework.transaction.annotation.AnnotationTransactionAttributeSource()));
+        return (com.localuz.service.RecurringBillingReservationService) proxy.getProxy();
+    }
+
+    private void operationalSetup() throws Exception {
+        // Separate committed connection: these tests exercise real independent reservation transactions.
+        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+            connection.createStatement().executeUpdate("UPDATE subscription SET external_provider='MERCADO_PAGO',external_subscription_id='reserve-pre',last_financial_reconciliation_at=NULL WHERE id=90001");
+        }
+    }
+
+    private void operationalCleanup() throws Exception {
+        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+            connection.createStatement().executeUpdate("UPDATE subscription SET external_provider=NULL,external_subscription_id=NULL,last_financial_reconciliation_at=NULL,contracted_vehicle_count=1,source='PAYMENT_PROVIDER',status='ACTIVE' WHERE id=90001");
+        }
     }
 
     private BillingInvoice newInvoice(Instant start, Instant end, String externalId) {

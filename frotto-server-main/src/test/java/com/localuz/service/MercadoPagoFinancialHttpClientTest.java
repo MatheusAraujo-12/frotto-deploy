@@ -30,6 +30,30 @@ class MercadoPagoFinancialHttpClientTest {
         when(response.statusCode()).thenReturn(200);
     }
 
+    @Test void discoveryUsesOnlyConfirmedParametersAndReturnsOnlyIds() throws Exception {
+        when(response.body()).thenReturn("{\"paging\":{\"offset\":2,\"limit\":2,\"total\":4},\"results\":[{\"id\":12},{\"id\":11,\"status\":\"approved\"}]}");
+        var page = client.searchAuthorizedPayments("pre-1", 2, 2);
+        assertThat(page.ids()).containsExactly("12", "11");
+        ArgumentCaptor<HttpRequest> request = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http).send(request.capture(), any(HttpResponse.BodyHandler.class));
+        assertThat(request.getValue().uri().toString()).isEqualTo(
+            "https://api.mercadopago.com/authorized_payments/search?preapproval_id=pre-1&offset=2&limit=2");
+        assertThat(request.getValue().method()).isEqualTo("GET");
+    }
+
+    @ParameterizedTest @ValueSource(strings = {
+        "{}", "{\"paging\":null,\"results\":[]}",
+        "{\"paging\":{\"offset\":0,\"limit\":0,\"total\":0},\"results\":[]}",
+        "{\"paging\":{\"offset\":1,\"limit\":2,\"total\":0},\"results\":[]}",
+        "{\"paging\":{\"offset\":0,\"limit\":2,\"total\":2},\"results\":[]}",
+        "{\"paging\":{\"offset\":0,\"limit\":2,\"total\":1},\"results\":[{}]}",
+        "{\"paging\":{\"offset\":0,\"limit\":2,\"total\":1},\"results\":[{\"id\":\"../secret\"}]}"
+    })
+    void discoveryRejectsInvalidOrInconsistentPages(String body) {
+        when(response.body()).thenReturn(body);
+        assertThatThrownBy(() -> client.searchAuthorizedPayments("pre-1", 0, 2)).isInstanceOf(MercadoPagoException.class);
+    }
+
     @Test void parsesMinimalPaymentAndUsesFixedGetEndpoint() throws Exception {
         when(response.body()).thenReturn("{\"id\":20,\"status\":\"approved\",\"status_detail\":\"accredited\","
             + "\"transaction_amount\":\"100.00\",\"currency_id\":\"BRL\",\"transaction_amount_refunded\":10.25,"

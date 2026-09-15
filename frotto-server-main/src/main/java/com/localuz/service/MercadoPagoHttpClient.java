@@ -89,6 +89,27 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
         return java.util.Optional.of(confirmed);
     }
 
+    @Override public com.localuz.service.dto.MercadoPagoAuthorizedPaymentPage searchAuthorizedPayments(String preapprovalId, int offset, int limit) {
+        resource(PREAPPROVAL, preapprovalId);
+        if (offset < 0 || limit < 1 || limit > 100) throw new IllegalArgumentException("Invalid discovery bounds");
+        JsonNode node = getJson(URI.create(AUTHORIZED_PAYMENTS + "/search?preapproval_id=" + preapprovalId
+            + "&offset=" + offset + "&limit=" + limit));
+        JsonNode paging = node.path("paging"), results = node.path("results");
+        for (String field : List.of("offset", "limit", "total")) {
+            if (!paging.path(field).isIntegralNumber() || !paging.path(field).canConvertToInt()) throw invalidFinancialResponse();
+        }
+        int returnedOffset = paging.path("offset").asInt(), returnedLimit = paging.path("limit").asInt(), total = paging.path("total").asInt();
+        if (returnedOffset != offset || returnedLimit < 1 || returnedLimit > limit || total < 0 || !results.isArray()
+            || results.size() != Math.min(returnedLimit, Math.max(0, (long) total - offset))) throw invalidFinancialResponse();
+        List<String> ids = new ArrayList<>();
+        for (JsonNode result : results) {
+            String id = text(result, "id");
+            if (id == null || !id.matches("[A-Za-z0-9_-]+")) throw invalidFinancialResponse();
+            ids.add(id);
+        }
+        return new com.localuz.service.dto.MercadoPagoAuthorizedPaymentPage(returnedOffset, returnedLimit, total, ids);
+    }
+
     private MercadoPagoAuthorizedPayment authorizedPayment(JsonNode node) {
         String id = text(node, "id"), status = text(node, "status"), preapprovalId = text(node, "preapproval_id");
         if (id == null || status == null || preapprovalId == null) throw invalidFinancialResponse();
