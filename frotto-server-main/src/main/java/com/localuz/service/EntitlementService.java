@@ -10,9 +10,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Server-side source of truth for "how many vehicles can this user have". Not wired into
- * any car-creation endpoint yet - see the Etapa 1 report for what is still needed before
- * enforcement can be turned on safely.
+ * Server-side source of truth for "how many vehicles can this user have". SubscriptionService
+ * applies financial coverage to PAYMENT_PROVIDER and source precedence to every read path.
  *
  * Vehicle counting uses Car.active = true (the existing soft-delete flag), matching
  * CarRepository#findActiveByCurrentUser; CarAdminStatus sub-states (A_VENDA, MANUTENCAO,
@@ -70,7 +69,8 @@ public class EntitlementService {
 
     /**
      * Everything GET /api/billing/me needs, computed with exactly one subscription lookup and
-     * one vehicle count query (Plan/PlanPricingTier reads are additionally covered by Hibernate's
+     * one vehicle count query, plus financial evidence reads when a provider candidate is evaluated
+     * (Plan/PlanPricingTier reads are additionally covered by Hibernate's
      * 2nd-level cache) - see the Billing Etapa 2 report for why this exists instead of composing
      * the individual getters above.
      */

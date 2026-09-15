@@ -1,5 +1,8 @@
 package com.localuz.service;
 
+import com.localuz.repository.BillingInvoiceRepository;
+import com.localuz.repository.PaymentAttemptRepository;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -69,10 +72,12 @@ class BillingEndToEndLocalTest {
         BillingPaymentStateDTO paymentState = new BillingPaymentStateService(subscriptions,checkouts).getState(user);
         assertThat(paymentState.getPaymentProviderSubscription().getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
         assertThat(paymentState.getLatestCheckout().getStatus()).isEqualTo(BillingCheckoutStatus.AUTHORIZED);
-        when(subscriptions.findByUserIdAndStatusInOrderByStartDateDesc(any(),any())).thenReturn(List.of(paid));
-        SubscriptionService subscriptionService = new SubscriptionService(subscriptions,plans);
+        when(subscriptions.findByUserIdOrderByStartDateDesc(any())).thenReturn(List.of(paid));
+        SubscriptionService subscriptionService = new SubscriptionService(subscriptions,plans,
+            new SubscriptionFinancialCoverageService(mock(BillingInvoiceRepository.class), mock(PaymentAttemptRepository.class)));
         BillingMeDTO me = BillingMeDTO.from(new EntitlementService(subscriptionService,cars,pricing).getSnapshot(user));
-        assertThat(me.getPlanCode()).isEqualTo(PlanCode.BRONZE); assertThat(me.getSubscriptionStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        // Authorization still updates the contractual read model above, but cannot prove a first payment.
+        assertThat(me.getPlanCode()).isEqualTo(PlanCode.FREE); assertThat(me.getSubscriptionStatus()).isNull();
     }
 
     private Plan plan(PlanCode code,int min,Integer max){Plan plan=new Plan();plan.setCode(code);plan.setName(code.name());plan.setMinVehicles(min);plan.setMaxVehicles(max);plan.setActive(true);plan.setMonthlyBasePrice(BigDecimal.ZERO);return plan;}

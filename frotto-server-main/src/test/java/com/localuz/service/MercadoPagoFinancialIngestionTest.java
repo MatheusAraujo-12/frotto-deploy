@@ -374,6 +374,21 @@ class MercadoPagoFinancialIngestionTest {
         assertThat(invoice().getDueAt()).isEqualTo(Instant.parse("2026-02-01T02:30:00Z"));
     }
 
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"approved,15.90,BRL,true", "approved,16.00,BRL,false", "approved,15.90,USD,false", "rejected,15.90,BRL,false"})
+    void financialCoverageConsumesAuthoritativeIngestionWithoutNewProviderCalls(String status, String amount, String currency, boolean covered) {
+        snapshot("charge-1", "pay-1", status, amount, currency, NOW);
+        temporalSnapshot("2026-09-14T12:00:00Z", NOW);
+        service.ingest("payment", "pay-1");
+        when(invoices.findBySubscriptionIdOrderByPeriodStartAsc(1L)).thenReturn(new ArrayList<>(storedInvoices.values()));
+        when(attempts.findByBillingInvoiceSubscriptionId(1L)).thenReturn(new ArrayList<>(storedAttempts.values()));
+        clearInvocations(client, subscriptions);
+        var coverage = new SubscriptionFinancialCoverageService(invoices, attempts,
+            java.time.Clock.fixed(NOW.plusSeconds(3600), java.time.ZoneOffset.UTC));
+        assertThat(coverage.evaluate(subscription).covered()).isEqualTo(covered);
+        verifyNoInteractions(client, subscriptions);
+    }
+
     private void temporalSnapshot(String debit, Instant updated) {
         java.time.OffsetDateTime offset = java.time.OffsetDateTime.parse(debit);
         MercadoPagoAuthorizedPayment charge = new MercadoPagoAuthorizedPayment("charge-1", "processed", "pre-1", "approved", "pay-1",

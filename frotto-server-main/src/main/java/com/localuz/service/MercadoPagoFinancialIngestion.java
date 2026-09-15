@@ -171,7 +171,7 @@ public class MercadoPagoFinancialIngestion {
         }
         // Compute from the current evidence for THIS invoice, so a failed retry cannot erase a paid one.
         boolean approved = attempts.findByBillingInvoiceIdOrderByIdAsc(invoice.getId()).stream()
-            .anyMatch(a -> a.getStatus() == PaymentAttemptStatus.APPROVED && moneyMatches(invoice, a.getAmount(), a.getCurrency()));
+            .anyMatch(a -> BillingPaymentEvidence.approved(invoice, a));
         if (approved) {
             invoice.setStatus(BillingInvoiceStatus.PAID);
             if (invoice.getPaidAt() == null && attempt.getStatus() == PaymentAttemptStatus.APPROVED) invoice.setPaidAt(attempt.getApprovedAt());
@@ -206,7 +206,7 @@ public class MercadoPagoFinancialIngestion {
     }
 
     private boolean moneyMatches(BillingInvoice invoice, BigDecimal amount, String currency) {
-        return amount != null && invoice.getAmount().compareTo(amount) == 0 && invoice.getCurrency().equals(currency);
+        return BillingPaymentEvidence.moneyMatches(invoice, amount, currency);
     }
 
     private boolean validAmount(BigDecimal value) {

@@ -9,24 +9,21 @@ import com.localuz.domain.enumeration.SubscriptionStatus;
 import com.localuz.repository.PlanRepository;
 import com.localuz.repository.SubscriptionRepository;
 import java.time.Instant;
+import java.time.Clock;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Read/query-oriented foundation for subscriptions. Real payment-gateway-driven creation,
- * upgrade, downgrade and cancellation flows are intentionally not implemented in this stage -
- * they depend on a payment gateway that does not exist yet. Administrative creation
- * (ADMIN_GRANT/GRANDFATHERED) is handled by SubscriptionAdminService/GrandfatheringService,
- * not here, so this class stays read-only. A user with no ACTIVE/PAST_DUE Subscription row
- * is implicitly on the FREE plan; see the PlanCode/SubscriptionStatus javadocs for why FREE
- * is modeled as "absence of subscription" rather than as a status value.
+ * Read-only effective subscription selection. Provider coverage comes from financial
+ * competencies; administrative grants retain their existing eligibility rules.
  */
 @Service
 @Transactional(readOnly = true)
@@ -54,39 +51,45 @@ public class SubscriptionService {
 
     private static final Comparator<Subscription> BY_EFFECTIVE_PRIORITY = Comparator
         .comparingInt((Subscription s) -> SOURCE_PRIORITY.get(s.getSource()))
-        .thenComparing(Subscription::getStartDate, Comparator.reverseOrder());
+        .thenComparing(Subscription::getStartDate, Comparator.nullsLast(Comparator.reverseOrder()));
 
     private final SubscriptionRepository subscriptionRepository;
     private final PlanRepository planRepository;
+    private final SubscriptionFinancialCoverageService financialCoverage;
+    private final Clock clock;
 
-    public SubscriptionService(SubscriptionRepository subscriptionRepository, PlanRepository planRepository) {
+    @Autowired
+    public SubscriptionService(SubscriptionRepository subscriptionRepository, PlanRepository planRepository,
+        SubscriptionFinancialCoverageService financialCoverage) {
+        this(subscriptionRepository, planRepository, financialCoverage, Clock.systemUTC());
+    }
+
+    SubscriptionService(SubscriptionRepository subscriptionRepository, PlanRepository planRepository,
+        SubscriptionFinancialCoverageService financialCoverage, Clock clock) {
         this.subscriptionRepository = subscriptionRepository;
         this.planRepository = planRepository;
+        this.financialCoverage = financialCoverage;
+        this.clock = clock;
     }
 
     /**
-     * The effective ACTIVE/PAST_DUE subscription, chosen by source priority (see
-     * SOURCE_PRIORITY) among the ones that are still valid right now - not simply "most
-     * recently started". A subscription is excluded from consideration (without being mutated
-     * or deleted) if:
-     * - it's an expired ADMIN_GRANT (grantExpiresAt in the past), or
-     * - its billing period has already ended (currentPeriodEnd in the past, for whenever a
-     *   real payment-gateway subscription sets one).
-     * Both checks are evaluated dynamically on every call, with no scheduler involved. This is
-     * what makes an expiring/revoked ADMIN_GRANT transparently fall back to the
-     * PAYMENT_PROVIDER or GRANDFATHERED subscription underneath it, if one exists, and only
-     * fall back to FREE when none remain.
+     * A single evaluation instant for all candidates. Include canceled/paused provider rows:
+     * they may still own a valid paid competency. Their persisted status/period is not paid proof.
+     * No mutation, HTTP request or ingestion lock is needed to expire access on a read.
      */
     public Optional<Subscription> getCurrentSubscription(User user) {
+        Instant now = clock.instant();
         return subscriptionRepository
-            .findByUserIdAndStatusInOrderByStartDateDesc(user.getId(), CURRENT_STATUSES)
+            .findByUserIdOrderByStartDateDesc(user.getId())
             .stream()
-            .filter(SubscriptionService::isCurrentlyValid)
-            .min(BY_EFFECTIVE_PRIORITY);
+            .sorted(BY_EFFECTIVE_PRIORITY)
+            .filter(subscription -> subscription.getSource() == SubscriptionSource.PAYMENT_PROVIDER
+                ? financialCoverage.evaluate(subscription, now).covered()
+                : CURRENT_STATUSES.contains(subscription.getStatus()) && isCurrentlyValid(subscription, now))
+            .findFirst();
     }
 
-    private static boolean isCurrentlyValid(Subscription subscription) {
-        Instant now = Instant.now();
+    private static boolean isCurrentlyValid(Subscription subscription, Instant now) {
         Instant expiresAt = subscription.getGrantExpiresAt();
         if (expiresAt != null && !expiresAt.isAfter(now)) {
             return false;

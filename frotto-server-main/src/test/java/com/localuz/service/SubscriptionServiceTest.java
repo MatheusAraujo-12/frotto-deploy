@@ -23,6 +23,13 @@ import org.mockito.Mockito;
 import org.springframework.web.server.ResponseStatusException;
 
 class SubscriptionServiceTest {
+    private final SubscriptionFinancialCoverageService financialCoverage = Mockito.mock(SubscriptionFinancialCoverageService.class);
+
+    private static com.localuz.service.dto.FinancialCoverageEvaluation coverage(boolean covered) {
+        return new com.localuz.service.dto.FinancialCoverageEvaluation(covered,
+            com.localuz.service.dto.FinancialCoverageEvaluation.CommercialState.ACTIVE,
+            null, null, null, null, com.localuz.service.dto.FinancialCoverageEvaluation.Reason.PAID);
+    }
 
     private SubscriptionRepository subscriptionRepository;
     private PlanRepository planRepository;
@@ -31,9 +38,11 @@ class SubscriptionServiceTest {
 
     @BeforeEach
     void setUp() {
+        // This suite tests source selection; real financial evidence is exercised in FinancialEntitlementTest.
+        when(financialCoverage.evaluate(Mockito.any(), Mockito.any())).thenReturn(coverage(true));
         subscriptionRepository = Mockito.mock(SubscriptionRepository.class);
         planRepository = Mockito.mock(PlanRepository.class);
-        subscriptionService = new SubscriptionService(subscriptionRepository, planRepository);
+        subscriptionService = new SubscriptionService(subscriptionRepository, planRepository, financialCoverage);
 
         user = new User();
         user.setId(42L);
@@ -56,15 +65,12 @@ class SubscriptionServiceTest {
     }
 
     @Test
-    void returnsSubscriptionPlanWhenAnActiveOrPastDueSubscriptionExists() {
+    void returnsSubscriptionPlanWhenFinancialCoverageIsValid() {
         Plan bronze = plan(2L, PlanCode.BRONZE);
         Subscription subscription = subscription(bronze, SubscriptionSource.PAYMENT_PROVIDER, null);
 
         when(
-            subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(
-                eq(42L),
-                eq(List.of(SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE))
-            )
+            subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L))
         )
             .thenReturn(List.of(subscription));
 
@@ -75,7 +81,7 @@ class SubscriptionServiceTest {
 
     @Test
     void fallsBackToFreePlanWhenNoCurrentSubscriptionExists() {
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(anyLong(), Mockito.anyList())).thenReturn(List.of());
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(anyLong())).thenReturn(List.of());
 
         Plan free = plan(1L, PlanCode.FREE);
         when(planRepository.findByCode(PlanCode.FREE)).thenReturn(Optional.of(free));
@@ -86,14 +92,9 @@ class SubscriptionServiceTest {
     }
 
     @Test
-    void getCurrentSubscriptionIgnoresCanceledAndExpiredSubscriptions() {
-        // Repository query itself filters by status; this test documents/locks in that the
-        // service asks only for ACTIVE/PAST_DUE, never CANCELED/EXPIRED, as "current".
+    void getCurrentSubscriptionIsEmptyWhenNoCandidatesExist() {
         when(
-            subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(
-                eq(42L),
-                eq(List.of(SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE))
-            )
+            subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L))
         )
             .thenReturn(List.of());
 
@@ -111,7 +112,7 @@ class SubscriptionServiceTest {
     void permanentAdminGrantHasNoExpiryAndIsAlwaysCurrent() {
         Plan gold = plan(4L, PlanCode.GOLD);
         Subscription grant = subscription(gold, SubscriptionSource.ADMIN_GRANT, null);
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList())).thenReturn(List.of(grant));
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L))).thenReturn(List.of(grant));
 
         assertThat(subscriptionService.getCurrentSubscription(user)).contains(grant);
     }
@@ -120,7 +121,7 @@ class SubscriptionServiceTest {
     void temporaryAdminGrantIsCurrentBeforeItExpires() {
         Plan gold = plan(4L, PlanCode.GOLD);
         Subscription grant = subscription(gold, SubscriptionSource.ADMIN_GRANT, Instant.now().plusSeconds(3600));
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList())).thenReturn(List.of(grant));
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L))).thenReturn(List.of(grant));
 
         assertThat(subscriptionService.getCurrentSubscription(user)).contains(grant);
     }
@@ -129,7 +130,7 @@ class SubscriptionServiceTest {
     void expiredAdminGrantIsSkippedWithoutBeingMutated() {
         Plan gold = plan(4L, PlanCode.GOLD);
         Subscription expiredGrant = subscription(gold, SubscriptionSource.ADMIN_GRANT, Instant.now().minusSeconds(3600));
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList()))
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L)))
             .thenReturn(List.of(expiredGrant));
 
         assertThat(subscriptionService.getCurrentSubscription(user)).isEmpty();
@@ -143,7 +144,7 @@ class SubscriptionServiceTest {
         Plan bronze = plan(2L, PlanCode.BRONZE);
         Subscription expiredGrant = subscription(gold, SubscriptionSource.ADMIN_GRANT, Instant.now().minusSeconds(60));
         Subscription olderPaymentProvider = subscription(bronze, SubscriptionSource.PAYMENT_PROVIDER, null);
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList()))
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L)))
             .thenReturn(List.of(expiredGrant, olderPaymentProvider));
 
         Optional<Subscription> current = subscriptionService.getCurrentSubscription(user);
@@ -157,7 +158,7 @@ class SubscriptionServiceTest {
     void expiredAdminGrantWithNothingElseFallsBackToFree() {
         Plan gold = plan(4L, PlanCode.GOLD);
         Subscription expiredGrant = subscription(gold, SubscriptionSource.ADMIN_GRANT, Instant.now().minusSeconds(60));
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList()))
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L)))
             .thenReturn(List.of(expiredGrant));
         Plan free = plan(1L, PlanCode.FREE);
         when(planRepository.findByCode(PlanCode.FREE)).thenReturn(Optional.of(free));
@@ -169,7 +170,7 @@ class SubscriptionServiceTest {
     void grandfatheredSourceIsPreservedAsCurrent() {
         Plan silver = plan(3L, PlanCode.SILVER);
         Subscription grandfathered = subscription(silver, SubscriptionSource.GRANDFATHERED, null);
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList()))
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L)))
             .thenReturn(List.of(grandfathered));
 
         Optional<Subscription> current = subscriptionService.getCurrentSubscription(user);
@@ -190,7 +191,7 @@ class SubscriptionServiceTest {
         renewed.setStartDate(Instant.parse("2026-06-01T00:00:00Z"));
         Subscription original = subscription(bronze, SubscriptionSource.PAYMENT_PROVIDER, null);
         original.setStartDate(Instant.parse("2026-01-01T00:00:00Z"));
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList()))
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L)))
             .thenReturn(List.of(renewed, original));
 
         assertThat(subscriptionService.getCurrentSubscription(user)).contains(renewed);
@@ -202,7 +203,7 @@ class SubscriptionServiceTest {
         Plan frotta = plan(6L, PlanCode.FROTTA);
         Subscription paymentProvider = subscription(platinum, SubscriptionSource.PAYMENT_PROVIDER, null);
         Subscription adminGrant = subscription(frotta, SubscriptionSource.ADMIN_GRANT, Instant.now().plusSeconds(2_592_000));
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList()))
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L)))
             .thenReturn(List.of(paymentProvider, adminGrant));
 
         assertThat(subscriptionService.getEffectivePlan(user).getCode()).isEqualTo(PlanCode.FROTTA);
@@ -214,7 +215,7 @@ class SubscriptionServiceTest {
         Plan frotta = plan(6L, PlanCode.FROTTA);
         Subscription paymentProvider = subscription(platinum, SubscriptionSource.PAYMENT_PROVIDER, null);
         Subscription expiredGrant = subscription(frotta, SubscriptionSource.ADMIN_GRANT, Instant.now().minusSeconds(60));
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList()))
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L)))
             .thenReturn(List.of(paymentProvider, expiredGrant));
 
         Plan effective = subscriptionService.getEffectivePlan(user);
@@ -225,13 +226,10 @@ class SubscriptionServiceTest {
 
     @Test
     void scenarioC_revokedAdminGrantFallsBackToTheUnderlyingPaymentProviderSubscription() {
-        // A revoked grant has status=CANCELED, so it's excluded by the repository query itself
-        // (findByUserIdAndStatusInOrderByStartDateDesc only ever returns ACTIVE/PAST_DUE) -
-        // this documents that the revoked grant never even reaches the priority selection, and
-        // the PAYMENT_PROVIDER row underneath was never touched by the revoke.
+        // Non-provider eligibility still excludes revoked grants before selecting a paid fallback.
         Plan platinum = plan(5L, PlanCode.PLATINUM);
         Subscription paymentProvider = subscription(platinum, SubscriptionSource.PAYMENT_PROVIDER, null);
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList()))
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L)))
             .thenReturn(List.of(paymentProvider));
 
         assertThat(subscriptionService.getEffectivePlan(user).getCode()).isEqualTo(PlanCode.PLATINUM);
@@ -241,7 +239,7 @@ class SubscriptionServiceTest {
     void revokedAdminGrantFallsBackToTheUnderlyingGrandfatheredSubscription() {
         Plan silver = plan(3L, PlanCode.SILVER);
         Subscription grandfathered = subscription(silver, SubscriptionSource.GRANDFATHERED, null);
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList()))
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L)))
             .thenReturn(List.of(grandfathered));
 
         Optional<Subscription> current = subscriptionService.getCurrentSubscription(user);
@@ -257,7 +255,7 @@ class SubscriptionServiceTest {
         Plan gold = plan(4L, PlanCode.GOLD);
         Subscription grandfathered = subscription(silver, SubscriptionSource.GRANDFATHERED, null);
         Subscription adminGrant = subscription(gold, SubscriptionSource.ADMIN_GRANT, Instant.now().plusSeconds(2_592_000));
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList()))
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L)))
             .thenReturn(List.of(grandfathered, adminGrant));
 
         assertThat(subscriptionService.getEffectivePlan(user).getCode()).isEqualTo(PlanCode.GOLD);
@@ -269,7 +267,7 @@ class SubscriptionServiceTest {
         Plan gold = plan(4L, PlanCode.GOLD);
         Subscription grandfathered = subscription(silver, SubscriptionSource.GRANDFATHERED, null);
         Subscription expiredGrant = subscription(gold, SubscriptionSource.ADMIN_GRANT, Instant.now().minusSeconds(60));
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList()))
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L)))
             .thenReturn(List.of(grandfathered, expiredGrant));
 
         assertThat(subscriptionService.getEffectivePlan(user).getCode()).isEqualTo(PlanCode.SILVER);
@@ -277,13 +275,12 @@ class SubscriptionServiceTest {
 
     @Test
     void aSubscriptionPastItsBillingPeriodEndIsNotCurrentEvenIfStillMarkedActive() {
-        // Forward-looking guard for the future gateway flow: if currentPeriodEnd is set and
-        // already passed, the row is excluded dynamically, the same way an expired grant is -
-        // no scheduler needs to flip its status first.
+        // Financial evaluation, not the stored status, now rejects lapsed provider coverage.
         Plan platinum = plan(5L, PlanCode.PLATINUM);
         Subscription lapsed = subscription(platinum, SubscriptionSource.PAYMENT_PROVIDER, null);
         lapsed.setCurrentPeriodEnd(Instant.now().minusSeconds(3600));
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList())).thenReturn(List.of(lapsed));
+        when(financialCoverage.evaluate(Mockito.eq(lapsed), Mockito.any())).thenReturn(coverage(false));
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L))).thenReturn(List.of(lapsed));
 
         assertThat(subscriptionService.getCurrentSubscription(user)).isEmpty();
     }
@@ -292,7 +289,7 @@ class SubscriptionServiceTest {
     void pausedPaymentProviderDoesNotGrantEntitlement() {
         Subscription paused = subscription(plan(5L, PlanCode.PLATINUM), SubscriptionSource.PAYMENT_PROVIDER, null);
         paused.setStatus(SubscriptionStatus.PAUSED);
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), eq(List.of(SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE))))
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L)))
             .thenReturn(List.of());
         Plan free = plan(1L, PlanCode.FREE); when(planRepository.findByCode(PlanCode.FREE)).thenReturn(Optional.of(free));
         assertThat(subscriptionService.getEffectivePlan(user).getCode()).isEqualTo(PlanCode.FREE);
@@ -301,14 +298,14 @@ class SubscriptionServiceTest {
     @Test
     void activeAdminGrantRemainsEffectiveWhilePaymentProviderIsPaused() {
         Subscription grant = subscription(plan(4L, PlanCode.GOLD), SubscriptionSource.ADMIN_GRANT, Instant.now().plusSeconds(3600));
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList())).thenReturn(List.of(grant));
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L))).thenReturn(List.of(grant));
         assertThat(subscriptionService.getEffectivePlan(user).getCode()).isEqualTo(PlanCode.GOLD);
     }
 
     @Test
     void grandfatheredBecomesEffectiveWhilePaymentProviderIsPaused() {
         Subscription grandfathered = subscription(plan(3L, PlanCode.SILVER), SubscriptionSource.GRANDFATHERED, null);
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList())).thenReturn(List.of(grandfathered));
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L))).thenReturn(List.of(grandfathered));
         assertThat(subscriptionService.getEffectivePlan(user).getCode()).isEqualTo(PlanCode.SILVER);
     }
     @Test
@@ -318,16 +315,17 @@ class SubscriptionServiceTest {
         paid.setCanceledAt(Instant.now());
         paid.setCurrentPeriodEnd(Instant.now().plusSeconds(3600));
         Subscription legacy = subscription(plan(3L, PlanCode.SILVER), SubscriptionSource.GRANDFATHERED, null);
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList()))
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L)))
             .thenReturn(List.of(paid, legacy));
         assertThat(subscriptionService.getEffectivePlan(user).getCode()).isEqualTo(PlanCode.BRONZE);
         paid.setCurrentPeriodEnd(Instant.now().minusSeconds(3600));
+        when(financialCoverage.evaluate(Mockito.eq(paid), Mockito.any())).thenReturn(coverage(false));
         assertThat(subscriptionService.getEffectivePlan(user).getCode()).isEqualTo(PlanCode.SILVER);
         Subscription grant = subscription(plan(4L, PlanCode.GOLD), SubscriptionSource.ADMIN_GRANT, Instant.now().plusSeconds(3600));
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList()))
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L)))
             .thenReturn(List.of(paid, legacy, grant));
         assertThat(subscriptionService.getEffectivePlan(user).getCode()).isEqualTo(PlanCode.GOLD);
-        when(subscriptionRepository.findByUserIdAndStatusInOrderByStartDateDesc(eq(42L), Mockito.anyList()))
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L)))
             .thenReturn(List.of(paid));
         when(planRepository.findByCode(PlanCode.FREE)).thenReturn(Optional.of(plan(1L, PlanCode.FREE)));
         assertThat(subscriptionService.getEffectivePlan(user).getCode()).isEqualTo(PlanCode.FREE);

@@ -144,6 +144,51 @@ class RecurringBillingPersistenceTest {
     }
 
     @Test
+    void financialCoverageReadsPersistedCompetenciesWithoutWritingSubscription() {
+        BillingInvoice october = invoice(OCTOBER, NOVEMBER, "coverage-oct");
+        october.setStatus(BillingInvoiceStatus.PAID);
+        attempt(october, "coverage-approved", PaymentAttemptStatus.APPROVED).setApprovedAt(OCTOBER);
+        BillingInvoice november = invoice(NOVEMBER, DECEMBER, "coverage-nov");
+        attempt(november, "coverage-rejected", PaymentAttemptStatus.REJECTED);
+        em.flush();
+        em.clear();
+        var coverage = new com.localuz.service.SubscriptionFinancialCoverageService(invoices, attempts,
+            java.time.Clock.fixed(NOVEMBER.plusSeconds(3600), java.time.ZoneOffset.UTC));
+        Subscription stored = em.find(Subscription.class, subscription.getId());
+        Instant previousEnd = stored.getCurrentPeriodEnd();
+        assertThat(coverage.evaluate(stored).covered()).isTrue();
+        assertThat(coverage.evaluate(stored).reason())
+            .isEqualTo(com.localuz.service.dto.FinancialCoverageEvaluation.Reason.GRACE);
+        assertThat(coverage.evaluate(stored, NOVEMBER.plus(Duration.ofHours(72))).covered()).isFalse();
+        assertThat(coverage.evaluate(stored, NOVEMBER.plus(Duration.ofHours(72))).commercialState())
+            .isEqualTo(com.localuz.service.dto.FinancialCoverageEvaluation.CommercialState.PAST_DUE);
+        // This new read query must be scoped to the subscription and must have no pessimistic lock annotation.
+        assertThat(attempts.findByBillingInvoiceSubscriptionId(-1L)).isEmpty();
+        em.flush();
+        em.clear();
+        assertThat(em.find(Subscription.class, stored.getId()).getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(em.find(Subscription.class, stored.getId()).getCurrentPeriodEnd()).isEqualTo(previousEnd);
+        assertThat(em.find(BillingInvoice.class, november.getId()).getStatus()).isEqualTo(BillingInvoiceStatus.PENDING);
+    }
+
+    @Test
+    void approvedRenewalAfterGraceRestoresOnlyItsOriginalPersistedPeriod() {
+        BillingInvoice october = invoice(OCTOBER, NOVEMBER, "recovery-oct");
+        october.setStatus(BillingInvoiceStatus.PAID);
+        attempt(october, "recovery-old", PaymentAttemptStatus.APPROVED);
+        BillingInvoice november = invoice(NOVEMBER, DECEMBER, "recovery-nov");
+        november.setStatus(BillingInvoiceStatus.PAID);
+        attempt(november, "recovery-new", PaymentAttemptStatus.APPROVED);
+        em.flush(); em.clear();
+        var coverage = new com.localuz.service.SubscriptionFinancialCoverageService(invoices, attempts);
+        var result = coverage.evaluate(subscription, NOVEMBER.plus(Duration.ofDays(4)));
+        assertThat(result.covered()).isTrue();
+        assertThat(result.coverageEnd()).isEqualTo(DECEMBER);
+        assertThat(result.reason()).isEqualTo(com.localuz.service.dto.FinancialCoverageEvaluation.Reason.PAID);
+        assertThat(coverage.evaluate(subscription, DECEMBER).covered()).isFalse();
+    }
+
+    @Test
     void rejectsDuplicateExternalInvoiceInSameProvider() {
         invoice(SEPTEMBER, OCTOBER, "duplicate");
         assertThatThrownBy(() -> invoice(OCTOBER, NOVEMBER, "duplicate")).hasRootCauseInstanceOf(java.sql.SQLIntegrityConstraintViolationException.class);
