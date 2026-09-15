@@ -45,6 +45,12 @@ import { resolvePeriodRange } from "./reportPeriod";
 import CarSelector, { normalizeCars } from "../../components/Car/CarSelector";
 import { CarModel } from "../../constants/CarModels";
 import "./Reports.css";
+import {
+  groupAfterReportChange,
+  maintenanceGroupLabel,
+  maintenanceGroupOptions,
+  maintenanceGroupQuery,
+} from "./maintenanceGroups";
 
 interface IncomeDetail
   extends RouteComponentProps<{
@@ -175,15 +181,12 @@ const Reports: React.FC<IncomeDetail> = () => {
       if (reportForm.report === REPORTS.maintenance) {
         const { data } = await api.get(
           endpoints.REPORTS_MAINTENANCE({
-            query: {
-              group: reportForm.group,
-              year: reportForm.year,
-            },
+            query: maintenanceGroupQuery(reportForm.group, reportForm.year),
           })
         );
         createMaintenanceReport(
           data,
-          reportForm.group,
+          maintenanceGroupLabel(reportForm.group),
           reportForm.year.toString()
         );
       }
@@ -243,6 +246,14 @@ const Reports: React.FC<IncomeDetail> = () => {
                     errorName="report"
                     initialValue={watch("report")}
                     changeCallback={(value: REPORTS) => {
+                      setValue(
+                        "group",
+                        groupAfterReportChange(
+                          group,
+                          reportValue === REPORTS.maintenance,
+                          value === REPORTS.maintenance
+                        )
+                      );
                       setValue("report", value);
                       setReportValue(value);
                     }}
@@ -250,7 +261,11 @@ const Reports: React.FC<IncomeDetail> = () => {
                   />
                   <FormSelect
                     label={TEXT.group}
-                    options={groupList}
+                    options={
+                      reportValue === REPORTS.maintenance
+                        ? maintenanceGroupOptions(groupList)
+                        : groupList
+                    }
                     errorsObj={errors}
                     errorName="group"
                     initialValue={watch("group")}
