@@ -35,6 +35,19 @@ class RecurringBillingPersistenceTest {
     private static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0.36")
         .withTmpFs(java.util.Map.of("/var/lib/mysql", "rw"))
         .withStartupTimeout(Duration.ofMinutes(4)).withConnectTimeoutSeconds(180);
+    /**
+     * 5G.8: Testcontainers' NpipeSocketClientProviderStrategy (docker-java 3.2.13, pinned by the
+     * Spring Boot 2.7.18 BOM) cannot bootstrap against this machine's Docker Desktop - see
+     * docs/billing-final-validation-5g8.md. As a disposable, 100%-local fallback (no production
+     * code changed), FROTTO_TEST_MYSQL_JDBC_URL/_USER/_PASSWORD point this test at a MySQL
+     * container started by hand with `docker run` instead of through Testcontainers. Unset (the
+     * default), this test is unchanged: Testcontainers still owns the container lifecycle.
+     */
+    private static final String EXTERNAL_JDBC_URL = System.getenv("FROTTO_TEST_MYSQL_JDBC_URL");
+    private static final boolean USE_EXTERNAL_DATABASE = EXTERNAL_JDBC_URL != null && !EXTERNAL_JDBC_URL.isBlank();
+    private static String JDBC_URL;
+    private static String JDBC_USER;
+    private static String JDBC_PASSWORD;
     private static EntityManagerFactory factory;
     private EntityManager em;
     private BillingInvoiceRepository invoices;
@@ -43,8 +56,17 @@ class RecurringBillingPersistenceTest {
 
     @BeforeAll
     static void schemaAndJpa() throws Exception {
-        MYSQL.start();
-        try (Connection connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+        if (USE_EXTERNAL_DATABASE) {
+            JDBC_URL = EXTERNAL_JDBC_URL;
+            JDBC_USER = System.getenv().getOrDefault("FROTTO_TEST_MYSQL_USER", "root");
+            JDBC_PASSWORD = System.getenv().getOrDefault("FROTTO_TEST_MYSQL_PASSWORD", "");
+        } else {
+            MYSQL.start();
+            JDBC_URL = MYSQL.getJdbcUrl();
+            JDBC_USER = MYSQL.getUsername();
+            JDBC_PASSWORD = MYSQL.getPassword();
+        }
+        try (Connection connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {
             Liquibase liquibase = new Liquibase("config/liquibase/master.xml", new ClassLoaderResourceAccessor(),
                 DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(connection)));
             // Install the preceding schema first, then keep a real legacy subscription across the new migration.
@@ -92,7 +114,7 @@ class RecurringBillingPersistenceTest {
             }
         }
         LocalContainerEntityManagerFactoryBean bean = new LocalContainerEntityManagerFactoryBean();
-        bean.setDataSource(new DriverManagerDataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword()));
+        bean.setDataSource(new DriverManagerDataSource(JDBC_URL, JDBC_USER, JDBC_PASSWORD));
         bean.setPackagesToScan("com.localuz.domain");
         bean.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
         Properties properties = new Properties();
@@ -108,7 +130,7 @@ class RecurringBillingPersistenceTest {
     @AfterAll
     static void shutdown() {
         if (factory != null) factory.close();
-        MYSQL.stop();
+        if (!USE_EXTERNAL_DATABASE) MYSQL.stop();
     }
 
     @BeforeEach
@@ -523,7 +545,7 @@ class RecurringBillingPersistenceTest {
             }
         } finally {
             // Clean only this test's committed financial rows in the disposable MySQL database.
-            try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+            try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {
                 connection.createStatement().executeUpdate("DELETE a FROM payment_attempt a JOIN billing_invoice i ON i.id=a.billing_invoice_id WHERE i.external_authorized_payment_id='refund-db' AND i.subscription_id=90001");
                 connection.createStatement().executeUpdate("DELETE FROM billing_invoice WHERE external_authorized_payment_id='refund-db' AND subscription_id=90001");
             }
@@ -546,7 +568,7 @@ class RecurringBillingPersistenceTest {
             var restarted = reservationService();
             assertThat(restarted.reserve(candidate, NOVEMBER.plusSeconds(3599), NOVEMBER.minusSeconds(1))).isFalse();
             assertThat(restarted.candidates(NOVEMBER.minusSeconds(1), NOVEMBER, 90, 10)).isEmpty();
-            try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
+            try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD);
                  var rows = connection.createStatement().executeQuery("SELECT last_financial_reconciliation_at FROM subscription WHERE id=90001")) {
                 assertThat(rows.next()).isTrue();
                 assertThat(rows.getTimestamp(1).toLocalDateTime()).isEqualTo(java.time.LocalDateTime.ofInstant(NOVEMBER, java.time.ZoneOffset.UTC));
@@ -576,7 +598,7 @@ class RecurringBillingPersistenceTest {
 
     @Test void selectionExcludesOtherSourcesAndIncludesCancelledWithoutCheckout() throws Exception {
         operationalSetup();
-        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+        try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {
             var service = reservationService();
             for (String source : java.util.List.of("ADMIN_GRANT", "GRANDFATHERED")) {
                 connection.createStatement().executeUpdate("UPDATE subscription SET source='" + source + "' WHERE id=90001");
@@ -598,7 +620,7 @@ class RecurringBillingPersistenceTest {
 
     @Test void cancelledWithRecentInvoicePeriodEndRemainsReconcilable() throws Exception {
         operationalSetup();
-        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+        try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {
             connection.createStatement().executeUpdate("UPDATE subscription SET status='CANCELED',canceled_at=NULL WHERE id=90001");
             insertTerminalInvoice(connection, "term-recent", OCTOBER);
             assertThat(reservationService().candidates(NOVEMBER, NOVEMBER, 90, 1)).singleElement()
@@ -608,7 +630,7 @@ class RecurringBillingPersistenceTest {
 
     @Test void cancelledJustBeforeTerminalAtRemainsReconcilable() throws Exception {
         operationalSetup();
-        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+        try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {
             connection.createStatement().executeUpdate("UPDATE subscription SET status='CANCELED',canceled_at=NULL WHERE id=90001");
             insertTerminalInvoice(connection, "term-before", SEPTEMBER);
             Instant justBeforeTerminalAt = SEPTEMBER.plus(Duration.ofDays(1)).minusSeconds(1);
@@ -619,7 +641,7 @@ class RecurringBillingPersistenceTest {
 
     @Test void cancelledExactlyAtTerminalAtIsNotReconciled() throws Exception {
         operationalSetup();
-        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+        try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {
             connection.createStatement().executeUpdate("UPDATE subscription SET status='CANCELED',canceled_at=NULL WHERE id=90001");
             insertTerminalInvoice(connection, "term-exact", SEPTEMBER);
             Instant terminalAt = SEPTEMBER.plus(Duration.ofDays(1));
@@ -629,7 +651,7 @@ class RecurringBillingPersistenceTest {
 
     @Test void cancelledAfterTerminalAtIsNotReconciled() throws Exception {
         operationalSetup();
-        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+        try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {
             connection.createStatement().executeUpdate("UPDATE subscription SET status='CANCELED',canceled_at=NULL WHERE id=90001");
             insertTerminalInvoice(connection, "term-after", SEPTEMBER);
             Instant afterTerminalAt = SEPTEMBER.plus(Duration.ofDays(1)).plusSeconds(1);
@@ -639,7 +661,7 @@ class RecurringBillingPersistenceTest {
 
     @Test void cancelledWithoutAnyInvoicePeriodEndFallsBackToCanceledAtAndEventuallyStopsBeingReconciled() throws Exception {
         operationalSetup();
-        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+        try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {
             try (var ps = connection.prepareStatement("UPDATE subscription SET status='CANCELED',canceled_at=? WHERE id=90001")) {
                 ps.setTimestamp(1, java.sql.Timestamp.from(SEPTEMBER));
                 ps.executeUpdate();
@@ -656,7 +678,7 @@ class RecurringBillingPersistenceTest {
         // No date is fabricated when no reliable anchor exists (see docs/billing-hardening-5g7.md):
         // the subscription simply keeps being a candidate, same as before 5G.7.
         operationalSetup();
-        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+        try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {
             connection.createStatement().executeUpdate("UPDATE subscription SET status='CANCELED',canceled_at=NULL WHERE id=90001");
             assertThat(reservationService().candidates(DECEMBER, DECEMBER, 1, 1)).singleElement()
                 .extracting(com.localuz.service.RecurringBillingReservationService.Candidate::id).isEqualTo(90001L);
@@ -665,7 +687,7 @@ class RecurringBillingPersistenceTest {
 
     @Test void terminalExclusionOnlyAffectsCandidateSelectionNeverTheWebhookLookupPathOrPersistedFields() throws Exception {
         operationalSetup();
-        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+        try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {
             connection.createStatement().executeUpdate("UPDATE subscription SET status='CANCELED',canceled_at=NULL WHERE id=90001");
             insertTerminalInvoice(connection, "term-preserved", SEPTEMBER);
             Instant afterTerminalAt = SEPTEMBER.plus(Duration.ofDays(1)).plusSeconds(1);
@@ -702,7 +724,7 @@ class RecurringBillingPersistenceTest {
     }
 
     private void cleanupTerminalFixtures() throws Exception {
-        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+        try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {
             connection.createStatement().executeUpdate("DELETE FROM billing_invoice WHERE subscription_id=90001 AND external_authorized_payment_id LIKE 'term-%'");
         }
     }
@@ -755,13 +777,13 @@ class RecurringBillingPersistenceTest {
 
     private void operationalSetup() throws Exception {
         // Separate committed connection: these tests exercise real independent reservation transactions.
-        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+        try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {
             connection.createStatement().executeUpdate("UPDATE subscription SET external_provider='MERCADO_PAGO',external_subscription_id='reserve-pre',last_financial_reconciliation_at=NULL WHERE id=90001");
         }
     }
 
     private void operationalCleanup() throws Exception {
-        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+        try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {
             connection.createStatement().executeUpdate("UPDATE subscription SET external_provider=NULL,external_subscription_id=NULL,last_financial_reconciliation_at=NULL,contracted_vehicle_count=1,source='PAYMENT_PROVIDER',status='ACTIVE',canceled_at=NULL WHERE id=90001");
         }
     }
