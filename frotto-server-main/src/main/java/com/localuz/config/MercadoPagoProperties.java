@@ -14,6 +14,12 @@ public class MercadoPagoProperties {
     /** Sandbox-only escape hatch: must never be honored unless testMode is also true. */
     private boolean testMode = false;
     private String testPayerEmail;
+    /**
+     * Maximum allowed |now - signed ts| for an otherwise-valid webhook signature (5G.7 replay
+     * protection). Sanitized in MercadoPagoWebhookSignatureValidator to a safe default (300s)
+     * whenever the configured value is outside [1, 3600] - never disabled, never unbounded.
+     */
+    private int webhookReplayWindowSeconds = 300;
 
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
@@ -31,6 +37,8 @@ public class MercadoPagoProperties {
     public void setTestMode(boolean testMode) { this.testMode = testMode; }
     public String getTestPayerEmail() { return testPayerEmail; }
     public void setTestPayerEmail(String testPayerEmail) { this.testPayerEmail = testPayerEmail; }
+    public int getWebhookReplayWindowSeconds() { return webhookReplayWindowSeconds; }
+    public void setWebhookReplayWindowSeconds(int webhookReplayWindowSeconds) { this.webhookReplayWindowSeconds = webhookReplayWindowSeconds; }
     public boolean hasAccessToken() { return accessToken != null && !accessToken.isBlank(); }
     public boolean hasWebhookSecret() { return webhookSecret != null && !webhookSecret.isBlank(); }
     public boolean hasTestPayerEmail() { return testPayerEmail != null && !testPayerEmail.isBlank(); }

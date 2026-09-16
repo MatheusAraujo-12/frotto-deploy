@@ -35,7 +35,7 @@ class RecurringBillingLifecycleTest {
         f.subscription.setExternalSubscriptionId("pre-1");
         when(subscriptions.findForFinancialIngestion("MERCADO_PAGO", "pre-1")).thenReturn(Optional.of(f.subscription));
         when(reservations.reserve(any(), any(), any())).thenReturn(true);
-        when(reservations.candidates(any(), anyInt())).thenReturn(List.of(candidate));
+        when(reservations.candidates(any(), any(), anyInt(), anyInt())).thenReturn(List.of(candidate));
         when(f.invoices.findByProviderAndExternalAuthorizedPaymentId(anyString(), anyString())).thenAnswer(c ->
             f.history.stream().filter(i -> Objects.equals(i.getExternalAuthorizedPaymentId(), c.getArgument(1))).findFirst());
         when(f.invoices.saveAndFlush(any())).thenAnswer(c -> {
@@ -64,7 +64,8 @@ class RecurringBillingLifecycleTest {
         config.setEnabled(true);
         MercadoPagoProperties provider = new MercadoPagoProperties();
         provider.setEnabled(true); provider.setAccessToken("fake-test-token");
-        new RecurringBillingReconciliationScheduler(config, provider, reservations, reconciliation, f.clock).reconcileSubscriptions();
+        new RecurringBillingReconciliationScheduler(config, provider, reservations, reconciliation,
+            new RecurringReconciliationCircuitBreaker(f.clock), f.clock).reconcileSubscriptions();
         assertThat(f.history).singleElement().satisfies(i -> {
             assertThat(i.getStatus()).isEqualTo(BillingInvoiceStatus.PAID);
             assertThat(i.getPeriodStart()).isEqualTo(NOV);

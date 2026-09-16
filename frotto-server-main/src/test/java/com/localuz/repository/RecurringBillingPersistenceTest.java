@@ -545,7 +545,7 @@ class RecurringBillingPersistenceTest {
             stale.getTransaction().commit();
             var restarted = reservationService();
             assertThat(restarted.reserve(candidate, NOVEMBER.plusSeconds(3599), NOVEMBER.minusSeconds(1))).isFalse();
-            assertThat(restarted.candidates(NOVEMBER.minusSeconds(1), 10)).isEmpty();
+            assertThat(restarted.candidates(NOVEMBER.minusSeconds(1), NOVEMBER, 90, 10)).isEmpty();
             try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
                  var rows = connection.createStatement().executeQuery("SELECT last_financial_reconciliation_at FROM subscription WHERE id=90001")) {
                 assertThat(rows.next()).isTrue();
@@ -580,15 +580,131 @@ class RecurringBillingPersistenceTest {
             var service = reservationService();
             for (String source : java.util.List.of("ADMIN_GRANT", "GRANDFATHERED")) {
                 connection.createStatement().executeUpdate("UPDATE subscription SET source='" + source + "' WHERE id=90001");
-                assertThat(service.candidates(NOVEMBER, 1)).isEmpty();
+                assertThat(service.candidates(NOVEMBER, NOVEMBER, 90, 1)).isEmpty();
             }
             connection.createStatement().executeUpdate("UPDATE subscription SET source='PAYMENT_PROVIDER',status='CANCELED' WHERE id=90001");
-            assertThat(service.candidates(NOVEMBER, 1)).singleElement().extracting(com.localuz.service.RecurringBillingReservationService.Candidate::id).isEqualTo(90001L);
+            assertThat(service.candidates(NOVEMBER, NOVEMBER, 90, 1)).singleElement().extracting(com.localuz.service.RecurringBillingReservationService.Candidate::id).isEqualTo(90001L);
             connection.createStatement().executeUpdate("UPDATE subscription SET external_provider='OTHER' WHERE id=90001");
-            assertThat(service.candidates(NOVEMBER, 1)).isEmpty();
+            assertThat(service.candidates(NOVEMBER, NOVEMBER, 90, 1)).isEmpty();
             connection.createStatement().executeUpdate("UPDATE subscription SET external_provider='MERCADO_PAGO',external_subscription_id='' WHERE id=90001");
-            assertThat(service.candidates(NOVEMBER, 1)).isEmpty();
+            assertThat(service.candidates(NOVEMBER, NOVEMBER, 90, 1)).isEmpty();
         } finally { operationalCleanup(); }
+    }
+
+    // --- 5G.7: cancelled terminal reconciliation horizon ---
+    // terminalAt = max(billing_invoice.period_end) + horizonDays, falling back to canceled_at
+    // only when no invoice period_end exists. Only gates candidates() (polling); never touches
+    // entitlement, history, or the webhook lookup path (findByExternalProviderAndExternalSubscriptionId).
+
+    @Test void cancelledWithRecentInvoicePeriodEndRemainsReconcilable() throws Exception {
+        operationalSetup();
+        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+            connection.createStatement().executeUpdate("UPDATE subscription SET status='CANCELED',canceled_at=NULL WHERE id=90001");
+            insertTerminalInvoice(connection, "term-recent", OCTOBER);
+            assertThat(reservationService().candidates(NOVEMBER, NOVEMBER, 90, 1)).singleElement()
+                .extracting(com.localuz.service.RecurringBillingReservationService.Candidate::id).isEqualTo(90001L);
+        } finally { cleanupTerminalFixtures(); operationalCleanup(); }
+    }
+
+    @Test void cancelledJustBeforeTerminalAtRemainsReconcilable() throws Exception {
+        operationalSetup();
+        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+            connection.createStatement().executeUpdate("UPDATE subscription SET status='CANCELED',canceled_at=NULL WHERE id=90001");
+            insertTerminalInvoice(connection, "term-before", SEPTEMBER);
+            Instant justBeforeTerminalAt = SEPTEMBER.plus(Duration.ofDays(1)).minusSeconds(1);
+            assertThat(reservationService().candidates(justBeforeTerminalAt, justBeforeTerminalAt, 1, 1)).singleElement()
+                .extracting(com.localuz.service.RecurringBillingReservationService.Candidate::id).isEqualTo(90001L);
+        } finally { cleanupTerminalFixtures(); operationalCleanup(); }
+    }
+
+    @Test void cancelledExactlyAtTerminalAtIsNotReconciled() throws Exception {
+        operationalSetup();
+        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+            connection.createStatement().executeUpdate("UPDATE subscription SET status='CANCELED',canceled_at=NULL WHERE id=90001");
+            insertTerminalInvoice(connection, "term-exact", SEPTEMBER);
+            Instant terminalAt = SEPTEMBER.plus(Duration.ofDays(1));
+            assertThat(reservationService().candidates(terminalAt, terminalAt, 1, 1)).isEmpty();
+        } finally { cleanupTerminalFixtures(); operationalCleanup(); }
+    }
+
+    @Test void cancelledAfterTerminalAtIsNotReconciled() throws Exception {
+        operationalSetup();
+        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+            connection.createStatement().executeUpdate("UPDATE subscription SET status='CANCELED',canceled_at=NULL WHERE id=90001");
+            insertTerminalInvoice(connection, "term-after", SEPTEMBER);
+            Instant afterTerminalAt = SEPTEMBER.plus(Duration.ofDays(1)).plusSeconds(1);
+            assertThat(reservationService().candidates(afterTerminalAt, afterTerminalAt, 1, 1)).isEmpty();
+        } finally { cleanupTerminalFixtures(); operationalCleanup(); }
+    }
+
+    @Test void cancelledWithoutAnyInvoicePeriodEndFallsBackToCanceledAtAndEventuallyStopsBeingReconciled() throws Exception {
+        operationalSetup();
+        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+            try (var ps = connection.prepareStatement("UPDATE subscription SET status='CANCELED',canceled_at=? WHERE id=90001")) {
+                ps.setTimestamp(1, java.sql.Timestamp.from(SEPTEMBER));
+                ps.executeUpdate();
+            }
+            Instant beforeTerminalAt = SEPTEMBER.plus(Duration.ofDays(1)).minusSeconds(1);
+            assertThat(reservationService().candidates(beforeTerminalAt, beforeTerminalAt, 1, 1)).singleElement()
+                .extracting(com.localuz.service.RecurringBillingReservationService.Candidate::id).isEqualTo(90001L);
+            Instant afterTerminalAt = SEPTEMBER.plus(Duration.ofDays(1)).plusSeconds(1);
+            assertThat(reservationService().candidates(afterTerminalAt, afterTerminalAt, 1, 1)).isEmpty();
+        } finally { operationalCleanup(); }
+    }
+
+    @Test void cancelledWithNeitherInvoicePeriodEndNorCanceledAtIsNeverExcludedByTheTerminalHorizon() throws Exception {
+        // No date is fabricated when no reliable anchor exists (see docs/billing-hardening-5g7.md):
+        // the subscription simply keeps being a candidate, same as before 5G.7.
+        operationalSetup();
+        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+            connection.createStatement().executeUpdate("UPDATE subscription SET status='CANCELED',canceled_at=NULL WHERE id=90001");
+            assertThat(reservationService().candidates(DECEMBER, DECEMBER, 1, 1)).singleElement()
+                .extracting(com.localuz.service.RecurringBillingReservationService.Candidate::id).isEqualTo(90001L);
+        } finally { operationalCleanup(); }
+    }
+
+    @Test void terminalExclusionOnlyAffectsCandidateSelectionNeverTheWebhookLookupPathOrPersistedFields() throws Exception {
+        operationalSetup();
+        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+            connection.createStatement().executeUpdate("UPDATE subscription SET status='CANCELED',canceled_at=NULL WHERE id=90001");
+            insertTerminalInvoice(connection, "term-preserved", SEPTEMBER);
+            Instant afterTerminalAt = SEPTEMBER.plus(Duration.ofDays(1)).plusSeconds(1);
+            assertThat(reservationService().candidates(afterTerminalAt, afterTerminalAt, 1, 1)).isEmpty();
+            // The exact repository method MercadoPagoWebhookProcessor uses to find the subscription
+            // for an inbound webhook is untouched by the terminal-horizon query.
+            var repository = new JpaRepositoryFactory(org.springframework.orm.jpa.SharedEntityManagerCreator.createSharedEntityManager(factory))
+                .getRepository(SubscriptionRepository.class);
+            var found = repository.findByExternalProviderAndExternalSubscriptionId("MERCADO_PAGO", "reserve-pre");
+            assertThat(found).isPresent();
+            assertThat(found.get().getStatus()).isEqualTo(SubscriptionStatus.CANCELED);
+            try (var rows = connection.createStatement().executeQuery(
+                "SELECT status, amount, period_end FROM billing_invoice WHERE external_authorized_payment_id='term-preserved' AND subscription_id=90001")) {
+                assertThat(rows.next()).isTrue();
+                assertThat(rows.getString("status")).isEqualTo("PENDING");
+                assertThat(rows.getBigDecimal("amount")).isEqualByComparingTo("100.00");
+                assertThat(rows.getTimestamp("period_end").toInstant()).isEqualTo(SEPTEMBER);
+            }
+        } finally { cleanupTerminalFixtures(); operationalCleanup(); }
+    }
+
+    private void insertTerminalInvoice(Connection connection, String externalId, Instant periodEnd) throws Exception {
+        Instant start = periodEnd.minus(Duration.ofDays(30));
+        try (var ps = connection.prepareStatement("INSERT INTO billing_invoice " +
+            "(subscription_id,status,amount,currency,period_start,period_end,due_at,grace_period_end,provider,external_authorized_payment_id,created_at,updated_at) " +
+            "VALUES (90001,'PENDING',100.00,'BRL',?,?,?,?,'MERCADO_PAGO',?,NOW(6),NOW(6))")) {
+            ps.setTimestamp(1, java.sql.Timestamp.from(start));
+            ps.setTimestamp(2, java.sql.Timestamp.from(periodEnd));
+            ps.setTimestamp(3, java.sql.Timestamp.from(start));
+            ps.setTimestamp(4, java.sql.Timestamp.from(start.plus(Duration.ofHours(72))));
+            ps.setString(5, externalId);
+            ps.executeUpdate();
+        }
+    }
+
+    private void cleanupTerminalFixtures() throws Exception {
+        try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+            connection.createStatement().executeUpdate("DELETE FROM billing_invoice WHERE subscription_id=90001 AND external_authorized_payment_id LIKE 'term-%'");
+        }
     }
 
     @Test void providerFailureHasNoHttpTransactionAndReservationSurvivesOuterRollback() throws Exception {
@@ -646,7 +762,7 @@ class RecurringBillingPersistenceTest {
 
     private void operationalCleanup() throws Exception {
         try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
-            connection.createStatement().executeUpdate("UPDATE subscription SET external_provider=NULL,external_subscription_id=NULL,last_financial_reconciliation_at=NULL,contracted_vehicle_count=1,source='PAYMENT_PROVIDER',status='ACTIVE' WHERE id=90001");
+            connection.createStatement().executeUpdate("UPDATE subscription SET external_provider=NULL,external_subscription_id=NULL,last_financial_reconciliation_at=NULL,contracted_vehicle_count=1,source='PAYMENT_PROVIDER',status='ACTIVE',canceled_at=NULL WHERE id=90001");
         }
     }
 

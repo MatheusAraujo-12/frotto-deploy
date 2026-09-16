@@ -14,12 +14,29 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
         String getExternalSubscriptionId();
     }
 
-    @org.springframework.data.jpa.repository.Query(value = "select id as id, external_subscription_id as externalSubscriptionId " +
-        "from subscription where source = 'PAYMENT_PROVIDER' and external_provider = 'MERCADO_PAGO' " +
-        "and external_subscription_id is not null and trim(external_subscription_id) <> '' " +
-        "and (last_financial_reconciliation_at is null or last_financial_reconciliation_at <= :cutoff) " +
-        "order by last_financial_reconciliation_at asc, id asc", nativeQuery = true)
+    /**
+     * Cancelled PAYMENT_PROVIDER subscriptions remain candidates indefinitely UNLESS a reliable
+     * terminal anchor exists and the horizon has elapsed (5G.7): anchor = max(billing_invoice
+     * .period_end) for the subscription, falling back to subscription.canceled_at only when no
+     * invoice period_end exists. If neither anchor exists, no date is fabricated and the
+     * subscription stays a candidate (see docs/billing-hardening-5g7.md limitations). This only
+     * gates polling/discovery - it never touches entitlement, history, or a later authoritative
+     * webhook.
+     */
+    @org.springframework.data.jpa.repository.Query(value = "select s.id as id, s.external_subscription_id as externalSubscriptionId " +
+        "from subscription s " +
+        "left join (select subscription_id, max(period_end) as max_period_end from billing_invoice " +
+        "  where period_end is not null group by subscription_id) inv on inv.subscription_id = s.id " +
+        "where s.source = 'PAYMENT_PROVIDER' and s.external_provider = 'MERCADO_PAGO' " +
+        "and s.external_subscription_id is not null and trim(s.external_subscription_id) <> '' " +
+        "and (s.last_financial_reconciliation_at is null or s.last_financial_reconciliation_at <= :cutoff) " +
+        "and (s.status <> 'CANCELED' " +
+        "  or coalesce(inv.max_period_end, s.canceled_at) is null " +
+        "  or :now < date_add(coalesce(inv.max_period_end, s.canceled_at), interval :horizonDays day)) " +
+        "order by s.last_financial_reconciliation_at asc, s.id asc", nativeQuery = true)
     List<FinancialCandidate> findFinancialCandidates(@org.springframework.data.repository.query.Param("cutoff") java.time.Instant cutoff,
+        @org.springframework.data.repository.query.Param("now") java.time.Instant now,
+        @org.springframework.data.repository.query.Param("horizonDays") int horizonDays,
         org.springframework.data.domain.Pageable pageable);
 
     @org.springframework.data.jpa.repository.Modifying

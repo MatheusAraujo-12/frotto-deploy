@@ -25,6 +25,9 @@ mercadopago:
   read-timeout-millis: ${MERCADOPAGO_READ_TIMEOUT_MILLIS:7000}
   test-mode: ${MERCADOPAGO_TEST_MODE:false}
   test-payer-email: ${MERCADOPAGO_TEST_PAYER_EMAIL:}
+  # 5G.7: max |now - signed ts| accepted for an otherwise-valid webhook signature. Sanitized to
+  # 300s by MercadoPagoWebhookSignatureValidator if configured outside [1, 3600].
+  webhook-replay-window-seconds: ${MERCADOPAGO_WEBHOOK_REPLAY_WINDOW_SECONDS:300}
 
 spring:
   servlet:
@@ -242,6 +245,13 @@ billing:
     max-pages: ${BILLING_RECURRING_RECONCILIATION_MAX_PAGES:5}
     max-discovered-items: ${BILLING_RECURRING_RECONCILIATION_MAX_DISCOVERED_ITEMS:100}
     max-http-calls: ${BILLING_RECURRING_RECONCILIATION_MAX_HTTP_CALLS:100}
+    # 5G.7: days after the last known competency end (or, absent that, the confirmed
+    # cancellation timestamp) that a cancelled subscription stays eligible for polling.
+    cancelled-terminal-horizon-days: ${BILLING_RECURRING_RECONCILIATION_CANCELLED_TERMINAL_HORIZON_DAYS:90}
+    # 5G.7: instance-local cooldown opened when the provider returns HTTP 429, so the next
+    # scheduler tick does not immediately hammer Mercado Pago again.
+    rate-limit-default-cooldown-seconds: ${BILLING_RECURRING_RECONCILIATION_RATE_LIMIT_DEFAULT_COOLDOWN_SECONDS:900}
+    rate-limit-max-cooldown-seconds: ${BILLING_RECURRING_RECONCILIATION_RATE_LIMIT_MAX_COOLDOWN_SECONDS:3600}
   enforcement:
     enabled: ${BILLING_ENFORCEMENT_ENABLED:false}
 

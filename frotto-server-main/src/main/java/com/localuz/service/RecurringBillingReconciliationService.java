@@ -83,7 +83,7 @@ public class RecurringBillingReconciliationService {
         } catch (RecurringReconciliationBudget.Exhausted exhausted) {
             outcome = DISCOVERY_INCOMPLETE;
         } catch (MercadoPagoException failure) {
-            if (Integer.valueOf(429).equals(failure.getHttpStatus())) { budget.stopForRateLimit(); outcome = RATE_LIMITED; }
+            if (Integer.valueOf(429).equals(failure.getHttpStatus())) { budget.stopForRateLimit(failure.getRetryAfterSeconds()); outcome = RATE_LIMITED; }
             else outcome = PROVIDER_FAILURE;
         } catch (org.springframework.dao.DataAccessException failure) {
             outcome = PERSISTENCE_FAILURE;

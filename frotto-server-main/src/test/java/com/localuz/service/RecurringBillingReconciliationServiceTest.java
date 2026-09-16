@@ -84,6 +84,22 @@ class RecurringBillingReconciliationServiceTest {
         verifyNoInteractions(ingestion);
     }
 
+    @Test void rateLimitPropagatesRetryAfterSecondsToTheBudget() {
+        when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt()))
+            .thenThrow(new MercadoPagoException("secret body must not be logged",true,429,null,null,120));
+        var budget=new RecurringReconciliationBudget(10);
+        assertThat(service.reconcile(candidate,budget).outcome()).isEqualTo(RATE_LIMITED);
+        assertThat(budget.retryAfterSeconds()).isEqualTo(120);
+    }
+
+    @Test void rateLimitWithoutRetryAfterLeavesBudgetRetryAfterNull() {
+        when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt()))
+            .thenThrow(new MercadoPagoException("secret body must not be logged",true,429,null,null));
+        var budget=new RecurringReconciliationBudget(10);
+        assertThat(service.reconcile(candidate,budget).outcome()).isEqualTo(RATE_LIMITED);
+        assertThat(budget.retryAfterSeconds()).isNull();
+    }
+
     @Test void timeoutLeavesFinancialStateUntouched() {
         when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt())).thenThrow(new MercadoPagoException("timeout",true));
         assertThat(service.reconcile(candidate,new RecurringReconciliationBudget(10)).outcome()).isEqualTo(PROVIDER_FAILURE);

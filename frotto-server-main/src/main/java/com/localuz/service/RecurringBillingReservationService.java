@@ -15,8 +15,8 @@ public class RecurringBillingReservationService {
     public RecurringBillingReservationService(SubscriptionRepository subscriptions) { this.subscriptions = subscriptions; }
 
     @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
-    public List<Candidate> candidates(Instant cutoff, int batchSize) {
-        return subscriptions.findFinancialCandidates(cutoff, PageRequest.of(0, batchSize)).stream()
+    public List<Candidate> candidates(Instant cutoff, Instant now, int cancelledTerminalHorizonDays, int batchSize) {
+        return subscriptions.findFinancialCandidates(cutoff, now, cancelledTerminalHorizonDays, PageRequest.of(0, batchSize)).stream()
             .map(s -> new Candidate(s.getId(), s.getExternalSubscriptionId())).toList();
     }
 

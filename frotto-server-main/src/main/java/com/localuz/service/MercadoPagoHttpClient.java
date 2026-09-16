@@ -218,7 +218,25 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
         String message = "Mercado Pago request failed with status " + response.statusCode();
         if (details.code != null) message += " [code=" + details.code + "]";
         if (details.message != null) message += ": " + details.message;
-        return new MercadoPagoException(message, false, response.statusCode(), details.code, details.message);
+        Integer retryAfterSeconds = response.statusCode() == 429 ? retryAfterSeconds(response) : null;
+        return new MercadoPagoException(message, false, response.statusCode(), details.code, details.message, retryAfterSeconds);
+    }
+
+    /** Seconds-only per current policy; an HTTP-date Retry-After value is intentionally not parsed. */
+    private Integer retryAfterSeconds(HttpResponse<String> response) {
+        try {
+            java.net.http.HttpHeaders headers = response.headers();
+            if (headers == null) return null;
+            return headers.firstValue("Retry-After")
+                .map(String::trim)
+                .filter(value -> value.matches("[0-9]{1,9}"))
+                .map(Long::parseLong)
+                .filter(value -> value > 0)
+                .map(Long::intValue)
+                .orElse(null);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     /** Only known Mercado Pago error fields are retained; arbitrary response JSON is never logged. */

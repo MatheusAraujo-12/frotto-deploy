@@ -20,7 +20,7 @@ class RecurringBillingReconciliationBootstrapTest {
             context.register(MercadoPagoProperties.class, MercadoPagoBillingStatusMapper.class,
                 MercadoPagoFinancialIngestion.class, RecurringBillingReconciliationProperties.class,
                 RecurringBillingReservationService.class, RecurringBillingReconciliationService.class,
-                RecurringBillingReconciliationScheduler.class);
+                RecurringReconciliationCircuitBreaker.class, RecurringBillingReconciliationScheduler.class);
             context.refresh();
             assertThat(context.getBean(RecurringBillingReconciliationProperties.class).isEnabled()).isFalse();
             context.getBean(RecurringBillingReconciliationScheduler.class).reconcileSubscriptions();
