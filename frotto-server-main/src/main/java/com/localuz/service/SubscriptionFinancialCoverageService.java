@@ -80,7 +80,8 @@ public class SubscriptionFinancialCoverageService {
             return result(false, stoppedState(subscription, paid(current, evidence) ? EXPIRED : state), current, PERIOD_EXPIRED);
         }
         if (current.getStatus() == BillingInvoiceStatus.REFUNDED || current.getStatus() == BillingInvoiceStatus.CHARGEDBACK
-            || current.getStatus() == BillingInvoiceStatus.CANCELED) {
+            || current.getStatus() == BillingInvoiceStatus.CANCELED
+            || evidence.stream().anyMatch(a -> belongsTo(current, a) && BillingPaymentEvidence.reversed(a))) {
             return result(false, state, current, REVERSED_OR_CANCELED);
         }
         if (evidence.stream().anyMatch(a -> belongsTo(current, a)

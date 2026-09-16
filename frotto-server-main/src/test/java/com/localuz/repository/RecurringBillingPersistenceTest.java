@@ -468,6 +468,69 @@ class RecurringBillingPersistenceTest {
         assertThat(em.find(Subscription.class, subscription.getId()).getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"refunded,100.00,REFUNDED", "approved,0.10,REFUNDED", "charged_back,0,CHARGEDBACK"})
+    void committedReversalSurvivesNewSessionAndOutOfOrderReplay(String status, String refund, String invoiceStatus) throws Exception {
+        operationalSetup();
+        var client = org.mockito.Mockito.mock(com.localuz.service.MercadoPagoClient.class);
+        var charge = new com.localuz.service.dto.MercadoPagoAuthorizedPayment("refund-db", "processed", "reserve-pre", "approved",
+            "refund-payment", new BigDecimal("100.00"), "BRL", NOVEMBER, NOVEMBER, NOVEMBER, "ref", NOVEMBER.atOffset(java.time.ZoneOffset.UTC));
+        org.mockito.Mockito.when(client.getAuthorizedPayment("refund-db")).thenReturn(charge);
+        org.mockito.Mockito.when(client.getPreapproval("reserve-pre")).thenReturn(new com.localuz.service.dto.MercadoPagoPreapproval(
+            "reserve-pre", "authorized", "ref", null, SEPTEMBER, DECEMBER, NOVEMBER, 1, "months"));
+        Long invoiceId = null;
+        Long attemptId = null;
+        try {
+            for (int phase = 0; phase < 4; phase++) {
+                boolean reversal = phase == 1 || phase == 2;
+                org.mockito.Mockito.when(client.getPayment("refund-payment")).thenReturn(new com.localuz.service.dto.MercadoPagoPayment(
+                    "refund-payment", reversal ? status : "approved", reversal && status.equals("approved") ? "partially_refunded" : "accredited",
+                    new BigDecimal("100.00"), "BRL", NOVEMBER, reversal ? null : NOVEMBER,
+                    reversal ? NOVEMBER.plusSeconds(10) : NOVEMBER, "ref", reversal ? new BigDecimal(refund) : BigDecimal.ZERO));
+                EntityManager local = factory.createEntityManager();
+                try {
+                    local.getTransaction().begin();
+                    var repos = new JpaRepositoryFactory(local);
+                    var invoiceRepository = repos.getRepository(BillingInvoiceRepository.class);
+                    var attemptRepository = repos.getRepository(PaymentAttemptRepository.class);
+                    var ingestion = new com.localuz.service.MercadoPagoFinancialIngestion(client,
+                        repos.getRepository(SubscriptionRepository.class), invoiceRepository, attemptRepository,
+                        new com.localuz.service.MercadoPagoBillingStatusMapper());
+                    assertThat(ingestion.ingest("subscription_authorized_payment", "refund-db")).isTrue();
+                    var invoice = invoiceRepository.findByProviderAndExternalAuthorizedPaymentId(PROVIDER, "refund-db").orElseThrow();
+                    var stored = attemptRepository.findByBillingInvoiceIdOrderByIdAsc(invoice.getId());
+                    assertThat(stored).hasSize(1);
+                    if (phase == 0) { invoiceId = invoice.getId(); attemptId = stored.get(0).getId(); }
+                    assertThat(invoice.getId()).isEqualTo(invoiceId);
+                    assertThat(stored.get(0).getId()).isEqualTo(attemptId);
+                    assertThat(stored.get(0).getApprovedAt()).isEqualTo(NOVEMBER);
+                    assertThat(invoice.getPaidAt()).isEqualTo(NOVEMBER);
+                    assertThat(invoice.getPeriodStart()).isEqualTo(NOVEMBER);
+                    assertThat(invoice.getPeriodEnd()).isEqualTo(DECEMBER);
+                    assertThat(invoice.getDueAt()).isEqualTo(NOVEMBER);
+                    assertThat(invoice.getStatus()).isEqualTo(phase == 0 ? BillingInvoiceStatus.PAID : BillingInvoiceStatus.valueOf(invoiceStatus));
+                    var coverage = new com.localuz.service.SubscriptionFinancialCoverageService(invoiceRepository, attemptRepository);
+                    assertThat(coverage.evaluate(local.find(Subscription.class, 90001L), NOVEMBER.plusSeconds(3600)).covered()).isEqualTo(phase == 0);
+                    if (phase > 0) {
+                        assertThat(stored.get(0).getRefundedAmount()).isEqualByComparingTo(refund);
+                        assertThat(stored.get(0).getProviderUpdatedAt()).isEqualTo(NOVEMBER.plusSeconds(10));
+                    }
+                    local.getTransaction().commit();
+                } finally {
+                    if (local.getTransaction().isActive()) local.getTransaction().rollback();
+                    local.close();
+                }
+            }
+        } finally {
+            // Clean only this test's committed financial rows in the disposable MySQL database.
+            try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+                connection.createStatement().executeUpdate("DELETE a FROM payment_attempt a JOIN billing_invoice i ON i.id=a.billing_invoice_id WHERE i.external_authorized_payment_id='refund-db' AND i.subscription_id=90001");
+                connection.createStatement().executeUpdate("DELETE FROM billing_invoice WHERE external_authorized_payment_id='refund-db' AND subscription_id=90001");
+            }
+            operationalCleanup();
+        }
+    }
+
     @Test void reservationSurvivesRestartAndNormalStaleOrmSave() throws Exception {
         operationalSetup();
         EntityManager stale = factory.createEntityManager();

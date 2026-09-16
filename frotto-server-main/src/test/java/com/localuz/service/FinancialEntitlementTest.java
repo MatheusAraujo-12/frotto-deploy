@@ -51,6 +51,20 @@ class FinancialEntitlementTest {
         return subscription;
     }
 
+    @ParameterizedTest @ValueSource(strings = {"REFUNDED", "CHARGEDBACK"})
+    void reversalLeavesAdminAndGrandfatheredSourcesUntouched(String status) {
+        var invoice = f.invoice(NOV, DEC, true);
+        f.payments.get(0).setStatus(PaymentAttemptStatus.valueOf(status));
+        invoice.setStatus(BillingInvoiceStatus.valueOf(status));
+        Subscription grandfathered = add(SubscriptionSource.GRANDFATHERED, PlanCode.SILVER);
+        assertThat(entitlement.getCurrentPlan(user).getCode()).isEqualTo(PlanCode.SILVER);
+        Subscription admin = add(SubscriptionSource.ADMIN_GRANT, PlanCode.GOLD);
+        assertThat(entitlement.getCurrentPlan(user).getCode()).isEqualTo(PlanCode.GOLD);
+        assertThat(admin.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(grandfathered.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        verify(subscriptions, never()).save(any());
+    }
+
     @Test void validAdminGrantWinsWithoutFinancialQueries() {
         f.invoice(NOV, DEC, true);
         add(SubscriptionSource.ADMIN_GRANT, PlanCode.GOLD).setGrantExpiresAt(DEC);

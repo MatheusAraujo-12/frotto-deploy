@@ -81,6 +81,7 @@ public class MercadoPagoFinancialIngestion {
             || (payment != null && !Objects.equals(charge.getPaymentId(), payment.getId()))) {
             return ignoredSnapshot("correlation_mismatch");
         }
+        validateRefundSnapshot(payment);
         beforeHttp.run(); MercadoPagoPreapproval preapproval = client.getPreapproval(charge.getPreapprovalId());
         if (preapproval == null || !charge.getPreapprovalId().equals(preapproval.getId())
             || conflictingReference(charge.getExternalReference(), preapproval.getExternalReference())
@@ -100,6 +101,7 @@ public class MercadoPagoFinancialIngestion {
         MercadoPagoAuthorizedPayment charge = snapshot.charge();
         MercadoPagoPayment payment = snapshot.payment();
         MercadoPagoPreapproval preapproval = snapshot.preapproval();
+        validateRefundSnapshot(payment);
         // Lock the existing parent before ANY financial read/write. The lock also serializes first inserts.
         Subscription subscription = subscriptions.findForFinancialIngestion(PROVIDER, preapproval.getId()).orElse(null);
         if (subscription == null || subscription.getSource() != SubscriptionSource.PAYMENT_PROVIDER
@@ -176,6 +178,12 @@ public class MercadoPagoFinancialIngestion {
         }
         boolean firstPayment = attempt == null || attempt.getExternalPaymentId() == null;
         if (!firstPayment && !newer(payment.getDateLastUpdated(), attempt.getProviderUpdatedAt())) return;
+        if (!firstPayment && BillingPaymentEvidence.reversed(attempt) && status.get() == PaymentAttemptStatus.APPROVED
+            && payment.getRefundedAmount() == null) {
+            // An incomplete approval cannot erase an already confirmed reversal.
+            ignored("incomplete_approval_after_reversal");
+            return;
+        }
         if (attempt == null) {
             attempt = newAttempt(invoice);
             if (provisional == null) attempt.setExternalAttemptId(provisionalId);
@@ -191,7 +199,7 @@ public class MercadoPagoFinancialIngestion {
         if (attempt.getProviderCreatedAt() == null) attempt.setProviderCreatedAt(payment.getDateCreated());
         if (attempt.getAttemptedAt() == null) attempt.setAttemptedAt(payment.getDateCreated());
         attempt.setProviderUpdatedAt(payment.getDateLastUpdated());
-        if (payment.getDateApproved() != null) attempt.setApprovedAt(payment.getDateApproved());
+        if (attempt.getApprovedAt() == null && payment.getDateApproved() != null) attempt.setApprovedAt(payment.getDateApproved());
         if (validAmount(payment.getRefundedAmount()) && payment.getRefundedAmount().compareTo(payment.getTransactionAmount()) <= 0) {
             attempt.setRefundedAmount(payment.getRefundedAmount().setScale(2));
         }
@@ -202,15 +210,28 @@ public class MercadoPagoFinancialIngestion {
             return;
         }
         // Compute from the current evidence for THIS invoice, so a failed retry cannot erase a paid one.
-        boolean approved = attempts.findByBillingInvoiceIdOrderByIdAsc(invoice.getId()).stream()
+        var evidence = attempts.findByBillingInvoiceIdOrderByIdAsc(invoice.getId());
+        boolean approved = evidence.stream()
             .anyMatch(a -> BillingPaymentEvidence.approved(invoice, a));
         if (approved) {
             invoice.setStatus(BillingInvoiceStatus.PAID);
             if (invoice.getPaidAt() == null && attempt.getStatus() == PaymentAttemptStatus.APPROVED) invoice.setPaidAt(attempt.getApprovedAt());
-        } else if (attempt.getStatus() == PaymentAttemptStatus.REFUNDED) {
-            invoice.setStatus(BillingInvoiceStatus.REFUNDED);
-        } else if (attempt.getStatus() == PaymentAttemptStatus.CHARGEDBACK) {
+        } else if (evidence.stream().anyMatch(a -> a.getStatus() == PaymentAttemptStatus.CHARGEDBACK)) {
             invoice.setStatus(BillingInvoiceStatus.CHARGEDBACK);
+        } else if (evidence.stream().anyMatch(BillingPaymentEvidence::reversed)) {
+            // REFUNDED also represents insufficient net coverage after a partial refund; amounts remain on each attempt.
+            invoice.setStatus(BillingInvoiceStatus.REFUNDED);
+        }
+    }
+
+    private void validateRefundSnapshot(MercadoPagoPayment payment) {
+        if (payment == null) return;
+        BigDecimal refund = payment.getRefundedAmount();
+        boolean partial = "partially_refunded".equalsIgnoreCase(payment.getStatusDetail());
+        if ((refund != null && (!validAmount(refund) || !validAmount(payment.getTransactionAmount())
+                || refund.compareTo(payment.getTransactionAmount()) > 0))
+            || (partial && (refund == null || refund.signum() <= 0))) {
+            throw new MercadoPagoException("Invalid authoritative refund observation", false);
         }
     }
 

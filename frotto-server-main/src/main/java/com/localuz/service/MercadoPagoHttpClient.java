@@ -65,6 +65,9 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
     @Override public com.localuz.service.dto.MercadoPagoPayment getPayment(String id) {
         JsonNode node = getJson(resource(PAYMENTS, id));
         if (!id.equals(text(node, "id")) || text(node, "status") == null) throw invalidFinancialResponse();
+        if (node.hasNonNull("transaction_amount_refunded") && decimal(node, "transaction_amount_refunded") == null) {
+            throw invalidFinancialResponse();
+        }
         return new com.localuz.service.dto.MercadoPagoPayment(id, text(node, "status"), safeCode(node, "status_detail"),
             decimal(node, "transaction_amount"), text(node, "currency_id"), instant(node, "date_created"),
             instant(node, "date_approved"), instant(node, "date_last_updated"), text(node, "external_reference"),

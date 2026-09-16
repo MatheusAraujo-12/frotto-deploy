@@ -270,10 +270,11 @@ class SubscriptionFinancialCoverageServiceTest {
         assertThat(f.service.evaluate(f.subscription).covered()).isFalse();
     }
 
-    @Test void partialRefundDoesNotInvalidateAnApprovedPaidCompetency() {
+    @Test void partialRefundInvalidatesAnApprovedPaidCompetencyUnder5G6Policy() {
         f.invoice(NOV, DEC, true);
         f.payments.get(0).setRefundedAmount(BigDecimal.ONE);
-        assertThat(f.service.evaluate(f.subscription).covered()).isTrue();
+        assertThat(f.service.evaluate(f.subscription).covered()).isFalse();
+        assertThat(f.service.evaluate(f.subscription).reason()).isEqualTo(REVERSED_OR_CANCELED);
     }
 
     @ParameterizedTest @EnumSource(value = SubscriptionStatus.class, names = {"CANCELED", "PAUSED"})

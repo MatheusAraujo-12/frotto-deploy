@@ -16,6 +16,15 @@ final class BillingPaymentEvidence {
 
     static boolean approved(BillingInvoice invoice, PaymentAttempt attempt) {
         return attempt.getStatus() == PaymentAttemptStatus.APPROVED
-            && moneyMatches(invoice, attempt.getAmount(), attempt.getCurrency());
+            && moneyMatches(invoice, attempt.getAmount(), attempt.getCurrency())
+            // Preserve legacy observations without a refund field; known refunds never count as full payment.
+            && (attempt.getRefundedAmount() == null || attempt.getRefundedAmount().signum() == 0)
+            && !reversed(attempt);
+    }
+
+    static boolean reversed(PaymentAttempt attempt) {
+        return attempt.getStatus() == PaymentAttemptStatus.REFUNDED || attempt.getStatus() == PaymentAttemptStatus.CHARGEDBACK
+            || (attempt.getRefundedAmount() != null && attempt.getRefundedAmount().signum() > 0)
+            || "partially_refunded".equalsIgnoreCase(attempt.getStatusDetail());
     }
 }

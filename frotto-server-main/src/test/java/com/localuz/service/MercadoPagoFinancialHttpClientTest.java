@@ -71,6 +71,12 @@ class MercadoPagoFinancialHttpClientTest {
         assertThat(requests.getValue().method()).isEqualTo("GET");
     }
 
+    @ParameterizedTest @ValueSource(strings = {"\"bad\"", "{}", "true", "[]"})
+    void malformedRefundAmountIsNotSilentlyTreatedAsAbsent(String refund) {
+        when(response.body()).thenReturn("{\"id\":20,\"status\":\"approved\",\"transaction_amount_refunded\":" + refund + "}");
+        assertThatThrownBy(() -> client.getPayment("20")).isInstanceOf(MercadoPagoException.class);
+    }
+
     @Test void enrichesAuthorizedPaymentWithoutInventingServiceDates() {
         when(response.body()).thenReturn(CHARGE);
         var charge = client.getAuthorizedPayment("10");
