@@ -81,6 +81,8 @@ export interface PaymentProviderSubscriptionState {
   status: SubscriptionStatus;
   planCode: PlanCode;
   billingCycle: BillingCycle;
+  /** Mirrors the backend's 5G financial-coverage verdict (BillingInvoice + PaymentAttempt evidence). status=ACTIVE alone is never proof of payment. */
+  financiallyCovered: boolean;
 }
 
 export interface LatestCheckoutState {

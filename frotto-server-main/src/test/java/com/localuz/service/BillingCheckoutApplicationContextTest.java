@@ -31,6 +31,7 @@ class BillingCheckoutApplicationContextTest {
         .withBean(PricingService.class)
         .withBean(MercadoPagoHttpClient.class)
         .withBean(BillingCheckoutService.class)
+        .withBean(SubscriptionFinancialCoverageService.class, () -> mock(SubscriptionFinancialCoverageService.class))
         .withBean(BillingPaymentStateService.class)
         .withBean(SubscriptionCancellationSteps.class)
         .withBean(SubscriptionCancellationService.class);

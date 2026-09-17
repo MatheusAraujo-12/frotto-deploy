@@ -55,8 +55,11 @@ public class RecurringBillingReconciliationScheduler {
                 if (!budget.available()) break;
                 try {
                     var result = reconciliation.reconcile(candidate, budget);
-                    LOG.info("Recurring financial reconciliation subscriptionId={} outcome={} discovered={} ingested={} skipped={} httpCalls={}",
-                        result.subscriptionId(), result.outcome(), result.discovered(), result.ingested(), result.skipped(), result.httpCalls());
+                    // failureCategory/failureHttpStatus are a safe enum name and a plain HTTP status code only -
+                    // never the exception message, provider body, or Authorization header. See MercadoPagoException.Category.
+                    LOG.info("Recurring financial reconciliation subscriptionId={} outcome={} discovered={} ingested={} skipped={} httpCalls={} failureCategory={} failureHttpStatus={}",
+                        result.subscriptionId(), result.outcome(), result.discovered(), result.ingested(), result.skipped(), result.httpCalls(),
+                        result.failureCategory(), result.failureHttpStatus());
                 } catch (RuntimeException failure) {
                     // Never log exception messages or bodies that may contain provider data/secrets.
                     LOG.warn("Recurring financial reconciliation subscriptionId={} outcome=OPERATIONAL_FAILURE", candidate.id());

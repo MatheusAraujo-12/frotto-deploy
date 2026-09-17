@@ -2,6 +2,8 @@ package com.localuz.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.localuz.service.*;
 import com.localuz.service.RecurringBillingReservationService.Candidate;
 import com.localuz.service.dto.RecurringReconciliationResult;
@@ -12,7 +14,10 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 class RecurringBillingReconciliationSchedulerTest {
     private final RecurringBillingReconciliationProperties config=new RecurringBillingReconciliationProperties();
@@ -25,6 +30,39 @@ class RecurringBillingReconciliationSchedulerTest {
     private final RecurringBillingReconciliationScheduler scheduler=
         new RecurringBillingReconciliationScheduler(config,provider,reservations,service,breaker,clock);
     private void enable() { config.setEnabled(true); provider.setEnabled(true); provider.setAccessToken("fake-test-only"); }
+    private ListAppender<ILoggingEvent> logAppender;
+
+    @BeforeEach void attachLogAppender() {
+        logAppender = new ListAppender<>();
+        logAppender.start();
+        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(RecurringBillingReconciliationScheduler.class)).addAppender(logAppender);
+    }
+    @AfterEach void detachLogAppender() {
+        ((ch.qos.logback.classic.Logger) LoggerFactory.getLogger(RecurringBillingReconciliationScheduler.class)).detachAppender(logAppender);
+    }
+    private java.util.List<String> loggedMessages() {
+        return logAppender.list.stream().map(ILoggingEvent::getFormattedMessage).collect(java.util.stream.Collectors.toList());
+    }
+
+    @Test void providerFailureLogsASafeCategoryAndHttpStatusWithoutTheExceptionMessage() {
+        enable();
+        when(reservations.candidates(any(),any(),anyInt(),anyInt())).thenReturn(List.of(new Candidate(1L,"a")));
+        when(service.reconcile(any(),any())).thenReturn(
+            new RecurringReconciliationResult(1L, Outcome.PROVIDER_FAILURE, 0, 0, 0, 1, "HTTP_404", 404));
+        scheduler.reconcileSubscriptions();
+        assertThat(loggedMessages()).anySatisfy(message -> {
+            assertThat(message).contains("outcome=PROVIDER_FAILURE", "failureCategory=HTTP_404", "failureHttpStatus=404");
+            assertThat(message).doesNotContain("Bearer", "access_token", "provider-secret-body");
+        });
+    }
+
+    @Test void completeOutcomeLogsNullFailureFieldsRatherThanFabricatingACategory() {
+        enable();
+        when(reservations.candidates(any(),any(),anyInt(),anyInt())).thenReturn(List.of(new Candidate(1L,"a")));
+        when(service.reconcile(any(),any())).thenReturn(new RecurringReconciliationResult(1L, Outcome.COMPLETE, 0, 0, 0, 1));
+        scheduler.reconcileSubscriptions();
+        assertThat(loggedMessages()).anySatisfy(message -> assertThat(message).contains("failureCategory=null", "failureHttpStatus=null"));
+    }
 
     @Test void disabledByDefaultDoesNothing() {
         scheduler.reconcileSubscriptions(); verifyNoInteractions(reservations,service);

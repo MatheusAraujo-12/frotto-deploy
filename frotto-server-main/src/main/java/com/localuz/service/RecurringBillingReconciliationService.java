@@ -44,6 +44,8 @@ public class RecurringBillingReconciliationService {
             return new RecurringReconciliationResult(candidate == null ? null : candidate.id(), INVALID_CANDIDATE, 0, 0, 0, 0);
         }
         Outcome outcome = COMPLETE;
+        String failureCategory = null;
+        Integer failureHttpStatus = null;
         try {
             if (!budget.available()) return new RecurringReconciliationResult(candidate.id(), DISCOVERY_INCOMPLETE, 0, 0, 0, 0);
             Instant now = clock.instant().truncatedTo(ChronoUnit.MICROS);
@@ -85,12 +87,15 @@ public class RecurringBillingReconciliationService {
         } catch (MercadoPagoException failure) {
             if (Integer.valueOf(429).equals(failure.getHttpStatus())) { budget.stopForRateLimit(failure.getRetryAfterSeconds()); outcome = RATE_LIMITED; }
             else outcome = PROVIDER_FAILURE;
+            failureCategory = failure.getCategory().name();
+            failureHttpStatus = failure.getHttpStatus();
         } catch (org.springframework.dao.DataAccessException failure) {
             outcome = PERSISTENCE_FAILURE;
         } catch (RuntimeException failure) {
             outcome = OPERATIONAL_FAILURE;
         }
-        return new RecurringReconciliationResult(candidate.id(), outcome, ids.size(), ingested, skipped, budget.used() - initialCalls);
+        return new RecurringReconciliationResult(candidate.id(), outcome, ids.size(), ingested, skipped, budget.used() - initialCalls,
+            failureCategory, failureHttpStatus);
     }
 
     private boolean validPage(MercadoPagoAuthorizedPaymentPage page, int offset, int requestedLimit) {

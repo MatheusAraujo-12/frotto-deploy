@@ -72,7 +72,10 @@ export const paymentNotice = (state: BillingPaymentStateDTO | null): PaymentNoti
   if (subscription?.status === "PAST_DUE") return { title: "Pagamento pendente", detail: "Identificamos uma pendência no pagamento da sua assinatura. Seu acesso continua ativo enquanto a situação é regularizada.", tone: "warning" };
   if (subscription?.status === "PAUSED") return { title: "Assinatura pausada", detail: "Sua assinatura paga está temporariamente pausada.", tone: "warning" };
   if (subscription?.status === "CANCELED") return { title: "Assinatura encerrada", detail: "Esta assinatura paga foi encerrada e não está vigente.", tone: "info" };
-  if (subscription?.status === "ACTIVE") return { title: "Assinatura ativa", detail: `Plano ${friendlyPlan(subscription.planCode)} confirmado.`, tone: "info" };
+  if (subscription?.status === "ACTIVE" && subscription.financiallyCovered) return { title: "Assinatura ativa", detail: `Plano ${friendlyPlan(subscription.planCode)} confirmado.`, tone: "info" };
+  // Preapproval/checkout authorized and Subscription.status=ACTIVE, but the 5G financial evidence
+  // (BillingInvoice + PaymentAttempt) is not in yet - never say "confirmado" from status alone.
+  if (subscription?.status === "ACTIVE") return { title: "Pagamento em processamento", detail: `Recebemos a autorização do Mercado Pago para o plano ${friendlyPlan(subscription.planCode)} e estamos confirmando o pagamento. Isso pode levar alguns minutos.`, tone: "info" };
   const checkout = state?.latestCheckout?.status;
   if (checkout === "CREATED") return { title: "Pagamento em preparação", detail: "Seu pagamento está sendo preparado. Aguarde antes de iniciar uma nova tentativa.", tone: "info" };
   if (checkout === "PROVIDER_PENDING") return { title: "Aguardando confirmação do Mercado Pago", detail: "Seu pagamento foi iniciado e estamos aguardando a confirmação.", tone: "info" };

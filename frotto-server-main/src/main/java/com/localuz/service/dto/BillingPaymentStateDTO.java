@@ -13,8 +13,8 @@ public class BillingPaymentStateDTO {
     private final PaymentProviderSubscription paymentProviderSubscription;
     private final LatestCheckout latestCheckout;
 
-    public BillingPaymentStateDTO(Subscription subscription, BillingCheckout checkout) {
-        paymentProviderSubscription = subscription == null ? null : new PaymentProviderSubscription(subscription);
+    public BillingPaymentStateDTO(Subscription subscription, boolean financiallyCovered, BillingCheckout checkout) {
+        paymentProviderSubscription = subscription == null ? null : new PaymentProviderSubscription(subscription, financiallyCovered);
         latestCheckout = checkout == null ? null : new LatestCheckout(checkout);
     }
 
@@ -23,8 +23,19 @@ public class BillingPaymentStateDTO {
 
     public static class PaymentProviderSubscription {
         private final SubscriptionStatus status; private final PlanCode planCode; private final BillingCycle billingCycle;
-        PaymentProviderSubscription(Subscription subscription) { status=subscription.getStatus();planCode=subscription.getPlan().getCode();billingCycle=subscription.getBillingCycle(); }
+        private final boolean financiallyCovered;
+        /**
+         * financiallyCovered mirrors SubscriptionFinancialCoverageService's 5G verdict (BillingInvoice +
+         * PaymentAttempt evidence), never the persisted status alone - status=ACTIVE on its own is not
+         * financial proof. The frontend must not render "confirmado"/"ativa" language from this status
+         * field unless this flag is true.
+         */
+        PaymentProviderSubscription(Subscription subscription, boolean financiallyCovered) {
+            status=subscription.getStatus();planCode=subscription.getPlan().getCode();billingCycle=subscription.getBillingCycle();
+            this.financiallyCovered=financiallyCovered;
+        }
         public SubscriptionStatus getStatus(){return status;} public PlanCode getPlanCode(){return planCode;} public BillingCycle getBillingCycle(){return billingCycle;}
+        public boolean isFinanciallyCovered(){return financiallyCovered;}
     }
 
     public static class LatestCheckout {

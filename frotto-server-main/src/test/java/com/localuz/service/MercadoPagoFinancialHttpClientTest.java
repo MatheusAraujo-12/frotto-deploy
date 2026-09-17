@@ -170,4 +170,45 @@ class MercadoPagoFinancialHttpClientTest {
         assertThatThrownBy(() -> client.getPayment("20")).isInstanceOf(MercadoPagoException.class)
             .hasMessageNotContaining("private-raw-response");
     }
+
+    @ParameterizedTest @ValueSource(ints = {400,401,403,404,429,500,503})
+    void discoveryHttpErrorsCarryTheCorrectSafeCategory(int status) throws Exception {
+        when(response.statusCode()).thenReturn(status);
+        when(response.body()).thenReturn("provider-secret-body");
+        assertThatThrownBy(() -> client.searchAuthorizedPayments("pre-1", 0, 20))
+            .isInstanceOfSatisfying(MercadoPagoException.class, error -> {
+                assertThat(error.getHttpStatus()).isEqualTo(status);
+                assertThat(error.getMessage()).doesNotContain("provider-secret-body");
+            });
+    }
+
+    @Test void discoveryTimeoutIsCategorizedAsTimeoutNotNetworkError() throws Exception {
+        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenThrow(new HttpTimeoutException("timed out"));
+        assertThatThrownBy(() -> client.searchAuthorizedPayments("pre-1", 0, 20))
+            .isInstanceOfSatisfying(MercadoPagoException.class, error -> {
+                assertThat(error.getCategory()).isEqualTo(MercadoPagoException.Category.TIMEOUT);
+                assertThat(error.getHttpStatus()).isNull();
+            });
+    }
+
+    @Test void discoveryNetworkFailureIsCategorizedAsNetworkErrorNotTimeout() throws Exception {
+        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenThrow(new java.io.IOException("connection reset"));
+        assertThatThrownBy(() -> client.searchAuthorizedPayments("pre-1", 0, 20))
+            .isInstanceOfSatisfying(MercadoPagoException.class, error -> {
+                assertThat(error.getCategory()).isEqualTo(MercadoPagoException.Category.NETWORK_ERROR);
+                assertThat(error.getMessage()).doesNotContain("connection reset");
+            });
+    }
+
+    @Test void discoveryMalformedJsonIsCategorizedAsParsingErrorNotNetworkError() throws Exception {
+        when(response.body()).thenReturn("not-json-at-all-{{{");
+        assertThatThrownBy(() -> client.searchAuthorizedPayments("pre-1", 0, 20))
+            .isInstanceOfSatisfying(MercadoPagoException.class, error -> assertThat(error.getCategory()).isEqualTo(MercadoPagoException.Category.PARSING_ERROR));
+    }
+
+    @Test void getAuthorizedPaymentTimeoutAndNetworkFailureAreDistinguished() throws Exception {
+        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenThrow(new HttpTimeoutException("timed out"));
+        assertThatThrownBy(() -> client.getAuthorizedPayment("10"))
+            .isInstanceOfSatisfying(MercadoPagoException.class, error -> assertThat(error.getCategory()).isEqualTo(MercadoPagoException.Category.TIMEOUT));
+    }
 }

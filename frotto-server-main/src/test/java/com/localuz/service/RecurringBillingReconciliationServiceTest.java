@@ -77,11 +77,32 @@ class RecurringBillingReconciliationServiceTest {
         when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt()))
             .thenThrow(new MercadoPagoException("secret body must not be logged",true,status,null,null));
         var budget=new RecurringReconciliationBudget(10);
-        assertThat(service.reconcile(candidate,budget).outcome()).isEqualTo(status==429 ? RATE_LIMITED : PROVIDER_FAILURE);
+        var result = service.reconcile(candidate,budget);
+        assertThat(result.outcome()).isEqualTo(status==429 ? RATE_LIMITED : PROVIDER_FAILURE);
         assertThat(budget.rateLimited()).isEqualTo(status==429);
+        // The safe category/http status must reach the result even though it never appears in the outcome enum.
+        assertThat(result.failureHttpStatus()).isEqualTo(status);
+        assertThat(result.failureCategory()).isEqualTo(new MercadoPagoException("x",true,status,null,null).getCategory().name());
         verify(reservations).reserve(any(),any(),any());
         verifyNoMoreInteractions(reservations);
         verifyNoInteractions(ingestion);
+    }
+
+    @Test void timeoutAndNetworkFailuresCarryASafeCategoryWithoutAnHttpStatus() {
+        when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt()))
+            .thenThrow(new MercadoPagoException("timeout", true, new java.net.http.HttpTimeoutException("t")));
+        var result = service.reconcile(candidate, new RecurringReconciliationBudget(10));
+        assertThat(result.outcome()).isEqualTo(PROVIDER_FAILURE);
+        assertThat(result.failureHttpStatus()).isNull();
+        assertThat(result.failureCategory()).isEqualTo("TIMEOUT");
+    }
+
+    @Test void successfulOutcomesNeverCarryAFailureCategory() {
+        when(client.searchAuthorizedPayments("pre-1", 0, 20)).thenReturn(page(0,20,0));
+        var result = service.reconcile(candidate, new RecurringReconciliationBudget(10));
+        assertThat(result.outcome()).isEqualTo(COMPLETE);
+        assertThat(result.failureCategory()).isNull();
+        assertThat(result.failureHttpStatus()).isNull();
     }
 
     @Test void rateLimitPropagatesRetryAfterSecondsToTheBudget() {

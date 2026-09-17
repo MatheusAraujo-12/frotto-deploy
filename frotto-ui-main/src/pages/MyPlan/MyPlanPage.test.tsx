@@ -216,6 +216,34 @@ describe("MyPlanPage - checkout modal", () => {
     expect(screen.queryByRole("button", { name: "Continuar pagamento" })).not.toBeInTheDocument();
   });
 
+  it("não afirma assinatura confirmada quando a preapproval está ACTIVE mas sem evidência financeira (5G fail-closed)", async () => {
+    // Reproduces the staging observation: Subscription.status=ACTIVE, zero BillingInvoice/PaymentAttempt.
+    // /api/billing/me correctly falls back to FREE; the banner must not contradict it.
+    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, planCode: "FREE", planName: "Gratuito", subscriptionStatus: null, subscriptionSource: null, billingCycle: null });
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({
+      paymentProviderSubscription: { status: "ACTIVE", planCode: "BRONZE", billingCycle: "MONTHLY", financiallyCovered: false },
+      latestCheckout: null,
+    });
+    await renderLoadedPage();
+
+    expect(screen.queryByText("Assinatura ativa")).not.toBeInTheDocument();
+    expect(screen.queryByText(/confirmado\./)).not.toBeInTheDocument();
+    expect(screen.getByText("Pagamento em processamento")).toBeInTheDocument();
+    expect(screen.getByText("Gratuito", { selector: "h1" })).toBeInTheDocument();
+  });
+
+  it("converge para Bronze em toda a tela quando a evidência financeira é aprovada", async () => {
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({
+      paymentProviderSubscription: { status: "ACTIVE", planCode: "BRONZE", billingCycle: "MONTHLY", financiallyCovered: true },
+      latestCheckout: null,
+    });
+    await renderLoadedPage();
+
+    // billing.me already reflects BRONZE/ACTIVE (fixture `billing`); the top banner is redundant and stays suppressed.
+    expect(screen.queryByText("Assinatura ativa")).not.toBeInTheDocument();
+    expect(screen.getByText("Bronze", { selector: "h1" })).toBeInTheDocument();
+  });
+
   it("não navega com resposta tardia do checkout da sessão anterior", async () => {
     const oldCheckout = deferred<any>();
     mockedBillingService.createCheckout.mockReturnValue(oldCheckout.promise);

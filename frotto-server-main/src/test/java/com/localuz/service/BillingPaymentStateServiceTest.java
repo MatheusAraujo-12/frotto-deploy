@@ -16,6 +16,7 @@ import com.localuz.domain.enumeration.SubscriptionStatus;
 import com.localuz.repository.BillingCheckoutRepository;
 import com.localuz.repository.SubscriptionRepository;
 import com.localuz.service.dto.BillingPaymentStateDTO;
+import com.localuz.service.dto.FinancialCoverageEvaluation;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -27,16 +28,46 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 class BillingPaymentStateServiceTest {
     private SubscriptionRepository subscriptions; private BillingCheckoutRepository checkouts;
+    private SubscriptionFinancialCoverageService financialCoverage;
     private BillingPaymentStateService service; private User user;
-    @BeforeEach void setUp(){subscriptions=mock(SubscriptionRepository.class);checkouts=mock(BillingCheckoutRepository.class);service=new BillingPaymentStateService(subscriptions,checkouts);user=new User();user.setId(42L);}
+    @BeforeEach void setUp(){
+        subscriptions=mock(SubscriptionRepository.class);checkouts=mock(BillingCheckoutRepository.class);
+        financialCoverage=mock(SubscriptionFinancialCoverageService.class);
+        service=new BillingPaymentStateService(subscriptions,checkouts,financialCoverage);user=new User();user.setId(42L);
+    }
 
     @ParameterizedTest @MethodSource("subscriptionStatuses")
     void exposesEveryPaymentProviderStatusEvenWhenItIsNotEffective(SubscriptionStatus status){
         Subscription paid=subscription(status);when(subscriptions.findFirstByUserIdAndSourceOrderByStartDateDesc(42L,SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(Optional.of(paid));
+        when(financialCoverage.evaluate(paid)).thenReturn(new FinancialCoverageEvaluation(false,FinancialCoverageEvaluation.CommercialState.AWAITING_PAYMENT,null,null,null,null,FinancialCoverageEvaluation.Reason.NO_INVOICE));
         BillingPaymentStateDTO result=service.getState(user);
         assertThat(result.getPaymentProviderSubscription().getStatus()).isEqualTo(status);
         assertThat(result.getPaymentProviderSubscription().getPlanCode()).isEqualTo(PlanCode.BRONZE);
         assertThat(result.getPaymentProviderSubscription().getBillingCycle()).isEqualTo(BillingCycle.MONTHLY);
+    }
+
+    @Test void statusActiveWithoutFinancialEvidenceIsNotReportedAsCovered(){
+        // Reproduces the staging observation: Subscription.status=ACTIVE but zero BillingInvoice/PaymentAttempt.
+        Subscription paid=subscription(SubscriptionStatus.ACTIVE);
+        when(subscriptions.findFirstByUserIdAndSourceOrderByStartDateDesc(42L,SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(Optional.of(paid));
+        when(financialCoverage.evaluate(paid)).thenReturn(new FinancialCoverageEvaluation(false,FinancialCoverageEvaluation.CommercialState.AWAITING_PAYMENT,null,null,null,null,FinancialCoverageEvaluation.Reason.NO_INVOICE));
+        BillingPaymentStateDTO result=service.getState(user);
+        assertThat(result.getPaymentProviderSubscription().getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(result.getPaymentProviderSubscription().isFinanciallyCovered()).isFalse();
+    }
+
+    @Test void statusActiveWithApprovedEvidenceIsReportedAsCovered(){
+        Subscription paid=subscription(SubscriptionStatus.ACTIVE);
+        when(subscriptions.findFirstByUserIdAndSourceOrderByStartDateDesc(42L,SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(Optional.of(paid));
+        when(financialCoverage.evaluate(paid)).thenReturn(new FinancialCoverageEvaluation(true,FinancialCoverageEvaluation.CommercialState.ACTIVE,99L,Instant.parse("2026-08-28T00:00:00Z"),Instant.parse("2026-09-28T00:00:00Z"),null,FinancialCoverageEvaluation.Reason.PAID));
+        BillingPaymentStateDTO result=service.getState(user);
+        assertThat(result.getPaymentProviderSubscription().isFinanciallyCovered()).isTrue();
+    }
+
+    @Test void financialCoverageIsNeverEvaluatedWhenThereIsNoPaymentProviderSubscription(){
+        BillingPaymentStateDTO result=service.getState(user);
+        assertThat(result.getPaymentProviderSubscription()).isNull();
+        org.mockito.Mockito.verifyNoInteractions(financialCoverage);
     }
 
     @ParameterizedTest @MethodSource("checkoutStatuses")

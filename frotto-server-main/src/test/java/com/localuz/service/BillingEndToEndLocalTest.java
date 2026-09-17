@@ -69,8 +69,11 @@ class BillingEndToEndLocalTest {
         assertThat(paid.getContractedPrice()).isEqualByComparingTo("29.90"); assertThat(paid.getContractedVehicleCount()).isEqualTo(2);
         when(subscriptions.findFirstByUserIdAndSourceOrderByStartDateDesc(7L,SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(Optional.of(paid));
         when(checkouts.findFirstByUserIdOrderByCreatedAtDesc(7L)).thenReturn(Optional.of(created));
-        BillingPaymentStateDTO paymentState = new BillingPaymentStateService(subscriptions,checkouts).getState(user);
+        BillingPaymentStateDTO paymentState = new BillingPaymentStateService(subscriptions,checkouts,
+            new SubscriptionFinancialCoverageService(mock(BillingInvoiceRepository.class), mock(PaymentAttemptRepository.class))).getState(user);
         assertThat(paymentState.getPaymentProviderSubscription().getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        // Authorization alone (no BillingInvoice/PaymentAttempt yet) must not be reported as financially covered.
+        assertThat(paymentState.getPaymentProviderSubscription().isFinanciallyCovered()).isFalse();
         assertThat(paymentState.getLatestCheckout().getStatus()).isEqualTo(BillingCheckoutStatus.AUTHORIZED);
         when(subscriptions.findByUserIdOrderByStartDateDesc(any())).thenReturn(List.of(paid));
         SubscriptionService subscriptionService = new SubscriptionService(subscriptions,plans,
