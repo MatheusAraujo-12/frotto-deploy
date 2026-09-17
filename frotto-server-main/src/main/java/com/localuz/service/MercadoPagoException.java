@@ -1,12 +1,23 @@
 package com.localuz.service;
 
+import java.util.regex.Pattern;
+
 public class MercadoPagoException extends RuntimeException {
+    /**
+     * Mercado Pago error/cause codes are short enum-like tokens (e.g. "bad_request", "PA400"), never
+     * free text - unlike providerMessage, which echoes provider-authored descriptions and must never be
+     * logged. A providerCode is only safe to log when it matches this shape; anything else (unexpected
+     * punctuation, embedded emails/ids, oversized strings) is treated as unsafe and withheld.
+     */
+    private static final Pattern SAFE_PROVIDER_CODE = Pattern.compile("[A-Za-z0-9_-]{1,40}(?:, [A-Za-z0-9_-]{1,40}){0,4}");
+
     private final boolean ambiguous;
     private final Integer httpStatus;
     private final String providerCode;
     private final String providerMessage;
     private final Integer retryAfterSeconds;
     private final Category category;
+    private final String safeProviderErrorCode;
 
     /**
      * Safe-to-log failure bucket, derived only from the HTTP status (never the response body) and
@@ -19,7 +30,7 @@ public class MercadoPagoException extends RuntimeException {
         TIMEOUT, NETWORK_ERROR, PARSING_ERROR, INTERRUPTED, CONTRACT_ERROR }
 
     public MercadoPagoException(String message, boolean ambiguous) { this(message, ambiguous, null, null, null); }
-    public MercadoPagoException(String message, boolean ambiguous, Throwable cause) { super(message, cause); this.ambiguous = ambiguous; this.httpStatus = null; this.providerCode = null; this.providerMessage = null; this.retryAfterSeconds = null; this.category = category(null, cause); }
+    public MercadoPagoException(String message, boolean ambiguous, Throwable cause) { super(message, cause); this.ambiguous = ambiguous; this.httpStatus = null; this.providerCode = null; this.providerMessage = null; this.retryAfterSeconds = null; this.category = category(null, cause); this.safeProviderErrorCode = null; }
     public MercadoPagoException(String message, boolean ambiguous, Integer httpStatus, String providerCode, String providerMessage) {
         this(message, ambiguous, httpStatus, providerCode, providerMessage, null);
     }
@@ -32,6 +43,7 @@ public class MercadoPagoException extends RuntimeException {
         this.providerMessage = providerMessage;
         this.retryAfterSeconds = retryAfterSeconds;
         this.category = category(httpStatus, null);
+        this.safeProviderErrorCode = safeProviderErrorCode(providerCode);
     }
     public boolean isAmbiguous() { return ambiguous; }
     public Integer getHttpStatus() { return httpStatus; }
@@ -39,6 +51,12 @@ public class MercadoPagoException extends RuntimeException {
     public String getProviderMessage() { return providerMessage; }
     public Integer getRetryAfterSeconds() { return retryAfterSeconds; }
     public Category getCategory() { return category; }
+    /** The providerCode, but only when it matches the safe enum-like shape; null otherwise. See SAFE_PROVIDER_CODE. */
+    public String getSafeProviderErrorCode() { return safeProviderErrorCode; }
+
+    private static String safeProviderErrorCode(String providerCode) {
+        return providerCode != null && SAFE_PROVIDER_CODE.matcher(providerCode).matches() ? providerCode : null;
+    }
 
     private static Category category(Integer httpStatus, Throwable cause) {
         if (httpStatus != null) {

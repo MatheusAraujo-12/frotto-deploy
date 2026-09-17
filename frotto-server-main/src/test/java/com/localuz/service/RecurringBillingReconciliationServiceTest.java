@@ -103,6 +103,32 @@ class RecurringBillingReconciliationServiceTest {
         assertThat(result.outcome()).isEqualTo(COMPLETE);
         assertThat(result.failureCategory()).isNull();
         assertThat(result.failureHttpStatus()).isNull();
+        assertThat(result.providerErrorCode()).isNull();
+    }
+
+    @Test void safeStructuredProviderCodeReachesTheResult() {
+        when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt()))
+            .thenThrow(new MercadoPagoException("secret body must not be logged",false,400,"bad_request, PA400","payer invalid"));
+        var result = service.reconcile(candidate,new RecurringReconciliationBudget(10));
+        assertThat(result.outcome()).isEqualTo(PROVIDER_FAILURE);
+        assertThat(result.providerErrorCode()).isEqualTo("bad_request, PA400");
+    }
+
+    @Test void unsafeShapedProviderCodeIsWithheldFromTheResult() {
+        when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt()))
+            .thenThrow(new MercadoPagoException("secret body must not be logged",false,400,
+                "invalid parameter: payer_email=someone@example.com","payer invalid"));
+        var result = service.reconcile(candidate,new RecurringReconciliationBudget(10));
+        assertThat(result.outcome()).isEqualTo(PROVIDER_FAILURE);
+        assertThat(result.providerErrorCode()).isNull();
+    }
+
+    @Test void missingProviderCodeLeavesResultFieldNull() {
+        when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt()))
+            .thenThrow(new MercadoPagoException("secret body must not be logged",false,400,null,null));
+        var result = service.reconcile(candidate,new RecurringReconciliationBudget(10));
+        assertThat(result.outcome()).isEqualTo(PROVIDER_FAILURE);
+        assertThat(result.providerErrorCode()).isNull();
     }
 
     @Test void rateLimitPropagatesRetryAfterSecondsToTheBudget() {

@@ -49,4 +49,40 @@ class MercadoPagoExceptionTest {
         assertThat(exception.getCategory().name()).isEqualTo("HTTP_400");
         assertThat(exception.getCategory().name()).doesNotContain("secret-provider-body-must-not-appear-here");
     }
+
+    @ParameterizedTest
+    @CsvSource({"bad_request", "PA400", "'bad_request, PA400'", "invalid-parameter", "A", "'a_b-C1, d_E-2'"})
+    void providerCodesMatchingTheSafeEnumLikeShapeAreKept(String code) {
+        assertThat(new MercadoPagoException("x", false, 400, code, null).getSafeProviderErrorCode()).isEqualTo(code);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "'invalid parameter: payer_email=someone@example.com'",
+        "'preapproval_id 1234567890abcdef is not eligible'",
+        "'code with spaces'",
+        "'trailing, '",
+        "', leading'",
+    })
+    void providerCodesThatDoNotMatchTheSafeShapeAreWithheld(String code) {
+        assertThat(new MercadoPagoException("x", false, 400, code, null).getSafeProviderErrorCode()).isNull();
+    }
+
+    @Test void oversizedProviderCodeIsWithheld() {
+        String tooLong = "a".repeat(41);
+        assertThat(new MercadoPagoException("x", false, 400, tooLong, null).getSafeProviderErrorCode()).isNull();
+    }
+
+    @Test void tooManyJoinedCodesAreWithheld() {
+        String sixCodes = String.join(", ", java.util.Collections.nCopies(6, "code"));
+        assertThat(new MercadoPagoException("x", false, 400, sixCodes, null).getSafeProviderErrorCode()).isNull();
+    }
+
+    @Test void absentProviderCodeStaysNullRatherThanFabricated() {
+        assertThat(new MercadoPagoException("x", false, 400, null, null).getSafeProviderErrorCode()).isNull();
+    }
+
+    @Test void safeProviderErrorCodeIsNullWhenThereIsNoHttpStatus() {
+        assertThat(new MercadoPagoException("timeout", true, new HttpTimeoutException("t")).getSafeProviderErrorCode()).isNull();
+    }
 }

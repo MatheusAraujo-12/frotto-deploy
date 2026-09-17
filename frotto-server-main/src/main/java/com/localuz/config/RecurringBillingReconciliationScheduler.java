@@ -57,9 +57,12 @@ public class RecurringBillingReconciliationScheduler {
                     var result = reconciliation.reconcile(candidate, budget);
                     // failureCategory/failureHttpStatus are a safe enum name and a plain HTTP status code only -
                     // never the exception message, provider body, or Authorization header. See MercadoPagoException.Category.
-                    LOG.info("Recurring financial reconciliation subscriptionId={} outcome={} discovered={} ingested={} skipped={} httpCalls={} failureCategory={} failureHttpStatus={}",
+                    // providerErrorCode is Mercado Pago's own short error/cause code (e.g. "bad_request"), already
+                    // filtered to a safe enum-like shape by MercadoPagoException.getSafeProviderErrorCode(); it is
+                    // null whenever the provider code did not match that shape, so nothing unsanitized is ever logged.
+                    LOG.info("Recurring financial reconciliation subscriptionId={} outcome={} discovered={} ingested={} skipped={} httpCalls={} failureCategory={} failureHttpStatus={} providerErrorCode={}",
                         result.subscriptionId(), result.outcome(), result.discovered(), result.ingested(), result.skipped(), result.httpCalls(),
-                        result.failureCategory(), result.failureHttpStatus());
+                        result.failureCategory(), result.failureHttpStatus(), result.providerErrorCode());
                 } catch (RuntimeException failure) {
                     // Never log exception messages or bodies that may contain provider data/secrets.
                     LOG.warn("Recurring financial reconciliation subscriptionId={} outcome=OPERATIONAL_FAILURE", candidate.id());

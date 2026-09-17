@@ -51,8 +51,20 @@ class RecurringBillingReconciliationSchedulerTest {
             new RecurringReconciliationResult(1L, Outcome.PROVIDER_FAILURE, 0, 0, 0, 1, "HTTP_404", 404));
         scheduler.reconcileSubscriptions();
         assertThat(loggedMessages()).anySatisfy(message -> {
-            assertThat(message).contains("outcome=PROVIDER_FAILURE", "failureCategory=HTTP_404", "failureHttpStatus=404");
+            assertThat(message).contains("outcome=PROVIDER_FAILURE", "failureCategory=HTTP_404", "failureHttpStatus=404", "providerErrorCode=null");
             assertThat(message).doesNotContain("Bearer", "access_token", "provider-secret-body");
+        });
+    }
+
+    @Test void providerFailureLogsTheSafeStructuredProviderCodeWhenPresent() {
+        enable();
+        when(reservations.candidates(any(),any(),anyInt(),anyInt())).thenReturn(List.of(new Candidate(1L,"a")));
+        when(service.reconcile(any(),any())).thenReturn(
+            new RecurringReconciliationResult(1L, Outcome.PROVIDER_FAILURE, 0, 0, 0, 1, "HTTP_400", 400, "bad_request, PA400"));
+        scheduler.reconcileSubscriptions();
+        assertThat(loggedMessages()).anySatisfy(message -> {
+            assertThat(message).contains("outcome=PROVIDER_FAILURE", "failureCategory=HTTP_400", "failureHttpStatus=400", "providerErrorCode=bad_request, PA400");
+            assertThat(message).doesNotContain("Bearer", "access_token", "payer", "@");
         });
     }
 
@@ -61,7 +73,7 @@ class RecurringBillingReconciliationSchedulerTest {
         when(reservations.candidates(any(),any(),anyInt(),anyInt())).thenReturn(List.of(new Candidate(1L,"a")));
         when(service.reconcile(any(),any())).thenReturn(new RecurringReconciliationResult(1L, Outcome.COMPLETE, 0, 0, 0, 1));
         scheduler.reconcileSubscriptions();
-        assertThat(loggedMessages()).anySatisfy(message -> assertThat(message).contains("failureCategory=null", "failureHttpStatus=null"));
+        assertThat(loggedMessages()).anySatisfy(message -> assertThat(message).contains("failureCategory=null", "failureHttpStatus=null", "providerErrorCode=null"));
     }
 
     @Test void disabledByDefaultDoesNothing() {
