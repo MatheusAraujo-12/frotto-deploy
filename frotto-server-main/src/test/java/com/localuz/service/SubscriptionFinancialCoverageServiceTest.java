@@ -46,6 +46,40 @@ class SubscriptionFinancialCoverageServiceTest {
         assertThat(f.service.evaluate(f.subscription).reason()).isEqualTo(INCOMPLETE_PERIOD);
     }
 
+    /**
+     * 5G.9 section E investigation. Reproduces: a HISTORICAL invoice that never got its
+     * servicePeriod resolved (e.g. an orphaned/duplicate row left over from a past reconciliation
+     * gap - see MercadoPagoFinancialIngestion#findOrCreateInvoiceForPayment's "fresh, unperiodized
+     * invoice when the period cannot be derived yet") coexisting with a SEPARATE, fully valid,
+     * currently-paid, in-period invoice.
+     *
+     * Result today: the whole evaluation fails closed (covered=false, INCOMPLETE_PERIOD) even
+     * though the current competency is otherwise perfectly valid - the paying customer loses
+     * access. This was verified NOT to be an oversight worth "fixing" by skipping the incomplete
+     * row: there is no authoritative fact in the current data model (BillingInvoice/PaymentAttempt)
+     * that proves an unanchored invoice cannot be the SAME competency as the one we think is
+     * "current" via other means (e.g. a duplicate/conflicting invoice for the current period that
+     * simply hasn't been enriched yet), or that it doesn't carry a reversal (refund/chargeback)
+     * that should have applied to the current period. Silently ignoring it would let a possibly-
+     * conflicting or possibly-reversed observation get papered over. docs/billing-recurring-
+     * contract-5g1.md section 3 explicitly requires exactly this: "Caso não haja termos
+     * suficientes para determinar um intervalo verificável, manter pendência de conciliação e não
+     * conceder período ilimitado" - and forbids inferring the period from createdAt/observedAt
+     * timestamps, which is the only other signal available on such a row. Kept as documented,
+     * intentional fail-closed behavior; see docs/billing-final-validation-5g8.md / the 5G.9
+     * report for the operational follow-up (a data-hygiene job to detect and resolve/backfill
+     * orphaned unperiodized invoices) instead of relaxing this evaluator.
+     */
+    @Test void historicalInvoiceWithNullPeriodStartBlocksAnOtherwiseValidCurrentPaidInvoice() {
+        BillingInvoice orphaned = f.invoice(OCT, NOV, false);
+        orphaned.setPeriodStart(null);
+        BillingInvoice current = f.invoice(NOV, DEC, true);
+        var result = f.service.evaluate(f.subscription);
+        assertThat(result.covered()).isFalse();
+        assertThat(result.reason()).isEqualTo(INCOMPLETE_PERIOD);
+        assertThat(current.getStatus()).isEqualTo(BillingInvoiceStatus.PAID); // the current invoice's own record is untouched/not corrupted
+    }
+
     @ParameterizedTest @CsvSource({"-1,false", "0,true", "1,true", "2591999999,true", "2592000000,false"})
     void paidCompetencyIsHalfOpen(long millisFromStart, boolean covered) {
         f.invoice(NOV, DEC, true);

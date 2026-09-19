@@ -53,7 +53,32 @@ public class SubscriptionFinancialCoverageService {
         }
         if (subscription.getId() == null) return result(false, AWAITING_PAYMENT, null, NO_INVOICE);
         List<BillingInvoice> history = invoices.findBySubscriptionIdOrderByPeriodStartAsc(subscription.getId());
-        // An unanchored invoice cannot safely be classified as old/current/future. Never guess from audit timestamps.
+        /*
+         * 5G.9 section 7 (investigated, deliberately kept fail-closed - see
+         * SubscriptionFinancialCoverageServiceTest#historicalInvoiceWithNullPeriodStartBlocksAn
+         * OtherwiseValidCurrentPaidInvoice for the reproduction): ANY invoice in this subscription's
+         * history with a null periodStart blocks the WHOLE evaluation, even one that would
+         * otherwise be unrelated to a separately fully-valid, currently-paid invoice. This is
+         * intentional, not an oversight to "optimize away" by skipping the incomplete row:
+         *   - There is no authoritative fact here that proves the unanchored invoice cannot be the
+         *     SAME competency as the one otherwise identified as "current" (e.g. a duplicate row
+         *     for the current period that simply has not been enriched yet), nor that it does not
+         *     carry a reversal that should apply to the current period.
+         *   - docs/billing-recurring-contract-5g1.md section 3 requires exactly this behavior:
+         *     "Caso não haja termos suficientes para determinar um intervalo verificável, manter
+         *     pendência de conciliação e não conceder período ilimitado."
+         * NEVER "fix" this by inferring periodStart/periodEnd from BillingInvoice.createdAt,
+         * PaymentAttempt.observedAt, or Mercado Pago's next_payment_date - all three are explicitly
+         * forbidden as period sources by 5G.1 section 9 ("Não criar datas a partir de
+         * next_payment_date isoladamente") and by the 5G.9 investigation. The only two places in
+         * this codebase allowed to assign BillingInvoice.periodStart/periodEnd/dueAt are
+         * MercadoPagoInvoiceTemporalEnricher (anchored on the authorized payment's own debit_date)
+         * and MercadoPagoPaymentInvoiceTemporalEnricher (anchored on the subscription's own
+         * startDate + the payment's subscription_sequence.number) - both authoritative, provider-
+         * or contract-sourced values, never a local timestamp of when Frotto happened to observe
+         * something. If a future change ever needs to set these fields anywhere else, it must
+         * derive them the same way - not from when a row was created or received.
+         */
         if (history.stream().anyMatch(i -> i.getPeriodStart() == null)) {
             return result(false, UNRESOLVED, null, INCOMPLETE_PERIOD);
         }

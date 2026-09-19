@@ -14,6 +14,7 @@ public final class ErrorConstants {
     public static final URI LOGIN_ALREADY_USED_TYPE = URI.create(PROBLEM_BASE_URL + "/login-already-used");
     public static final URI VEHICLE_LIMIT_REACHED_TYPE = URI.create(PROBLEM_BASE_URL + "/vehicle-limit-reached");
     public static final URI BILLING_CHECKOUT_IN_PROGRESS_TYPE = URI.create(PROBLEM_BASE_URL + "/billing-checkout-in-progress");
+    public static final URI BILLING_RECURRING_SUBSCRIPTION_EXISTS_TYPE = URI.create(PROBLEM_BASE_URL + "/billing-recurring-subscription-exists");
 
     private ErrorConstants() {}
 }

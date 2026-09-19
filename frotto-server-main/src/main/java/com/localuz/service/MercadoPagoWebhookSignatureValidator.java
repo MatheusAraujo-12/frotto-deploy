@@ -46,9 +46,12 @@ public class MercadoPagoWebhookSignatureValidator {
             if (pair.length==2 && "v1".equals(pair[0])) supplied=pair[1];
         }
         if (blank(timestamp) || blank(supplied)) return false;
-        Long tsEpochSeconds = parseTimestamp(timestamp);
-        if (tsEpochSeconds == null || !fresh(tsEpochSeconds)) return false;
+        Long tsEpochMillis = parseTimestampEpochMillis(timestamp);
+        if (tsEpochMillis == null || !fresh(tsEpochMillis)) return false;
         try {
+            // The manifest MUST use the exact raw ts text from the header, never the normalized
+            // epoch-millis value used above for the freshness check - Mercado Pago signs the
+            // literal string it sent, whatever unit/format it happens to be in.
             String manifest="id:"+dataId.toLowerCase(Locale.ROOT)+";request-id:"+requestId+";ts:"+timestamp+";";
             Mac mac=Mac.getInstance("HmacSHA256"); mac.init(new SecretKeySpec(properties.getWebhookSecret().getBytes(StandardCharsets.UTF_8),"HmacSHA256"));
             byte[] expected=mac.doFinal(manifest.getBytes(StandardCharsets.UTF_8));
@@ -57,17 +60,42 @@ public class MercadoPagoWebhookSignatureValidator {
         } catch (Exception ignored) { return false; }
     }
 
-    /** Only a plain non-negative epoch-seconds integer is accepted; anything else (blank, signed, non-numeric, overflow) is rejected upstream. */
-    private Long parseTimestamp(String raw) {
-        if (raw == null || !raw.matches("[0-9]{1,19}")) return null;
-        try { return Long.parseLong(raw); } catch (NumberFormatException overflow) { return null; }
+    private static final long MIN_EPOCH_SECONDS = 1_000_000_000L;
+    private static final long MAX_EPOCH_SECONDS = 9_999_999_999L;
+    private static final long MIN_EPOCH_MILLIS = 1_000_000_000_000L;
+    private static final long MAX_EPOCH_MILLIS = 9_999_999_999_999L;
+
+    /**
+     * Mercado Pago's {@code ts} is a plain non-negative integer, but its documentation uses both
+     * legacy epoch-SECONDS examples and current epoch-MILLISECONDS examples. The unit is inferred
+     * from the digit count of the raw numeric string, since in the current era (years 2001-2286)
+     * epoch-seconds is reliably exactly 10 digits and epoch-milliseconds is reliably exactly 13
+     * digits. Anything else - blank, signed, non-numeric, overflow, or any other digit count - is
+     * rejected (fail-closed) rather than guessed at. Returns the value normalized to epoch millis
+     * for the freshness check only; the raw string is never altered for the HMAC manifest.
+     */
+    private Long parseTimestampEpochMillis(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        if (raw.matches("[0-9]{10}")) {
+            long seconds;
+            try { seconds = Long.parseLong(raw); } catch (NumberFormatException overflow) { return null; }
+            if (seconds < MIN_EPOCH_SECONDS || seconds > MAX_EPOCH_SECONDS) return null;
+            return seconds * 1000L;
+        }
+        if (raw.matches("[0-9]{13}")) {
+            long millis;
+            try { millis = Long.parseLong(raw); } catch (NumberFormatException overflow) { return null; }
+            if (millis < MIN_EPOCH_MILLIS || millis > MAX_EPOCH_MILLIS) return null;
+            return millis;
+        }
+        return null;
     }
 
-    /** Boundary is inclusive: a diff exactly equal to the configured window is accepted. */
-    private boolean fresh(long tsEpochSeconds) {
-        long nowEpochSeconds = clock.instant().getEpochSecond();
-        long diff = Math.abs(nowEpochSeconds - tsEpochSeconds);
-        return diff <= replayWindowSeconds();
+    /** Boundary is inclusive: a diff exactly equal to the configured window is accepted, regardless of which unit the ts was expressed in. */
+    private boolean fresh(long tsEpochMillis) {
+        long nowEpochMillis = clock.millis();
+        long diffMillis = Math.abs(nowEpochMillis - tsEpochMillis);
+        return diffMillis <= replayWindowSeconds() * 1000L;
     }
 
     private int replayWindowSeconds() {

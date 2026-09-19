@@ -382,6 +382,25 @@ class BillingAutoReconciliationSchedulerTest {
     }
 
     @Test
+    void failedReconciliationLogsSafeFieldsButNeverTheRawProviderMessage() {
+        String distinctiveSecretLookingMessage = "provider rejected token Bearer APP_USR-abc123secret for user someone@example.com";
+        when(checkoutRepository.findByStatusInAndProviderSubscriptionIdIsNotNullAndCreatedAtBefore(any(), any()))
+            .thenReturn(List.of(checkout(9L, "pre-9", BillingCheckoutStatus.PROVIDER_PENDING)));
+        when(processor.process(anyString(), anyString(), anyString()))
+            .thenThrow(new MercadoPagoException(distinctiveSecretLookingMessage, false, 400, "bad_request", distinctiveSecretLookingMessage));
+
+        scheduler(FIXED_NOW).reconcilePendingCheckouts();
+
+        assertThat(loggedMessages()).isNotEmpty();
+        for (String message : loggedMessages()) {
+            assertThat(message).doesNotContain(distinctiveSecretLookingMessage).doesNotContain("someone@example.com").doesNotContain("APP_USR-abc123secret");
+        }
+        assertThat(loggedMessages()).anyMatch(
+            message -> message.contains("checkoutId=9") && message.contains("HTTP_400") && message.contains("bad_request")
+        );
+    }
+
+    @Test
     void summaryLogReportsEligibleProcessedSkippedAndFailedCounts() {
         BillingCheckout recent = checkoutAged(10L, "pre-10", BillingCheckoutStatus.PROVIDER_PENDING, FIXED_NOW.minusSeconds(10 * 60));
         BillingCheckout alsoRecentButFails = checkoutAged(12L, "pre-12", BillingCheckoutStatus.PROVIDER_PENDING, FIXED_NOW.minusSeconds(10 * 60));

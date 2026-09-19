@@ -3,7 +3,7 @@ import MyPlanPage from "./MyPlanPage";
 import billingService from "../../services/billingService";
 import { removeToken, setToken } from "../../services/localStorage/localstorage";
 import { navigateToCheckout } from "./checkoutNavigation";
-import { BillingMeDTO, PlanDTO } from "../../constants/BillingModels";
+import { BillingMeDTO, BillingPaymentStateDTO, PlanDTO } from "../../constants/BillingModels";
 
 jest.mock("../../services/billingService");
 jest.mock("./checkoutNavigation");
@@ -32,6 +32,20 @@ const billing: BillingMeDTO = {
   subscriptionSource: "PAYMENT_PROVIDER", activeVehicleCount: 6, vehicleLimit: 10, canAddVehicle: true,
   needsUpgrade: false, requiredPlanCode: "BRONZE", requiredPlanName: "Bronze", currentMonthlyPrice: 59.9,
   currentPeriodStart: null, currentPeriodEnd: null, grantExpiresAt: null, cancelAtPeriodEnd: false, cancellationState: "NONE",
+};
+
+/**
+ * 5G.9-B: the cancel action is now driven by payment-state.paymentProviderSubscription.canCancel,
+ * not by BillingMeDTO - so tests must keep this in sync with the `billing` fixture's PAYMENT_
+ * PROVIDER/ACTIVE shape by default. Tests exercising a scenario where no real remote contract
+ * exists at all still override this back to `paymentProviderSubscription: null`.
+ */
+const cancellablePaymentState: BillingPaymentStateDTO = {
+  paymentProviderSubscription: {
+    status: "ACTIVE", planCode: "BRONZE", billingCycle: "MONTHLY", financiallyCovered: true,
+    canCancel: true, cancellationState: "NONE", currentPeriodEnd: null,
+  },
+  latestCheckout: null,
 };
 
 const plans: PlanDTO[] = [
@@ -64,7 +78,7 @@ describe("MyPlanPage - checkout modal", () => {
     localStorage.clear();
     setToken("Bearer user-token");
     mockedBillingService.getMyBilling.mockResolvedValue(billing);
-    mockedBillingService.getBillingPaymentState.mockResolvedValue({ paymentProviderSubscription: null, latestCheckout: null });
+    mockedBillingService.getBillingPaymentState.mockResolvedValue(cancellablePaymentState);
     mockedBillingService.getPlans.mockResolvedValue(plans);
     mockedBillingService.getPricePreview.mockImplementation(() => new Promise(() => {}));
   });
@@ -151,6 +165,37 @@ describe("MyPlanPage - checkout modal", () => {
     expect(mockedNavigate).not.toHaveBeenCalled();
   });
 
+  /**
+   * 5G.9 section A/2: the backend refuses a second remote recurrence with 409
+   * error.BILLING_RECURRING_SUBSCRIPTION_EXISTS. Before this fix the frontend had no special case
+   * for this key, so getApiErrorMessage's generic 409 fallback ("Conflito ao salvar...") leaked
+   * through instead of an actionable, safe message.
+   */
+  it("trata 409 de recorrência existente com mensagem segura e acionável, sem expor IDs do provider", async () => {
+    mockedBillingService.createCheckout.mockRejectedValue({ response: { status: 409, data: { message: "error.BILLING_RECURRING_SUBSCRIPTION_EXISTS" } } });
+    await renderLoadedPage(); chooseSilver();
+    fireEvent.click(screen.getByRole("button", { name: "Continuar para pagamento" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Você já possui uma assinatura recorrente vinculada à sua conta.");
+    expect(alert).toHaveTextContent("Cancele a assinatura atual antes de contratar outro plano.");
+    expect(alert).not.toHaveTextContent("Conflito ao salvar");
+    expect(mockedBillingService.getBillingPaymentState).toHaveBeenCalledTimes(2);
+    expect(mockedBillingService.createCheckout).toHaveBeenCalledTimes(1);
+    expect(mockedNavigate).not.toHaveBeenCalled();
+    expect(document.body).not.toHaveTextContent(/pre-\d|providerSubscriptionId|externalReference|idempotencyKey/i);
+  });
+
+  it("adapta a mensagem de recorrência existente quando o cancelamento já está pendente de confirmação", async () => {
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({
+      paymentProviderSubscription: { status: "ACTIVE", planCode: "BRONZE", billingCycle: "MONTHLY", financiallyCovered: true, canCancel: true, cancellationState: "PENDING_CONFIRMATION", currentPeriodEnd: null },
+      latestCheckout: null,
+    });
+    mockedBillingService.createCheckout.mockRejectedValue({ response: { status: 409, data: { message: "error.BILLING_RECURRING_SUBSCRIPTION_EXISTS" } } });
+    await renderLoadedPage(); chooseSilver();
+    fireEvent.click(screen.getByRole("button", { name: "Continuar para pagamento" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Estamos confirmando o cancelamento solicitado com o Mercado Pago");
+  });
+
   it.each(["status=approved", "status=success", "collection_status=approved"])("ignora query string %s e usa somente o backend", async (query) => {
     window.history.pushState({}, "", `/menu/meu-plano?${query}`);
     mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, planCode: "FREE", planName: "Free", subscriptionStatus: null, subscriptionSource: null });
@@ -209,6 +254,16 @@ describe("MyPlanPage - checkout modal", () => {
     await waitFor(() => expect(mockedBillingService.getBillingPaymentState).toHaveBeenCalledTimes(2));
   });
 
+  it("mostra o estado de erro real com ação de retry e recarrega ao clicar", async () => {
+    mockedBillingService.getMyBilling.mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce(billing);
+    render(<MyPlanPage />);
+    expect(await screen.findByText("Não foi possível carregar seu plano")).toBeInTheDocument();
+    const retryButton = screen.getByRole("button", { name: "Tentar novamente" });
+    fireEvent.click(retryButton);
+    await screen.findByRole("heading", { name: /Planos dispon/ });
+    expect(mockedBillingService.getMyBilling).toHaveBeenCalledTimes(2);
+  });
+
   it("não quebra a página quando não existe checkout", async () => {
     mockedBillingService.getBillingPaymentState.mockResolvedValue({ paymentProviderSubscription: null, latestCheckout: null });
     await renderLoadedPage();
@@ -221,7 +276,7 @@ describe("MyPlanPage - checkout modal", () => {
     // /api/billing/me correctly falls back to FREE; the banner must not contradict it.
     mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, planCode: "FREE", planName: "Gratuito", subscriptionStatus: null, subscriptionSource: null, billingCycle: null });
     mockedBillingService.getBillingPaymentState.mockResolvedValue({
-      paymentProviderSubscription: { status: "ACTIVE", planCode: "BRONZE", billingCycle: "MONTHLY", financiallyCovered: false },
+      paymentProviderSubscription: { status: "ACTIVE", planCode: "BRONZE", billingCycle: "MONTHLY", financiallyCovered: false, canCancel: true, cancellationState: "NONE", currentPeriodEnd: null },
       latestCheckout: null,
     });
     await renderLoadedPage();
@@ -230,11 +285,16 @@ describe("MyPlanPage - checkout modal", () => {
     expect(screen.queryByText(/confirmado\./)).not.toBeInTheDocument();
     expect(screen.getByText("Pagamento em processamento")).toBeInTheDocument();
     expect(screen.getByText("Gratuito", { selector: "h1" })).toBeInTheDocument();
+    // 5G.9-B fix: even though /api/billing/me fell back to FREE (no financial evidence yet), the
+    // remote PAYMENT_PROVIDER contract still exists and can still charge - the user must be able
+    // to cancel it. Before the fix, isSubscriptionCancelable read BillingMeDTO (FREE/null here)
+    // and this button never appeared.
+    expect(screen.getByRole("button", { name: "Cancelar assinatura" })).toBeEnabled();
   });
 
   it("converge para Bronze em toda a tela quando a evidência financeira é aprovada", async () => {
     mockedBillingService.getBillingPaymentState.mockResolvedValue({
-      paymentProviderSubscription: { status: "ACTIVE", planCode: "BRONZE", billingCycle: "MONTHLY", financiallyCovered: true },
+      paymentProviderSubscription: { status: "ACTIVE", planCode: "BRONZE", billingCycle: "MONTHLY", financiallyCovered: true, canCancel: true, cancellationState: "NONE", currentPeriodEnd: null },
       latestCheckout: null,
     });
     await renderLoadedPage();
@@ -308,15 +368,27 @@ describe("MyPlanPage - checkout modal", () => {
     expect(document.body).not.toHaveTextContent("private-provider-id");
   });
 
+  /**
+   * 5G.9-B: cancelability is decided ENTIRELY by payment-state.paymentProviderSubscription.canCancel
+   * now, never by BillingMeDTO's effective plan/source/status - so these cases are expressed at
+   * that layer (no real contract, or a contract in a non-cancellable terminal status).
+   */
   it.each([
-    { planCode: "FREE" as const },
-    { subscriptionSource: "ADMIN_GRANT" as const },
-    { subscriptionSource: "GRANDFATHERED" as const },
-    { subscriptionStatus: "EXPIRED" as const },
-  ])("não oferece cancelamento para %o", async (changes) => {
-    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, ...changes });
+    { paymentProviderSubscription: null },
+    { paymentProviderSubscription: { status: "CANCELED" as const, planCode: "BRONZE" as const, billingCycle: "MONTHLY" as const, financiallyCovered: false, canCancel: false, cancellationState: "NONE" as const, currentPeriodEnd: null } },
+  ])("não oferece cancelamento quando payment-state reporta %o", async (paymentState) => {
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({ ...paymentState, latestCheckout: null });
     await renderLoadedPage();
     expect(screen.queryByRole("button", { name: "Cancelar assinatura" })).not.toBeInTheDocument();
+  });
+
+  it("oferece cancelamento mesmo com ADMIN_GRANT como plano efetivo, quando existe contrato remoto pagável", async () => {
+    // canCancelRemoteContract != hasPaidEntitlement (5G.9 section B): an ADMIN_GRANT that currently
+    // wins the entitlement precedence must not hide the ability to cancel a real, still-chargeable
+    // PAYMENT_PROVIDER contract sitting underneath it.
+    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, subscriptionSource: "ADMIN_GRANT", planCode: "GOLD", planName: "Ouro" });
+    await renderLoadedPage();
+    expect(screen.getByRole("button", { name: "Cancelar assinatura" })).toBeEnabled();
   });
 
   it.each([null, "2026-10-10T00:00:00Z"])("não infere confirmação no reload com cancelAtPeriodEnd=true e data %s", async (currentPeriodEnd) => {
@@ -340,6 +412,10 @@ describe("MyPlanPage - checkout modal", () => {
 
   it("carrega CONFIRMED do GET com data, sem cancelar novamente", async () => {
     mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, cancellationState: "CONFIRMED", cancelAtPeriodEnd: true, currentPeriodEnd: "2026-10-10T00:00:00Z" });
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({
+      paymentProviderSubscription: { status: "ACTIVE", planCode: "BRONZE", billingCycle: "MONTHLY", financiallyCovered: true, canCancel: true, cancellationState: "CONFIRMED", currentPeriodEnd: "2026-10-10T00:00:00Z" },
+      latestCheckout: null,
+    });
     await renderLoadedPage();
     expect(screen.getByText("Cancelamento agendado")).toBeInTheDocument();
     expect(screen.getByText("Seu plano ficará ativo até 10/10/2026. Não haverá nova renovação.")).toBeInTheDocument();
@@ -350,6 +426,10 @@ describe("MyPlanPage - checkout modal", () => {
 
   it.each(["ACTIVE", "PAST_DUE"] as const)("carrega pendência do GET em %s e retry chama apenas cancelamento", async (subscriptionStatus) => {
     mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, subscriptionStatus, cancellationState: "PENDING_CONFIRMATION", cancelAtPeriodEnd: true });
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({
+      paymentProviderSubscription: { status: subscriptionStatus, planCode: "BRONZE", billingCycle: "MONTHLY", financiallyCovered: true, canCancel: true, cancellationState: "PENDING_CONFIRMATION", currentPeriodEnd: null },
+      latestCheckout: null,
+    });
     mockedBillingService.cancelSubscription.mockResolvedValue({ state: "CONFIRMED", planCode: "BRONZE", subscriptionStatus: "ACTIVE", currentPeriodEnd: null });
     await renderLoadedPage();
     expect(screen.getByText("Estamos confirmando o cancelamento com o Mercado Pago.")).toBeInTheDocument();
@@ -370,6 +450,10 @@ describe("MyPlanPage - checkout modal", () => {
     await screen.findByText("Cancelamento agendado");
     first.unmount();
     mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, cancellationState, cancelAtPeriodEnd: cancellationState !== "NONE" });
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({
+      paymentProviderSubscription: { status: "ACTIVE", planCode: "BRONZE", billingCycle: "MONTHLY", financiallyCovered: true, canCancel: true, cancellationState, currentPeriodEnd: null },
+      latestCheckout: null,
+    });
     await renderLoadedPage();
     if (cancellationState === "CONFIRMED") expect(screen.getByText("Cancelamento agendado")).toBeInTheDocument();
     else expect(screen.queryByText("Cancelamento agendado")).not.toBeInTheDocument();
@@ -379,6 +463,10 @@ describe("MyPlanPage - checkout modal", () => {
   });
   it.each([true, false])("rejeição conclusiva limpa pendência e atualiza GET (pendente=%s)", async (pending) => {
     mockedBillingService.getMyBilling.mockResolvedValueOnce({ ...billing, cancellationState: pending ? "PENDING_CONFIRMATION" : "NONE", cancelAtPeriodEnd: pending }).mockResolvedValue({ ...billing, cancellationState: "NONE", cancelAtPeriodEnd: false });
+    mockedBillingService.getBillingPaymentState.mockResolvedValueOnce({
+      paymentProviderSubscription: { status: "ACTIVE", planCode: "BRONZE", billingCycle: "MONTHLY", financiallyCovered: true, canCancel: true, cancellationState: pending ? "PENDING_CONFIRMATION" : "NONE", currentPeriodEnd: null },
+      latestCheckout: null,
+    }).mockResolvedValue(cancellablePaymentState);
     mockedBillingService.cancelSubscription.mockRejectedValue({ response: { status: 502, data: {
       message: "error.BILLING_CANCELLATION_PROVIDER_REJECTED", detail: "Invalid preapproval status param: canceled private-provider-id secret-token", requestId: "private-request"
     } } });

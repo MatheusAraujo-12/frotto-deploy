@@ -3,6 +3,7 @@ package com.localuz.config;
 import com.localuz.domain.BillingCheckout;
 import com.localuz.domain.enumeration.BillingCheckoutStatus;
 import com.localuz.repository.BillingCheckoutRepository;
+import com.localuz.service.MercadoPagoException;
 import com.localuz.service.MercadoPagoWebhookProcessor;
 import java.time.Clock;
 import java.time.Instant;
@@ -133,7 +134,7 @@ public class BillingAutoReconciliationScheduler {
             Instant cutoff = Instant.now(clock).minus(minAgeMinutes, ChronoUnit.MINUTES);
             eligible = checkoutRepository.findByStatusInAndProviderSubscriptionIdIsNotNullAndCreatedAtBefore(ELIGIBLE_STATUSES, cutoff);
         } catch (Exception exception) {
-            log.error("Billing auto-reconciliation: failed to list eligible checkouts: {}", exception.getMessage());
+            log.error("Billing auto-reconciliation: failed to list eligible checkouts: exceptionType={}", exception.getClass().getSimpleName());
             return;
         }
 
@@ -180,8 +181,17 @@ public class BillingAutoReconciliationScheduler {
             MercadoPagoWebhookProcessor.Result result = processor.process(requestId, PREAPPROVAL_TOPIC, checkout.getProviderSubscriptionId());
             log.info("Billing auto-reconciliation: checkoutId={} result={}", checkout.getId(), result);
             return true;
+        } catch (MercadoPagoException mercadoPagoException) {
+            log.error(
+                "Billing auto-reconciliation: checkoutId={} failed category={} httpStatus={} providerErrorCode={}",
+                checkout.getId(),
+                mercadoPagoException.getCategory(),
+                mercadoPagoException.getHttpStatus(),
+                mercadoPagoException.getSafeProviderErrorCode()
+            );
+            return false;
         } catch (Exception exception) {
-            log.error("Billing auto-reconciliation: checkoutId={} failed: {}", checkout.getId(), exception.getMessage());
+            log.error("Billing auto-reconciliation: checkoutId={} failed exceptionType={}", checkout.getId(), exception.getClass().getSimpleName());
             return false;
         }
     }

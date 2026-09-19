@@ -1,8 +1,25 @@
-import { BillingCheckoutStatus, BillingMeDTO, BillingPaymentStateDTO, PLAN_LABELS, PlanDTO, SubscriptionSource, SubscriptionStatus } from "../../constants/BillingModels";
+import { BillingCheckoutStatus, BillingMeDTO, BillingPaymentStateDTO, PLAN_LABELS, PlanDTO, SubscriptionCancellationState, SubscriptionSource, SubscriptionStatus } from "../../constants/BillingModels";
+import type { FrottoBadgeVariant } from "../../components/UI/FrottoBadge";
 
-export const isSubscriptionCancelable = (billing: BillingMeDTO): boolean =>
-  billing.planCode !== "FREE" && billing.subscriptionSource === "PAYMENT_PROVIDER"
-  && (billing.subscriptionStatus === "ACTIVE" || billing.subscriptionStatus === "PAST_DUE");
+/**
+ * 5G.9 section B: cancelability of the remote PAYMENT_PROVIDER contract is a DIFFERENT question
+ * from BillingMeDTO's effective entitlement (planCode/subscriptionSource/subscriptionStatus),
+ * which reports FREE/null whenever the contract isn't currently granting paid access (e.g.
+ * authorized but not yet financially proven, or PAST_DUE past its grace period). Always read
+ * canCancel from /api/billing/payment-state's paymentProviderSubscription, which is populated
+ * from the raw contract row regardless of financial coverage - never re-derive this from
+ * BillingMeDTO, or the original bug (no cancel action for an uncovered but real remote contract)
+ * comes back.
+ */
+export const isSubscriptionCancelable = (paymentState: BillingPaymentStateDTO | null): boolean =>
+  Boolean(paymentState?.paymentProviderSubscription?.canCancel);
+
+/** Prefers the payment-state's own cancellation state (always present when a contract exists) over BillingMeDTO's (only present when the contract is also the effective entitlement). */
+export const remoteCancellationState = (billing: BillingMeDTO, paymentState: BillingPaymentStateDTO | null): SubscriptionCancellationState =>
+  paymentState?.paymentProviderSubscription?.cancellationState ?? billing.cancellationState;
+
+export const remoteCurrentPeriodEnd = (billing: BillingMeDTO, paymentState: BillingPaymentStateDTO | null): string | null =>
+  paymentState?.paymentProviderSubscription?.currentPeriodEnd ?? billing.currentPeriodEnd;
 
 export const money = (value: number): string =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -18,6 +35,16 @@ export const sourceLabel = (source: SubscriptionSource | null): string => ({
 export const statusLabel = (status: SubscriptionStatus | null): string => ({
   ACTIVE: "Ativa", PAST_DUE: "Com pendência", PAUSED: "Pausada", CANCELED: "Cancelada", EXPIRED: "Expirada",
 } as Record<SubscriptionStatus, string>)[status as SubscriptionStatus] || "Ativo";
+
+/**
+ * Real subscriptionStatus values only (SubscriptionStatus enum, backend + BillingModels.ts) -
+ * no invented "Trial"/"Inadimplente" bucket. null (FREE, no subscription row) reads as success,
+ * matching statusLabel's own "Ativo" fallback. CANCELED/EXPIRED are terminal-but-normal states,
+ * not errors - never "danger" for those (see DESIGN_SYSTEM.md semantics for status badges).
+ */
+export const statusVariant = (status: SubscriptionStatus | null): FrottoBadgeVariant => ({
+  ACTIVE: "success", PAST_DUE: "warning", PAUSED: "warning", CANCELED: "neutral", EXPIRED: "neutral",
+} as Record<SubscriptionStatus, FrottoBadgeVariant>)[status as SubscriptionStatus] || "success";
 
 export const formatDate = (value: string): string => {
   const date = new Date(value);
@@ -99,4 +126,29 @@ export const isCheckoutInProgressError = (error: unknown): boolean => {
   const response = (error as { response?: { status?: number; data?: { message?: string; errorKey?: string } } })?.response;
   const key = response?.data?.message || response?.data?.errorKey || "";
   return response?.status === 409 && key.includes("BILLING_CHECKOUT_IN_PROGRESS");
+};
+
+/** 5G.9 section A: the backend refuses a second remote recurrence with this stable 409 error key. */
+export const isRecurringSubscriptionExistsError = (error: unknown): boolean => {
+  const response = (error as { response?: { status?: number; data?: { message?: string; errorKey?: string } } })?.response;
+  const key = response?.data?.message || response?.data?.errorKey || "";
+  return response?.status === 409 && key.includes("BILLING_RECURRING_SUBSCRIPTION_EXISTS");
+};
+
+/**
+ * Message for isRecurringSubscriptionExistsError, adapted to what the backend's own payment-state
+ * already told us (never anything the error response itself carries - it never has provider
+ * identifiers). No upgrade/replace flow exists yet, so the only actionable next step is always
+ * "cancel or wait for the existing contract to resolve", never a plan-swap suggestion.
+ */
+export const recurringSubscriptionExistsMessage = (paymentState: BillingPaymentStateDTO | null): string => {
+  const base = "Você já possui uma assinatura recorrente vinculada à sua conta.";
+  const subscription = paymentState?.paymentProviderSubscription;
+  if (subscription?.cancellationState === "PENDING_CONFIRMATION") {
+    return `${base} Estamos confirmando o cancelamento solicitado com o Mercado Pago; aguarde a confirmação antes de contratar outro plano.`;
+  }
+  if (subscription?.canCancel) {
+    return `${base} Cancele a assinatura atual antes de contratar outro plano.`;
+  }
+  return `${base} Conclua ou cancele a assinatura atual antes de contratar outro plano.`;
 };

@@ -83,6 +83,16 @@ export interface PaymentProviderSubscriptionState {
   billingCycle: BillingCycle;
   /** Mirrors the backend's 5G financial-coverage verdict (BillingInvoice + PaymentAttempt evidence). status=ACTIVE alone is never proof of payment. */
   financiallyCovered: boolean;
+  /**
+   * Whether THIS remote contract can be cancelled right now - independent of financiallyCovered
+   * (5G.9 section B: a subscription authorized but not yet financially proven, or paused, is
+   * still a real remote contract the user must be able to cancel). Never derive cancelability
+   * from BillingMeDTO.subscriptionSource/subscriptionStatus - those reflect effective entitlement
+   * only, and are null/absent whenever this contract isn't currently granting paid access.
+   */
+  canCancel: boolean;
+  cancellationState: SubscriptionCancellationState;
+  currentPeriodEnd: string | null;
 }
 
 export interface LatestCheckoutState {

@@ -72,7 +72,15 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
 
     List<Subscription> findByUserIdOrderByStartDateDesc(Long userId);
 
-    Optional<Subscription> findByExternalProviderAndExternalSubscriptionId(String provider, String subscriptionId);
+    /**
+     * All PAYMENT_PROVIDER rows for a user regardless of status - used by
+     * RecurringSubscriptionGuardService (which must see a row even when
+     * SubscriptionFinancialCoverageService would not currently select it as "current", e.g. ACTIVE
+     * with no financial evidence yet) and by BillingPaymentStateService (which must consider every
+     * historical row, never just the most recently started one, to find the real live contract -
+     * see RecurringSubscriptionGuardService#isStillChargeable).
+     */
+    List<Subscription> findByUserIdAndSource(Long userId, SubscriptionSource source);
 
-    Optional<Subscription> findFirstByUserIdAndSourceOrderByStartDateDesc(Long userId, SubscriptionSource source);
+    Optional<Subscription> findByExternalProviderAndExternalSubscriptionId(String provider, String subscriptionId);
 }

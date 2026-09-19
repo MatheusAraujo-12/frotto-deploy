@@ -11,6 +11,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.localuz.domain.Plan;
 import com.localuz.domain.Subscription;
 import com.localuz.domain.User;
@@ -106,6 +108,28 @@ class SubscriptionCancellationServiceTest {
 
         assertThat(result.getCancelAtPeriodEnd()).isTrue();
         assertThat(result.getStatus()).isEqualTo(SubscriptionStatus.PAST_DUE);
+    }
+
+    /**
+     * 5G.9 section B: a PAUSED remote contract must be cancellable through Frotto too - Mercado
+     * Pago's own docs (Subscription management / Gerenciamento de assinaturas) describe pausing,
+     * reactivating and cancelling a preapproval as independent PUT operations with no documented
+     * precondition that a paused contract must be reactivated first, and cancelPreapproval already
+     * sends a plain PUT status=cancelled regardless of current status.
+     */
+    @Test
+    void pausedSubscriptionCancelsSuccessfully() {
+        Subscription subscription = subscription(26L, SubscriptionStatus.PAUSED, false, PERIOD_END, "pre-paused");
+        when(subscriptionRepository.findByUserIdAndSourceAndStatusIn(1L, SubscriptionSource.PAYMENT_PROVIDER, SubscriptionCancellationSteps.CANCELLABLE_STATUSES))
+            .thenReturn(List.of(subscription));
+        stubFindById(subscription);
+        when(client.cancelPreapproval(eq("pre-paused"), anyString())).thenReturn(new MercadoPagoPreapproval("pre-paused", "cancelled", "ref", null));
+
+        Subscription result = service.cancel(user);
+
+        assertThat(result.getCancelAtPeriodEnd()).isTrue();
+        assertThat(result.getCanceledAt()).isNotNull();
+        assertThat(result.getStatus()).isEqualTo(SubscriptionStatus.PAUSED);
     }
 
     @Test
@@ -365,6 +389,34 @@ class SubscriptionCancellationServiceTest {
         assertThat(subscription.getCurrentPeriodEnd()).isEqualTo(PERIOD_END);
         verify(client).getPreapproval("pre-ambiguous");
         verify(steps, never()).rollbackIntent(any());
+    }
+
+    @Test
+    void unconfirmedResolutionFailureLogsSafeFieldsButNeverTheRawProviderMessage() {
+        String distinctiveSecretLookingMessage = "provider rejected token Bearer APP_USR-abc123secret for user someone@example.com";
+        Subscription subscription = subscription(34L, SubscriptionStatus.ACTIVE, true, PERIOD_END, "pre-confirm-fail");
+        stubFindById(subscription);
+        when(client.getPreapproval("pre-confirm-fail"))
+            .thenThrow(new MercadoPagoException(distinctiveSecretLookingMessage, false, 400, "bad_request", distinctiveSecretLookingMessage));
+
+        ListAppender<ILoggingEvent> logAppender = new ListAppender<>();
+        logAppender.start();
+        ch.qos.logback.classic.Logger stepsLogger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(SubscriptionCancellationSteps.class);
+        stepsLogger.addAppender(logAppender);
+        try {
+            assertThatThrownBy(() -> steps.resolveAfterUnconfirmedResponse(34L)).isInstanceOf(MercadoPagoException.class);
+        } finally {
+            stepsLogger.detachAppender(logAppender);
+        }
+
+        List<String> loggedMessages = logAppender.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+        assertThat(loggedMessages).isNotEmpty();
+        for (String message : loggedMessages) {
+            assertThat(message).doesNotContain(distinctiveSecretLookingMessage).doesNotContain("someone@example.com").doesNotContain("APP_USR-abc123secret");
+        }
+        assertThat(loggedMessages).anyMatch(
+            message -> message.contains("subscriptionId=34") && message.contains("HTTP_400") && message.contains("bad_request")
+        );
     }
 
     @Test

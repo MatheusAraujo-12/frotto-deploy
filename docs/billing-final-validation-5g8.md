@@ -1,5 +1,15 @@
 # 5G.8 — Validação final E2E e prontidão para staging
 
+> **SUPERSEDIDO por `docs/billing-production-closure-5g9.md`.** A 5G.9
+> encontrou um BLOCKER de produção não coberto por esta matriz (proteção
+> insuficiente contra segunda recorrência remota, docs/billing-recurring-
+> contract-5g1.md invariante 16/seção 20 — ver 5G.9 seção A) e dois bugs
+> adicionais (separação entitlement/cancelabilidade, timestamp de webhook em
+> milissegundos). A classificação "READY FOR STAGING" ao final deste
+> documento **não é mais válida** até que os itens da 5G.9 sejam fechados e
+> revalidados. Mantido aqui sem edição retroativa do corpo do documento por
+> rastreabilidade histórica — a 5G.9 é a fonte de verdade sobre o status atual.
+
 Etapa de auditoria/validação, não de desenvolvimento. Nenhuma política
 financeira, regra comercial ou frontend foi alterada. A única mudança de
 produção nesta etapa é zero — os dois arquivos tocados são testes.

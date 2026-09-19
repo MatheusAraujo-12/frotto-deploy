@@ -1,8 +1,8 @@
-import { BillingMeDTO, BillingPaymentStateDTO, PlanDTO, SubscriptionStatus } from "../../constants/BillingModels";
-import { checkoutBlocksPurchase, checkoutNeedsRefresh, fleetUsage, isCheckoutInProgressError, isPlanCompatible, paymentNotice, resumableCheckoutUrl, sourceDetail, sourceLabel, usageState, vehicleRange } from "./myPlanLogic";
+import { BillingMeDTO, BillingPaymentStateDTO, PlanDTO, SubscriptionCancellationState, SubscriptionStatus } from "../../constants/BillingModels";
+import { checkoutBlocksPurchase, checkoutNeedsRefresh, fleetUsage, isCheckoutInProgressError, isRecurringSubscriptionExistsError, isPlanCompatible, isSubscriptionCancelable, paymentNotice, recurringSubscriptionExistsMessage, remoteCancellationState, remoteCurrentPeriodEnd, resumableCheckoutUrl, sourceDetail, sourceLabel, statusVariant, usageState, vehicleRange } from "./myPlanLogic";
 const billing=(changes:Partial<BillingMeDTO>={}):BillingMeDTO=>({planCode:"FREE",planName:"Free",subscriptionStatus:null,billingCycle:null,subscriptionSource:null,activeVehicleCount:0,vehicleLimit:2,canAddVehicle:true,needsUpgrade:false,requiredPlanCode:"FREE",requiredPlanName:"Free",currentMonthlyPrice:0,currentPeriodStart:null,currentPeriodEnd:null,grantExpiresAt:null,cancelAtPeriodEnd:false,cancellationState:"NONE",...changes});
 const plan=(changes:Partial<PlanDTO>={}):PlanDTO=>({code:"BRONZE",name:"Bronze",minVehicles:3,maxVehicles:5,monthlyBasePrice:29.9,billingModel:"FLAT",tiers:[],...changes});
-const subscription=(status:SubscriptionStatus,financiallyCovered=true):BillingPaymentStateDTO=>({paymentProviderSubscription:{status,planCode:"BRONZE",billingCycle:"MONTHLY",financiallyCovered},latestCheckout:null});
+const subscription=(status:SubscriptionStatus,financiallyCovered=true,canCancel=true,cancellationState:SubscriptionCancellationState="NONE",currentPeriodEnd:string|null=null):BillingPaymentStateDTO=>({paymentProviderSubscription:{status,planCode:"BRONZE",billingCycle:"MONTHLY",financiallyCovered,canCancel,cancellationState,currentPeriodEnd},latestCheckout:null});
 const checkout=(status:NonNullable<BillingPaymentStateDTO["latestCheckout"]>["status"],resume:Partial<Pick<NonNullable<BillingPaymentStateDTO["latestCheckout"]>,"canResume"|"checkoutUrl">> ={}):BillingPaymentStateDTO=>({paymentProviderSubscription:null,latestCheckout:{status,planCode:"SILVER",createdAt:"2026-08-28T12:00:00Z",canResume:false,checkoutUrl:null,...resume}});
 describe("myPlanLogic",()=>{
  it.each([[0,true,"within"],[2,false,"reached"]] as const)("classifies FREE %s/2",(count,canAdd,expected)=>expect(usageState(billing({activeVehicleCount:count,canAddVehicle:canAdd}))).toBe(expected));
@@ -25,7 +25,47 @@ describe("myPlanLogic",()=>{
  it.each([["CREATED","Pagamento em preparação",true],["PROVIDER_PENDING","Aguardando confirmação do Mercado Pago",true],["PROVIDER_UNKNOWN","Estamos confirmando seu pagamento",true],["FAILED","Não foi possível iniciar o pagamento.",false],["CANCELED",null,false],["AUTHORIZED","Confirmação em andamento",false]] as const)("presents checkout %s without technical enums",(status,title,blocked)=>{const state=checkout(status);expect(paymentNotice(state)?.title||null).toBe(title);expect(checkoutBlocksPurchase(state)).toBe(blocked)});
  it("refreshes open states and authorized without a confirmed subscription",()=>{expect(checkoutNeedsRefresh(checkout("CREATED"))).toBe(true);expect(checkoutNeedsRefresh(checkout("PROVIDER_PENDING"))).toBe(true);expect(checkoutNeedsRefresh(checkout("PROVIDER_UNKNOWN"))).toBe(true);expect(checkoutNeedsRefresh(checkout("AUTHORIZED"))).toBe(true);expect(checkoutNeedsRefresh(subscription("ACTIVE"))).toBe(false)});
  it("recognizes only the stable backend conflict",()=>{expect(isCheckoutInProgressError({response:{status:409,data:{message:"error.BILLING_CHECKOUT_IN_PROGRESS"}}})).toBe(true);expect(isCheckoutInProgressError({response:{status:409,data:{message:"other"}}})).toBe(false)});
+ it("5G.9-A: recognizes only the stable BILLING_RECURRING_SUBSCRIPTION_EXISTS conflict",()=>{
+  expect(isRecurringSubscriptionExistsError({response:{status:409,data:{message:"error.BILLING_RECURRING_SUBSCRIPTION_EXISTS"}}})).toBe(true);
+  expect(isRecurringSubscriptionExistsError({response:{status:409,data:{errorKey:"error.BILLING_RECURRING_SUBSCRIPTION_EXISTS"}}})).toBe(true);
+  expect(isRecurringSubscriptionExistsError({response:{status:409,data:{message:"error.BILLING_CHECKOUT_IN_PROGRESS"}}})).toBe(false);
+  expect(isRecurringSubscriptionExistsError({response:{status:400,data:{message:"error.BILLING_RECURRING_SUBSCRIPTION_EXISTS"}}})).toBe(false);
+  expect(isRecurringSubscriptionExistsError(new Error("network"))).toBe(false);
+ });
+ it("5G.9-A: recurringSubscriptionExistsMessage adapts to payment-state without exposing provider identifiers",()=>{
+  const base="Você já possui uma assinatura recorrente vinculada à sua conta.";
+  expect(recurringSubscriptionExistsMessage(null)).toBe(`${base} Conclua ou cancele a assinatura atual antes de contratar outro plano.`);
+  expect(recurringSubscriptionExistsMessage(subscription("ACTIVE",true,true,"NONE"))).toBe(`${base} Cancele a assinatura atual antes de contratar outro plano.`);
+  expect(recurringSubscriptionExistsMessage(subscription("ACTIVE",true,true,"PENDING_CONFIRMATION"))).toContain("Estamos confirmando o cancelamento");
+  expect(recurringSubscriptionExistsMessage(subscription("PAST_DUE",false,false,"NONE"))).toBe(`${base} Conclua ou cancele a assinatura atual antes de contratar outro plano.`);
+  for(const message of [recurringSubscriptionExistsMessage(subscription("ACTIVE",true,true,"NONE")),recurringSubscriptionExistsMessage(null)]){
+   expect(message).not.toMatch(/pre-|provider|external|idempotency/i);
+  }
+ });
  it.each(["ADMIN_GRANT","GRANDFATHERED",null] as const)("keeps effective source %s separate from a paused paid subscription",source=>{expect(sourceLabel(source)).not.toContain("PAYMENT_PROVIDER");expect(paymentNotice(subscription("PAUSED"))?.title).toBe("Assinatura pausada")});
+ it.each([["ACTIVE","success"],["PAST_DUE","warning"],["PAUSED","warning"],["CANCELED","neutral"],["EXPIRED","neutral"],[null,"success"]] as const)("maps real subscriptionStatus %s to FrottoBadge variant %s (no danger for a normal terminal state)",(status,variant)=>{
+  expect(statusVariant(status)).toBe(variant);
+  expect(statusVariant(status)).not.toBe("danger");
+ });
+ it("5G.9-B: cancelability comes only from payment-state.canCancel, never from BillingMeDTO's effective entitlement",()=>{
+  // Reproduces the staging bug: preapproval authorized, Subscription PAYMENT_PROVIDER=ACTIVE,
+  // no financial evidence yet -> /api/billing/me falls back to FREE/subscriptionSource=null,
+  // but /api/billing/payment-state still sees the real remote contract and must drive the button.
+  const uncoveredActiveButCancelable=subscription("ACTIVE",false,true);
+  expect(isSubscriptionCancelable(uncoveredActiveButCancelable)).toBe(true);
+  expect(isSubscriptionCancelable(null)).toBe(false);
+  expect(isSubscriptionCancelable({paymentProviderSubscription:null,latestCheckout:null})).toBe(false);
+  expect(isSubscriptionCancelable(subscription("CANCELED",false,false))).toBe(false);
+ });
+ it("5G.9-B: prefers payment-state's cancellationState/currentPeriodEnd, falling back to BillingMeDTO's",()=>{
+  const paymentState=subscription("ACTIVE",false,true,"PENDING_CONFIRMATION","2026-10-01T12:00:00Z");
+  const plainBilling=billing({cancellationState:"NONE",currentPeriodEnd:null});
+  expect(remoteCancellationState(plainBilling,paymentState)).toBe("PENDING_CONFIRMATION");
+  expect(remoteCurrentPeriodEnd(plainBilling,paymentState)).toBe("2026-10-01T12:00:00Z");
+  // No payment-state contract (e.g. request failed) falls back to BillingMeDTO's own fields.
+  expect(remoteCancellationState(billing({cancellationState:"CONFIRMED"}),null)).toBe("CONFIRMED");
+  expect(remoteCurrentPeriodEnd(billing({currentPeriodEnd:"2026-11-01T12:00:00Z"}),null)).toBe("2026-11-01T12:00:00Z");
+ });
  it("trusts the backend canResume flag instead of re-deriving eligibility",()=>{
   expect(resumableCheckoutUrl(checkout("PROVIDER_PENDING",{canResume:true,checkoutUrl:"https://mp.test/resume"}))).toBe("https://mp.test/resume");
   expect(resumableCheckoutUrl(checkout("CREATED",{canResume:false,checkoutUrl:null}))).toBeNull();

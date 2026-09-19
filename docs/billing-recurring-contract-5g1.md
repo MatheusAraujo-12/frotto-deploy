@@ -251,6 +251,15 @@ financeiro separado do cancelamento e exige sua própria evidência.
 
 ## 13. Refund
 
+> **Nota de precedência (5G.9):** a política de refund parcial efetivamente
+> implementada em `docs/billing-refund-chargeback-5g6.md` ("opção A": qualquer
+> valor de refund positivo confirmado impede aquele attempt de cobrir
+> integralmente a invoice, sem tolerância parcial) é mais estrita que o texto
+> original abaixo (que previa preservar PAID/acesso até o refund cumulativo
+> atingir o valor liquidado) e **prevalece** onde os dois textos conflitarem.
+> Este documento permanece como registro histórico da proposta original; a
+> 5G.6 é normativa para o comportamento hoje implementado.
+
 Total: registrar ID/versão, valor, moeda, data e relação com pagamento original;
 invoice REFUNDED e cobertura dessa competência removida quando confirmado. Não
 reabrir GRACE para substituir um período estornado. Preservar o fato de ter sido PAID.

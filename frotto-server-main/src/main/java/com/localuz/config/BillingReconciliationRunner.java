@@ -8,6 +8,7 @@ import com.localuz.domain.enumeration.SubscriptionStatus;
 import com.localuz.repository.BillingCheckoutRepository;
 import com.localuz.repository.SubscriptionRepository;
 import com.localuz.repository.UserRepository;
+import com.localuz.service.MercadoPagoException;
 import com.localuz.service.MercadoPagoWebhookProcessor;
 import java.util.List;
 import java.util.Locale;
@@ -149,8 +150,16 @@ public class BillingReconciliationRunner implements ApplicationRunner {
                 checkout.getStatus(),
                 hasActivePaymentProviderSubscription
             );
+        } catch (MercadoPagoException mercadoPagoException) {
+            log.error(
+                "Billing reconciliation: checkoutId={} failed category={} httpStatus={} providerErrorCode={}",
+                checkout.getId(),
+                mercadoPagoException.getCategory(),
+                mercadoPagoException.getHttpStatus(),
+                mercadoPagoException.getSafeProviderErrorCode()
+            );
         } catch (Exception exception) {
-            log.error("Billing reconciliation: checkoutId={} failed: {}", checkout.getId(), exception.getMessage());
+            log.error("Billing reconciliation: checkoutId={} failed exceptionType={}", checkout.getId(), exception.getClass().getSimpleName());
         }
     }
 }

@@ -596,6 +596,97 @@ class RecurringBillingPersistenceTest {
         } finally { pool.shutdownNow(); operationalCleanup(); }
     }
 
+    /**
+     * 5G.9 closure item 8: proves the checkout concurrency protection for real, against real MySQL
+     * transactions and the real PESSIMISTIC_WRITE row lock on the user
+     * (UserRepository#findByIdForBillingCheckoutLock) - not just a Mockito sequential-answer
+     * simulation (see BillingCheckoutServiceTest#twoConcurrentRequestsProduceAtMostOneCreate
+     * PreapprovalCallWhenAGuardWinsTheRace for that unit-level version). Two real transactions for
+     * the SAME brand-new user (no prior checkout/subscription) call BillingCheckoutService
+     * #createCheckout concurrently; the loser must block on the row lock until the winner commits,
+     * then observe the winner's now-persisted BillingCheckout and fail with a controlled conflict
+     * (BillingCheckoutInProgressException) rather than also calling the provider. Exactly one
+     * logical MercadoPagoClient#createPreapproval call must happen across both attempts.
+     */
+    @Test void concurrentCheckoutsForTheSameUserProduceAtMostOneLogicalRecurrenceCreation() throws Exception {
+        long userId = 90101L;
+        try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {
+            connection.createStatement().executeUpdate(
+                "INSERT INTO jhi_user (id,login,email,password_hash,activated,created_by,created_date) VALUES (" +
+                userId + ",'concurrent-checkout-test','concurrent-checkout-test@example.test',REPEAT('x',60),true,'test',NOW(6))");
+        }
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            var manager = new org.springframework.orm.jpa.JpaTransactionManager(factory);
+            var shared = org.springframework.orm.jpa.SharedEntityManagerCreator.createSharedEntityManager(factory);
+            var repos = new JpaRepositoryFactory(shared);
+            var users = repos.getRepository(UserRepository.class);
+            var checkouts = repos.getRepository(BillingCheckoutRepository.class);
+            var subscriptionRepo = repos.getRepository(SubscriptionRepository.class);
+            var plans = repos.getRepository(PlanRepository.class);
+            var planPricingTiers = repos.getRepository(PlanPricingTierRepository.class);
+            var cars = repos.getRepository(CarRepository.class);
+
+            var pricing = new com.localuz.service.PricingService(plans, planPricingTiers);
+            var financialCoverage = new com.localuz.service.SubscriptionFinancialCoverageService(
+                repos.getRepository(BillingInvoiceRepository.class), repos.getRepository(PaymentAttemptRepository.class));
+            var guard = new com.localuz.service.RecurringSubscriptionGuardService(subscriptionRepo, financialCoverage);
+
+            var properties = new com.localuz.config.MercadoPagoProperties();
+            properties.setEnabled(true); properties.setAccessToken("fake-only"); properties.setBackUrl("https://local.test/menu/meu-plano");
+
+            var client = org.mockito.Mockito.mock(com.localuz.service.MercadoPagoClient.class);
+            org.mockito.Mockito.when(client.createPreapproval(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(call -> {
+                    com.localuz.service.dto.MercadoPagoPreapprovalRequest request = call.getArgument(0);
+                    return new com.localuz.service.dto.MercadoPagoPreapproval("pre-concurrent", "pending", request.getExternalReference(), "https://mp.test/checkout");
+                });
+
+            var target = new com.localuz.service.BillingCheckoutService(properties, pricing, plans, checkouts, client, cars, users, guard);
+            var proxy = new org.springframework.aop.framework.ProxyFactory(target);
+            proxy.setProxyTargetClass(true);
+            proxy.addAdvice(new org.springframework.transaction.interceptor.TransactionInterceptor(manager,
+                new org.springframework.transaction.annotation.AnnotationTransactionAttributeSource()));
+            var service = (com.localuz.service.BillingCheckoutService) proxy.getProxy();
+
+            com.localuz.domain.User user = new com.localuz.domain.User();
+            user.setId(userId); user.setEmail("concurrent-checkout-test@example.test");
+
+            var start = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.Callable<Object> attempt = () -> {
+                start.await();
+                try {
+                    return service.createCheckout(user, com.localuz.domain.enumeration.PlanCode.BRONZE);
+                } catch (RuntimeException failure) {
+                    return failure;
+                }
+            };
+            var a = pool.submit(attempt);
+            var b = pool.submit(attempt);
+            start.countDown();
+            Object resultA = a.get(30, java.util.concurrent.TimeUnit.SECONDS);
+            Object resultB = b.get(30, java.util.concurrent.TimeUnit.SECONDS);
+
+            var results = java.util.List.of(resultA, resultB);
+            long successes = results.stream().filter(r -> r instanceof com.localuz.domain.BillingCheckout).count();
+            long controlledConflicts = results.stream()
+                .filter(r -> r instanceof com.localuz.web.rest.errors.BillingCheckoutInProgressException
+                    || r instanceof com.localuz.web.rest.errors.BillingRecurringSubscriptionExistsException)
+                .count();
+            assertThat(successes).as("exactly one attempt must create the recurrence: %s", results).isEqualTo(1);
+            assertThat(controlledConflicts).as("the other attempt must fail with a controlled conflict, not a provider call: %s", results).isEqualTo(1);
+            org.mockito.Mockito.verify(client, org.mockito.Mockito.times(1))
+                .createPreapproval(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        } finally {
+            pool.shutdownNow();
+            try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {
+                connection.createStatement().executeUpdate("DELETE FROM billing_checkout WHERE jhi_user_id=" + userId);
+                connection.createStatement().executeUpdate("DELETE FROM subscription WHERE jhi_user_id=" + userId);
+                connection.createStatement().executeUpdate("DELETE FROM jhi_user WHERE id=" + userId);
+            }
+        }
+    }
+
     @Test void selectionExcludesOtherSourcesAndIncludesCancelledWithoutCheckout() throws Exception {
         operationalSetup();
         try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {

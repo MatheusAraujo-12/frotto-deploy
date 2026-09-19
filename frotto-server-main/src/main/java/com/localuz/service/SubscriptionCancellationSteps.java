@@ -46,7 +46,21 @@ public class SubscriptionCancellationSteps {
 
     private static final Logger log = LoggerFactory.getLogger(SubscriptionCancellationSteps.class);
     private static final String ENTITY_NAME = "subscriptionCancellation";
-    static final List<SubscriptionStatus> CANCELLABLE_STATUSES = List.of(SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE);
+    /**
+     * PAUSED was added here for 5G.9 section B: Mercado Pago's own docs describe pausing,
+     * reactivating and cancelling a preapproval as independent PUT /preapproval/{id} operations
+     * (status=paused / status=authorized / status=cancelled respectively; see "Gerenciamento de
+     * assinaturas" / "Subscription management" in the Mercado Pago developer docs) with no
+     * documented precondition that a paused subscription must first be reactivated before it can
+     * be cancelled - and cancelPreapproval already sends a plain PUT status=cancelled with no
+     * current-status precondition of its own. This is not a blind assumption: if Mercado Pago
+     * were to reject a paused-to-cancelled transition, markIntent()/the provider call below still
+     * fail safely (BillingCancellationProviderRejectedException, local intent rolled back, no
+     * corrupted state - see cancel()/rollbackIntent()), so allowing the attempt costs nothing on
+     * the failure path while fixing the concrete case where a real remote contract (PAUSED) could
+     * not be cancelled through Frotto at all.
+     */
+    static final List<SubscriptionStatus> CANCELLABLE_STATUSES = List.of(SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE, SubscriptionStatus.PAUSED);
 
     private final UserRepository userRepository;
     private final SubscriptionRepository subscriptionRepository;
@@ -188,7 +202,13 @@ public class SubscriptionCancellationSteps {
         try {
             current = client.getPreapproval(subscription.getExternalSubscriptionId());
         } catch (MercadoPagoException confirmFailure) {
-            log.warn("Subscription cancellation could not be confirmed for subscriptionId={}: {}", subscriptionId, confirmFailure.getMessage());
+            log.warn(
+                "Subscription cancellation could not be confirmed for subscriptionId={} category={} httpStatus={} providerErrorCode={}",
+                subscriptionId,
+                confirmFailure.getCategory(),
+                confirmFailure.getHttpStatus(),
+                confirmFailure.getSafeProviderErrorCode()
+            );
             throw confirmFailure;
         }
 

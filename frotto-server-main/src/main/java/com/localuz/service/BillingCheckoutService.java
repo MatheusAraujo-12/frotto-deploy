@@ -30,9 +30,10 @@ public class BillingCheckoutService {
     private static final List<BillingCheckoutStatus> BLOCKING_STATUSES = List.of(BillingCheckoutStatus.CREATED,BillingCheckoutStatus.PROVIDER_PENDING,BillingCheckoutStatus.PROVIDER_UNKNOWN);
     private final MercadoPagoProperties properties; private final PricingService pricingService;
     private final PlanRepository planRepository; private final BillingCheckoutRepository repository; private final MercadoPagoClient client; private final CarRepository cars; private final UserRepository users; private final Clock clock;
+    private final RecurringSubscriptionGuardService recurringSubscriptionGuard;
     @Autowired
-    public BillingCheckoutService(MercadoPagoProperties p,PricingService pricing,PlanRepository plans,BillingCheckoutRepository repo,MercadoPagoClient client,CarRepository cars,UserRepository users){this(p,pricing,plans,repo,client,cars,users,Clock.systemUTC());}
-    BillingCheckoutService(MercadoPagoProperties p,PricingService pricing,PlanRepository plans,BillingCheckoutRepository repo,MercadoPagoClient client,CarRepository cars,UserRepository users,Clock clock){this.properties=p;this.pricingService=pricing;this.planRepository=plans;this.repository=repo;this.client=client;this.cars=cars;this.users=users;this.clock=clock;}
+    public BillingCheckoutService(MercadoPagoProperties p,PricingService pricing,PlanRepository plans,BillingCheckoutRepository repo,MercadoPagoClient client,CarRepository cars,UserRepository users,RecurringSubscriptionGuardService recurringSubscriptionGuard){this(p,pricing,plans,repo,client,cars,users,recurringSubscriptionGuard,Clock.systemUTC());}
+    BillingCheckoutService(MercadoPagoProperties p,PricingService pricing,PlanRepository plans,BillingCheckoutRepository repo,MercadoPagoClient client,CarRepository cars,UserRepository users,RecurringSubscriptionGuardService recurringSubscriptionGuard,Clock clock){this.properties=p;this.pricingService=pricing;this.planRepository=plans;this.repository=repo;this.client=client;this.cars=cars;this.users=users;this.recurringSubscriptionGuard=recurringSubscriptionGuard;this.clock=clock;}
     @Transactional
     public BillingCheckout createIntent(User authenticatedUser, PlanCode requestedPlan, int vehicleCount) {
         if (!properties.isEnabled()) throw new IllegalStateException("Mercado Pago gateway is disabled");
@@ -56,6 +57,7 @@ public class BillingCheckoutService {
         if (email == null || !email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) throw new IllegalArgumentException("Authenticated user must have a valid email");
         User lockedUser=users.findByIdForBillingCheckoutLock(user.getId()).orElseThrow(()->new IllegalArgumentException("Authenticated user is required"));
         if(repository.existsByUserIdAndStatusIn(lockedUser.getId(),BLOCKING_STATUSES))throw new BillingCheckoutInProgressException();
+        recurringSubscriptionGuard.assertNoBlockingRemoteRecurrence(lockedUser.getId());
         int vehicleCount = Math.toIntExact(cars.countByUserIdAndActiveTrue(user.getId()));
         BillingCheckout checkout = createIntent(lockedUser, requestedPlan, vehicleCount);
         String payerEmail = resolvePayerEmail(email);
