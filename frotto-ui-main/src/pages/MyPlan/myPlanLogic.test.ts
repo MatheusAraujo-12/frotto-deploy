@@ -1,5 +1,5 @@
 import { BillingMeDTO, BillingPaymentStateDTO, PlanDTO, SubscriptionCancellationState, SubscriptionStatus } from "../../constants/BillingModels";
-import { checkoutBlocksPurchase, checkoutNeedsRefresh, fleetUsage, isCheckoutInProgressError, isRecurringSubscriptionExistsError, isPlanCompatible, isSubscriptionCancelable, paymentNotice, recurringSubscriptionExistsMessage, remoteCancellationState, remoteCurrentPeriodEnd, resumableCheckoutUrl, sourceDetail, sourceLabel, statusVariant, usageState, vehicleRange } from "./myPlanLogic";
+import { checkoutBlocksPurchase, checkoutNeedsRefresh, fleetUsage, isCheckoutInProgressError, isRecurringSubscriptionExistsError, isPlanCompatible, isSubscriptionCancelable, paymentNotice, recurringSubscriptionExistsMessage, remoteCancellationState, remoteCurrentPeriodEnd, resumableCheckoutUrl, sourceDetail, sourceLabel, usageState, vehicleRange } from "./myPlanLogic";
 const billing=(changes:Partial<BillingMeDTO>={}):BillingMeDTO=>({planCode:"FREE",planName:"Free",subscriptionStatus:null,billingCycle:null,subscriptionSource:null,activeVehicleCount:0,vehicleLimit:2,canAddVehicle:true,needsUpgrade:false,requiredPlanCode:"FREE",requiredPlanName:"Free",currentMonthlyPrice:0,currentPeriodStart:null,currentPeriodEnd:null,grantExpiresAt:null,cancelAtPeriodEnd:false,cancellationState:"NONE",...changes});
 const plan=(changes:Partial<PlanDTO>={}):PlanDTO=>({code:"BRONZE",name:"Bronze",minVehicles:3,maxVehicles:5,monthlyBasePrice:29.9,billingModel:"FLAT",tiers:[],...changes});
 const subscription=(status:SubscriptionStatus,financiallyCovered=true,canCancel=true,cancellationState:SubscriptionCancellationState="NONE",currentPeriodEnd:string|null=null):BillingPaymentStateDTO=>({paymentProviderSubscription:{status,planCode:"BRONZE",billingCycle:"MONTHLY",financiallyCovered,canCancel,cancellationState,currentPeriodEnd},latestCheckout:null});
@@ -43,10 +43,6 @@ describe("myPlanLogic",()=>{
   }
  });
  it.each(["ADMIN_GRANT","GRANDFATHERED",null] as const)("keeps effective source %s separate from a paused paid subscription",source=>{expect(sourceLabel(source)).not.toContain("PAYMENT_PROVIDER");expect(paymentNotice(subscription("PAUSED"))?.title).toBe("Assinatura pausada")});
- it.each([["ACTIVE","success"],["PAST_DUE","warning"],["PAUSED","warning"],["CANCELED","neutral"],["EXPIRED","neutral"],[null,"success"]] as const)("maps real subscriptionStatus %s to FrottoBadge variant %s (no danger for a normal terminal state)",(status,variant)=>{
-  expect(statusVariant(status)).toBe(variant);
-  expect(statusVariant(status)).not.toBe("danger");
- });
  it("5G.9-B: cancelability comes only from payment-state.canCancel, never from BillingMeDTO's effective entitlement",()=>{
   // Reproduces the staging bug: preapproval authorized, Subscription PAYMENT_PROVIDER=ACTIVE,
   // no financial evidence yet -> /api/billing/me falls back to FREE/subscriptionSource=null,

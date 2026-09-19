@@ -1,5 +1,4 @@
 import { BillingCheckoutStatus, BillingMeDTO, BillingPaymentStateDTO, PLAN_LABELS, PlanDTO, SubscriptionCancellationState, SubscriptionSource, SubscriptionStatus } from "../../constants/BillingModels";
-import type { FrottoBadgeVariant } from "../../components/UI/FrottoBadge";
 
 /**
  * 5G.9 section B: cancelability of the remote PAYMENT_PROVIDER contract is a DIFFERENT question
@@ -35,16 +34,6 @@ export const sourceLabel = (source: SubscriptionSource | null): string => ({
 export const statusLabel = (status: SubscriptionStatus | null): string => ({
   ACTIVE: "Ativa", PAST_DUE: "Com pendência", PAUSED: "Pausada", CANCELED: "Cancelada", EXPIRED: "Expirada",
 } as Record<SubscriptionStatus, string>)[status as SubscriptionStatus] || "Ativo";
-
-/**
- * Real subscriptionStatus values only (SubscriptionStatus enum, backend + BillingModels.ts) -
- * no invented "Trial"/"Inadimplente" bucket. null (FREE, no subscription row) reads as success,
- * matching statusLabel's own "Ativo" fallback. CANCELED/EXPIRED are terminal-but-normal states,
- * not errors - never "danger" for those (see DESIGN_SYSTEM.md semantics for status badges).
- */
-export const statusVariant = (status: SubscriptionStatus | null): FrottoBadgeVariant => ({
-  ACTIVE: "success", PAST_DUE: "warning", PAUSED: "warning", CANCELED: "neutral", EXPIRED: "neutral",
-} as Record<SubscriptionStatus, FrottoBadgeVariant>)[status as SubscriptionStatus] || "success";
 
 export const formatDate = (value: string): string => {
   const date = new Date(value);
