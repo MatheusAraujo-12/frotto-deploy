@@ -16,6 +16,17 @@ qualquer nova conclusão de prontidão.** Ver `docs/billing-final-validation-
 5g8.md`, que teve sua classificação "READY FOR STAGING" marcada como
 superada por este documento.
 
+> **Atualização (5G.10):** a política fail-closed financeira desta etapa
+> (seções A/E) causou uma regressão real de produto: uma `Subscription`
+> `PAYMENT_PROVIDER` `ACTIVE` autorizada pelo Mercado Pago, sem nenhum
+> `BillingInvoice` ainda ingerido, passou a ser tratada como `FREE`. Essa
+> exigência foi revertida para a ativação inicial do plano — ver
+> `docs/billing-entitlement-activation-5g10.md` para a decisão final e a
+> correção. A seção E abaixo (invoice existente porém sem `periodStart`)
+> não foi afetada e continua fail-closed pelo mesmo motivo original: ali
+> existe uma invoice real e incompleta, um cenário diferente de "nenhuma
+> invoice existe ainda".
+
 ## Rodada de fechamento (segunda passagem)
 
 Após a implementação inicial (seções A-G abaixo), uma segunda passagem

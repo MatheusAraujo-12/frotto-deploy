@@ -79,6 +79,9 @@ class FinancialEntitlementTest {
     }
 
     @Test void providerWithoutCoverageFallsBackToGrandfathered() {
+        // PAST_DUE, not ACTIVE: 5G.10's authoritative-status bypass only applies to ACTIVE/CANCELED/
+        // PAUSED, so a zero-invoice PAST_DUE row genuinely has no coverage here, same as before.
+        f.subscription.setStatus(SubscriptionStatus.PAST_DUE);
         add(SubscriptionSource.GRANDFATHERED, PlanCode.SILVER);
         assertThat(entitlement.getCurrentPlan(user).getCode()).isEqualTo(PlanCode.SILVER);
     }
@@ -133,8 +136,125 @@ class FinancialEntitlementTest {
     }
 
     @Test void revokedAndExpiredNonProviderRowsCannotGrantAccess() {
+        // The default provider row must not itself grant access here, or this stops isolating the
+        // non-provider rows this test is actually about - see 5G.10's authoritative-ACTIVE rule.
+        f.subscription.setStatus(SubscriptionStatus.PAST_DUE);
         add(SubscriptionSource.ADMIN_GRANT, PlanCode.GOLD).setStatus(SubscriptionStatus.CANCELED);
         add(SubscriptionSource.GRANDFATHERED, PlanCode.SILVER).setStatus(SubscriptionStatus.EXPIRED);
         assertThat(entitlement.getCurrentPlan(user)).isSameAs(free);
+    }
+
+    // --- 5G.10: authoritative ACTIVE grants the contracted plan without requiring a BillingInvoice
+    // to exist yet (regression: staging subscriptions authorized by Mercado Pago, zero invoices
+    // ingested, were being reported as FREE). Distinguish carefully from
+    // noFirstPaymentMeansFreeInEveryEntitlementReadPath above, which has an actual (unpaid) invoice
+    // in history - that keeps failing closed, because an invoice existing at all means
+    // Reason.NO_INVOICE never applies and the pre-existing "no approved payment yet" rule still
+    // governs unchanged. --------------------------------------------------------------------
+
+    /** Caso A. */
+    @Test void activeAuthorizedProviderWithZeroInvoicesGrantsContractedPlanImmediately() {
+        f.subscription.setCurrentPeriodEnd(DEC);
+        assertThat(entitlement.getCurrentPlan(user).getCode()).isEqualTo(PlanCode.BRONZE);
+        assertThat(entitlement.getSnapshot(user).getCurrentPlan().getCode()).isEqualTo(PlanCode.BRONZE);
+        verify(subscriptions, never()).save(any());
+    }
+
+    /** Caso B - already worked before; kept explicit so a future change can't silently regress it. */
+    @Test void activeProviderWithAnApprovedInvoiceRemainsGrantedAsBefore() {
+        f.invoice(NOV, DEC, true);
+        assertThat(entitlement.getCurrentPlan(user).getCode()).isEqualTo(PlanCode.BRONZE);
+    }
+
+    /** Caso C. */
+    @Test void canceledProviderWithZeroInvoicesKeepsAccessUntilCurrentPeriodEnd() {
+        f.subscription.setStatus(SubscriptionStatus.CANCELED);
+        f.subscription.setCanceledAt(f.clock.instant());
+        f.subscription.setCurrentPeriodEnd(DEC);
+        assertThat(entitlement.getCurrentPlan(user).getCode()).isEqualTo(PlanCode.BRONZE);
+    }
+
+    /** Caso D. */
+    @Test void canceledProviderWithZeroInvoicesAndPastPeriodEndFallsBackToFree() {
+        f.subscription.setStatus(SubscriptionStatus.CANCELED);
+        f.subscription.setCanceledAt(OCT);
+        f.subscription.setCurrentPeriodEnd(OCT);
+        assertThat(entitlement.getCurrentPlan(user)).isSameAs(free);
+    }
+
+    /** Item 4: missing currentPeriodEnd on a cancelled, evidence-less contract stays fail-closed - never infinite access. */
+    @Test void canceledProviderWithZeroInvoicesAndNoCurrentPeriodEndFailsClosed() {
+        f.subscription.setStatus(SubscriptionStatus.CANCELED);
+        f.subscription.setCanceledAt(f.clock.instant());
+        f.subscription.setCurrentPeriodEnd(null);
+        assertThat(entitlement.getCurrentPlan(user)).isSameAs(free);
+    }
+
+    /** Caso E. */
+    @Test void expiredProviderWithZeroInvoicesNeverGrantsAccess() {
+        f.subscription.setStatus(SubscriptionStatus.EXPIRED);
+        f.subscription.setCurrentPeriodEnd(DEC);
+        assertThat(entitlement.getCurrentPlan(user)).isSameAs(free);
+    }
+
+    /** Caso F: PAST_DUE with zero invoices never invents grace - grace still requires a contiguous prior paid competency, unchanged by 5G.10. */
+    @Test void pastDueProviderWithZeroInvoicesNeverGetsGrace() {
+        f.subscription.setStatus(SubscriptionStatus.PAST_DUE);
+        f.subscription.setCurrentPeriodEnd(DEC);
+        assertThat(entitlement.getCurrentPlan(user)).isSameAs(free);
+    }
+
+    /**
+     * Item 6 (PAUSED): never auto-reactivated (status stays PAUSED, never rewritten to ACTIVE) -
+     * but if a period the user already contracted for is still running (Mercado Pago's own
+     * next_payment_date, captured as currentPeriodEnd while the preapproval was last authorized),
+     * pausing future charges mid-period does not retroactively revoke access already paid for.
+     */
+    @Test void pausedProviderWithZeroInvoicesKeepsAccessUntilCurrentPeriodEndWithoutReactivating() {
+        f.subscription.setStatus(SubscriptionStatus.PAUSED);
+        f.subscription.setCurrentPeriodEnd(DEC);
+        assertThat(entitlement.getCurrentPlan(user).getCode()).isEqualTo(PlanCode.BRONZE);
+        assertThat(f.subscription.getStatus()).isEqualTo(SubscriptionStatus.PAUSED);
+        verify(subscriptions, never()).save(any());
+    }
+
+    @Test void pausedProviderWithZeroInvoicesAndPastPeriodEndFallsBackToFree() {
+        f.subscription.setStatus(SubscriptionStatus.PAUSED);
+        f.subscription.setCurrentPeriodEnd(OCT);
+        assertThat(entitlement.getCurrentPlan(user)).isSameAs(free);
+    }
+
+    @Test void pausedProviderWithZeroInvoicesAndNoCurrentPeriodEndFailsClosed() {
+        f.subscription.setStatus(SubscriptionStatus.PAUSED);
+        f.subscription.setCurrentPeriodEnd(null);
+        assertThat(entitlement.getCurrentPlan(user)).isSameAs(free);
+    }
+
+    /**
+     * "Não enfraquecer a origem autoritativa" (item 2): the ACTIVE/NO_INVOICE bypass must never
+     * paper over an actual reversal. Once ANY invoice exists for the current competency, its
+     * outcome is authoritative again - a refund/chargeback on file still revokes entitlement
+     * exactly as before 5G.10, even though the contract's own status field remains ACTIVE.
+     */
+    @ParameterizedTest @ValueSource(strings = {"REFUNDED", "CHARGEDBACK"})
+    void activeProviderWithAReversedCurrentInvoiceStillDeniesEntitlement(String status) {
+        var invoice = f.invoice(NOV, DEC, true);
+        f.payments.get(0).setStatus(PaymentAttemptStatus.valueOf(status));
+        invoice.setStatus(BillingInvoiceStatus.valueOf(status));
+        assertThat(entitlement.getCurrentPlan(user)).isSameAs(free);
+    }
+
+    /** Caso G (re-confirmed against the exact zero-invoice regression scenario, not just the already-covered generic case). */
+    @Test void adminGrantOutranksAZeroInvoiceActiveProviderContract() {
+        f.subscription.setCurrentPeriodEnd(DEC);
+        add(SubscriptionSource.ADMIN_GRANT, PlanCode.GOLD).setGrantExpiresAt(DEC);
+        assertThat(entitlement.getCurrentPlan(user).getCode()).isEqualTo(PlanCode.GOLD);
+    }
+
+    /** Caso H (re-confirmed): GRANDFATHERED only becomes effective once the zero-invoice ACTIVE provider contract itself is absent/ineligible. */
+    @Test void grandfatheredDoesNotOutrankAZeroInvoiceActiveProviderContract() {
+        f.subscription.setCurrentPeriodEnd(DEC);
+        add(SubscriptionSource.GRANDFATHERED, PlanCode.SILVER);
+        assertThat(entitlement.getCurrentPlan(user).getCode()).isEqualTo(PlanCode.BRONZE);
     }
 }

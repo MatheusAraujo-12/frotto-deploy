@@ -370,6 +370,19 @@ de 72 horas. Não implementar scheduler nesta etapa.
 
 ## 19. Contrato formal de entitlement
 
+> **Nota de precedência (5G.10):** a frase abaixo — "`Subscription.status=
+> ACTIVE` sozinho não satisfaz providerEligible" — foi revertida como
+> decisão final de produto depois de causar uma regressão real em staging
+> (assinaturas `PAYMENT_PROVIDER` `ACTIVE` autorizadas pelo Mercado Pago,
+> sem nenhum `BillingInvoice` ainda ingerido, sendo tratadas como `FREE`).
+> Ver `docs/billing-entitlement-activation-5g10.md`: uma `Subscription`
+> `PAYMENT_PROVIDER` confirmada autoritativamente `ACTIVE` concede o plano
+> contratado imediatamente; `BillingInvoice`/`PaymentAttempt` continuam
+> obrigatórios para renovações, inadimplência, retries, refund e histórico,
+> mas deixaram de ser pré-requisito para a ativação inicial. O restante
+> desta seção (grace, matching de valor/moeda, correlação, refund/
+> chargeback) permanece válido sem alteração.
+
 Para instante `t` e invoice `i`:
 
 ```text

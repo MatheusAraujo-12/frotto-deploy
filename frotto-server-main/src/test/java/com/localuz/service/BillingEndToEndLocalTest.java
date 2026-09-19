@@ -82,8 +82,13 @@ class BillingEndToEndLocalTest {
         SubscriptionService subscriptionService = new SubscriptionService(subscriptions,plans,
             new SubscriptionFinancialCoverageService(mock(BillingInvoiceRepository.class), mock(PaymentAttemptRepository.class)));
         BillingMeDTO me = BillingMeDTO.from(new EntitlementService(subscriptionService,cars,pricing).getSnapshot(user));
-        // Authorization still updates the contractual read model above, but cannot prove a first payment.
-        assertThat(me.getPlanCode()).isEqualTo(PlanCode.FREE); assertThat(me.getSubscriptionStatus()).isNull();
+        // 5G.10: Mercado Pago's own authoritative "authorized" confirmation (GET /preapproval,
+        // never the browser) is sufficient to activate the contracted plan immediately - see
+        // SubscriptionService#isProviderSubscriptionEntitled. BillingInvoice/PaymentAttempt (still
+        // absent here) govern renewals/arrears/history from here on, not this initial activation.
+        assertThat(me.getPlanCode()).isEqualTo(PlanCode.BRONZE);
+        assertThat(me.getSubscriptionStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(me.getSubscriptionSource()).isEqualTo(SubscriptionSource.PAYMENT_PROVIDER);
     }
 
     private Plan plan(PlanCode code,int min,Integer max){Plan plan=new Plan();plan.setCode(code);plan.setName(code.name());plan.setMinVehicles(min);plan.setMaxVehicles(max);plan.setActive(true);plan.setMonthlyBasePrice(BigDecimal.ZERO);return plan;}

@@ -31,6 +31,12 @@ class SubscriptionServiceTest {
             null, null, null, null, com.localuz.service.dto.FinancialCoverageEvaluation.Reason.PAID);
     }
 
+    private static com.localuz.service.dto.FinancialCoverageEvaluation notCoveredWithReason(com.localuz.service.dto.FinancialCoverageEvaluation.Reason reason) {
+        return new com.localuz.service.dto.FinancialCoverageEvaluation(false,
+            com.localuz.service.dto.FinancialCoverageEvaluation.CommercialState.AWAITING_PAYMENT,
+            null, null, null, null, reason);
+    }
+
     private SubscriptionRepository subscriptionRepository;
     private PlanRepository planRepository;
     private SubscriptionService subscriptionService;
@@ -332,4 +338,94 @@ class SubscriptionServiceTest {
         Mockito.verify(subscriptionRepository, Mockito.never()).save(Mockito.any());
     }
 
+    // --- 5G.10: authoritative ACTIVE bypasses the NO_INVOICE verdict; every other reason still
+    // fully governs, unchanged. See FinancialEntitlementTest for the same behavior exercised
+    // against the real SubscriptionFinancialCoverageService end to end. ------------------------
+
+    @Test
+    void activeProviderWithNoInvoiceEvidenceStillGrantsEntitlement() {
+        Subscription active = subscription(plan(2L, PlanCode.BRONZE), SubscriptionSource.PAYMENT_PROVIDER, null);
+        when(financialCoverage.evaluate(Mockito.eq(active), Mockito.any()))
+            .thenReturn(notCoveredWithReason(com.localuz.service.dto.FinancialCoverageEvaluation.Reason.NO_INVOICE));
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L))).thenReturn(List.of(active));
+
+        assertThat(subscriptionService.getCurrentSubscription(user)).contains(active);
+    }
+
+    @Test
+    void activeProviderWithAnyOtherUnresolvedReasonIsNotBypassed() {
+        // The bypass is narrow: only literal absence of invoice evidence is trusted from status
+        // alone. Any other reason (a reversal, a financial conflict, an ambiguous/incomplete
+        // period...) must keep denying access exactly as it did before 5G.10.
+        Subscription active = subscription(plan(2L, PlanCode.BRONZE), SubscriptionSource.PAYMENT_PROVIDER, null);
+        when(financialCoverage.evaluate(Mockito.eq(active), Mockito.any()))
+            .thenReturn(notCoveredWithReason(com.localuz.service.dto.FinancialCoverageEvaluation.Reason.REVERSED_OR_CANCELED));
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L))).thenReturn(List.of(active));
+
+        assertThat(subscriptionService.getCurrentSubscription(user)).isEmpty();
+    }
+
+    @Test
+    void canceledProviderWithNoInvoiceEvidenceKeepsAccessUntilCurrentPeriodEnd() {
+        Subscription canceled = subscription(plan(2L, PlanCode.BRONZE), SubscriptionSource.PAYMENT_PROVIDER, null);
+        canceled.setStatus(SubscriptionStatus.CANCELED);
+        canceled.setCanceledAt(Instant.now());
+        canceled.setCurrentPeriodEnd(Instant.now().plusSeconds(3600));
+        when(financialCoverage.evaluate(Mockito.eq(canceled), Mockito.any()))
+            .thenReturn(notCoveredWithReason(com.localuz.service.dto.FinancialCoverageEvaluation.Reason.NO_INVOICE));
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L))).thenReturn(List.of(canceled));
+
+        assertThat(subscriptionService.getCurrentSubscription(user)).contains(canceled);
+    }
+
+    @Test
+    void canceledProviderWithNoInvoiceEvidenceAndPastPeriodEndIsNotEntitled() {
+        Subscription canceled = subscription(plan(2L, PlanCode.BRONZE), SubscriptionSource.PAYMENT_PROVIDER, null);
+        canceled.setStatus(SubscriptionStatus.CANCELED);
+        canceled.setCanceledAt(Instant.now().minusSeconds(7200));
+        canceled.setCurrentPeriodEnd(Instant.now().minusSeconds(3600));
+        when(financialCoverage.evaluate(Mockito.eq(canceled), Mockito.any()))
+            .thenReturn(notCoveredWithReason(com.localuz.service.dto.FinancialCoverageEvaluation.Reason.NO_INVOICE));
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L))).thenReturn(List.of(canceled));
+
+        assertThat(subscriptionService.getCurrentSubscription(user)).isEmpty();
+    }
+
+    @Test
+    void pausedProviderWithNoInvoiceEvidenceAndFuturePeriodEndKeepsAccessWithoutReactivating() {
+        Subscription paused = subscription(plan(2L, PlanCode.BRONZE), SubscriptionSource.PAYMENT_PROVIDER, null);
+        paused.setStatus(SubscriptionStatus.PAUSED);
+        paused.setCurrentPeriodEnd(Instant.now().plusSeconds(3600));
+        when(financialCoverage.evaluate(Mockito.eq(paused), Mockito.any()))
+            .thenReturn(notCoveredWithReason(com.localuz.service.dto.FinancialCoverageEvaluation.Reason.NO_INVOICE));
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L))).thenReturn(List.of(paused));
+
+        assertThat(subscriptionService.getCurrentSubscription(user)).contains(paused);
+        assertThat(paused.getStatus()).isEqualTo(SubscriptionStatus.PAUSED);
+    }
+
+    @Test
+    void pastDueProviderWithNoInvoiceEvidenceIsNotBypassed() {
+        // PAST_DUE is deliberately excluded from the ACTIVE/CANCELED/PAUSED bypass set - grace
+        // still requires a contiguous prior paid competency (existing, unchanged rule).
+        Subscription pastDue = subscription(plan(2L, PlanCode.BRONZE), SubscriptionSource.PAYMENT_PROVIDER, null);
+        pastDue.setStatus(SubscriptionStatus.PAST_DUE);
+        when(financialCoverage.evaluate(Mockito.eq(pastDue), Mockito.any()))
+            .thenReturn(notCoveredWithReason(com.localuz.service.dto.FinancialCoverageEvaluation.Reason.NO_INVOICE));
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L))).thenReturn(List.of(pastDue));
+
+        assertThat(subscriptionService.getCurrentSubscription(user)).isEmpty();
+    }
+
+    @Test
+    void expiredProviderWithNoInvoiceEvidenceIsNotBypassed() {
+        Subscription expired = subscription(plan(2L, PlanCode.BRONZE), SubscriptionSource.PAYMENT_PROVIDER, null);
+        expired.setStatus(SubscriptionStatus.EXPIRED);
+        expired.setCurrentPeriodEnd(Instant.now().plusSeconds(3600));
+        when(financialCoverage.evaluate(Mockito.eq(expired), Mockito.any()))
+            .thenReturn(notCoveredWithReason(com.localuz.service.dto.FinancialCoverageEvaluation.Reason.NO_INVOICE));
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L))).thenReturn(List.of(expired));
+
+        assertThat(subscriptionService.getCurrentSubscription(user)).isEmpty();
+    }
 }
