@@ -304,6 +304,34 @@ describe("MyPlanPage - checkout modal", () => {
     expect(screen.getByText("Bronze", { selector: "h1" })).toBeInTheDocument();
   });
 
+  it("5G.11: não mostra 'pagamento em processamento' quando a 5G.10 já concedeu o plano sem BillingInvoice", async () => {
+    // billing.me (fixture `billing`) already reports BRONZE/ACTIVE/PAYMENT_PROVIDER per 5G.10
+    // (authorized -> ACTIVE -> immediate entitlement, no BillingInvoice required), but the
+    // payment-state's own subscription still has financiallyCovered=false because no invoice
+    // exists yet. Before this fix, this combination showed the misleading "Pagamento em
+    // processamento" banner right next to an already-active Bronze plan card.
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({
+      paymentProviderSubscription: { status: "ACTIVE", planCode: "BRONZE", billingCycle: "MONTHLY", financiallyCovered: false, canCancel: true, cancellationState: "NONE", currentPeriodEnd: null },
+      latestCheckout: null,
+    });
+    await renderLoadedPage();
+
+    expect(screen.queryByText("Pagamento em processamento")).not.toBeInTheDocument();
+    expect(screen.queryByText("Assinatura ativa")).not.toBeInTheDocument();
+    expect(screen.getByText("Bronze", { selector: "h1" })).toBeInTheDocument();
+  });
+
+  it("5G.11: mantém o aviso PROVIDER_PENDING mesmo quando o usuário não tem plano pago vigente", async () => {
+    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, planCode: "FREE", planName: "Gratuito", subscriptionStatus: null, subscriptionSource: null, billingCycle: null });
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({
+      paymentProviderSubscription: null,
+      latestCheckout: { status: "PROVIDER_PENDING", planCode: "BRONZE", createdAt: "2026-08-28T12:00:00Z", canResume: false, checkoutUrl: null },
+    });
+    await renderLoadedPage();
+
+    expect(screen.getByText("Aguardando confirmação do Mercado Pago")).toBeInTheDocument();
+  });
+
   it("não navega com resposta tardia do checkout da sessão anterior", async () => {
     const oldCheckout = deferred<any>();
     mockedBillingService.createCheckout.mockReturnValue(oldCheckout.promise);
@@ -339,13 +367,33 @@ describe("MyPlanPage - checkout modal", () => {
     expect(screen.getByRole("button", { name: "Manter assinatura" })).toBeDisabled();
     expect(mockedBillingService.cancelSubscription).toHaveBeenCalledTimes(1);
     expect(mockedBillingService.cancelSubscription).toHaveBeenCalledWith();
-    request.resolve({ state: "CONFIRMED", currentPeriodEnd: "2026-10-10T00:00:00Z", providerSubscriptionId: "private-provider-id" });
+    request.resolve({ state: "CONFIRMED", hasResidualActiveContract: false, currentPeriodEnd: "2026-10-10T00:00:00Z", providerSubscriptionId: "private-provider-id" });
     expect(await screen.findByText("Cancelamento agendado")).toBeInTheDocument();
+    expect(screen.queryByText(/Uma recorrência foi cancelada/)).not.toBeInTheDocument();
     expect(screen.getByText("Seu plano ficará ativo até 10/10/2026. Não haverá nova renovação.")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cancelar assinatura" })).not.toBeInTheDocument();
     expect(mockedBillingService.getMyBilling).toHaveBeenCalledTimes(2);
     expect(screen.queryByText(/private-provider-id/)).not.toBeInTheDocument();
+  });
+
+  it("avisa sobre recorrência residual e permite atualizar o estado para cancelar novamente", async () => {
+    mockedBillingService.cancelSubscription.mockResolvedValue({
+      state: "CONFIRMED", planCode: "BRONZE", subscriptionStatus: "ACTIVE",
+      currentPeriodEnd: null, hasResidualActiveContract: true,
+      providerSubscriptionId: "private-provider-id",
+    } as any);
+    await openCancellation();
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar cancelamento" }));
+    expect(await screen.findByText(/Uma recorrência foi cancelada/)).toHaveTextContent(
+      "Uma recorrência foi cancelada, mas ainda existe outra assinatura recorrente ativa. Atualize o estado e tente cancelar novamente."
+    );
+    expect(screen.queryByText("Cancelamento agendado")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Não haverá nova renovação/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/private-provider-id/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar estado" }));
+    expect(await screen.findByRole("button", { name: "Cancelar assinatura" })).toBeEnabled();
+    expect(mockedBillingService.getBillingPaymentState).toHaveBeenCalledTimes(2);
   });
 
   it("mostra pendência sem confirmar, e permite retry", async () => {

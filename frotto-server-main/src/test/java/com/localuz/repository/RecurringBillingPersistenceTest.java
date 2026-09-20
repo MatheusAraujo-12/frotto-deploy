@@ -571,7 +571,13 @@ class RecurringBillingPersistenceTest {
             try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD);
                  var rows = connection.createStatement().executeQuery("SELECT last_financial_reconciliation_at FROM subscription WHERE id=90001")) {
                 assertThat(rows.next()).isTrue();
-                assertThat(rows.getTimestamp(1).toLocalDateTime()).isEqualTo(java.time.LocalDateTime.ofInstant(NOVEMBER, java.time.ZoneOffset.UTC));
+                // toLocalDateTime() extracts wall-clock fields using the JVM's default timezone
+                // (java.sql.Timestamp delegates to the deprecated java.util.Date getters), so it is
+                // only safe to compare against a UTC instant when the JVM itself runs in UTC.
+                // toInstant() compares the actual point in time and is immune to the runtime's
+                // default timezone - the same reason the raw JDBC period_end check further below in
+                // this file compares via toInstant() rather than toLocalDateTime().
+                assertThat(rows.getTimestamp(1).toInstant()).isEqualTo(NOVEMBER);
             }
             assertThat(restarted.reserve(candidate, NOVEMBER.plusSeconds(3600), NOVEMBER)).isTrue();
         } finally {

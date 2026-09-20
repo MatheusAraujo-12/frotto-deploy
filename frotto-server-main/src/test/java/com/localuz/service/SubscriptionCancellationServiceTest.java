@@ -43,6 +43,7 @@ class SubscriptionCancellationServiceTest {
     private UserRepository userRepository;
     private SubscriptionRepository subscriptionRepository;
     private MercadoPagoClient client;
+    private RecurringSubscriptionGuardService recurringSubscriptionGuard;
     private SubscriptionCancellationSteps steps;
     private SubscriptionCancellationService service;
     private User user;
@@ -52,7 +53,8 @@ class SubscriptionCancellationServiceTest {
         userRepository = mock(UserRepository.class);
         subscriptionRepository = mock(SubscriptionRepository.class);
         client = mock(MercadoPagoClient.class);
-        steps = Mockito.spy(new SubscriptionCancellationSteps(userRepository, subscriptionRepository, client, Clock.fixed(NOW, ZoneOffset.UTC)));
+        recurringSubscriptionGuard = mock(RecurringSubscriptionGuardService.class);
+        steps = Mockito.spy(new SubscriptionCancellationSteps(userRepository, subscriptionRepository, client, recurringSubscriptionGuard, Clock.fixed(NOW, ZoneOffset.UTC)));
         service = new SubscriptionCancellationService(steps, client);
 
         user = new User();
@@ -419,6 +421,175 @@ class SubscriptionCancellationServiceTest {
         );
     }
 
+    // --- 5G.11: canonical "canceled"/"cancelled" normalization (explicit, beyond the incidental
+    // coverage already in other tests above). --------------------------------------------------
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"canceled", "cancelled"})
+    void putResponseAcceptsBothCanonicalSpellingsAsConfirmedWithoutAConfirmingGet(String status) {
+        Subscription subscription = subscription(60L, SubscriptionStatus.ACTIVE, false, PERIOD_END, "pre-spelling");
+        when(subscriptionRepository.findByUserIdAndSourceAndStatusIn(1L, SubscriptionSource.PAYMENT_PROVIDER, SubscriptionCancellationSteps.CANCELLABLE_STATUSES))
+            .thenReturn(List.of(subscription));
+        stubFindById(subscription);
+        when(client.cancelPreapproval(eq("pre-spelling"), anyString())).thenReturn(new MercadoPagoPreapproval("pre-spelling", status, "ref", null));
+
+        Subscription result = service.cancel(user);
+
+        assertThat(result.getCanceledAt()).isNotNull();
+        assertThat(result.getCancelAtPeriodEnd()).isTrue();
+        verify(client, never()).getPreapproval(anyString());
+    }
+
+    // --- 5G.11: historical pre-5G.9 duplicate PAYMENT_PROVIDER subscriptions - the confirmed
+    // staging incident (cancelling only one of two ACTIVE rows left the other silently chargeable,
+    // and the OTHER one's genuine rejection was surfaced as if the whole cancellation failed). ---
+
+    @Test
+    void twoHistoricalActiveSubscriptionsAreBothCancelledLeavingNoHiddenChargeableRecurrence() {
+        Subscription older = subscription(40L, SubscriptionStatus.ACTIVE, false, PERIOD_END, "pre-old");
+        older.setStartDate(NOW.minusSeconds(86400 * 30));
+        Subscription newer = subscription(41L, SubscriptionStatus.ACTIVE, false, PERIOD_END, "pre-new");
+        newer.setStartDate(NOW.minusSeconds(86400));
+        // Repository order deliberately does not match start-date order - selection must not rely on it.
+        when(subscriptionRepository.findByUserIdAndSourceAndStatusIn(1L, SubscriptionSource.PAYMENT_PROVIDER, SubscriptionCancellationSteps.CANCELLABLE_STATUSES))
+            .thenReturn(List.of(older, newer));
+        stubFindById(older);
+        stubFindById(newer);
+        when(client.cancelPreapproval(eq("pre-old"), anyString())).thenReturn(new MercadoPagoPreapproval("pre-old", "cancelled", "ref", null));
+        when(client.cancelPreapproval(eq("pre-new"), anyString())).thenReturn(new MercadoPagoPreapproval("pre-new", "cancelled", "ref", null));
+
+        Subscription primary = service.cancel(user);
+
+        // The most-recently-started row is "the" subscription reported back to the caller.
+        assertThat(primary.getId()).isEqualTo(41L);
+        assertThat(primary.getCanceledAt()).isNotNull();
+        // The historical duplicate was ALSO cancelled - never left hidden and still chargeable.
+        assertThat(older.getCanceledAt()).isNotNull();
+        verify(client).cancelPreapproval(eq("pre-old"), anyString());
+        verify(client).cancelPreapproval(eq("pre-new"), anyString());
+    }
+
+    @Test
+    void alreadyCanceledSubscriptionIsExcludedAndOnlyTheStillActiveOneReceivesAPut() {
+        // A subscription with local status=CANCELED never matches CANCELLABLE_STATUSES in the
+        // first place (the query itself excludes it) - it must never receive a redundant PUT.
+        Subscription stillActive = subscription(44L, SubscriptionStatus.ACTIVE, false, PERIOD_END, "pre-active-only");
+        when(subscriptionRepository.findByUserIdAndSourceAndStatusIn(1L, SubscriptionSource.PAYMENT_PROVIDER, SubscriptionCancellationSteps.CANCELLABLE_STATUSES))
+            .thenReturn(List.of(stillActive));
+        stubFindById(stillActive);
+        when(client.cancelPreapproval(eq("pre-active-only"), anyString())).thenReturn(new MercadoPagoPreapproval("pre-active-only", "cancelled", "ref", null));
+
+        service.cancel(user);
+
+        verify(client, times(1)).cancelPreapproval(anyString(), anyString());
+        verify(client).cancelPreapproval(eq("pre-active-only"), anyString());
+    }
+
+    @Test
+    void partialFailureAcrossTwoHistoricalSubscriptionsPreservesEachConfirmedStateAndSurfacesTheResidual() {
+        Subscription primarySubscription = subscription(42L, SubscriptionStatus.ACTIVE, false, PERIOD_END, "pre-primary");
+        primarySubscription.setStartDate(NOW.minusSeconds(86400));
+        Subscription staleSubscription = subscription(43L, SubscriptionStatus.ACTIVE, false, PERIOD_END, "pre-stale");
+        staleSubscription.setStartDate(NOW.minusSeconds(86400 * 30));
+        when(subscriptionRepository.findByUserIdAndSourceAndStatusIn(1L, SubscriptionSource.PAYMENT_PROVIDER, SubscriptionCancellationSteps.CANCELLABLE_STATUSES))
+            .thenReturn(List.of(primarySubscription, staleSubscription));
+        stubFindById(primarySubscription);
+        stubFindById(staleSubscription);
+        when(client.cancelPreapproval(eq("pre-primary"), anyString())).thenReturn(new MercadoPagoPreapproval("pre-primary", "cancelled", "ref", null));
+        when(client.cancelPreapproval(eq("pre-stale"), anyString())).thenThrow(new MercadoPagoException("rejected", false));
+
+        // Must NOT throw: the primary (most-recently-started) subscription succeeded.
+        Subscription result = service.cancel(user);
+
+        assertThat(result.getId()).isEqualTo(42L);
+        assertThat(result.getCanceledAt()).isNotNull(); // primary confirmed
+        assertThat(staleSubscription.getCanceledAt()).isNull(); // never fabricate a confirmation for the failed sibling
+        assertThat(staleSubscription.getCancelAtPeriodEnd()).isFalse(); // a definite rejection still rolls back that row's own intent, exactly like a solo cancellation would
+
+        when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER))
+            .thenReturn(List.of(primarySubscription, staleSubscription));
+        when(recurringSubscriptionGuard.isStillChargeable(primarySubscription)).thenReturn(false);
+        when(recurringSubscriptionGuard.isStillChargeable(staleSubscription)).thenReturn(true);
+        assertThat(service.hasResidualActiveContract(user)).isTrue();
+    }
+
+    @Test
+    void ambiguousSiblingFailureIsResolvedIndependentlyAndNeverMasksThePrimaryResult() {
+        Subscription primarySubscription = subscription(45L, SubscriptionStatus.ACTIVE, false, PERIOD_END, "pre-primary-2");
+        primarySubscription.setStartDate(NOW.minusSeconds(86400));
+        Subscription ambiguousSibling = subscription(46L, SubscriptionStatus.ACTIVE, false, PERIOD_END, "pre-ambiguous-sibling");
+        ambiguousSibling.setStartDate(NOW.minusSeconds(86400 * 30));
+        when(subscriptionRepository.findByUserIdAndSourceAndStatusIn(1L, SubscriptionSource.PAYMENT_PROVIDER, SubscriptionCancellationSteps.CANCELLABLE_STATUSES))
+            .thenReturn(List.of(primarySubscription, ambiguousSibling));
+        stubFindById(primarySubscription);
+        stubFindById(ambiguousSibling);
+        when(client.cancelPreapproval(eq("pre-primary-2"), anyString())).thenReturn(new MercadoPagoPreapproval("pre-primary-2", "cancelled", "ref", null));
+        when(client.cancelPreapproval(eq("pre-ambiguous-sibling"), anyString())).thenThrow(new MercadoPagoException("timeout", true));
+        when(client.getPreapproval("pre-ambiguous-sibling")).thenReturn(new MercadoPagoPreapproval("pre-ambiguous-sibling", "cancelled", "ref", null));
+
+        Subscription result = service.cancel(user);
+
+        assertThat(result.getId()).isEqualTo(45L);
+        assertThat(result.getCanceledAt()).isNotNull();
+        // The ambiguous sibling's confirming GET found it genuinely cancelled - confirmed too, not left pending.
+        assertThat(ambiguousSibling.getCanceledAt()).isNotNull();
+    }
+
+    @Test
+    void oneRowMissingProviderDataIsSkippedWithoutBlockingItsStillProcessableSibling() {
+        Subscription blocked = subscription(47L, SubscriptionStatus.ACTIVE, false, null, "pre-blocked"); // no currentPeriodEnd
+        blocked.setStartDate(NOW.minusSeconds(86400));
+        Subscription processable = subscription(48L, SubscriptionStatus.ACTIVE, false, PERIOD_END, "pre-processable");
+        processable.setStartDate(NOW.minusSeconds(86400 * 30));
+        when(subscriptionRepository.findByUserIdAndSourceAndStatusIn(1L, SubscriptionSource.PAYMENT_PROVIDER, SubscriptionCancellationSteps.CANCELLABLE_STATUSES))
+            .thenReturn(List.of(blocked, processable));
+        stubFindById(processable);
+        when(client.cancelPreapproval(eq("pre-processable"), anyString())).thenReturn(new MercadoPagoPreapproval("pre-processable", "cancelled", "ref", null));
+
+        Subscription result = service.cancel(user);
+
+        // blocked is the primary (most recently started) but cannot be processed - it is returned
+        // untouched (still not cancelled), while its processable sibling is still cancelled.
+        assertThat(result.getId()).isEqualTo(47L);
+        assertThat(result.getCanceledAt()).isNull();
+        assertThat(processable.getCanceledAt()).isNotNull();
+        verify(client, never()).cancelPreapproval(eq("pre-blocked"), anyString());
+    }
+
+    @Test
+    void cancellationForOneUserNeverQueriesOrTouchesAnotherUsersSubscriptions() {
+        User otherUser = new User();
+        otherUser.setId(2L);
+        when(userRepository.findByIdForBillingCheckoutLock(2L)).thenReturn(Optional.of(otherUser));
+        Subscription mine = subscription(49L, SubscriptionStatus.ACTIVE, false, PERIOD_END, "pre-mine");
+        when(subscriptionRepository.findByUserIdAndSourceAndStatusIn(1L, SubscriptionSource.PAYMENT_PROVIDER, SubscriptionCancellationSteps.CANCELLABLE_STATUSES))
+            .thenReturn(List.of(mine));
+        when(subscriptionRepository.findByUserIdAndSourceAndStatusIn(2L, SubscriptionSource.PAYMENT_PROVIDER, SubscriptionCancellationSteps.CANCELLABLE_STATUSES))
+            .thenReturn(List.of());
+        stubFindById(mine);
+        when(client.cancelPreapproval(eq("pre-mine"), anyString())).thenReturn(new MercadoPagoPreapproval("pre-mine", "cancelled", "ref", null));
+
+        Subscription result = service.cancel(user);
+        assertThatThrownBy(() -> service.cancel(otherUser)).isInstanceOf(BadRequestAlertException.class);
+
+        assertThat(result.getId()).isEqualTo(49L);
+        assertThat(result.getCanceledAt()).isNotNull();
+        verify(userRepository).findByIdForBillingCheckoutLock(1L);
+        verify(userRepository).findByIdForBillingCheckoutLock(2L);
+        verify(subscriptionRepository).findByUserIdAndSourceAndStatusIn(eq(1L), eq(SubscriptionSource.PAYMENT_PROVIDER), any());
+        verify(subscriptionRepository).findByUserIdAndSourceAndStatusIn(eq(2L), eq(SubscriptionSource.PAYMENT_PROVIDER), any());
+        verify(client, times(1)).cancelPreapproval(anyString(), anyString());
+    }
+
+    @Test
+    void hasResidualActiveContractReflectsFreshStateNotStaleOutcomes() {
+        when(subscriptionRepository.findByUserIdAndSourceAndStatusIn(1L, SubscriptionSource.PAYMENT_PROVIDER, SubscriptionCancellationSteps.CANCELLABLE_STATUSES))
+            .thenReturn(List.of());
+        // No cancellable rows at all -> nothing chargeable remains.
+        when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of());
+        assertThat(service.hasResidualActiveContract(user)).isFalse();
+    }
+
     @Test
     void authoritativeRejectionCommitsRollbackThroughTransactionProxy() {
         Subscription subscription = subscription(33L, SubscriptionStatus.ACTIVE, true, PERIOD_END, "pre-transaction");
@@ -428,7 +599,7 @@ class SubscriptionCancellationServiceTest {
         org.springframework.transaction.TransactionStatus transaction = new org.springframework.transaction.support.SimpleTransactionStatus();
         when(manager.getTransaction(any())).thenReturn(transaction);
         org.springframework.aop.framework.ProxyFactory factory = new org.springframework.aop.framework.ProxyFactory(
-            new SubscriptionCancellationSteps(userRepository, subscriptionRepository, client, Clock.fixed(NOW, ZoneOffset.UTC)));
+            new SubscriptionCancellationSteps(userRepository, subscriptionRepository, client, recurringSubscriptionGuard, Clock.fixed(NOW, ZoneOffset.UTC)));
         org.springframework.transaction.interceptor.TransactionInterceptor interceptor = new org.springframework.transaction.interceptor.TransactionInterceptor();
         interceptor.setTransactionManager(manager);
         interceptor.setTransactionAttributeSource(new org.springframework.transaction.annotation.AnnotationTransactionAttributeSource());

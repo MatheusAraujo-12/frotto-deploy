@@ -91,6 +91,10 @@ export const paymentNotice = (state: BillingPaymentStateDTO | null): PaymentNoti
   if (subscription?.status === "ACTIVE" && subscription.financiallyCovered) return { title: "Assinatura ativa", detail: `Plano ${friendlyPlan(subscription.planCode)} confirmado.`, tone: "info" };
   // Preapproval/checkout authorized and Subscription.status=ACTIVE, but the 5G financial evidence
   // (BillingInvoice + PaymentAttempt) is not in yet - never say "confirmado" from status alone.
+  // Since 5G.10, this ACTIVE contract may already be granting the plan (see
+  // isNoticeRedundantWithGrantedPlan, which suppresses this exact banner once BillingMeDTO
+  // confirms it) - this notice on its own still exists for the case where it is NOT (yet) the
+  // effective plan (e.g. an ADMIN_GRANT currently wins precedence).
   if (subscription?.status === "ACTIVE") return { title: "Pagamento em processamento", detail: `Recebemos a autorização do Mercado Pago para o plano ${friendlyPlan(subscription.planCode)} e estamos confirmando o pagamento. Isso pode levar alguns minutos.`, tone: "info" };
   const checkout = state?.latestCheckout?.status;
   if (checkout === "CREATED") return { title: "Pagamento em preparação", detail: "Seu pagamento está sendo preparado. Aguarde antes de iniciar uma nova tentativa.", tone: "info" };
@@ -100,6 +104,20 @@ export const paymentNotice = (state: BillingPaymentStateDTO | null): PaymentNoti
   if (checkout === "AUTHORIZED") return { title: "Confirmação em andamento", detail: "O pagamento foi autorizado e estamos confirmando sua assinatura.", tone: "info" };
   return null;
 };
+
+const NOTICES_REDUNDANT_WITH_A_GRANTED_PLAN = new Set(["Assinatura ativa", "Pagamento em processamento"]);
+
+/**
+ * 5G.11 item 5: once BillingMeDTO itself confirms this PAYMENT_PROVIDER contract is ACTIVE and
+ * already the effective plan (5G.10 - it does not need a BillingInvoice to have been granted),
+ * the "aguardando confirmação"/"pagamento em processamento" banners built from payment-state alone
+ * become redundant with (or flatly contradict) the main plan card. This must never suppress the
+ * SAME banner for a genuinely pending checkout/preapproval - only for the exact case where
+ * BillingMeDTO's own effective source/status already say PAYMENT_PROVIDER/ACTIVE.
+ */
+export const isNoticeRedundantWithGrantedPlan = (notice: PaymentNotice | null, billing: BillingMeDTO): boolean =>
+  Boolean(notice) && billing.subscriptionSource === "PAYMENT_PROVIDER" && billing.subscriptionStatus === "ACTIVE"
+  && NOTICES_REDUNDANT_WITH_A_GRANTED_PLAN.has((notice as PaymentNotice).title);
 
 /**
  * Trusts the backend's `canResume` flag rather than re-deriving eligibility here, so the

@@ -32,19 +32,23 @@ public class SubscriptionCancellationResultDTO {
     private final PlanCode planCode;
     private final SubscriptionStatus subscriptionStatus;
     private final Instant currentPeriodEnd;
+    private final boolean hasResidualActiveContract;
 
-    public SubscriptionCancellationResultDTO(CancellationState state, PlanCode planCode, SubscriptionStatus subscriptionStatus, Instant currentPeriodEnd) {
+    public SubscriptionCancellationResultDTO(CancellationState state, PlanCode planCode, SubscriptionStatus subscriptionStatus,
+        Instant currentPeriodEnd, boolean hasResidualActiveContract) {
         this.state = state;
         this.planCode = planCode;
         this.subscriptionStatus = subscriptionStatus;
         this.currentPeriodEnd = currentPeriodEnd;
+        this.hasResidualActiveContract = hasResidualActiveContract;
     }
 
-    public static SubscriptionCancellationResultDTO from(Subscription subscription) {
+    public static SubscriptionCancellationResultDTO from(Subscription subscription, boolean hasResidualActiveContract) {
         CancellationState state = subscription.getCanceledAt() != null
             ? CancellationState.CONFIRMED
             : CancellationState.PENDING_CONFIRMATION;
-        return new SubscriptionCancellationResultDTO(state, subscription.getPlan().getCode(), subscription.getStatus(), subscription.getCurrentPeriodEnd());
+        return new SubscriptionCancellationResultDTO(state, subscription.getPlan().getCode(), subscription.getStatus(),
+            subscription.getCurrentPeriodEnd(), hasResidualActiveContract);
     }
 
     public CancellationState getState() {
@@ -61,5 +65,16 @@ public class SubscriptionCancellationResultDTO {
 
     public Instant getCurrentPeriodEnd() {
         return currentPeriodEnd;
+    }
+
+    /**
+     * 5G.11: true when, after this call, the user still has ANY PAYMENT_PROVIDER contract able to
+     * charge them - a historical pre-5G.9 duplicate that this call could not confirm as cancelled.
+     * Never means "this cancellation failed" (state already covers that): the primary contract
+     * above may be CONFIRMED while this is still true, and the frontend must surface both facts
+     * rather than presenting a false "everything is cancelled".
+     */
+    public boolean isHasResidualActiveContract() {
+        return hasResidualActiveContract;
     }
 }

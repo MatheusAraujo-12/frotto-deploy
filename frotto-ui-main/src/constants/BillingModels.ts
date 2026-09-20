@@ -26,6 +26,7 @@ export interface BillingMeDTO {
 }
 
 export interface SubscriptionCancellationResultDTO {
+  hasResidualActiveContract?: boolean;
   state: "CONFIRMED" | "PENDING_CONFIRMATION";
   planCode: PlanCode;
   subscriptionStatus: SubscriptionStatus;

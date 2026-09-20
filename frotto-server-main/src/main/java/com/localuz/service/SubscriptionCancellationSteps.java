@@ -10,6 +10,8 @@ import com.localuz.web.rest.errors.BadRequestAlertException;
 import com.localuz.web.rest.errors.BillingCancellationProviderRejectedException;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import org.apache.commons.lang3.StringUtils;
@@ -25,8 +27,8 @@ import org.springframework.transaction.annotation.Transactional;
  * transaction. This is not a stylistic choice: SubscriptionCancellationService#cancel is
  * deliberately not @Transactional (same reasoning as BillingAutoReconciliationScheduler - an HTTP
  * call to Mercado Pago must never happen inside an open transaction that a try/catch is supposed
- * to contain, or a failure risks UnexpectedRollbackException). If markIntent() lived on the same
- * class as cancel() and were called as a plain `this.markIntent(...)` self-invocation, Spring's
+ * to contain, or a failure risks UnexpectedRollbackException). If markIntents() lived on the same
+ * class as cancel() and were called as a plain `this.markIntents(...)` self-invocation, Spring's
  * @Transactional AOP proxy would never see that call at all - self-invocation bypasses the proxy
  * entirely, silently making @Transactional a no-op. Putting these steps on a separate bean and
  * calling them through the injected reference forces every call through the real proxy, so each
@@ -35,7 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
  * That "commit before doing anything else" property is exactly what closes the race described in
  * the Etapa 5F.1 requirements: Mercado Pago can process a PUT /preapproval cancellation and fire
  * a webhook almost synchronously, and that webhook's own transaction (MercadoPagoWebhookProcessor
- * #process) reads Subscription fresh from the database. As long as markIntent()'s write of
+ * #process) reads Subscription fresh from the database. As long as markIntents()'s write of
  * cancelAtPeriodEnd=true is committed BEFORE SubscriptionCancellationService ever calls
  * MercadoPagoClient#cancelPreapproval, there is no ordering under which a racing webhook can ever
  * observe cancelAtPeriodEnd=false for a cancellation Frotto itself initiated - the flag is already
@@ -54,7 +56,7 @@ public class SubscriptionCancellationSteps {
      * documented precondition that a paused subscription must first be reactivated before it can
      * be cancelled - and cancelPreapproval already sends a plain PUT status=cancelled with no
      * current-status precondition of its own. This is not a blind assumption: if Mercado Pago
-     * were to reject a paused-to-cancelled transition, markIntent()/the provider call below still
+     * were to reject a paused-to-cancelled transition, markIntents()/the provider call below still
      * fail safely (BillingCancellationProviderRejectedException, local intent rolled back, no
      * corrupted state - see cancel()/rollbackIntent()), so allowing the attempt costs nothing on
      * the failure path while fixing the concrete case where a real remote contract (PAUSED) could
@@ -65,20 +67,33 @@ public class SubscriptionCancellationSteps {
     private final UserRepository userRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final MercadoPagoClient client;
+    private final RecurringSubscriptionGuardService recurringSubscriptionGuard;
     private final Clock clock;
 
     @Autowired
-    public SubscriptionCancellationSteps(UserRepository userRepository, SubscriptionRepository subscriptionRepository, MercadoPagoClient client) {
-        this(userRepository, subscriptionRepository, client, Clock.systemUTC());
+    public SubscriptionCancellationSteps(UserRepository userRepository, SubscriptionRepository subscriptionRepository,
+        MercadoPagoClient client, RecurringSubscriptionGuardService recurringSubscriptionGuard) {
+        this(userRepository, subscriptionRepository, client, recurringSubscriptionGuard, Clock.systemUTC());
     }
 
-    SubscriptionCancellationSteps(UserRepository userRepository, SubscriptionRepository subscriptionRepository, MercadoPagoClient client, Clock clock) {
+    SubscriptionCancellationSteps(UserRepository userRepository, SubscriptionRepository subscriptionRepository,
+        MercadoPagoClient client, RecurringSubscriptionGuardService recurringSubscriptionGuard, Clock clock) {
         this.userRepository = userRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.client = client;
+        this.recurringSubscriptionGuard = recurringSubscriptionGuard;
         this.clock = clock;
     }
 
+    /**
+     * Canonical Mercado Pago preapproval-cancelled normalization, reused everywhere a provider
+     * status string is interpreted for cancellation (this class's own PUT-response/confirming-GET
+     * handling, and MercadoPagoWebhookProcessor#reconcile for the webhook/reconciliation path) so
+     * the "canceled" vs "cancelled" spelling is never duplicated. Mercado Pago's documentation and
+     * real responses use both spellings depending on endpoint/locale/API version; both are the same
+     * canonical CANCELED state on read. This never changes what Frotto itself SENDS in the PUT body
+     * (see MercadoPagoHttpClient#cancelPreapproval) - only how a response is interpreted.
+     */
     static boolean isTerminalCancelled(String providerStatus) {
         if (providerStatus == null) {
             return false;
@@ -112,32 +127,70 @@ public class SubscriptionCancellationSteps {
      * externalSubscriptionId or currentPeriodEnd means we could never safely defer access to a
      * period end we don't know, so this refuses rather than guessing.
      */
+    /**
+     * 5G.11: pre-5G.9 data can hold MORE THAN ONE PAYMENT_PROVIDER row in a cancellable status for
+     * the same user (the recurring-recurrence guard only prevents this going forward). "Cancelar
+     * assinatura" means "stop this user's Mercado Pago recurring charges", so every such row must
+     * be attempted, not just one picked arbitrarily - the confirmed staging incident was exactly
+     * this: cancelling only one of two historical ACTIVE rows left the other silently still
+     * chargeable. Rows are ordered most-recently-started first: that one is "the" subscription the
+     * user actually thinks of as their plan and is always index 0 (SubscriptionCancellationService
+     * treats it as the primary result and lets its own failure propagate exactly as the single-
+     * subscription flow always has); any further rows are historical duplicates processed best-
+     * effort by the caller.
+     *
+     * A row missing data required to safely cancel it (no externalSubscriptionId / no
+     * currentPeriodEnd) is skipped rather than aborting its siblings - but if EVERY candidate is
+     * unprocessable (the common case: a single such row), this still throws exactly as the
+     * original single-subscription contract did, never silently swallowing every remaining sample.
+     */
     @Transactional
-    public IntentOutcome markIntent(Long userId) {
+    public List<IntentOutcome> markIntents(Long userId) {
         userRepository.findByIdForBillingCheckoutLock(userId).orElseThrow(() -> new IllegalArgumentException("Authenticated user is required"));
 
-        Subscription subscription = subscriptionRepository
-            .findByUserIdAndSourceAndStatusIn(userId, SubscriptionSource.PAYMENT_PROVIDER, CANCELLABLE_STATUSES)
-            .stream()
-            .findFirst()
-            .orElseThrow(() -> new BadRequestAlertException("No active payment-provider subscription to cancel", ENTITY_NAME, "nosubscriptiontocancel")
-            );
+        List<Subscription> candidates = subscriptionRepository
+            .findByUserIdAndSourceAndStatusIn(userId, SubscriptionSource.PAYMENT_PROVIDER, CANCELLABLE_STATUSES);
+        if (candidates.isEmpty()) {
+            throw new BadRequestAlertException("No active payment-provider subscription to cancel", ENTITY_NAME, "nosubscriptiontocancel");
+        }
+        List<Subscription> ordered = candidates.stream()
+            .sorted(Comparator.comparing(Subscription::getStartDate, Comparator.nullsLast(Comparator.reverseOrder())))
+            .toList();
 
+        List<IntentOutcome> outcomes = new ArrayList<>();
+        for (Subscription subscription : ordered) {
+            outcomes.add(markIntentFor(subscription));
+        }
+
+        boolean anyResolvable = outcomes.stream()
+            .anyMatch(outcome -> outcome.isNeedsProviderCall() || outcome.getSubscription().getCanceledAt() != null);
+        if (!anyResolvable) {
+            Subscription blocked = outcomes.get(0).getSubscription();
+            if (StringUtils.isBlank(blocked.getExternalSubscriptionId())) {
+                throw new BadRequestAlertException("Subscription is missing its provider reference", ENTITY_NAME, "missingproviderreference");
+            }
+            throw new BadRequestAlertException(
+                "Subscription is missing its current period end; refusing to cancel without a guaranteed paid-access boundary",
+                ENTITY_NAME,
+                "missingperiodend"
+            );
+        }
+        return outcomes;
+    }
+
+    private IntentOutcome markIntentFor(Subscription subscription) {
         boolean alreadyRequested = Boolean.TRUE.equals(subscription.getCancelAtPeriodEnd());
         boolean alreadyConfirmed = alreadyRequested && subscription.getCanceledAt() != null;
         if (alreadyConfirmed) {
             return new IntentOutcome(subscription, false);
         }
 
-        if (StringUtils.isBlank(subscription.getExternalSubscriptionId())) {
-            throw new BadRequestAlertException("Subscription is missing its provider reference", ENTITY_NAME, "missingproviderreference");
-        }
-        if (subscription.getCurrentPeriodEnd() == null) {
-            throw new BadRequestAlertException(
-                "Subscription is missing its current period end; refusing to cancel without a guaranteed paid-access boundary",
-                ENTITY_NAME,
-                "missingperiodend"
-            );
+        if (StringUtils.isBlank(subscription.getExternalSubscriptionId()) || subscription.getCurrentPeriodEnd() == null) {
+            // Cannot safely process THIS row (missing provider reference or paid-access boundary) -
+            // skip it without aborting siblings; markIntents() throws above if nothing at all could
+            // be processed, preserving the original single-subscription failure contract.
+            log.warn("Subscription cancellation skipped for subscriptionId={} reason=missing_provider_data", subscription.getId());
+            return new IntentOutcome(subscription, false);
         }
 
         if (!alreadyRequested) {
@@ -147,6 +200,19 @@ public class SubscriptionCancellationSteps {
         // alreadyRequested-but-not-confirmed (PENDING): cancelAtPeriodEnd is already true and
         // durable, nothing new to write here - the caller retries the provider call itself.
         return new IntentOutcome(subscription, true);
+    }
+
+    /**
+     * Re-evaluated fresh from the database (never from the outcomes just processed, which may be
+     * stale after a provider call) using the exact same predicate that blocks a second checkout
+     * (RecurringSubscriptionGuardService#isStillChargeable) - so "is there a hidden recurrence still
+     * charging after this cancellation" is answered identically everywhere, never re-derived.
+     */
+    @Transactional(readOnly = true)
+    public boolean hasRemainingChargeableContract(Long userId) {
+        return subscriptionRepository.findByUserIdAndSource(userId, SubscriptionSource.PAYMENT_PROVIDER)
+            .stream()
+            .anyMatch(recurringSubscriptionGuard::isStillChargeable);
     }
 
     /** Confirmed by the provider's own synchronous response - never touches status/currentPeriodEnd/plan/price. */

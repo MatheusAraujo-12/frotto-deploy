@@ -1,5 +1,6 @@
 package com.localuz.web.rest;
 
+import com.localuz.domain.Subscription;
 import com.localuz.domain.User;
 import com.localuz.domain.enumeration.BillingCycle;
 import com.localuz.repository.PlanPricingTierRepository;
@@ -88,13 +89,22 @@ public class BillingResource {
      *
      * Deliberately does NOT reuse BillingMeDTO here: cancelAtPeriodEnd alone cannot distinguish a
      * cancellation the provider has actually confirmed from one only recorded locally as pending
-     * (see SubscriptionCancellationSteps#markIntent) - SubscriptionCancellationResultDTO makes
+     * (see SubscriptionCancellationSteps#markIntents) - SubscriptionCancellationResultDTO makes
      * that distinction explicit via its CONFIRMED/PENDING_CONFIRMATION state, same safe-field
      * philosophy as BillingMeDTO (no provider identifiers, no idempotency keys).
+     *
+     * 5G.11: a pre-5G.9 user can have more than one PAYMENT_PROVIDER contract; cancel() already
+     * attempts every one of them and returns the primary (most-recently-started) result, but a
+     * historical duplicate can still fail independently - hasResidualActiveContract is checked
+     * fresh after cancel() so the response never claims full success while a hidden recurrence is
+     * still chargeable.
      */
     @PostMapping("/cancel")
     public SubscriptionCancellationResultDTO cancelSubscription() {
-        return SubscriptionCancellationResultDTO.from(subscriptionCancellationService.cancel(getCurrentUser()));
+        User user = getCurrentUser();
+        Subscription result = subscriptionCancellationService.cancel(user);
+        boolean hasResidualActiveContract = subscriptionCancellationService.hasResidualActiveContract(user);
+        return SubscriptionCancellationResultDTO.from(result, hasResidualActiveContract);
     }
 
     @GetMapping("/me")

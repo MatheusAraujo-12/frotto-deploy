@@ -101,7 +101,7 @@ public class MercadoPagoWebhookProcessor {
             subscription.setCancelAtPeriodEnd(false);subscription.setCanceledAt(null);
             if(subscription.getStartDate()==null)subscription.setStartDate(provider.getDateCreated()!=null?provider.getDateCreated():Instant.now());
             subscription.setCurrentPeriodEnd(provider.getNextPaymentDate()); subscriptions.save(subscription);
-        } else if("cancelled".equals(status)||"canceled".equals(status)){
+        } else if(SubscriptionCancellationSteps.isTerminalCancelled(status)){
             checkout.setStatus(BillingCheckoutStatus.CANCELED);
             subscriptions.findByExternalProviderAndExternalSubscriptionId("MERCADO_PAGO",provider.getId()).ifPresent(subscription->{
                 // A confirmed cancellation must preserve an existing paid period regardless

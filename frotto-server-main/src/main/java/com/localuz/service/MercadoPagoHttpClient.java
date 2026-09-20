@@ -139,8 +139,7 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
         return new MercadoPagoException("Mercado Pago returned an invalid financial response", false);
     }
     @Override public MercadoPagoPreapproval cancelPreapproval(String id, String idempotencyKey) {
-        // Mercado Pago preapproval cancellation expects "cancelled" (support ticket WCS-50414).
-        return exchange("PUT", resource(id), Map.of("status", "cancelled"), idempotencyKey, true);
+        return exchange("PUT", resource(id), Map.of("status", "canceled"), idempotencyKey, true);
     }
 
     private URI resource(String id) {

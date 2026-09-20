@@ -1,5 +1,5 @@
 import { BillingMeDTO, BillingPaymentStateDTO, PlanDTO, SubscriptionCancellationState, SubscriptionStatus } from "../../constants/BillingModels";
-import { checkoutBlocksPurchase, checkoutNeedsRefresh, fleetUsage, isCheckoutInProgressError, isRecurringSubscriptionExistsError, isPlanCompatible, isSubscriptionCancelable, paymentNotice, recurringSubscriptionExistsMessage, remoteCancellationState, remoteCurrentPeriodEnd, resumableCheckoutUrl, sourceDetail, sourceLabel, usageState, vehicleRange } from "./myPlanLogic";
+import { checkoutBlocksPurchase, checkoutNeedsRefresh, fleetUsage, isCheckoutInProgressError, isNoticeRedundantWithGrantedPlan, isRecurringSubscriptionExistsError, isPlanCompatible, isSubscriptionCancelable, paymentNotice, recurringSubscriptionExistsMessage, remoteCancellationState, remoteCurrentPeriodEnd, resumableCheckoutUrl, sourceDetail, sourceLabel, usageState, vehicleRange } from "./myPlanLogic";
 const billing=(changes:Partial<BillingMeDTO>={}):BillingMeDTO=>({planCode:"FREE",planName:"Free",subscriptionStatus:null,billingCycle:null,subscriptionSource:null,activeVehicleCount:0,vehicleLimit:2,canAddVehicle:true,needsUpgrade:false,requiredPlanCode:"FREE",requiredPlanName:"Free",currentMonthlyPrice:0,currentPeriodStart:null,currentPeriodEnd:null,grantExpiresAt:null,cancelAtPeriodEnd:false,cancellationState:"NONE",...changes});
 const plan=(changes:Partial<PlanDTO>={}):PlanDTO=>({code:"BRONZE",name:"Bronze",minVehicles:3,maxVehicles:5,monthlyBasePrice:29.9,billingModel:"FLAT",tiers:[],...changes});
 const subscription=(status:SubscriptionStatus,financiallyCovered=true,canCancel=true,cancellationState:SubscriptionCancellationState="NONE",currentPeriodEnd:string|null=null):BillingPaymentStateDTO=>({paymentProviderSubscription:{status,planCode:"BRONZE",billingCycle:"MONTHLY",financiallyCovered,canCancel,cancellationState,currentPeriodEnd},latestCheckout:null});
@@ -21,6 +21,24 @@ describe("myPlanLogic",()=>{
  });
  it("shows the confirmed banner once financial evidence backs the active status",()=>{
   expect(paymentNotice(subscription("ACTIVE",true))?.title).toBe("Assinatura ativa");
+ });
+ it("5G.11: suppresses 'pagamento em processamento' once BillingMeDTO already granted a PAYMENT_PROVIDER/ACTIVE plan (5G.10)",()=>{
+  const notice=paymentNotice(subscription("ACTIVE",false));
+  expect(notice?.title).toBe("Pagamento em processamento");
+  expect(isNoticeRedundantWithGrantedPlan(notice,billing({subscriptionSource:"PAYMENT_PROVIDER",subscriptionStatus:"ACTIVE"}))).toBe(true);
+ });
+ it("5G.11: keeps the PROVIDER_PENDING checkout warning even when a granted plan exists elsewhere",()=>{
+  const notice=paymentNotice(checkout("PROVIDER_PENDING"));
+  expect(notice?.title).toBe("Aguardando confirmação do Mercado Pago");
+  expect(isNoticeRedundantWithGrantedPlan(notice,billing({subscriptionSource:"PAYMENT_PROVIDER",subscriptionStatus:"ACTIVE"}))).toBe(false);
+ });
+ it("5G.11: never suppresses the processing notice when BillingMeDTO has not (yet) granted the plan",()=>{
+  const notice=paymentNotice(subscription("ACTIVE",false));
+  expect(isNoticeRedundantWithGrantedPlan(notice,billing())).toBe(false);
+  expect(isNoticeRedundantWithGrantedPlan(notice,billing({subscriptionSource:"ADMIN_GRANT",subscriptionStatus:null}))).toBe(false);
+ });
+ it("5G.11: null notice is never treated as redundant",()=>{
+  expect(isNoticeRedundantWithGrantedPlan(null,billing({subscriptionSource:"PAYMENT_PROVIDER",subscriptionStatus:"ACTIVE"}))).toBe(false);
  });
  it.each([["CREATED","Pagamento em preparação",true],["PROVIDER_PENDING","Aguardando confirmação do Mercado Pago",true],["PROVIDER_UNKNOWN","Estamos confirmando seu pagamento",true],["FAILED","Não foi possível iniciar o pagamento.",false],["CANCELED",null,false],["AUTHORIZED","Confirmação em andamento",false]] as const)("presents checkout %s without technical enums",(status,title,blocked)=>{const state=checkout(status);expect(paymentNotice(state)?.title||null).toBe(title);expect(checkoutBlocksPurchase(state)).toBe(blocked)});
  it("refreshes open states and authorized without a confirmed subscription",()=>{expect(checkoutNeedsRefresh(checkout("CREATED"))).toBe(true);expect(checkoutNeedsRefresh(checkout("PROVIDER_PENDING"))).toBe(true);expect(checkoutNeedsRefresh(checkout("PROVIDER_UNKNOWN"))).toBe(true);expect(checkoutNeedsRefresh(checkout("AUTHORIZED"))).toBe(true);expect(checkoutNeedsRefresh(subscription("ACTIVE"))).toBe(false)});

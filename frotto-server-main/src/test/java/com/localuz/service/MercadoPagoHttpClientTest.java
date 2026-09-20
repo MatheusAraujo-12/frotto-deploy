@@ -147,7 +147,7 @@ class MercadoPagoHttpClientTest {
         verify(http).send(captor.capture(), any(HttpResponse.BodyHandler.class));
         assertThat(captor.getValue().method()).isEqualTo("PUT");
         assertThat(captor.getValue().uri().toString()).isEqualTo("https://api.mercadopago.com/preapproval/pre-1");
-        assertThat(body(captor.getValue())).isEqualTo("{\"status\":\"cancelled\"}");
+        assertThat(body(captor.getValue())).isEqualTo("{\"status\":\"canceled\"}");
         assertThat(captor.getValue().headers().firstValue("X-Idempotency-Key")).contains("cancel-pre-1");
     }
 
@@ -159,10 +159,11 @@ class MercadoPagoHttpClientTest {
             .isInstanceOfSatisfying(MercadoPagoException.class, error -> assertThat(error.isAmbiguous()).isTrue());
     }
 
-    @Test
-    void cancellationSendsCancelledAndRecognizesSuccessfulResponse() throws Exception {
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"canceled", "cancelled"})
+    void cancellationSendsCanceledAndRecognizesBothTerminalResponses(String status) throws Exception {
         when(response.statusCode()).thenReturn(200);
-        when(response.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"cancelled\"}");
+        when(response.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"" + status + "\"}");
 
         MercadoPagoPreapproval result = client.cancelPreapproval("pre-1", "cancel-pre-1");
 
@@ -171,17 +172,17 @@ class MercadoPagoHttpClientTest {
         HttpRequest sent = captor.getValue();
         assertThat(sent.method()).isEqualTo("PUT");
         assertThat(sent.uri().toString()).isEqualTo("https://api.mercadopago.com/preapproval/pre-1");
-        assertThat(body(sent)).isEqualTo("{\"status\":\"cancelled\"}").doesNotContain("\"canceled\"");
+        assertThat(body(sent)).isEqualTo("{\"status\":\"canceled\"}").doesNotContain("\"cancelled\"");
         assertThat(sent.headers().firstValue("Authorization")).contains("Bearer secret-token");
         assertThat(sent.headers().firstValue("Content-Type")).contains("application/json");
         assertThat(sent.headers().firstValue("X-Idempotency-Key")).contains("cancel-pre-1");
         assertThat(sent.headers().firstValue("X-scope")).isEmpty();
-        assertThat(result.getStatus()).isEqualTo("cancelled");
+        assertThat(result.getStatus()).isEqualTo(status);
         assertThat(SubscriptionCancellationSteps.isTerminalCancelled(result.getStatus())).isTrue();
     }
 
     @ParameterizedTest
-    @org.junit.jupiter.params.provider.CsvSource({"cancelled,true", "authorized,false", "paused,false"})
+    @org.junit.jupiter.params.provider.CsvSource({"canceled,true", "cancelled,true", "authorized,false", "paused,false"})
     void getPreapprovalPreservesStatusAndRecognizesCancellation(String status, boolean cancelled) throws Exception {
         when(response.statusCode()).thenReturn(200);
         when(response.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"" + status + "\"}");

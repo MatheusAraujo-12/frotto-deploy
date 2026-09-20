@@ -38,6 +38,11 @@ class SubscriptionCancellationStepsBootstrapTest {
         MercadoPagoClient mercadoPagoClient() {
             return mock(MercadoPagoClient.class);
         }
+
+        @Bean
+        RecurringSubscriptionGuardService recurringSubscriptionGuardService() {
+            return mock(RecurringSubscriptionGuardService.class);
+        }
     }
 
     @Test
