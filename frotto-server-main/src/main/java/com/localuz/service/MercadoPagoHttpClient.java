@@ -138,8 +138,49 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
     private MercadoPagoException invalidFinancialResponse() {
         return new MercadoPagoException("Mercado Pago returned an invalid financial response", false);
     }
+    /**
+     * Mercado Pago's documented preapproval-cancellation value is "canceled", but the sandbox has
+     * been observed rejecting it with a definite HTTP 400 while accepting the legacy "cancelled"
+     * spelling instead (confirmed empirically in staging). This compatibility fallback triggers
+     * ONLY on that exact, unambiguous HTTP 400 - never on 401/403/404/409/429, a timeout, or a 5xx,
+     * where whether the provider already processed the original request is unknown and guessing
+     * would risk a false confirmation or a false rollback (see SubscriptionCancellationService,
+     * which already handles those other cases via its own ambiguous/ resolveAfterUnconfirmedResponse
+     * path).
+     *
+     * On a 400, an authoritative GET decides everything - never assumed:
+     * - already canceled/cancelled: treat as confirmed, no second PUT.
+     * - still authorized/paused: exactly one more PUT using "cancelled", then a fresh confirming
+     *   GET; success only if that GET itself reports canceled/cancelled.
+     * - anything else (including the second PUT itself failing, or the final GET still not
+     *   showing a cancelled state): the original 400 is preserved and thrown, so the caller's
+     *   existing "definite rejection -> rollback" handling is unchanged.
+     * At most two PUTs are ever sent. The second PUT uses its own idempotency key - reusing the
+     * first key with a different body would let Mercado Pago legitimately replay the first (failed)
+     * response instead of processing the retry.
+     */
     @Override public MercadoPagoPreapproval cancelPreapproval(String id, String idempotencyKey) {
-        return exchange("PUT", resource(id), Map.of("status", "canceled"), idempotencyKey, true);
+        try {
+            return exchange("PUT", resource(id), Map.of("status", "canceled"), idempotencyKey, true);
+        } catch (MercadoPagoException officialRejected) {
+            if (!Integer.valueOf(400).equals(officialRejected.getHttpStatus())) {
+                throw officialRejected;
+            }
+            MercadoPagoPreapproval confirmed = getPreapproval(id);
+            if (SubscriptionCancellationSteps.isTerminalCancelled(confirmed.getStatus())) {
+                return confirmed;
+            }
+            String normalizedStatus = confirmed.getStatus() == null ? "" : confirmed.getStatus().toLowerCase(java.util.Locale.ROOT);
+            if (!"authorized".equals(normalizedStatus) && !"paused".equals(normalizedStatus)) {
+                throw officialRejected;
+            }
+            exchange("PUT", resource(id), Map.of("status", "cancelled"), idempotencyKey + "-legacy", true);
+            MercadoPagoPreapproval reconfirmed = getPreapproval(id);
+            if (SubscriptionCancellationSteps.isTerminalCancelled(reconfirmed.getStatus())) {
+                return reconfirmed;
+            }
+            throw officialRejected;
+        }
     }
 
     private URI resource(String id) {

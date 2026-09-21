@@ -133,8 +133,14 @@ class MercadoPagoHttpClientTest {
     }
 
 
+    /**
+     * 400 is deliberately excluded from this set: it now triggers the "canceled"/"cancelled"
+     * compatibility fallback (see the dedicated tests below) instead of throwing immediately from
+     * a single PUT - every OTHER status here must still throw right away, with exactly one PUT and
+     * the unchanged official payload, never touching the fallback path.
+     */
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.CsvSource({"400,false", "401,false", "403,false", "404,false", "408,true", "409,false", "500,true", "502,true", "503,true"})
+    @org.junit.jupiter.params.provider.CsvSource({"401,false", "403,false", "404,false", "408,true", "409,false", "500,true", "502,true", "503,true"})
     void cancellationClassifiesHttpFailuresWithoutChangingOfficialPayload(int status, boolean ambiguous) throws Exception {
         when(response.statusCode()).thenReturn(status);
         when(response.body()).thenReturn("{\"message\":\"Invalid preapproval status param: canceled\",\"status\":400}");
@@ -149,6 +155,153 @@ class MercadoPagoHttpClientTest {
         assertThat(captor.getValue().uri().toString()).isEqualTo("https://api.mercadopago.com/preapproval/pre-1");
         assertThat(body(captor.getValue())).isEqualTo("{\"status\":\"canceled\"}");
         assertThat(captor.getValue().headers().firstValue("X-Idempotency-Key")).contains("cancel-pre-1");
+    }
+
+    // --- "canceled"/"cancelled" HTTP 400 compatibility fallback -------------------------------
+
+    @Test
+    void officialCanceledValueAcceptedDirectlyNeverTriggersTheFallback() throws Exception {
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"canceled\"}");
+
+        MercadoPagoPreapproval result = client.cancelPreapproval("pre-1", "cancel-pre-1");
+
+        assertThat(result.getStatus()).isEqualTo("canceled");
+        verify(http, times(1)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http).send(captor.capture(), any(HttpResponse.BodyHandler.class));
+        assertThat(captor.getValue().method()).isEqualTo("PUT");
+        assertThat(body(captor.getValue())).isEqualTo("{\"status\":\"canceled\"}");
+    }
+
+    @Test
+    void officialValueRejectedWith400ButConfirmingGetAlreadyShowsCancelledSkipsSecondPut() throws Exception {
+        HttpResponse<String> putResponse = mock(HttpResponse.class);
+        when(putResponse.statusCode()).thenReturn(400);
+        when(putResponse.body()).thenReturn("{\"message\":\"Invalid preapproval status param: canceled\",\"status\":400}");
+        HttpResponse<String> getResponse = mock(HttpResponse.class);
+        when(getResponse.statusCode()).thenReturn(200);
+        when(getResponse.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"cancelled\"}");
+        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(putResponse, getResponse);
+
+        MercadoPagoPreapproval result = client.cancelPreapproval("pre-1", "cancel-pre-1");
+
+        assertThat(result.getStatus()).isEqualTo("cancelled");
+        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http, times(2)).send(captor.capture(), any(HttpResponse.BodyHandler.class));
+        java.util.List<HttpRequest> sent = captor.getAllValues();
+        assertThat(sent.get(0).method()).isEqualTo("PUT");
+        assertThat(body(sent.get(0))).isEqualTo("{\"status\":\"canceled\"}");
+        assertThat(sent.get(1).method()).isEqualTo("GET");
+        assertThat(sent.get(1).uri().toString()).isEqualTo("https://api.mercadopago.com/preapproval/pre-1");
+        assertThat(sent.stream().filter(request -> "PUT".equals(request.method()))).hasSize(1);
+    }
+
+    @Test
+    void officialValueRejectedWith400ThenLegacySpellingConfirmsCancellation() throws Exception {
+        HttpResponse<String> firstPut = mock(HttpResponse.class);
+        when(firstPut.statusCode()).thenReturn(400);
+        when(firstPut.body()).thenReturn("{\"message\":\"Invalid preapproval status param: canceled\",\"status\":400}");
+        HttpResponse<String> firstGet = mock(HttpResponse.class);
+        when(firstGet.statusCode()).thenReturn(200);
+        when(firstGet.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"authorized\"}");
+        HttpResponse<String> secondPut = mock(HttpResponse.class);
+        when(secondPut.statusCode()).thenReturn(200);
+        when(secondPut.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"cancelled\"}");
+        HttpResponse<String> secondGet = mock(HttpResponse.class);
+        when(secondGet.statusCode()).thenReturn(200);
+        when(secondGet.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"cancelled\"}");
+        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+            .thenReturn(firstPut, firstGet, secondPut, secondGet);
+
+        MercadoPagoPreapproval result = client.cancelPreapproval("pre-1", "cancel-pre-1");
+
+        assertThat(result.getStatus()).isEqualTo("cancelled");
+        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http, times(4)).send(captor.capture(), any(HttpResponse.BodyHandler.class));
+        java.util.List<HttpRequest> sent = captor.getAllValues();
+        java.util.List<HttpRequest> puts = sent.stream().filter(request -> "PUT".equals(request.method())).toList();
+        // At most two PUTs, ever: the official value, then the legacy spelling.
+        assertThat(puts).hasSize(2);
+        assertThat(body(puts.get(0))).isEqualTo("{\"status\":\"canceled\"}");
+        assertThat(body(puts.get(1))).isEqualTo("{\"status\":\"cancelled\"}");
+        // A different body must not reuse the first PUT's idempotency key (Mercado Pago could
+        // legitimately replay the first, failed response instead of processing the retry).
+        assertThat(puts.get(0).headers().firstValue("X-Idempotency-Key")).contains("cancel-pre-1");
+        assertThat(puts.get(1).headers().firstValue("X-Idempotency-Key")).isNotEqualTo(puts.get(0).headers().firstValue("X-Idempotency-Key"));
+        java.util.List<HttpRequest> gets = sent.stream().filter(request -> "GET".equals(request.method())).toList();
+        assertThat(gets).hasSize(2);
+    }
+
+    @Test
+    void secondPutAlsoFailingKeepsTheOriginalErrorWithoutAThirdAttempt() throws Exception {
+        HttpResponse<String> firstPut = mock(HttpResponse.class);
+        when(firstPut.statusCode()).thenReturn(400);
+        when(firstPut.body()).thenReturn("{\"message\":\"Invalid preapproval status param: canceled\",\"status\":400}");
+        HttpResponse<String> firstGet = mock(HttpResponse.class);
+        when(firstGet.statusCode()).thenReturn(200);
+        when(firstGet.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"paused\"}");
+        HttpResponse<String> secondPut = mock(HttpResponse.class);
+        when(secondPut.statusCode()).thenReturn(409);
+        when(secondPut.body()).thenReturn("{\"message\":\"conflict\",\"status\":409}");
+        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+            .thenReturn(firstPut, firstGet, secondPut);
+
+        assertThatThrownBy(() -> client.cancelPreapproval("pre-1", "cancel-pre-1"))
+            .isInstanceOfSatisfying(MercadoPagoException.class, error -> {
+                assertThat(error.getHttpStatus()).isEqualTo(409);
+                assertThat(error.isAmbiguous()).isFalse();
+            });
+        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http, times(3)).send(captor.capture(), any(HttpResponse.BodyHandler.class));
+        java.util.List<HttpRequest> puts = captor.getAllValues().stream().filter(request -> "PUT".equals(request.method())).toList();
+        assertThat(puts).hasSize(2); // no third attempt after the second PUT also fails
+    }
+
+    @Test
+    void confirmingGetStillNotCancelledAfterTheLegacyRetryPreservesTheOriginal400() throws Exception {
+        HttpResponse<String> firstPut = mock(HttpResponse.class);
+        when(firstPut.statusCode()).thenReturn(400);
+        when(firstPut.body()).thenReturn("{\"message\":\"Invalid preapproval status param: canceled\",\"status\":400}");
+        HttpResponse<String> firstGet = mock(HttpResponse.class);
+        when(firstGet.statusCode()).thenReturn(200);
+        when(firstGet.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"authorized\"}");
+        HttpResponse<String> secondPut = mock(HttpResponse.class);
+        when(secondPut.statusCode()).thenReturn(200);
+        when(secondPut.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"authorized\"}");
+        HttpResponse<String> secondGet = mock(HttpResponse.class);
+        when(secondGet.statusCode()).thenReturn(200);
+        when(secondGet.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"authorized\"}");
+        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+            .thenReturn(firstPut, firstGet, secondPut, secondGet);
+
+        assertThatThrownBy(() -> client.cancelPreapproval("pre-1", "cancel-pre-1"))
+            .isInstanceOfSatisfying(MercadoPagoException.class, error -> {
+                assertThat(error.getHttpStatus()).isEqualTo(400);
+                assertThat(error.isAmbiguous()).isFalse();
+            });
+        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http, times(4)).send(captor.capture(), any(HttpResponse.BodyHandler.class));
+        java.util.List<HttpRequest> puts = captor.getAllValues().stream().filter(request -> "PUT".equals(request.method())).toList();
+        assertThat(puts).hasSize(2);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"pending", "rejected"})
+    void confirmingGetShowingNeitherCancelledNorRetryableStatusSkipsTheSecondPut(String status) throws Exception {
+        HttpResponse<String> firstPut = mock(HttpResponse.class);
+        when(firstPut.statusCode()).thenReturn(400);
+        when(firstPut.body()).thenReturn("{\"message\":\"Invalid preapproval status param: canceled\",\"status\":400}");
+        HttpResponse<String> firstGet = mock(HttpResponse.class);
+        when(firstGet.statusCode()).thenReturn(200);
+        when(firstGet.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"" + status + "\"}");
+        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(firstPut, firstGet);
+
+        assertThatThrownBy(() -> client.cancelPreapproval("pre-1", "cancel-pre-1"))
+            .isInstanceOfSatisfying(MercadoPagoException.class, error -> assertThat(error.getHttpStatus()).isEqualTo(400));
+        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http, times(2)).send(captor.capture(), any(HttpResponse.BodyHandler.class));
+        assertThat(captor.getAllValues().stream().filter(request -> "PUT".equals(request.method()))).hasSize(1);
     }
 
     @org.junit.jupiter.params.ParameterizedTest
