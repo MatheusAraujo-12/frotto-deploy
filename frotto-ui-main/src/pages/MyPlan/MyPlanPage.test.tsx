@@ -35,6 +35,15 @@ const billing: BillingMeDTO = {
 };
 
 /**
+ * 5G.12: checkout is now reserved for a user with NO effective PAYMENT_PROVIDER/ACTIVE contract
+ * (section 2/11 - "FREE -> pago = checkout atual"). The pre-5G.12 checkout tests below all used
+ * the PAYMENT_PROVIDER/ACTIVE `billing` fixture above, which after this change routes a compatible
+ * plan card to "Fazer upgrade" instead of "Escolher plano" - so every genuine checkout scenario
+ * uses this FREE fixture instead.
+ */
+const freeBilling: BillingMeDTO = { ...billing, planCode: "FREE", planName: "Gratuito", subscriptionStatus: null, subscriptionSource: null, billingCycle: null };
+
+/**
  * 5G.9-B: the cancel action is now driven by payment-state.paymentProviderSubscription.canCancel,
  * not by BillingMeDTO - so tests must keep this in sync with the `billing` fixture's PAYMENT_
  * PROVIDER/ACTIVE shape by default. Tests exercising a scenario where no real remote contract
@@ -71,6 +80,12 @@ const chooseSilver = () => {
   fireEvent.click(Array.from(silverCard.querySelectorAll("button")).find((button) => button.textContent === "Escolher plano")!);
 };
 
+/** 5G.12: the plan-card button for a given plan label, by its visible text - null when no button with that exact label exists on the card. */
+const planCardButton = (planLabel: string, buttonLabel: string): HTMLButtonElement | null => {
+  const card = screen.getByText(planLabel).closest("section")!;
+  return (Array.from(card.querySelectorAll("button")).find((button) => button.textContent === buttonLabel) as HTMLButtonElement) || null;
+};
+
 describe("MyPlanPage - checkout modal", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -85,12 +100,23 @@ describe("MyPlanPage - checkout modal", () => {
 
   afterEach(() => localStorage.clear());
 
-  it("permite plano superior, desabilita inferior incompatÃ­vel e abre o modal", async () => {
+  /**
+   * 5G.12 section 22: with an existing PAYMENT_PROVIDER/ACTIVE contract, a higher plan routes to
+   * "Fazer upgrade" (never checkout - no second preapproval), and Gratuito always offers "Mudar
+   * para Gratuito" (reusing the existing cancellation flow, never gated by fleet compatibility -
+   * section 11 has no such gate, unlike a paid-to-paid downgrade).
+   */
+  it("roteia plano superior para upgrade e Gratuito para 'Mudar para Gratuito' quando já existe assinatura paga", async () => {
     await renderLoadedPage();
 
-    const freeCard = screen.getByText("Gratuito").closest("section")!;
-    expect(freeCard.querySelector("button")).toBeDisabled();
-    expect(freeCard).toHaveTextContent("Sua frota atual excede o limite deste plano.");
+    expect(planCardButton("Gratuito", "Mudar para Gratuito")).toBeEnabled();
+    expect(planCardButton("Prata", "Fazer upgrade")).toBeEnabled();
+    expect(screen.queryByText("Escolher plano")).not.toBeInTheDocument();
+  });
+
+  it("abre o modal de checkout para um usuário sem plano pago vigente (FREE -> pago)", async () => {
+    mockedBillingService.getMyBilling.mockResolvedValue(freeBilling);
+    await renderLoadedPage();
 
     chooseSilver();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -100,6 +126,7 @@ describe("MyPlanPage - checkout modal", () => {
   it("inicia um checkout, mostra loading, bloqueia clique duplo e navega uma vez", async () => {
     const checkout = deferred<any>();
     mockedBillingService.createCheckout.mockReturnValue(checkout.promise);
+    mockedBillingService.getMyBilling.mockResolvedValue(freeBilling);
     await renderLoadedPage();
     chooseSilver();
 
@@ -121,6 +148,7 @@ describe("MyPlanPage - checkout modal", () => {
     mockedBillingService.createCheckout
       .mockRejectedValueOnce(new Error("offline"))
       .mockResolvedValueOnce({ checkoutId: 8, planCode: "SILVER", quotedPrice: 99.9, billingCycle: "MONTHLY", status: "PROVIDER_PENDING", checkoutUrl: "https://mp.test/retry" });
+    mockedBillingService.getMyBilling.mockResolvedValue(freeBilling);
     await renderLoadedPage();
     chooseSilver();
 
@@ -133,7 +161,7 @@ describe("MyPlanPage - checkout modal", () => {
     expect(mockedBillingService.createCheckout).toHaveBeenCalledTimes(2);
   });
 
-  it("nÃ£o ativa assinatura ao carregar ou retornar Ã  pÃ¡gina", async () => {
+  it("não ativa assinatura ao carregar ou retornar à página", async () => {
     const first = render(<MyPlanPage />);
     expect((await screen.findAllByText("Bronze")).length).toBeGreaterThan(0);
     expect(mockedBillingService.createCheckout).not.toHaveBeenCalled();
@@ -147,6 +175,7 @@ describe("MyPlanPage - checkout modal", () => {
   });
 
   it.each(["CREATED", "PROVIDER_PENDING", "PROVIDER_UNKNOWN"] as const)("bloqueia nova contratação durante %s", async (status) => {
+    mockedBillingService.getMyBilling.mockResolvedValue(freeBilling);
     mockedBillingService.getBillingPaymentState.mockResolvedValue({ paymentProviderSubscription: null, latestCheckout: { status, planCode: "SILVER", createdAt: "2026-08-28T12:00:00Z", canResume: false, checkoutUrl: null } });
     await renderLoadedPage();
     const silverCard = screen.getByText("Prata").closest("section")!;
@@ -157,6 +186,7 @@ describe("MyPlanPage - checkout modal", () => {
   it("trata 409 como pagamento em andamento e atualiza payment-state", async () => {
     mockedBillingService.getBillingPaymentState.mockResolvedValueOnce({ paymentProviderSubscription: null, latestCheckout: null }).mockResolvedValueOnce({ paymentProviderSubscription: null, latestCheckout: { status: "PROVIDER_PENDING", planCode: "SILVER", createdAt: "2026-08-28T12:00:00Z", canResume: false, checkoutUrl: null } });
     mockedBillingService.createCheckout.mockRejectedValue({ response: { status: 409, data: { message: "error.BILLING_CHECKOUT_IN_PROGRESS" } } });
+    mockedBillingService.getMyBilling.mockResolvedValue(freeBilling);
     await renderLoadedPage(); chooseSilver();
     fireEvent.click(screen.getByRole("button", { name: "Continuar para pagamento" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Já existe um pagamento em andamento");
@@ -173,6 +203,7 @@ describe("MyPlanPage - checkout modal", () => {
    */
   it("trata 409 de recorrência existente com mensagem segura e acionável, sem expor IDs do provider", async () => {
     mockedBillingService.createCheckout.mockRejectedValue({ response: { status: 409, data: { message: "error.BILLING_RECURRING_SUBSCRIPTION_EXISTS" } } });
+    mockedBillingService.getMyBilling.mockResolvedValue(freeBilling);
     await renderLoadedPage(); chooseSilver();
     fireEvent.click(screen.getByRole("button", { name: "Continuar para pagamento" }));
     const alert = await screen.findByRole("alert");
@@ -191,6 +222,7 @@ describe("MyPlanPage - checkout modal", () => {
       latestCheckout: null,
     });
     mockedBillingService.createCheckout.mockRejectedValue({ response: { status: 409, data: { message: "error.BILLING_RECURRING_SUBSCRIPTION_EXISTS" } } });
+    mockedBillingService.getMyBilling.mockResolvedValue(freeBilling);
     await renderLoadedPage(); chooseSilver();
     fireEvent.click(screen.getByRole("button", { name: "Continuar para pagamento" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Estamos confirmando o cancelamento solicitado com o Mercado Pago");
@@ -335,6 +367,7 @@ describe("MyPlanPage - checkout modal", () => {
   it("não navega com resposta tardia do checkout da sessão anterior", async () => {
     const oldCheckout = deferred<any>();
     mockedBillingService.createCheckout.mockReturnValue(oldCheckout.promise);
+    mockedBillingService.getMyBilling.mockResolvedValue(freeBilling);
     await renderLoadedPage(); chooseSilver();
     fireEvent.click(screen.getByRole("button", { name: "Continuar para pagamento" }));
     setToken("Bearer user-b");
@@ -547,4 +580,111 @@ describe("MyPlanPage - checkout modal", () => {
     expect(screen.queryByText("Cancelamento agendado")).not.toBeInTheDocument();
   });
 
+});
+
+describe("MyPlanPage - 5G.12 plan change", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedBillingService.cancelSubscription.mockReset();
+    localStorage.clear();
+    setToken("Bearer user-token");
+    mockedBillingService.getMyBilling.mockResolvedValue(billing);
+    mockedBillingService.getBillingPaymentState.mockResolvedValue(cancellablePaymentState);
+    mockedBillingService.getPlans.mockResolvedValue(plans);
+    mockedBillingService.getPricePreview.mockImplementation(() => new Promise(() => {}));
+  });
+
+  afterEach(() => localStorage.clear());
+
+  it("desabilita downgrade para plano pago incompatível e habilita quando a frota cabe", async () => {
+    // Current SILVER (max 20) with 15 vehicles: BRONZE (max 10) does not fit.
+    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, planCode: "SILVER", planName: "Prata", activeVehicleCount: 15, requiredPlanCode: "SILVER", requiredPlanName: "Prata" });
+    await renderLoadedPage();
+
+    expect(planCardButton("Bronze", "Fazer downgrade")).toBeDisabled();
+    expect(screen.getByText("Bronze").closest("section")).toHaveTextContent("Sua frota atual excede o limite deste plano.");
+  });
+
+  it("habilita Fazer downgrade quando a frota atual cabe no plano inferior", async () => {
+    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, planCode: "SILVER", planName: "Prata", activeVehicleCount: 6, requiredPlanCode: "SILVER", requiredPlanName: "Prata" });
+    await renderLoadedPage();
+
+    expect(planCardButton("Bronze", "Fazer downgrade")).toBeEnabled();
+  });
+
+  it("modal de upgrade mostra o novo valor calculado pelo backend e aplica imediatamente", async () => {
+    mockedBillingService.getPricePreview.mockResolvedValue({ vehicleCount: 6, planCode: "SILVER", planName: "Prata", billingCycle: "MONTHLY", monthlyPrice: 44.9, averagePricePerVehicle: 7.48, components: [] });
+    mockedBillingService.changePlan.mockResolvedValue({ currentPlan: "BRONZE", targetPlan: "SILVER", changeType: "UPGRADE", effectiveAt: "2026-09-15T12:00:00Z", contractedPrice: 44.9, pending: false });
+    await renderLoadedPage();
+
+    fireEvent.click(planCardButton("Prata", "Fazer upgrade")!);
+    expect(screen.getByRole("dialog")).toHaveTextContent("Alterar de Bronze para Prata");
+    expect(await screen.findByText("R$ 44,90/mês")).toBeInTheDocument();
+    expect(screen.getByText(/liberado imediatamente/)).toBeInTheDocument();
+    expect(screen.getByText(/Não haverá cobrança proporcional/)).toBeInTheDocument();
+    expect(mockedBillingService.getPricePreview).toHaveBeenCalledWith(6, "SILVER");
+
+    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, planCode: "SILVER", planName: "Prata", currentMonthlyPrice: 44.9, requiredPlanCode: "SILVER", requiredPlanName: "Prata" });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar upgrade" }));
+    expect(mockedBillingService.changePlan).toHaveBeenCalledWith("SILVER");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(await screen.findByText("Prata", { selector: "h1" })).toBeInTheDocument();
+  });
+
+  it("modal de downgrade explica a data de efetivação e não altera o plano atual visualmente", async () => {
+    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, planCode: "SILVER", planName: "Prata", currentPeriodEnd: "2026-10-09T00:00:00Z", requiredPlanCode: "SILVER", requiredPlanName: "Prata" });
+    mockedBillingService.getPricePreview.mockResolvedValue({ vehicleCount: 6, planCode: "BRONZE", planName: "Bronze", billingCycle: "MONTHLY", monthlyPrice: 15.9, averagePricePerVehicle: 2.65, components: [] });
+    mockedBillingService.changePlan.mockResolvedValue({ currentPlan: "SILVER", targetPlan: "BRONZE", changeType: "DOWNGRADE", effectiveAt: "2026-10-09T00:00:00Z", contractedPrice: 15.9, pending: true });
+    await renderLoadedPage();
+
+    fireEvent.click(planCardButton("Bronze", "Fazer downgrade")!);
+    expect(screen.getByRole("dialog")).toHaveTextContent("Alterar de Prata para Bronze");
+    expect(screen.getByText(/continuará disponível até 09\/10\/2026/)).toBeInTheDocument();
+    await screen.findByText(/R\$ 15,90\/mês/);
+
+    mockedBillingService.getMyBilling.mockResolvedValue({
+      ...billing, planCode: "SILVER", planName: "Prata", currentPeriodEnd: "2026-10-09T00:00:00Z", requiredPlanCode: "SILVER", requiredPlanName: "Prata",
+      pendingPlanCode: "BRONZE", pendingPlanName: "Bronze", pendingPlanPrice: 15.9, planChangeEffectiveAt: "2026-10-09T00:00:00Z",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Agendar downgrade" }));
+    expect(mockedBillingService.changePlan).toHaveBeenCalledWith("BRONZE");
+    // The current plan never flips to Bronze before the scheduled date - only the banner appears.
+    expect(await screen.findByText("Mudança para Bronze agendada para 09/10/2026.")).toBeInTheDocument();
+    expect(screen.getByText("Prata", { selector: "h1" })).toBeInTheDocument();
+    expect(screen.queryByText("Bronze", { selector: "h1" })).not.toBeInTheDocument();
+  });
+
+  it("mostra o aviso de mudança agendada e desabilita outras mudanças enquanto ela estiver pendente", async () => {
+    mockedBillingService.getMyBilling.mockResolvedValue({
+      ...billing, planCode: "SILVER", planName: "Prata", requiredPlanCode: "SILVER", requiredPlanName: "Prata",
+      pendingPlanCode: "BRONZE", pendingPlanName: "Bronze", pendingPlanPrice: 15.9, planChangeEffectiveAt: "2026-10-09T00:00:00Z",
+    });
+    await renderLoadedPage();
+
+    expect(screen.getByText("Mudança para Bronze agendada para 09/10/2026.")).toBeInTheDocument();
+    expect(planCardButton("Gratuito", "Mudar para Gratuito")).toBeDisabled();
+  });
+
+  it("bloqueia mudança de plano quando já existe cancelamento agendado", async () => {
+    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, cancellationState: "CONFIRMED", cancelAtPeriodEnd: true, currentPeriodEnd: "2026-10-10T00:00:00Z" });
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({
+      paymentProviderSubscription: { status: "ACTIVE", planCode: "BRONZE", billingCycle: "MONTHLY", financiallyCovered: true, canCancel: true, cancellationState: "CONFIRMED", currentPeriodEnd: "2026-10-10T00:00:00Z" },
+      latestCheckout: null,
+    });
+    await renderLoadedPage();
+
+    expect(screen.getByText("Sua assinatura já está programada para encerrar em 10/10/2026.")).toBeInTheDocument();
+    expect(planCardButton("Prata", "Fazer upgrade")).toBeDisabled();
+  });
+
+  it("trata erro 409 de mudança de plano com mensagem amigável", async () => {
+    mockedBillingService.getPricePreview.mockResolvedValue({ vehicleCount: 6, planCode: "SILVER", planName: "Prata", billingCycle: "MONTHLY", monthlyPrice: 44.9, averagePricePerVehicle: 7.48, components: [] });
+    mockedBillingService.changePlan.mockRejectedValue({ response: { status: 409, data: { message: "error.BILLING_PLAN_CHANGE_ALREADY_PENDING" } } });
+    await renderLoadedPage();
+
+    fireEvent.click(planCardButton("Prata", "Fazer upgrade")!);
+    await screen.findByText("R$ 44,90/mês");
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar upgrade" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Já existe uma mudança de plano agendada para esta assinatura.");
+  });
 });

@@ -247,4 +247,49 @@ class EntitlementServiceTest {
         subscription.setCancelAtPeriodEnd(false);
         return subscription;
     }
+
+    // --- 5G.12 section 12: a scheduled downgrade must already cap new vehicle additions ------------
+
+    @Test
+    void pendingDowngradeLimitsNewVehicleAdditionsToTheLowerPendingPlan() {
+        // Gold (max 30) today, but a downgrade to Bronze (max 5) is already scheduled.
+        Subscription goldWithPendingBronze = subscriptionWith(PlanCode.GOLD, 30, SubscriptionStatus.ACTIVE);
+        goldWithPendingBronze.setPendingPlan(planWithLimit(PlanCode.BRONZE, 5));
+        when(subscriptionService.getCurrentSubscription(user)).thenReturn(Optional.of(goldWithPendingBronze));
+        when(pricingService.resolvePlanForVehicleCount(Mockito.anyInt())).thenReturn(planWithLimit(PlanCode.GOLD, 30));
+
+        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(5L);
+        assertThat(entitlementService.getSnapshot(user).isCanAddVehicle()).isFalse();
+
+        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(4L);
+        assertThat(entitlementService.getSnapshot(user).isCanAddVehicle()).isTrue();
+        // The CURRENT plan's own (higher) limit is still reported - only the "can add" verdict narrows.
+        assertThat(entitlementService.getSnapshot(user).getVehicleLimit()).isEqualTo(5);
+    }
+
+    @Test
+    void noPendingPlanLeavesTheCurrentPlansOwnLimitUnaffected() {
+        Subscription gold = subscriptionWith(PlanCode.GOLD, 30, SubscriptionStatus.ACTIVE);
+        when(subscriptionService.getCurrentSubscription(user)).thenReturn(Optional.of(gold));
+        when(pricingService.resolvePlanForVehicleCount(Mockito.anyInt())).thenReturn(planWithLimit(PlanCode.GOLD, 30));
+        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(29L);
+
+        EntitlementSnapshot snapshot = entitlementService.getSnapshot(user);
+
+        assertThat(snapshot.getVehicleLimit()).isEqualTo(30);
+        assertThat(snapshot.isCanAddVehicle()).isTrue();
+    }
+
+    @Test
+    void pendingUnlimitedPlanNeverNarrowsAFiniteCurrentLimit() {
+        // An upgrade never sets pendingPlan (see SubscriptionPlanChangeSteps), but the narrowing
+        // logic itself must still only ever take the minimum of the two limits, never assume order.
+        Subscription platinumWithPendingFrotta = subscriptionWith(PlanCode.PLATINUM, 100, SubscriptionStatus.ACTIVE);
+        platinumWithPendingFrotta.setPendingPlan(planWithLimit(PlanCode.FROTTA, null));
+        when(subscriptionService.getCurrentSubscription(user)).thenReturn(Optional.of(platinumWithPendingFrotta));
+        when(pricingService.resolvePlanForVehicleCount(Mockito.anyInt())).thenReturn(planWithLimit(PlanCode.PLATINUM, 100));
+        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(50L);
+
+        assertThat(entitlementService.getSnapshot(user).getVehicleLimit()).isEqualTo(100);
+    }
 }

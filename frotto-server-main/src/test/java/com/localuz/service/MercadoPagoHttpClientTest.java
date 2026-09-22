@@ -350,6 +350,59 @@ class MercadoPagoHttpClientTest {
         assertThat(SubscriptionCancellationSteps.isTerminalCancelled(result.getStatus())).isEqualTo(cancelled);
     }
 
+    // --- 5G.12: PUT /preapproval/{id} auto_recurring.transaction_amount/currency_id -------------
+
+    @Test
+    void updatePreapprovalAmountSendsOnlyAutoRecurringAmountAndCurrency() throws Exception {
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"authorized\",\"auto_recurring\":{\"transaction_amount\":44.9,\"currency_id\":\"BRL\"}}");
+
+        MercadoPagoPreapproval result = client.updatePreapprovalAmount("pre-1", new BigDecimal("44.90"), "BRL", "change-plan-pre-1-SILVER");
+
+        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http).send(captor.capture(), any(HttpResponse.BodyHandler.class));
+        HttpRequest sent = captor.getValue();
+        assertThat(sent.method()).isEqualTo("PUT");
+        assertThat(sent.uri().toString()).isEqualTo("https://api.mercadopago.com/preapproval/pre-1");
+        JsonNode body = mapper.readTree(body(sent));
+        assertThat(body.path("auto_recurring").path("transaction_amount").decimalValue()).isEqualByComparingTo("44.90");
+        assertThat(body.path("auto_recurring").path("currency_id").asText()).isEqualTo("BRL");
+        assertThat(body.has("status")).isFalse();
+        assertThat(body.has("frequency")).isFalse();
+        assertThat(sent.headers().firstValue("X-Idempotency-Key")).contains("change-plan-pre-1-SILVER");
+        assertThat(result.getTransactionAmount()).isEqualByComparingTo("44.90");
+        assertThat(result.getCurrencyId()).isEqualTo("BRL");
+    }
+
+    @Test
+    void getPreapprovalParsesTransactionAmountAndCurrencyForAuthoritativeConfirmation() throws Exception {
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"authorized\",\"auto_recurring\":{\"transaction_amount\":15.9,\"currency_id\":\"BRL\"}}");
+
+        MercadoPagoPreapproval result = client.getPreapproval("pre-1");
+
+        assertThat(result.getTransactionAmount()).isEqualByComparingTo("15.90");
+        assertThat(result.getCurrencyId()).isEqualTo("BRL");
+    }
+
+    @Test
+    void missingAutoRecurringAmountLeavesItNullRatherThanGuessing() throws Exception {
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"authorized\"}");
+
+        MercadoPagoPreapproval result = client.getPreapproval("pre-1");
+
+        assertThat(result.getTransactionAmount()).isNull();
+        assertThat(result.getCurrencyId()).isNull();
+    }
+
+    @ParameterizedTest @MethodSource("errorStatuses")
+    void updatePreapprovalAmountMapsHttpErrorsWithoutLeakingUnstructuredProviderBody(int status) {
+        when(response.statusCode()).thenReturn(status); when(response.body()).thenReturn("provider-secret-body");
+        assertThatThrownBy(() -> client.updatePreapprovalAmount("pre-1", new BigDecimal("44.90"), "BRL", "key-1"))
+            .isInstanceOf(MercadoPagoException.class).hasMessageNotContaining("provider-secret-body");
+    }
+
     private MercadoPagoPreapprovalRequest request() {
         return new MercadoPagoPreapprovalRequest("ref-1", "payer@example.com", "Frotto GOLD", new BigDecimal("79.90"), "BRL", "https://frotto.test/menu/meu-plano");
     }

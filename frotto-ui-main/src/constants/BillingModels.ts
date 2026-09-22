@@ -23,6 +23,22 @@ export interface BillingMeDTO {
   grantExpiresAt: string | null;
   cancelAtPeriodEnd: boolean;
   cancellationState: SubscriptionCancellationState;
+  /** 5G.12: present only while a downgrade is scheduled (Subscription.pendingPlan). planCode/planName above stay the CURRENT (still effective) plan until planChangeEffectiveAt. */
+  pendingPlanCode?: PlanCode | null;
+  pendingPlanName?: string | null;
+  pendingPlanPrice?: number | null;
+  planChangeEffectiveAt?: string | null;
+}
+
+export type PlanChangeType = "UPGRADE" | "DOWNGRADE";
+
+export interface PlanChangeResultDTO {
+  currentPlan: PlanCode;
+  targetPlan: PlanCode;
+  changeType: PlanChangeType;
+  effectiveAt: string | null;
+  contractedPrice: number;
+  pending: boolean;
 }
 
 export interface SubscriptionCancellationResultDTO {

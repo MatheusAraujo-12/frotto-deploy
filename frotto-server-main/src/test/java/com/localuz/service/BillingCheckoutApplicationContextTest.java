@@ -35,7 +35,8 @@ class BillingCheckoutApplicationContextTest {
         .withBean(RecurringSubscriptionGuardService.class)
         .withBean(BillingPaymentStateService.class)
         .withBean(SubscriptionCancellationSteps.class)
-        .withBean(SubscriptionCancellationService.class);
+        .withBean(SubscriptionCancellationService.class)
+        .withBean(SubscriptionPlanChangeService.class, () -> mock(SubscriptionPlanChangeService.class));
 
     @Test
     void springCreatesBillingCheckoutServiceWithTheConcreteMercadoPagoClient() {

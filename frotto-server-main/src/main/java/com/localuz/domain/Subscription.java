@@ -132,6 +132,41 @@ public class Subscription implements Serializable {
 
     public Instant getLastFinancialReconciliationAt() { return lastFinancialReconciliationAt; }
 
+    /**
+     * 5G.12: a scheduled downgrade (or a not-yet-effective plan change in general). Only ever set
+     * together as a group by SubscriptionPlanChangeSteps, and cleared as a group either when the
+     * change is rolled back (provider rejected the new price) or effectuated (a renewal confirmed
+     * on/after planChangeEffectiveAt - see SubscriptionPlanChangeSteps#effectuateIfDue). An upgrade
+     * never touches these fields: it applies to plan/contractedPrice/contractedVehicleCount
+     * immediately instead, per product decision (no proration in this first version).
+     */
+    @ManyToOne
+    @JoinColumn(name = "pending_plan_id")
+    private Plan pendingPlan;
+
+    @Column(name = "pending_contracted_price", precision = 21, scale = 2)
+    private BigDecimal pendingContractedPrice;
+
+    @Column(name = "pending_contracted_vehicle_count")
+    private Integer pendingContractedVehicleCount;
+
+    @Column(name = "plan_change_effective_at")
+    private Instant planChangeEffectiveAt;
+
+    @Column(name = "plan_change_requested_at")
+    private Instant planChangeRequestedAt;
+
+    public Plan getPendingPlan() { return pendingPlan; }
+    public void setPendingPlan(Plan pendingPlan) { this.pendingPlan = pendingPlan; }
+    public BigDecimal getPendingContractedPrice() { return pendingContractedPrice; }
+    public void setPendingContractedPrice(BigDecimal pendingContractedPrice) { this.pendingContractedPrice = pendingContractedPrice; }
+    public Integer getPendingContractedVehicleCount() { return pendingContractedVehicleCount; }
+    public void setPendingContractedVehicleCount(Integer pendingContractedVehicleCount) { this.pendingContractedVehicleCount = pendingContractedVehicleCount; }
+    public Instant getPlanChangeEffectiveAt() { return planChangeEffectiveAt; }
+    public void setPlanChangeEffectiveAt(Instant planChangeEffectiveAt) { this.planChangeEffectiveAt = planChangeEffectiveAt; }
+    public Instant getPlanChangeRequestedAt() { return planChangeRequestedAt; }
+    public void setPlanChangeRequestedAt(Instant planChangeRequestedAt) { this.planChangeRequestedAt = planChangeRequestedAt; }
+
     @PrePersist
     public void prePersist() {
         Instant now = Instant.now();

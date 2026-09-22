@@ -21,11 +21,15 @@ import com.localuz.service.BillingCheckoutService;
 import com.localuz.service.BillingPaymentStateService;
 import com.localuz.service.PricingService;
 import com.localuz.service.SubscriptionCancellationService;
+import com.localuz.service.SubscriptionPlanChangeService;
 import com.localuz.service.UserService;
 import com.localuz.service.dto.BillingMeDTO;
 import com.localuz.service.dto.BillingCheckoutDTO;
 import com.localuz.service.dto.BillingCheckoutRequest;
 import com.localuz.service.dto.EntitlementSnapshot;
+import com.localuz.service.dto.PlanChangeRequest;
+import com.localuz.service.dto.PlanChangeResultDTO;
+import com.localuz.service.dto.PlanChangeType;
 import com.localuz.service.dto.PricePreviewDTO;
 import com.localuz.service.dto.PricingResult;
 import com.localuz.service.dto.SubscriptionCancellationResultDTO;
@@ -56,6 +60,7 @@ class BillingResourceTest {
     private BillingCheckoutService billingCheckoutService;
     private BillingPaymentStateService billingPaymentStateService;
     private SubscriptionCancellationService subscriptionCancellationService;
+    private SubscriptionPlanChangeService subscriptionPlanChangeService;
     private BillingResource billingResource;
     private User currentUser;
 
@@ -69,6 +74,7 @@ class BillingResourceTest {
         billingCheckoutService = Mockito.mock(BillingCheckoutService.class);
         billingPaymentStateService = Mockito.mock(BillingPaymentStateService.class);
         subscriptionCancellationService = Mockito.mock(SubscriptionCancellationService.class);
+        subscriptionPlanChangeService = Mockito.mock(SubscriptionPlanChangeService.class);
         billingResource = new BillingResource(
             userService,
             entitlementService,
@@ -77,7 +83,8 @@ class BillingResourceTest {
             planPricingTierRepository,
             billingCheckoutService,
             billingPaymentStateService,
-            subscriptionCancellationService
+            subscriptionCancellationService,
+            subscriptionPlanChangeService
         );
 
         currentUser = new User();
@@ -164,13 +171,13 @@ class BillingResourceTest {
 
     @Test
     void previewPriceRejectsNegativeVehicleCount() {
-        assertThatThrownBy(() -> billingResource.previewPrice(-1, BillingCycle.MONTHLY)).isInstanceOf(BadRequestAlertException.class);
+        assertThatThrownBy(() -> billingResource.previewPrice(-1, BillingCycle.MONTHLY, null)).isInstanceOf(BadRequestAlertException.class);
         Mockito.verifyNoInteractions(pricingService);
     }
 
     @Test
     void previewPriceRejectsYearlyBillingCycle() {
-        assertThatThrownBy(() -> billingResource.previewPrice(50, BillingCycle.YEARLY)).isInstanceOf(BadRequestAlertException.class);
+        assertThatThrownBy(() -> billingResource.previewPrice(50, BillingCycle.YEARLY, null)).isInstanceOf(BadRequestAlertException.class);
         Mockito.verifyNoInteractions(pricingService);
     }
 
@@ -179,7 +186,7 @@ class BillingResourceTest {
         PricingResult result = new PricingResult(PlanCode.PLATINUM, "Platinum", 50, new BigDecimal("129.90"), List.of());
         when(pricingService.calculateMonthlyPrice(50)).thenReturn(result);
 
-        PricePreviewDTO dto = billingResource.previewPrice(50, BillingCycle.MONTHLY);
+        PricePreviewDTO dto = billingResource.previewPrice(50, BillingCycle.MONTHLY, null);
 
         assertThat(dto.getPlanCode()).isEqualTo(PlanCode.PLATINUM);
         assertThat(dto.getMonthlyPrice()).isEqualByComparingTo(new BigDecimal("129.90"));
@@ -191,9 +198,22 @@ class BillingResourceTest {
         PricingResult result = new PricingResult(PlanCode.FREE, "Gratuito", 1, BigDecimal.ZERO, List.of());
         when(pricingService.calculateMonthlyPrice(1)).thenReturn(result);
 
-        PricePreviewDTO dto = billingResource.previewPrice(1, BillingCycle.MONTHLY);
+        PricePreviewDTO dto = billingResource.previewPrice(1, BillingCycle.MONTHLY, null);
 
         assertThat(dto.getBillingCycle()).isEqualTo(BillingCycle.MONTHLY);
+    }
+
+    /** 5G.12: an explicit planCode prices exactly that plan (e.g. above what vehicleCount alone would recommend) via PricingService#calculatePriceForPlan, never calculateMonthlyPrice. */
+    @Test
+    void previewPriceWithExplicitPlanCodePricesThatExactPlan() {
+        PricingResult result = new PricingResult(PlanCode.BRONZE, "Bronze", 2, new BigDecimal("59.90"), List.of());
+        when(pricingService.calculatePriceForPlan(PlanCode.BRONZE, 2)).thenReturn(result);
+
+        PricePreviewDTO dto = billingResource.previewPrice(2, BillingCycle.MONTHLY, PlanCode.BRONZE);
+
+        assertThat(dto.getPlanCode()).isEqualTo(PlanCode.BRONZE);
+        assertThat(dto.getMonthlyPrice()).isEqualByComparingTo(new BigDecimal("59.90"));
+        Mockito.verify(pricingService, Mockito.never()).calculateMonthlyPrice(Mockito.anyInt());
     }
 
     @Test
@@ -320,6 +340,53 @@ class BillingResourceTest {
         assertThat(json.path("detail").asText()).isEqualTo("O Mercado Pago não aceitou o cancelamento neste momento. Sua assinatura permanece ativa e nenhuma alteração de cobrança foi confirmada.");
         assertThat(body).doesNotContain("providerSubscriptionId", "requestId", "access_token", "stackTrace", "Invalid preapproval", "PENDING_CONFIRMATION", "CONFIRMED");
         Mockito.verifyNoInteractions(billingCheckoutService);
+    }
+
+    // --- 5G.12: POST /api/billing/change-plan ---
+
+    @Test
+    void changePlanResolvesOnlyTheAuthenticatedUserAndRequestedTargetPlan() {
+        when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));
+        PlanChangeResultDTO result = new PlanChangeResultDTO(PlanCode.BRONZE, PlanCode.SILVER, PlanChangeType.UPGRADE, Instant.now(), new BigDecimal("44.90"), false);
+        when(subscriptionPlanChangeService.changePlan(currentUser, PlanCode.SILVER)).thenReturn(result);
+        PlanChangeRequest request = new PlanChangeRequest();
+        request.setTargetPlanCode(PlanCode.SILVER);
+
+        PlanChangeResultDTO response = billingResource.changePlan(request);
+
+        assertThat(response.getTargetPlan()).isEqualTo(PlanCode.SILVER);
+        Mockito.verify(subscriptionPlanChangeService).changePlan(currentUser, PlanCode.SILVER);
+    }
+
+    @Test
+    void changePlanRequestDoesNotExposePriceOrUserIdFields() {
+        // The method signature itself is the proof: no price/userId field a client could ever populate.
+        assertThat(Arrays.stream(PlanChangeRequest.class.getDeclaredFields()).map(Field::getName))
+            .containsExactly("targetPlanCode");
+    }
+
+    @Test
+    void getMyBillingEffectuatesAnyDuePlanChangeBeforeBuildingTheSnapshot() {
+        when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));
+        Plan free = plan(PlanCode.FREE, 2);
+        when(entitlementService.getSnapshot(currentUser)).thenReturn(new EntitlementSnapshot(null, free, free, 0L, 2, true, false));
+
+        billingResource.getMyBilling();
+
+        org.mockito.InOrder order = Mockito.inOrder(subscriptionPlanChangeService, entitlementService);
+        order.verify(subscriptionPlanChangeService).effectuateDueChangesForUser(9L);
+        order.verify(entitlementService).getSnapshot(currentUser);
+    }
+
+    @Test
+    void paymentStateEffectuatesAnyDuePlanChangeBeforeReadingState() {
+        when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));
+
+        billingResource.getMyPaymentState();
+
+        org.mockito.InOrder order = Mockito.inOrder(subscriptionPlanChangeService, billingPaymentStateService);
+        order.verify(subscriptionPlanChangeService).effectuateDueChangesForUser(9L);
+        order.verify(billingPaymentStateService).getState(currentUser);
     }
 
 }

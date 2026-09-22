@@ -199,10 +199,47 @@ class BillingMeDTOTest {
             "planCode", "planName", "subscriptionStatus", "billingCycle", "subscriptionSource",
             "activeVehicleCount", "vehicleLimit", "canAddVehicle", "needsUpgrade", "requiredPlanCode",
             "requiredPlanName", "currentMonthlyPrice", "currentPeriodStart", "currentPeriodEnd",
-            "grantExpiresAt", "cancelAtPeriodEnd", "cancellationState"
+            "grantExpiresAt", "cancelAtPeriodEnd", "cancellationState",
+            // 5G.12: additive - only non-null while a downgrade is scheduled (see BillingMeDTOTest below).
+            "pendingPlanCode", "pendingPlanName", "pendingPlanPrice", "planChangeEffectiveAt"
         );
         assertThat(json.get("cancellationState").asText()).isEqualTo("CONFIRMED");
         assertThat(json.toString()).doesNotContain("private-provider-id", "canceledAt", "idempotencyKey", "webhook");
+    }
+
+    @Test
+    void pendingPlanFieldsAreNullWithoutAScheduledDowngrade() {
+        Plan gold = plan(PlanCode.GOLD, "Ouro", 30, "79.90");
+        Subscription paid = subscription(gold, SubscriptionSource.PAYMENT_PROVIDER);
+
+        BillingMeDTO dto = BillingMeDTO.from(new EntitlementSnapshot(paid, gold, gold, 20L, 30, true, false));
+
+        assertThat(dto.getPendingPlanCode()).isNull();
+        assertThat(dto.getPendingPlanName()).isNull();
+        assertThat(dto.getPendingPlanPrice()).isNull();
+        assertThat(dto.getPlanChangeEffectiveAt()).isNull();
+        // planCode/planName stay the CURRENT (still effective) plan - never overwritten by a pending one.
+        assertThat(dto.getPlanCode()).isEqualTo(PlanCode.GOLD);
+    }
+
+    @Test
+    void pendingPlanFieldsReflectAScheduledDowngradeWithoutTouchingTheCurrentPlan() {
+        Plan gold = plan(PlanCode.GOLD, "Ouro", 30, "79.90");
+        Plan bronze = plan(PlanCode.BRONZE, "Bronze", 10, "15.90");
+        Subscription paid = subscription(gold, SubscriptionSource.PAYMENT_PROVIDER);
+        paid.setPendingPlan(bronze);
+        paid.setPendingContractedPrice(new BigDecimal("15.90"));
+        paid.setPendingContractedVehicleCount(6);
+        Instant effectiveAt = Instant.parse("2026-10-09T00:00:00Z");
+        paid.setPlanChangeEffectiveAt(effectiveAt);
+
+        BillingMeDTO dto = BillingMeDTO.from(new EntitlementSnapshot(paid, gold, gold, 6L, 30, true, false));
+
+        assertThat(dto.getPlanCode()).isEqualTo(PlanCode.GOLD);
+        assertThat(dto.getPendingPlanCode()).isEqualTo(PlanCode.BRONZE);
+        assertThat(dto.getPendingPlanName()).isEqualTo("Bronze");
+        assertThat(dto.getPendingPlanPrice()).isEqualByComparingTo("15.90");
+        assertThat(dto.getPlanChangeEffectiveAt()).isEqualTo(effectiveAt);
     }
 
     private static Subscription subscription(Plan plan, SubscriptionSource source) {

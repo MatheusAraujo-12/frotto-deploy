@@ -693,6 +693,100 @@ class RecurringBillingPersistenceTest {
         }
     }
 
+    /**
+     * 5G.12 section 9: proves the plan-change concurrency protection for real, against real MySQL
+     * transactions and the real PESSIMISTIC_WRITE row lock on the user (the same
+     * UserRepository#findByIdForBillingCheckoutLock reused by checkout/cancellation) - mirrors
+     * concurrentCheckoutsForTheSameUserProduceAtMostOneLogicalRecurrenceCreation above. Two real
+     * transactions for the SAME user (BRONZE, subscription 90001) both request an upgrade to
+     * SILVER concurrently; the loser must block on the row lock until the winner commits, then
+     * observe the winner's now-persisted plan and refuse with a controlled BillingPlanChangeNoOp
+     * Exception (target already equals the current plan) rather than also calling the provider a
+     * second time.
+     */
+    @Test void concurrentPlanChangesForTheSameUserProduceAtMostOnePutAndNoContradictoryState() throws Exception {
+        operationalSetup();
+        try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {
+            connection.createStatement().executeUpdate("UPDATE subscription SET contracted_price=15.90 WHERE id=90001");
+        }
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            var manager = new org.springframework.orm.jpa.JpaTransactionManager(factory);
+            var shared = org.springframework.orm.jpa.SharedEntityManagerCreator.createSharedEntityManager(factory);
+            var repos = new JpaRepositoryFactory(shared);
+            var users = repos.getRepository(UserRepository.class);
+            var subscriptionRepo = repos.getRepository(SubscriptionRepository.class);
+            var plans = repos.getRepository(PlanRepository.class);
+            var planPricingTiers = repos.getRepository(PlanPricingTierRepository.class);
+            var cars = repos.getRepository(CarRepository.class);
+
+            var pricing = new com.localuz.service.PricingService(plans, planPricingTiers);
+            var financialCoverage = new com.localuz.service.SubscriptionFinancialCoverageService(
+                repos.getRepository(BillingInvoiceRepository.class), repos.getRepository(PaymentAttemptRepository.class));
+            var guard = new com.localuz.service.RecurringSubscriptionGuardService(subscriptionRepo, financialCoverage);
+
+            var stepsTarget = new com.localuz.service.SubscriptionPlanChangeSteps(users, subscriptionRepo, guard, financialCoverage);
+            var stepsProxy = new org.springframework.aop.framework.ProxyFactory(stepsTarget);
+            stepsProxy.setProxyTargetClass(true);
+            stepsProxy.addAdvice(new org.springframework.transaction.interceptor.TransactionInterceptor(manager,
+                new org.springframework.transaction.annotation.AnnotationTransactionAttributeSource()));
+            var steps = (com.localuz.service.SubscriptionPlanChangeSteps) stepsProxy.getProxy();
+
+            var client = org.mockito.Mockito.mock(com.localuz.service.MercadoPagoClient.class);
+            org.mockito.Mockito.when(client.updatePreapprovalAmount(org.mockito.ArgumentMatchers.eq("reserve-pre"),
+                org.mockito.ArgumentMatchers.eq(new BigDecimal("44.90")), org.mockito.ArgumentMatchers.eq("BRL"), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(new com.localuz.service.dto.MercadoPagoPreapproval("reserve-pre", "authorized", "ref", null, null, null, null, null, null, new BigDecimal("44.90"), "BRL"));
+            org.mockito.Mockito.when(client.getPreapproval("reserve-pre"))
+                .thenReturn(new com.localuz.service.dto.MercadoPagoPreapproval("reserve-pre", "authorized", "ref", null, null, null, null, null, null, new BigDecimal("44.90"), "BRL"));
+            var cancellationService = org.mockito.Mockito.mock(com.localuz.service.SubscriptionCancellationService.class);
+
+            var service = new com.localuz.service.SubscriptionPlanChangeService(steps, cancellationService, client, pricing, plans, subscriptionRepo, cars);
+
+            com.localuz.domain.User user = new com.localuz.domain.User();
+            user.setId(90001L);
+
+            var start = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.Callable<Object> attempt = () -> {
+                start.await();
+                try {
+                    return service.changePlan(user, com.localuz.domain.enumeration.PlanCode.SILVER);
+                } catch (RuntimeException failure) {
+                    return failure;
+                }
+            };
+            var a = pool.submit(attempt);
+            var b = pool.submit(attempt);
+            start.countDown();
+            Object resultA = a.get(30, java.util.concurrent.TimeUnit.SECONDS);
+            Object resultB = b.get(30, java.util.concurrent.TimeUnit.SECONDS);
+
+            var results = java.util.List.of(resultA, resultB);
+            long successes = results.stream().filter(r -> r instanceof com.localuz.service.dto.PlanChangeResultDTO).count();
+            // The loser's exact exception depends on harmless timing: if it reads before the
+            // winner's finalizeUpgrade promotes pendingPlan -> plan, it sees "already pending"; if
+            // it reads after, the target already equals the (now live) current plan and it sees a
+            // plain no-op conflict instead. Both are an equally safe, single controlled conflict -
+            // never a second PUT and never a contradictory persisted state.
+            long controlledConflicts = results.stream()
+                .filter(r -> r instanceof com.localuz.web.rest.errors.BillingPlanChangeNoOpException
+                    || r instanceof com.localuz.web.rest.errors.BillingPlanChangeAlreadyPendingException)
+                .count();
+            assertThat(successes).as("exactly one attempt must apply the upgrade: %s", results).isEqualTo(1);
+            assertThat(controlledConflicts).as("the other attempt must observe the in-flight/applied change and refuse, not also call the provider: %s", results).isEqualTo(1);
+            org.mockito.Mockito.verify(client, org.mockito.Mockito.times(1))
+                .updatePreapprovalAmount(org.mockito.ArgumentMatchers.eq("reserve-pre"), org.mockito.ArgumentMatchers.any(),
+                    org.mockito.ArgumentMatchers.eq("BRL"), org.mockito.ArgumentMatchers.anyString());
+            try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD);
+                 var rows = connection.createStatement().executeQuery("SELECT p.code FROM subscription s JOIN plan p ON p.id = s.plan_id WHERE s.id=90001")) {
+                assertThat(rows.next()).isTrue();
+                assertThat(rows.getString(1)).isEqualTo("SILVER");
+            }
+        } finally {
+            pool.shutdownNow();
+            operationalCleanup();
+        }
+    }
+
     @Test void selectionExcludesOtherSourcesAndIncludesCancelledWithoutCheckout() throws Exception {
         operationalSetup();
         try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {
@@ -881,7 +975,15 @@ class RecurringBillingPersistenceTest {
 
     private void operationalCleanup() throws Exception {
         try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {
-            connection.createStatement().executeUpdate("UPDATE subscription SET external_provider=NULL,external_subscription_id=NULL,last_financial_reconciliation_at=NULL,contracted_vehicle_count=1,source='PAYMENT_PROVIDER',status='ACTIVE',canceled_at=NULL WHERE id=90001");
+            // 5G.12: also resets plan/contracted_price/pending_* back to schemaAndJpa's original
+            // INSERT (BRONZE, 100.00) - a no-op for every test that never touches these columns,
+            // but required for the plan-change concurrency test below, which commits real changes
+            // to subscription 90001 outside the per-test em rollback.
+            connection.createStatement().executeUpdate("UPDATE subscription SET external_provider=NULL,external_subscription_id=NULL,last_financial_reconciliation_at=NULL," +
+                "contracted_vehicle_count=1,source='PAYMENT_PROVIDER',status='ACTIVE',canceled_at=NULL,cancel_at_period_end=false," +
+                "plan_id=(SELECT id FROM plan WHERE code='BRONZE'),contracted_price=100.00," +
+                "pending_plan_id=NULL,pending_contracted_price=NULL,pending_contracted_vehicle_count=NULL,plan_change_effective_at=NULL,plan_change_requested_at=NULL " +
+                "WHERE id=90001");
         }
     }
 

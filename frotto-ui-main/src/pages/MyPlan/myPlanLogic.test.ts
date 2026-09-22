@@ -1,5 +1,5 @@
 import { BillingMeDTO, BillingPaymentStateDTO, PlanDTO, SubscriptionCancellationState, SubscriptionStatus } from "../../constants/BillingModels";
-import { checkoutBlocksPurchase, checkoutNeedsRefresh, fleetUsage, isCheckoutInProgressError, isNoticeRedundantWithGrantedPlan, isRecurringSubscriptionExistsError, isPlanCompatible, isSubscriptionCancelable, paymentNotice, recurringSubscriptionExistsMessage, remoteCancellationState, remoteCurrentPeriodEnd, resumableCheckoutUrl, sourceDetail, sourceLabel, usageState, vehicleRange } from "./myPlanLogic";
+import { checkoutBlocksPurchase, checkoutNeedsRefresh, fleetUsage, hasPendingPlanChange, isCheckoutInProgressError, isNoticeRedundantWithGrantedPlan, isPlanChangeBlockedByCancellation, isRecurringSubscriptionExistsError, isPlanCompatible, isSubscriptionCancelable, paymentNotice, planChangeErrorMessage, planDirection, pendingPlanChangeMessage, recurringSubscriptionExistsMessage, remoteCancellationState, remoteCurrentPeriodEnd, resumableCheckoutUrl, sourceDetail, sourceLabel, usageState, vehicleRange } from "./myPlanLogic";
 const billing=(changes:Partial<BillingMeDTO>={}):BillingMeDTO=>({planCode:"FREE",planName:"Free",subscriptionStatus:null,billingCycle:null,subscriptionSource:null,activeVehicleCount:0,vehicleLimit:2,canAddVehicle:true,needsUpgrade:false,requiredPlanCode:"FREE",requiredPlanName:"Free",currentMonthlyPrice:0,currentPeriodStart:null,currentPeriodEnd:null,grantExpiresAt:null,cancelAtPeriodEnd:false,cancellationState:"NONE",...changes});
 const plan=(changes:Partial<PlanDTO>={}):PlanDTO=>({code:"BRONZE",name:"Bronze",minVehicles:3,maxVehicles:5,monthlyBasePrice:29.9,billingModel:"FLAT",tiers:[],...changes});
 const subscription=(status:SubscriptionStatus,financiallyCovered=true,canCancel=true,cancellationState:SubscriptionCancellationState="NONE",currentPeriodEnd:string|null=null):BillingPaymentStateDTO=>({paymentProviderSubscription:{status,planCode:"BRONZE",billingCycle:"MONTHLY",financiallyCovered,canCancel,cancellationState,currentPeriodEnd},latestCheckout:null});
@@ -86,5 +86,41 @@ describe("myPlanLogic",()=>{
   expect(resumableCheckoutUrl(checkout("FAILED",{canResume:false,checkoutUrl:null}))).toBeNull();
   expect(resumableCheckoutUrl(subscription("ACTIVE"))).toBeNull();
   expect(resumableCheckoutUrl(null)).toBeNull();
+ });
+
+ // --- 5G.12: plan change --------------------------------------------------------------------
+ it("5G.12: determines direction structurally from minVehicles, never from price",()=>{
+  const bronze=plan({code:"BRONZE",minVehicles:3,maxVehicles:10,monthlyBasePrice:59.9});
+  const silver=plan({code:"SILVER",minVehicles:11,maxVehicles:20,monthlyBasePrice:99.9});
+  expect(planDirection(bronze,silver)).toBe("UPGRADE");
+  expect(planDirection(silver,bronze)).toBe("DOWNGRADE");
+  // A progressive plan's base price can be lower than a flat plan's while still being structurally higher.
+  const platinum=plan({code:"PLATINUM",minVehicles:31,maxVehicles:100,monthlyBasePrice:79.9});
+  const frotta=plan({code:"FROTTA",minVehicles:101,maxVehicles:null,monthlyBasePrice:10});
+  expect(planDirection(platinum,frotta)).toBe("UPGRADE");
+ });
+ it("5G.12: reports a pending plan change and its banner text only when one exists",()=>{
+  expect(hasPendingPlanChange(billing())).toBe(false);
+  const pendingBilling=billing({pendingPlanCode:"BRONZE",pendingPlanName:"Bronze",pendingPlanPrice:15.9,planChangeEffectiveAt:"2026-10-09T00:00:00Z"});
+  expect(hasPendingPlanChange(pendingBilling)).toBe(true);
+  expect(pendingPlanChangeMessage(pendingBilling)).toBe("Mudança para Bronze agendada para 09/10/2026.");
+  expect(pendingPlanChangeMessage(billing())).toBeNull();
+ });
+ it("5G.12: falls back to 'fim do período atual' when no effective date is known",()=>{
+  expect(pendingPlanChangeMessage(billing({pendingPlanCode:"BRONZE",pendingPlanName:"Bronze",pendingPlanPrice:15.9,planChangeEffectiveAt:null})))
+    .toBe("Mudança para Bronze agendada para o fim do período atual.");
+ });
+ it("5G.12: an already-scheduled cancellation (confirmed or pending) blocks plan-change actions",()=>{
+  expect(isPlanChangeBlockedByCancellation("NONE")).toBe(false);
+  expect(isPlanChangeBlockedByCancellation("PENDING_CONFIRMATION")).toBe(true);
+  expect(isPlanChangeBlockedByCancellation("CONFIRMED")).toBe(true);
+ });
+ it("5G.12: maps every backend change-plan error key to a friendly message",()=>{
+  const errorWith=(key:string)=>({response:{status:409,data:{message:`error.${key}`}}});
+  expect(planChangeErrorMessage(errorWith("BILLING_PLAN_CHANGE_AMBIGUOUS_SUBSCRIPTION"))).toContain("múltiplas assinaturas ativas");
+  expect(planChangeErrorMessage(errorWith("BILLING_PLAN_CHANGE_ALREADY_PENDING"))).toContain("mudança de plano agendada");
+  expect(planChangeErrorMessage(errorWith("BILLING_PLAN_CHANGE_PROVIDER_REJECTED"))).toContain("não confirmou a alteração");
+  expect(planChangeErrorMessage(errorWith("BILLING_PLAN_CHANGE_NOOP"))).toBe("Você já está no plano selecionado.");
+  expect(planChangeErrorMessage({response:{status:500}})).toBe("Não foi possível concluir a mudança de plano. Tente novamente.");
  });
 });

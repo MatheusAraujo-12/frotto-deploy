@@ -1,4 +1,4 @@
-import { BillingCheckoutStatus, BillingMeDTO, BillingPaymentStateDTO, PLAN_LABELS, PlanDTO, SubscriptionCancellationState, SubscriptionSource, SubscriptionStatus } from "../../constants/BillingModels";
+import { BillingCheckoutStatus, BillingMeDTO, BillingPaymentStateDTO, PLAN_LABELS, PlanChangeType, PlanDTO, SubscriptionCancellationState, SubscriptionSource, SubscriptionStatus } from "../../constants/BillingModels";
 
 /**
  * 5G.9 section B: cancelability of the remote PAYMENT_PROVIDER contract is a DIFFERENT question
@@ -64,6 +64,53 @@ export const usageState = (billing: BillingMeDTO): "within" | "near" | "reached"
 
 export const isPlanCompatible = (plan: PlanDTO, vehicles: number): boolean =>
   plan.maxVehicles == null || vehicles <= plan.maxVehicles;
+
+/**
+ * 5G.12: determined structurally from minVehicles ordering, never from price (a progressive plan's
+ * base price is not a reliable ranking - see PricingService#calculatePriceForPlan on the backend,
+ * which is the actual source of truth for what a plan costs). Mirrors SubscriptionPlanChangeService
+ * #directionOf on the backend.
+ */
+export const planDirection = (currentPlan: PlanDTO, targetPlan: PlanDTO): PlanChangeType =>
+  (targetPlan.minVehicles || 0) > (currentPlan.minVehicles || 0) ? "UPGRADE" : "DOWNGRADE";
+
+/** True once BillingMeDTO reports a scheduled downgrade (Subscription.pendingPlan) - see billingResource#getMyBilling, which effectuates any already-due change before responding. */
+export const hasPendingPlanChange = (billing: BillingMeDTO): boolean => Boolean(billing.pendingPlanCode);
+
+/** "Mudança para X agendada para DD/MM/AAAA" - null when there is nothing pending. */
+export const pendingPlanChangeMessage = (billing: BillingMeDTO): string | null => {
+  if (!billing.pendingPlanCode || !billing.pendingPlanName) return null;
+  const date = billing.planChangeEffectiveAt ? formatDate(billing.planChangeEffectiveAt) : null;
+  return date && date !== "—"
+    ? `Mudança para ${billing.pendingPlanName} agendada para ${date}.`
+    : `Mudança para ${billing.pendingPlanName} agendada para o fim do período atual.`;
+};
+
+/**
+ * 5G.12 section 19: an already-scheduled cancellation (CONFIRMED or PENDING_CONFIRMATION) blocks
+ * every functional upgrade/downgrade action - reactivating a cancelled preapproval is out of scope
+ * for this stage, so the UI must not offer a path that implies it is possible.
+ */
+export const isPlanChangeBlockedByCancellation = (cancellationState: SubscriptionCancellationState): boolean =>
+  cancellationState === "CONFIRMED" || cancellationState === "PENDING_CONFIRMATION";
+
+const PLAN_CHANGE_ERROR_MESSAGES: Record<string, string> = {
+  BILLING_PLAN_CHANGE_AMBIGUOUS_SUBSCRIPTION: "Existem múltiplas assinaturas ativas vinculadas à sua conta. Resolva ou cancele as duplicidades antes de mudar de plano.",
+  BILLING_PLAN_CHANGE_ALREADY_PENDING: "Já existe uma mudança de plano agendada para esta assinatura. Aguarde a efetivação antes de solicitar outra.",
+  BILLING_PLAN_CHANGE_PROVIDER_REJECTED: "O Mercado Pago não confirmou a alteração do valor da assinatura. Nenhuma mudança de plano foi aplicada.",
+  BILLING_PLAN_CHANGE_NOOP: "Você já está no plano selecionado.",
+};
+
+/** Friendly message for every backend change-plan error key - see getApiErrorMessage's overrides parameter. */
+export const planChangeErrorMessage = (error: unknown): string =>
+  getApiErrorMessageForOverrides(error, "Não foi possível concluir a mudança de plano. Tente novamente.", PLAN_CHANGE_ERROR_MESSAGES);
+
+function getApiErrorMessageForOverrides(error: unknown, fallback: string, overrides: Record<string, string>): string {
+  const response = (error as { response?: { status?: number; data?: { message?: string; errorKey?: string } } })?.response;
+  const code = response?.data?.message || response?.data?.errorKey || "";
+  const key = Object.keys(overrides).find((candidate) => code.includes(candidate));
+  return key ? overrides[key] : fallback;
+}
 
 export const vehicleRange = (plan: PlanDTO): string => {
   if (plan.maxVehicles == null) return `${plan.minVehicles || 0}+ veículos`;

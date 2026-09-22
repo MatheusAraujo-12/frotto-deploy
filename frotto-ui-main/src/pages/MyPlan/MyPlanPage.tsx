@@ -5,11 +5,11 @@ import {
 } from "@ionic/react";
 import { cardOutline, closeOutline, informationCircleOutline } from "ionicons/icons";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { SubscriptionCancellationResultDTO, BillingMeDTO, BillingPaymentStateDTO, PLAN_LABELS, PlanDTO, PricePreviewDTO } from "../../constants/BillingModels";
+import { SubscriptionCancellationResultDTO, BillingMeDTO, BillingPaymentStateDTO, PLAN_LABELS, PlanChangeType, PlanDTO, PricePreviewDTO } from "../../constants/BillingModels";
 import { getApiErrorMessage } from "../../services/apiErrorMessage";
 import billingService from "../../services/billingService";
 import { getToken, subscribeToTokenChanges } from "../../services/localStorage/localstorage";
-import { formatDate, isSubscriptionCancelable, checkoutBlocksPurchase, checkoutNeedsRefresh, fleetUsage, friendlyPlan, isCheckoutInProgressError, isNoticeRedundantWithGrantedPlan, isRecurringSubscriptionExistsError, isPlanCompatible, money, paymentNotice, recurringSubscriptionExistsMessage, remoteCancellationState, remoteCurrentPeriodEnd, resumableCheckoutUrl, sourceDetail, sourceLabel, statusLabel, usageState, vehicleRange } from "./myPlanLogic";
+import { formatDate, hasPendingPlanChange, isSubscriptionCancelable, checkoutBlocksPurchase, checkoutNeedsRefresh, fleetUsage, friendlyPlan, isCheckoutInProgressError, isNoticeRedundantWithGrantedPlan, isPlanChangeBlockedByCancellation, isRecurringSubscriptionExistsError, isPlanCompatible, money, paymentNotice, planChangeErrorMessage, planDirection, pendingPlanChangeMessage, recurringSubscriptionExistsMessage, remoteCancellationState, remoteCurrentPeriodEnd, resumableCheckoutUrl, sourceDetail, sourceLabel, statusLabel, usageState, vehicleRange } from "./myPlanLogic";
 import "./MyPlanPage.css";
 import { navigateToCheckout } from "./checkoutNavigation";
 
@@ -31,6 +31,13 @@ const MyPlanPage: React.FC = () => {
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState("");
   const cancelInFlight = useRef(false);
+  const [changePlanTarget, setChangePlanTarget] = useState<PlanDTO | null>(null);
+  const [changePlanDirection, setChangePlanDirection] = useState<PlanChangeType | null>(null);
+  const [changePlanPreviewPrice, setChangePlanPreviewPrice] = useState<number | null>(null);
+  const [changePlanPreviewLoading, setChangePlanPreviewLoading] = useState(false);
+  const [changePlanLoading, setChangePlanLoading] = useState(false);
+  const [changePlanError, setChangePlanError] = useState("");
+  const changePlanRequestId = useRef(0);
   const plansRef = useRef<HTMLDivElement>(null);
   const loadId = useRef(0);
   const previewLoadId = useRef(0);
@@ -40,6 +47,8 @@ const MyPlanPage: React.FC = () => {
     previewLoadId.current += 1;
     setCancelModalOpen(false); setCancellation(null); setCancelLoading(false); setCancelError(""); cancelInFlight.current = false;
     setBilling(null); setPlans([]); setPaymentState(null); setPreview(null); setSelectedPlan(null); setCheckoutLoading(false); setCheckoutError(""); setError(""); setLoading(true);
+    setChangePlanTarget(null); setChangePlanDirection(null); setChangePlanPreviewPrice(null); setChangePlanPreviewLoading(false);
+    setChangePlanLoading(false); setChangePlanError("");
     if (!getToken()) { setLoading(false); return; }
     try {
       const [me, payment, availablePlans] = await Promise.all([billingService.getMyBilling(), billingService.getBillingPaymentState(), billingService.getPlans()]);
@@ -147,6 +156,42 @@ const MyPlanPage: React.FC = () => {
     }
   };
 
+  /** 5G.12: prices exactly the target plan for the user's own fleet - never the flat base price, never computed on the frontend. */
+  const openChangePlanModal = (plan: PlanDTO, direction: PlanChangeType) => {
+    if (!billing) return;
+    setChangePlanTarget(plan); setChangePlanDirection(direction); setChangePlanError("");
+    setChangePlanPreviewPrice(null); setChangePlanPreviewLoading(true);
+    const requestId = ++changePlanRequestId.current;
+    billingService.getPricePreview(billing.activeVehicleCount, plan.code)
+      .then((result) => { if (requestId === changePlanRequestId.current) setChangePlanPreviewPrice(result.monthlyPrice); })
+      .catch(() => { if (requestId === changePlanRequestId.current) setChangePlanPreviewPrice(null); })
+      .finally(() => { if (requestId === changePlanRequestId.current) setChangePlanPreviewLoading(false); });
+  };
+
+  const confirmChangePlan = async () => {
+    if (!changePlanTarget || changePlanLoading) return;
+    const sessionId = loadId.current;
+    setChangePlanLoading(true); setChangePlanError("");
+    try {
+      const result = await billingService.changePlan(changePlanTarget.code);
+      if (sessionId !== loadId.current) return;
+      setChangePlanLoading(false);
+      if (!result.pending) setChangePlanTarget(null);
+      try {
+        const [me, payment] = await Promise.all([billingService.getMyBilling(), billingService.getBillingPaymentState()]);
+        if (sessionId === loadId.current) { setBilling(me); setPaymentState(payment); }
+      } catch { /* Keep the just-applied local result; a manual refresh will pick up the latest state. */ }
+    } catch (requestError) {
+      if (sessionId !== loadId.current) return;
+      setChangePlanError(planChangeErrorMessage(requestError));
+      setChangePlanLoading(false);
+      try {
+        const [me, payment] = await Promise.all([billingService.getMyBilling(), billingService.getBillingPaymentState()]);
+        if (sessionId === loadId.current) { setBilling(me); setPaymentState(payment); }
+      } catch { /* The error message already reflects the safe outcome. */ }
+    }
+  };
+
   if (loading) return <IonPage id="my-plan-page"><PageHeader /><IonContent><div className="section-shell"><Loading /></div></IonContent></IonPage>;
   if (error || !billing) return <IonPage id="my-plan-page"><PageHeader /><IonContent><div className="section-shell"><div className="my-plan-state"><IonIcon icon={informationCircleOutline} /><h2>Não foi possível carregar seu plano</h2><p>{error || "Entre novamente para consultar seus dados."}</p><IonButton onClick={() => void load()}>Tentar novamente</IonButton></div></div></IonContent></IonPage>;
 
@@ -163,6 +208,14 @@ const MyPlanPage: React.FC = () => {
   const periodEnd = cancellation?.currentPeriodEnd ?? remoteCurrentPeriodEnd(billing, paymentState);
   const endDate = periodEnd && formatDate(periodEnd) !== "—" ? formatDate(periodEnd) : null;
   const resumeUrl = resumableCheckoutUrl(paymentState);
+  // 5G.12: only a PAYMENT_PROVIDER contract that is actually the effective plan right now can have
+  // its plan changed in place - everyone else (FREE, ADMIN_GRANT, GRANDFATHERED) keeps using the
+  // existing checkout/no-op flows below, never the change-plan modal.
+  const canChangePlan = billing.subscriptionSource === "PAYMENT_PROVIDER" && billing.subscriptionStatus === "ACTIVE";
+  const changePlanBlockedByCancellation = isPlanChangeBlockedByCancellation(cancellationState);
+  const pendingChange = hasPendingPlanChange(billing);
+  const pendingChangeBanner = pendingPlanChangeMessage(billing);
+  const currentPlanObj = plans.find((plan) => plan.code === billing.planCode) || null;
 
   return <IonPage id="my-plan-page">
     <PageHeader />
@@ -174,6 +227,8 @@ const MyPlanPage: React.FC = () => {
             <div className="my-plan-current__header"><div><span className="my-plan-eyebrow">Seu plano</span><h1>{friendlyPlan(billing.planCode)}</h1><p>{sourceDetail(billing)}</p></div><IonBadge>{sourceLabel(billing.subscriptionSource)}</IonBadge></div>
             {cancellation?.hasResidualActiveContract ? <div className="my-plan-alert" role="alert"><span>Uma recorrência foi cancelada, mas ainda existe outra assinatura recorrente ativa. Atualize o estado e tente cancelar novamente.</span><IonButton fill="outline" onClick={() => void load()}>Atualizar estado</IonButton></div> : confirmed && <div className="my-plan-alert" role="status"><IonBadge color="success">Cancelamento agendado</IonBadge><span>{endDate ? `Seu plano ficará ativo até ${endDate}. Não haverá nova renovação.` : "Seu plano ficará ativo até o fim do período atual. Não haverá nova renovação."}</span></div>}
             {pending && <div className="my-plan-alert" role="status">Estamos confirmando o cancelamento com o Mercado Pago.</div>}
+            {!confirmed && !pending && pendingChangeBanner && <div className="my-plan-alert" role="status">{pendingChangeBanner}</div>}
+            {changePlanBlockedByCancellation && <div className="my-plan-alert" role="status">Sua assinatura já está programada para encerrar em {endDate || "breve"}.</div>}
             {cancelable && !confirmed && <>
               <IonButton fill="outline" disabled={cancelLoading} onClick={() => { if (pending) void cancelSubscription(); else { setCancelError(""); setCancelModalOpen(true); } }}>{cancelLoading ? <><IonSpinner name="crescent" /> Cancelando...</> : pending ? "Tentar novamente" : "Cancelar assinatura"}</IonButton>
             </>}
@@ -186,14 +241,39 @@ const MyPlanPage: React.FC = () => {
         </IonCard>
 
         <section ref={plansRef} className="my-plan-section"><div className="my-plan-heading"><span className="my-plan-eyebrow">Compare</span><h2>Planos disponíveis</h2><p>Escolha uma estrutura que acompanhe o tamanho da sua frota.</p></div><div className="my-plan-grid">
-          {plans.map((plan) => { const current = plan.code === billing.planCode; const recommended = plan.code === billing.requiredPlanCode; const compatible = isPlanCompatible(plan, billing.activeVehicleCount); return <IonCard key={plan.code} className={`my-plan-plan${recommended ? " my-plan-plan--recommended" : ""}`}><IonCardContent>
+          {plans.map((plan) => {
+            const current = plan.code === billing.planCode;
+            const recommended = plan.code === billing.requiredPlanCode;
+            const compatible = isPlanCompatible(plan, billing.activeVehicleCount);
+            const actionsBlocked = changePlanBlockedByCancellation || (pendingChange && !current);
+            let action: React.ReactNode = null;
+            let incompatibleReason: React.ReactNode = null;
+            if (current) {
+              // No action - "Seu plano atual" badge above already communicates this.
+            } else if (!canChangePlan) {
+              // FREE (or no effective PAYMENT_PROVIDER contract yet): the only path to a paid plan is checkout.
+              action = <IonButton expand="block" fill={compatible ? "solid" : "outline"} disabled={!compatible || checkoutBlocked} onClick={() => openUpgrade(plan)}>Escolher plano</IonButton>;
+              if (!compatible) incompatibleReason = <p className="my-plan-incompatible">Sua frota atual excede o limite deste plano.</p>;
+              else if (checkoutBlocked) incompatibleReason = <p className="my-plan-payment-blocked">Aguarde a confirmação do pagamento em andamento.</p>;
+            } else if (plan.code === "FREE") {
+              action = <IonButton expand="block" fill="outline" disabled={actionsBlocked || cancelLoading} onClick={() => { setCancelError(""); setCancelModalOpen(true); }}>Mudar para Gratuito</IonButton>;
+            } else if (!compatible) {
+              action = <IonButton expand="block" fill="outline" disabled>Fazer downgrade</IonButton>;
+              incompatibleReason = <p className="my-plan-incompatible">Sua frota atual excede o limite deste plano.</p>;
+            } else {
+              const direction = currentPlanObj ? planDirection(currentPlanObj, plan) : "UPGRADE";
+              const label = direction === "UPGRADE" ? "Fazer upgrade" : "Fazer downgrade";
+              action = <IonButton expand="block" fill={direction === "UPGRADE" ? "solid" : "outline"} disabled={actionsBlocked} onClick={() => openChangePlanModal(plan, direction)}>{label}</IonButton>;
+              if (pendingChange && !current) incompatibleReason = <p className="my-plan-payment-blocked">Conclua ou cancele a mudança de plano já agendada antes de solicitar outra.</p>;
+            }
+            return <IonCard key={plan.code} className={`my-plan-plan${recommended ? " my-plan-plan--recommended" : ""}`}><IonCardContent>
             <div className="my-plan-plan__badges">{current && <IonBadge color="primary">Seu plano atual</IonBadge>}{recommended && <IonBadge color="success">Recomendado para sua frota</IonBadge>}</div><h3>{PLAN_LABELS[plan.code]}</h3><p className="my-plan-range">{vehicleRange(plan)}</p><div className="my-plan-price">{plan.billingModel === "PROGRESSIVE" && <small>Base </small>}<strong>{money(plan.monthlyBasePrice)}</strong><small>/mês</small></div><p>{plan.billingModel === "PROGRESSIVE" ? "Cobrança progressiva conforme a frota" : "Valor mensal fixo"}</p>
             {plan.billingModel === "PROGRESSIVE" && plan.tiers.map((tier) => <small key={`${tier.fromVehicleCount}-${tier.toVehicleCount}`}>+ {money(tier.pricePerVehicle)} por veículo de {tier.fromVehicleCount}{tier.toVehicleCount ? ` a ${tier.toVehicleCount}` : " em diante"}</small>)}
-            {!current && <IonButton expand="block" fill={compatible ? "solid" : "outline"} disabled={!compatible || checkoutBlocked} onClick={() => openUpgrade(plan)}>Escolher plano</IonButton>}{!compatible && <p className="my-plan-incompatible">Sua frota atual excede o limite deste plano.</p>}{compatible && checkoutBlocked && <p className="my-plan-payment-blocked">Aguarde a confirmação do pagamento em andamento.</p>}
+            {action}{incompatibleReason}
           </IonCardContent></IonCard>; })}
         </div></section>
 
-        <section className="my-plan-simulator"><div className="my-plan-heading"><span className="my-plan-eyebrow">Planeje</span><h2>Simule sua frota</h2><p>O preço final é calculado pelo backend, sem estimativas locais.</p></div><label htmlFor="fleet-size">Quantos veículos você pretende gerenciar?</label><IonInput id="fleet-size" type="number" min="0" inputmode="numeric" value={vehicleInput} onIonChange={(event) => setVehicleInput(event.detail.value || "")} />
+        <section className="my-plan-simulator"><div className="my-plan-heading"><span className="my-plan-eyebrow">Planeje</span><h2>Simule sua frota</h2><p>O preço final é calculado pelo próprio site, sem estimativas locais.</p></div><label htmlFor="fleet-size">Quantos veículos você pretende gerenciar?</label><IonInput id="fleet-size" type="number" min="0" inputmode="numeric" value={vehicleInput} onIonChange={(event) => setVehicleInput(event.detail.value || "")} />
           {previewLoading && <div className="my-plan-preview-loading"><IonSpinner name="crescent" /> Calculando...</div>}{previewError && <p className="my-plan-preview-error">{previewError}</p>}{preview && !previewLoading && <div className="my-plan-preview"><div><span>Plano recomendado</span><strong>{friendlyPlan(preview.planCode)}</strong></div><div><span>Preço mensal estimado</span><strong>{money(preview.monthlyPrice)}</strong></div><div><span>Média por veículo</span><strong>{money(preview.averagePricePerVehicle)}</strong></div>{preview.components.length > 0 && <div className="my-plan-components"><h3>Composição do preço</h3>{preview.components.map((component, index) => <p key={`${component.fromVehicleCount}-${index}`}>{component.quantity} veículos × {money(component.unitPrice)}: <strong>{money(component.subtotal)}</strong></p>)}<p>Total: <strong>{money(preview.monthlyPrice)}</strong></p></div>}</div>}
         </section>
       </div>
@@ -209,6 +289,21 @@ const MyPlanPage: React.FC = () => {
       </div></IonContent>
     </IonModal>
     <IonModal isOpen={Boolean(selectedPlan)} onDidDismiss={() => { if (!checkoutLoading) { setSelectedPlan(null); setCheckoutError(""); } }} className="my-plan-modal"><IonHeader><IonToolbar><IonTitle>Resumo do plano</IonTitle><IonButtons slot="end"><IonButton aria-label="Fechar" disabled={checkoutLoading} onClick={() => setSelectedPlan(null)}><IonIcon slot="icon-only" icon={closeOutline} /></IonButton></IonButtons></IonToolbar></IonHeader><IonContent>{selectedPlan && <div className="my-plan-modal__body"><IonIcon icon={cardOutline} /><h2>{PLAN_LABELS[selectedPlan.code]}</h2><div><span>Frota atual</span><strong>{billing.activeVehicleCount} veículos</strong></div><div><span>Preço estimado</span><strong>{preview?.vehicleCount === billing.activeVehicleCount && preview.planCode === selectedPlan.code ? money(preview.monthlyPrice) : `${money(selectedPlan.monthlyBasePrice)} (base)`}</strong></div><div><span>Ciclo</span><strong>Mensal</strong></div><p>Você será direcionado ao ambiente seguro do Mercado Pago.</p>{checkoutError && <p className="my-plan-preview-error" role="alert">{checkoutError}</p>}<IonButton expand="block" disabled={checkoutLoading || checkoutBlocked} onClick={() => void continueToPayment()}>{checkoutLoading ? <><IonSpinner name="crescent" /> Processando...</> : "Continuar para pagamento"}</IonButton></div>}</IonContent></IonModal>
+    <IonModal isOpen={Boolean(changePlanTarget)} canDismiss={!changePlanLoading} backdropDismiss={!changePlanLoading} onDidDismiss={() => { if (!changePlanLoading) { setChangePlanTarget(null); setChangePlanError(""); } }} className="my-plan-modal">
+      <IonHeader><IonToolbar><IonTitle>{changePlanDirection === "UPGRADE" ? "Confirmar upgrade" : "Agendar downgrade"}</IonTitle></IonToolbar></IonHeader>
+      <IonContent>{changePlanTarget && <div className="my-plan-modal__body">
+        <h2>Alterar de {friendlyPlan(billing.planCode)} para {friendlyPlan(changePlanTarget.code)}</h2>
+        {changePlanDirection === "UPGRADE" ? <>
+          <div><span>Novo valor</span><strong>{changePlanPreviewLoading ? "Calculando..." : changePlanPreviewPrice != null ? `${money(changePlanPreviewPrice)}/mês` : "—"}</strong></div>
+          <p>O plano {friendlyPlan(changePlanTarget.code)} será liberado imediatamente. O novo valor será utilizado nas próximas renovações. Não haverá cobrança proporcional pelo período atual.</p>
+        </> : <>
+          <p>Seu plano {friendlyPlan(billing.planCode)} continuará disponível{endDate ? ` até ${endDate}` : " até o fim do período atual"}. Depois dessa data, sua assinatura passará para {friendlyPlan(changePlanTarget.code)} por {changePlanPreviewLoading ? "..." : changePlanPreviewPrice != null ? `${money(changePlanPreviewPrice)}/mês` : "—"}, após a renovação do próximo ciclo.</p>
+        </>}
+        {changePlanError && <p className="my-plan-preview-error" role="alert">{changePlanError}</p>}
+        <IonButton expand="block" fill="outline" disabled={changePlanLoading} onClick={() => { setChangePlanTarget(null); setChangePlanError(""); }}>{changePlanDirection === "UPGRADE" ? "Cancelar" : "Voltar"}</IonButton>
+        <IonButton expand="block" disabled={changePlanLoading || changePlanPreviewLoading} onClick={() => void confirmChangePlan()}>{changePlanLoading ? <><IonSpinner name="crescent" /> Processando...</> : changePlanDirection === "UPGRADE" ? "Confirmar upgrade" : "Agendar downgrade"}</IonButton>
+      </div>}</IonContent>
+    </IonModal>
   </IonPage>;
 };
 

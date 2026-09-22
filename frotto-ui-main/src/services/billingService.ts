@@ -1,4 +1,4 @@
-import { SubscriptionCancellationResultDTO, BillingCheckoutDTO, BillingMeDTO, BillingPaymentStateDTO, PlanCode, PlanDTO, PricePreviewDTO } from "../constants/BillingModels";
+import { SubscriptionCancellationResultDTO, BillingCheckoutDTO, BillingMeDTO, BillingPaymentStateDTO, PlanChangeResultDTO, PlanCode, PlanDTO, PricePreviewDTO } from "../constants/BillingModels";
 import endpoints from "../constants/endpoints";
 import api from "./axios/axios";
 
@@ -19,14 +19,20 @@ const billingService = {
     const { data } = await api.get<BillingPaymentStateDTO>(endpoints.BILLING_PAYMENT_STATE());
     return data;
   },
-  async getPricePreview(vehicleCount: number): Promise<PricePreviewDTO> {
+  /** planCode prices exactly that plan (may be above what vehicleCount alone would recommend) - never guessed on the frontend, see PricingService#calculatePriceForPlan. */
+  async getPricePreview(vehicleCount: number, planCode?: PlanCode): Promise<PricePreviewDTO> {
     const { data } = await api.get<PricePreviewDTO>(
-      endpoints.BILLING_PRICE_PREVIEW({ query: { vehicleCount } })
+      endpoints.BILLING_PRICE_PREVIEW({ query: planCode ? { vehicleCount, planCode } : { vehicleCount } })
     );
     return data;
   },
   async createCheckout(planCode: PlanCode): Promise<BillingCheckoutDTO> {
     const { data } = await api.post<BillingCheckoutDTO>(endpoints.BILLING_CHECKOUT(), { planCode });
+    return data;
+  },
+  /** 5G.12: changes the SAME Mercado Pago recurrence's plan (upgrade immediate, downgrade scheduled) - never creates a new checkout. */
+  async changePlan(targetPlanCode: PlanCode): Promise<PlanChangeResultDTO> {
+    const { data } = await api.post<PlanChangeResultDTO>(endpoints.BILLING_CHANGE_PLAN(), { targetPlanCode });
     return data;
   },
 };

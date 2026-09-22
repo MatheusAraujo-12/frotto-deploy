@@ -183,6 +183,20 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
         }
     }
 
+    /**
+     * 5G.12: updates only the recurring amount/currency - never plan/status/frequency. Deliberately
+     * does NOT confirm the result itself (unlike cancelPreapproval's own canceled/cancelled
+     * fallback): the caller (SubscriptionPlanChangeService) always issues its own authoritative
+     * confirming GET afterwards regardless of this call's outcome, per docs/billing-plan-change-
+     * 5g12.md ("não confie apenas na resposta do PUT").
+     */
+    @Override public MercadoPagoPreapproval updatePreapprovalAmount(String id, java.math.BigDecimal transactionAmount, String currencyId, String idempotencyKey) {
+        Map<String, Object> autoRecurring = new HashMap<>();
+        autoRecurring.put("transaction_amount", transactionAmount);
+        autoRecurring.put("currency_id", currencyId);
+        return exchange("PUT", resource(id), Map.of("auto_recurring", autoRecurring), idempotencyKey, true);
+    }
+
     private URI resource(String id) {
         return resource(PREAPPROVAL, id);
     }
@@ -216,7 +230,8 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
                 throw new MercadoPagoException("Mercado Pago returned an invalid response", mutable);
             }
             return new MercadoPagoPreapproval(id, status, text(node, "external_reference"), text(node, "init_point"), instant(node, "date_created"), instant(node, "next_payment_date"), instant(node, "last_modified"),
-                frequency(node.path("auto_recurring")), text(node.path("auto_recurring"), "frequency_type"));
+                frequency(node.path("auto_recurring")), text(node.path("auto_recurring"), "frequency_type"),
+                decimal(node.path("auto_recurring"), "transaction_amount"), text(node.path("auto_recurring"), "currency_id"));
         } catch (MercadoPagoException exception) { throw exception;
         } catch (java.net.http.HttpTimeoutException exception) {
             throw new MercadoPagoException("Mercado Pago request timed out", mutable, exception);

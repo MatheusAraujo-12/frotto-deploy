@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <!--
+        5G.12: a scheduled plan change (downgrade). pendingPlan/pendingContractedPrice/
+        pendingContractedVehicleCount mirror plan/contractedPrice/contractedVehicleCount so the
+        pending snapshot is applied verbatim by SubscriptionPlanChangeSteps#effectuateIfDue once a
+        renewal on/after planChangeEffectiveAt is confirmed (see docs/billing-plan-change-5g12.md).
+        An upgrade never populates these columns - it applies immediately to the live columns
+        instead (no proration in this first version).
+    -->
+    <changeSet id="20260921000000-1" author="claude">
+        <addColumn tableName="subscription">
+            <column name="pending_plan_id" type="bigint">
+                <constraints nullable="true"/>
+            </column>
+            <column name="pending_contracted_price" type="decimal(21,2)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="pending_contracted_vehicle_count" type="int">
+                <constraints nullable="true"/>
+            </column>
+            <column name="plan_change_effective_at" type="datetime(6)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="plan_change_requested_at" type="datetime(6)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="20260921000000-2" author="claude">
+        <createIndex tableName="subscription" indexName="idx_subscription_pending_plan_id">
+            <column name="pending_plan_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="20260921000000-3" author="claude">
+        <addForeignKeyConstraint
+            baseTableName="subscription"
+            baseColumnNames="pending_plan_id"
+            constraintName="fk_subscription_pending_plan_id"
+            referencedTableName="plan"
+            referencedColumnNames="id"/>
+    </changeSet>
+</databaseChangeLog>

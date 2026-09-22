@@ -78,7 +78,7 @@ public class EntitlementService {
         Optional<Subscription> subscription = subscriptionService.getCurrentSubscription(user);
         Plan currentPlan = subscription.map(Subscription::getPlan).orElseGet(subscriptionService::getFreePlan);
         long activeVehicleCount = getActiveVehicleCount(user);
-        Integer vehicleLimit = currentPlan.getMaxVehicles();
+        Integer vehicleLimit = effectiveVehicleLimit(subscription, currentPlan);
         boolean canAdd = vehicleLimit == null || activeVehicleCount < vehicleLimit;
         Plan requiredPlan = pricingService.resolvePlanForVehicleCount(toIntVehicleCount(activeVehicleCount));
 
@@ -91,6 +91,26 @@ public class EntitlementService {
             canAdd,
             !canAdd
         );
+    }
+
+    /**
+     * 5G.12 section 12: while a downgrade is scheduled (pendingPlan set), the CURRENT plan's
+     * benefits still apply until effectiveAt, but new vehicle additions must already respect the
+     * PENDING (lower) plan's limit - otherwise the next renewal would land the user in an
+     * impossible state (more vehicles than the plan they are about to be moved to allows). An
+     * upgrade never sets pendingPlan (it applies immediately - see SubscriptionPlanChangeSteps), so
+     * this only ever narrows the limit, never widens it.
+     */
+    private static Integer effectiveVehicleLimit(Optional<Subscription> subscription, Plan currentPlan) {
+        Integer limit = currentPlan.getMaxVehicles();
+        Integer pendingLimit = subscription.map(Subscription::getPendingPlan).map(Plan::getMaxVehicles).orElse(null);
+        if (pendingLimit == null) {
+            return limit;
+        }
+        if (limit == null) {
+            return pendingLimit;
+        }
+        return Math.min(limit, pendingLimit);
     }
 
     private static int toIntVehicleCount(long count) {

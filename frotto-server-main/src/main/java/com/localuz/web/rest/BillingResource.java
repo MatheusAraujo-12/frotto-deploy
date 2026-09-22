@@ -10,8 +10,11 @@ import com.localuz.service.PricingService;
 import com.localuz.service.BillingCheckoutService;
 import com.localuz.service.BillingPaymentStateService;
 import com.localuz.service.SubscriptionCancellationService;
+import com.localuz.service.SubscriptionPlanChangeService;
 import com.localuz.service.UserService;
 import com.localuz.service.dto.BillingMeDTO;
+import com.localuz.service.dto.PlanChangeRequest;
+import com.localuz.service.dto.PlanChangeResultDTO;
 import com.localuz.service.dto.PlanDTO;
 import com.localuz.service.dto.PricePreviewDTO;
 import com.localuz.service.dto.PricingResult;
@@ -54,6 +57,7 @@ public class BillingResource {
     private final BillingCheckoutService billingCheckoutService;
     private final BillingPaymentStateService billingPaymentStateService;
     private final SubscriptionCancellationService subscriptionCancellationService;
+    private final SubscriptionPlanChangeService subscriptionPlanChangeService;
 
     public BillingResource(
         UserService userService,
@@ -63,7 +67,8 @@ public class BillingResource {
         PlanPricingTierRepository planPricingTierRepository,
         BillingCheckoutService billingCheckoutService,
         BillingPaymentStateService billingPaymentStateService,
-        SubscriptionCancellationService subscriptionCancellationService
+        SubscriptionCancellationService subscriptionCancellationService,
+        SubscriptionPlanChangeService subscriptionPlanChangeService
     ) {
         this.userService = userService;
         this.entitlementService = entitlementService;
@@ -73,6 +78,7 @@ public class BillingResource {
         this.billingCheckoutService = billingCheckoutService;
         this.billingPaymentStateService = billingPaymentStateService;
         this.subscriptionCancellationService = subscriptionCancellationService;
+        this.subscriptionPlanChangeService = subscriptionPlanChangeService;
     }
 
     @PostMapping("/checkout")
@@ -107,20 +113,36 @@ public class BillingResource {
         return SubscriptionCancellationResultDTO.from(result, hasResidualActiveContract);
     }
 
+    /**
+     * 5G.12: alters the SAME Mercado Pago recurrence (auto_recurring.transaction_amount) instead
+     * of creating a second preapproval - see SubscriptionPlanChangeService. Never accepts price or
+     * userId from the request; the backend derives vehicle count, current plan, target plan, price
+     * and change direction itself.
+     */
+    @PostMapping("/change-plan")
+    public PlanChangeResultDTO changePlan(@Valid @RequestBody PlanChangeRequest request) {
+        return subscriptionPlanChangeService.changePlan(getCurrentUser(), request.getTargetPlanCode());
+    }
+
     @GetMapping("/me")
     public BillingMeDTO getMyBilling() {
-        return BillingMeDTO.from(entitlementService.getSnapshot(getCurrentUser()));
+        User user = getCurrentUser();
+        subscriptionPlanChangeService.effectuateDueChangesForUser(user.getId());
+        return BillingMeDTO.from(entitlementService.getSnapshot(user));
     }
 
     @GetMapping("/payment-state")
     public BillingPaymentStateDTO getMyPaymentState() {
-        return billingPaymentStateService.getState(getCurrentUser());
+        User user = getCurrentUser();
+        subscriptionPlanChangeService.effectuateDueChangesForUser(user.getId());
+        return billingPaymentStateService.getState(user);
     }
 
     @GetMapping("/price-preview")
     public PricePreviewDTO previewPrice(
         @RequestParam int vehicleCount,
-        @RequestParam(required = false, defaultValue = "MONTHLY") BillingCycle billingCycle
+        @RequestParam(required = false, defaultValue = "MONTHLY") BillingCycle billingCycle,
+        @RequestParam(required = false) com.localuz.domain.enumeration.PlanCode planCode
     ) {
         if (vehicleCount < 0) {
             throw new BadRequestAlertException("vehicleCount must be >= 0", ENTITY_NAME, "vehiclecountinvalid");
@@ -128,7 +150,12 @@ public class BillingResource {
         if (billingCycle == BillingCycle.YEARLY) {
             throw new BadRequestAlertException("Yearly billing is not available yet", ENTITY_NAME, "yearlynotavailable");
         }
-        PricingResult result = pricingService.calculateMonthlyPrice(vehicleCount);
+        // 5G.12: an explicit planCode prices exactly the plan the user selected (which may be
+        // ABOVE what resolvePlanForVehicleCount would recommend, e.g. a user with 2 vehicles
+        // deliberately choosing Bronze) - never guessed or approximated on the frontend.
+        PricingResult result = planCode != null
+            ? pricingService.calculatePriceForPlan(planCode, vehicleCount)
+            : pricingService.calculateMonthlyPrice(vehicleCount);
         return PricePreviewDTO.from(result, billingCycle);
     }
 

@@ -43,6 +43,12 @@ public class BillingMeDTO {
     private final boolean cancelAtPeriodEnd;
     private final SubscriptionCancellationState cancellationState;
 
+    /** 5G.12: only non-null while a downgrade is scheduled (Subscription#pendingPlan) - additive, never replaces planCode/planName which stay the CURRENT (still effective) plan until planChangeEffectiveAt. */
+    private final PlanCode pendingPlanCode;
+    private final String pendingPlanName;
+    private final BigDecimal pendingPlanPrice;
+    private final Instant planChangeEffectiveAt;
+
     public BillingMeDTO(
         PlanCode planCode,
         String planName,
@@ -60,7 +66,11 @@ public class BillingMeDTO {
         Instant currentPeriodEnd,
         Instant grantExpiresAt,
         boolean cancelAtPeriodEnd,
-        SubscriptionCancellationState cancellationState
+        SubscriptionCancellationState cancellationState,
+        PlanCode pendingPlanCode,
+        String pendingPlanName,
+        BigDecimal pendingPlanPrice,
+        Instant planChangeEffectiveAt
     ) {
         this.planCode = planCode;
         this.planName = planName;
@@ -79,12 +89,17 @@ public class BillingMeDTO {
         this.grantExpiresAt = grantExpiresAt;
         this.cancelAtPeriodEnd = cancelAtPeriodEnd;
         this.cancellationState = cancellationState;
+        this.pendingPlanCode = pendingPlanCode;
+        this.pendingPlanName = pendingPlanName;
+        this.pendingPlanPrice = pendingPlanPrice;
+        this.planChangeEffectiveAt = planChangeEffectiveAt;
     }
 
     public static BillingMeDTO from(EntitlementSnapshot snapshot) {
         Subscription subscription = snapshot.getSubscription();
         Plan currentPlan = snapshot.getCurrentPlan();
         Plan requiredPlan = snapshot.getRequiredPlan();
+        Plan pendingPlan = subscription != null ? subscription.getPendingPlan() : null;
 
         BigDecimal currentMonthlyPrice = subscription != null ? subscription.getContractedPrice() : currentPlan.getMonthlyBasePrice();
 
@@ -108,7 +123,11 @@ public class BillingMeDTO {
                 : null,
             subscription != null && Boolean.TRUE.equals(subscription.getCancelAtPeriodEnd()),
             subscription == null ? SubscriptionCancellationState.NONE
-                : SubscriptionCancellationState.from(subscription.getCancelAtPeriodEnd(), subscription.getCanceledAt())
+                : SubscriptionCancellationState.from(subscription.getCancelAtPeriodEnd(), subscription.getCanceledAt()),
+            pendingPlan != null ? pendingPlan.getCode() : null,
+            pendingPlan != null ? pendingPlan.getName() : null,
+            pendingPlan != null ? subscription.getPendingContractedPrice() : null,
+            pendingPlan != null ? subscription.getPlanChangeEffectiveAt() : null
         );
     }
 
@@ -178,5 +197,21 @@ public class BillingMeDTO {
 
     public SubscriptionCancellationState getCancellationState() {
         return cancellationState;
+    }
+
+    public PlanCode getPendingPlanCode() {
+        return pendingPlanCode;
+    }
+
+    public String getPendingPlanName() {
+        return pendingPlanName;
+    }
+
+    public BigDecimal getPendingPlanPrice() {
+        return pendingPlanPrice;
+    }
+
+    public Instant getPlanChangeEffectiveAt() {
+        return planChangeEffectiveAt;
     }
 }
