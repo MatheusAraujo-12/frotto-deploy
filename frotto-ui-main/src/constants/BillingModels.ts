@@ -32,13 +32,57 @@ export interface BillingMeDTO {
 
 export type PlanChangeType = "UPGRADE" | "DOWNGRADE";
 
+/** 5G.12.1: explicit backend outcome of a plan-change request - never inferred from changeType/pending. */
+export type PlanChangeStatus =
+  | "UPGRADE_PAYMENT_REQUIRED"
+  | "UPGRADE_PAYMENT_PENDING"
+  | "UPGRADE_APPLIED"
+  | "DOWNGRADE_SCHEDULED"
+  | "DOWNGRADE_UNDONE"
+  | "CANCELLATION_SCHEDULED";
+
 export interface PlanChangeResultDTO {
   currentPlan: PlanCode;
   targetPlan: PlanCode;
   changeType: PlanChangeType;
+  status: PlanChangeStatus;
   effectiveAt: string | null;
   contractedPrice: number;
+  /** Prorated amount due now (upgrade only), computed by the backend. */
+  chargeAmount: number | null;
+  /** Recurring amount from the next renewal on. */
+  nextRenewalPrice: number | null;
+  /** Mercado Pago payment page - only while status=UPGRADE_PAYMENT_REQUIRED. */
+  checkoutUrl: string | null;
   pending: boolean;
+}
+
+/** 5G.12.1: GET /billing/change-plan/preview - server-computed confirmation data, informational only. */
+export interface PlanChangePreviewDTO {
+  currentPlan: PlanCode;
+  targetPlan: PlanCode;
+  changeType: PlanChangeType;
+  currentPrice: number;
+  newMonthlyPrice: number;
+  /** Prorated amount due now (upgrade only; null for a downgrade). */
+  chargeNow: number | null;
+  cycleEnd: string | null;
+}
+
+export type PlanUpgradeState = "NONE" | "AWAITING_PAYMENT" | "APPLYING" | "APPLIED" | "EXPIRED" | "FAILED" | "REQUIRES_REVIEW";
+
+/** 5G.12.1: GET /billing/plan-upgrade - the caller's latest prorated upgrade, reconciled server-side with Mercado Pago. */
+export interface PlanUpgradeStatusDTO {
+  status: PlanUpgradeState;
+  fromPlan: PlanCode | null;
+  targetPlan: PlanCode | null;
+  chargeAmount: number | null;
+  targetPrice: number | null;
+  checkoutUrl: string | null;
+  paymentPending: boolean;
+  paymentRejected: boolean;
+  appliedAt: string | null;
+  updatedAt: string | null;
 }
 
 export interface SubscriptionCancellationResultDTO {

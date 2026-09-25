@@ -24,6 +24,10 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
     private static final URI PREAPPROVAL = URI.create("https://api.mercadopago.com/preapproval");
     private static final URI AUTHORIZED_PAYMENTS = URI.create("https://api.mercadopago.com/authorized_payments");
     private static final URI PAYMENTS = URI.create("https://api.mercadopago.com/v1/payments");
+    private static final URI PREFERENCES = URI.create("https://api.mercadopago.com/checkout/preferences");
+    private static final int MAX_REFERENCE_PAYMENTS = 30;
+    private static final java.time.format.DateTimeFormatter PREFERENCE_DATE =
+        java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSxxx");
     private final MercadoPagoProperties properties;
     private final ObjectMapper mapper;
     private final HttpClient client;
@@ -208,6 +212,96 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
         return exchange("PUT", resource(id), Map.of("auto_recurring", autoRecurring), idempotencyKey, true);
     }
 
+    /**
+     * 5G.12.1: POST /checkout/preferences, using only fields from the official reference: one item
+     * (quantity 1, unit_price = server-computed charge), external_reference, back_urls/auto_return,
+     * expires/expiration_date_from/expiration_date_to, payment_methods (boleto/ATM excluded so a
+     * payment cannot stay pending for days after the checkout window, one installment) and
+     * binary_mode (approved or rejected, no manual-review "in_process" state).
+     *
+     * Failure classification: a timeout, network error or 408/5xx is ambiguous (the preference may
+     * exist); any other non-2xx is a definite rejection. Neither case can charge anyone - a
+     * preference is only a payment link.
+     */
+    @Override public com.localuz.service.dto.MercadoPagoPaymentPreference createPaymentPreference(
+        com.localuz.service.dto.MercadoPagoPaymentPreferenceRequest request) {
+        Map<String, Object> item = new HashMap<>();
+        item.put("id", "frotto-plan-upgrade");
+        item.put("title", request.getTitle());
+        item.put("quantity", 1);
+        item.put("currency_id", request.getCurrencyId());
+        item.put("unit_price", request.getAmount());
+        Map<String, Object> paymentMethods = new HashMap<>();
+        paymentMethods.put("excluded_payment_types", List.of(Map.of("id", "ticket"), Map.of("id", "atm")));
+        paymentMethods.put("installments", 1);
+        Map<String, Object> body = new HashMap<>();
+        body.put("items", List.of(item));
+        body.put("external_reference", request.getExternalReference());
+        body.put("payment_methods", paymentMethods);
+        body.put("binary_mode", true);
+        body.put("expires", true);
+        body.put("expiration_date_from", PREFERENCE_DATE.format(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC)));
+        body.put("expiration_date_to", PREFERENCE_DATE.format(request.getExpiresAt().atOffset(java.time.ZoneOffset.UTC)));
+        if (request.getBackUrl() != null && !request.getBackUrl().isBlank()) {
+            body.put("back_urls", Map.of("success", request.getBackUrl(), "pending", request.getBackUrl(), "failure", request.getBackUrl()));
+            body.put("auto_return", "approved");
+        }
+        try {
+            HttpRequest httpRequest = HttpRequest.newBuilder(PREFERENCES)
+                .timeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
+                .header("Authorization", "Bearer " + properties.getAccessToken())
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body))).build();
+            HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                MercadoPagoException failure = providerError(response);
+                if (response.statusCode() >= 500 || response.statusCode() == 408) {
+                    throw new MercadoPagoException(failure.getMessage(), true, failure.getHttpStatus(), failure.getProviderCode(), failure.getProviderMessage());
+                }
+                throw failure;
+            }
+            JsonNode node = mapper.readTree(response.body());
+            String id = text(node, "id");
+            String checkoutUrl = text(node, "init_point") != null ? text(node, "init_point") : text(node, "sandbox_init_point");
+            if (id == null || !id.matches("[A-Za-z0-9_-]+") || checkoutUrl == null || !checkoutUrl.startsWith("https://")
+                || !request.getExternalReference().equals(text(node, "external_reference"))) {
+                throw new MercadoPagoException("Mercado Pago returned an invalid preference response", true);
+            }
+            return new com.localuz.service.dto.MercadoPagoPaymentPreference(id, checkoutUrl, text(node, "external_reference"));
+        } catch (MercadoPagoException exception) { throw exception;
+        } catch (java.net.http.HttpTimeoutException exception) {
+            throw new MercadoPagoException("Mercado Pago request timed out", true, exception);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt(); throw new MercadoPagoException("Mercado Pago request interrupted", true, exception);
+        } catch (Exception exception) {
+            throw new MercadoPagoException("Mercado Pago communication failed", true, exception);
+        }
+    }
+
+    /**
+     * 5G.12.1: GET /v1/payments/search?sort=date_created&criteria=desc&external_reference=... -
+     * discovery only, every returned id must be re-read with getPayment. More matches than one
+     * page is never expected for a single upgrade reference, so it fails closed instead of paging.
+     */
+    @Override public List<String> searchPaymentIdsByExternalReference(String externalReference) {
+        if (externalReference == null || !externalReference.matches("[A-Za-z0-9_-]{1,64}")) {
+            throw new IllegalArgumentException("Invalid external reference");
+        }
+        JsonNode node = getJson(URI.create(PAYMENTS + "/search?sort=date_created&criteria=desc&external_reference="
+            + externalReference + "&limit=" + MAX_REFERENCE_PAYMENTS + "&offset=0"));
+        JsonNode results = node.path("results");
+        JsonNode total = node.path("paging").path("total");
+        if (!results.isArray() || !total.isIntegralNumber() || !total.canConvertToInt()) throw invalidFinancialResponse();
+        if (total.asInt() > MAX_REFERENCE_PAYMENTS || results.size() > MAX_REFERENCE_PAYMENTS) throw invalidFinancialResponse();
+        List<String> ids = new ArrayList<>();
+        for (JsonNode result : results) {
+            String id = text(result, "id");
+            if (id == null || !id.matches("[A-Za-z0-9_-]+")) throw invalidFinancialResponse();
+            ids.add(id);
+        }
+        return ids;
+    }
+
     private URI resource(String id) {
         return resource(PREAPPROVAL, id);
     }
@@ -242,7 +336,8 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
             }
             return new MercadoPagoPreapproval(id, status, text(node, "external_reference"), text(node, "init_point"), instant(node, "date_created"), instant(node, "next_payment_date"), instant(node, "last_modified"),
                 frequency(node.path("auto_recurring")), text(node.path("auto_recurring"), "frequency_type"),
-                decimal(node.path("auto_recurring"), "transaction_amount"), text(node.path("auto_recurring"), "currency_id"));
+                decimal(node.path("auto_recurring"), "transaction_amount"), text(node.path("auto_recurring"), "currency_id"),
+                offsetDateTime(node, "next_payment_date"));
         } catch (MercadoPagoException exception) { throw exception;
         } catch (java.net.http.HttpTimeoutException exception) {
             throw new MercadoPagoException("Mercado Pago request timed out", mutable, exception);

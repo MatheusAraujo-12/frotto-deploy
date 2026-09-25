@@ -26,7 +26,11 @@ public class MercadoPagoWebhookProcessor {
     private final MercadoPagoClient client; private final BillingCheckoutRepository checkouts;
     private final SubscriptionRepository subscriptions; private final MercadoPagoWebhookEventRepository events;
     private final MercadoPagoFinancialIngestion financialIngestion;
-    public MercadoPagoWebhookProcessor(MercadoPagoClient client,BillingCheckoutRepository checkouts,SubscriptionRepository subscriptions,MercadoPagoWebhookEventRepository events,MercadoPagoFinancialIngestion financialIngestion){this.client=client;this.checkouts=checkouts;this.subscriptions=subscriptions;this.events=events;this.financialIngestion=financialIngestion;}
+    private final SubscriptionPlanUpgradeService planUpgrades;
+    /** Pre-5G.12.1 wiring kept for existing callers/tests that exercise only recurring billing: no prorated-upgrade routing. */
+    public MercadoPagoWebhookProcessor(MercadoPagoClient client,BillingCheckoutRepository checkouts,SubscriptionRepository subscriptions,MercadoPagoWebhookEventRepository events,MercadoPagoFinancialIngestion financialIngestion){this(client,checkouts,subscriptions,events,financialIngestion,null);}
+    @org.springframework.beans.factory.annotation.Autowired
+    public MercadoPagoWebhookProcessor(MercadoPagoClient client,BillingCheckoutRepository checkouts,SubscriptionRepository subscriptions,MercadoPagoWebhookEventRepository events,MercadoPagoFinancialIngestion financialIngestion,SubscriptionPlanUpgradeService planUpgrades){this.client=client;this.checkouts=checkouts;this.subscriptions=subscriptions;this.events=events;this.financialIngestion=financialIngestion;this.planUpgrades=planUpgrades;}
 
     @Transactional
     public Result process(String requestId,String type,String resourceId){
@@ -35,6 +39,12 @@ public class MercadoPagoWebhookProcessor {
             return Result.DUPLICATE;
         }
         LOG.info("Mercado Pago webhook event started requestId={} eventType={} resourceId={}",requestId,type,resourceId);
+        // 5G.12.1: a one-off prorated-upgrade payment is recognised by its own external_reference
+        // (re-read with an authoritative GET) and must never become a recurring BillingInvoice.
+        if ("payment".equals(type) && planUpgrades != null && planUpgrades.handlePaymentNotification(resourceId)) {
+            saveEvent(requestId,type,resourceId);
+            return Result.PROCESSED;
+        }
         if (AUTHORIZED_PAYMENT.equals(type) || "payment".equals(type)) {
             boolean ingested = financialIngestion.ingest(type, resourceId);
             saveEvent(requestId,type,resourceId);

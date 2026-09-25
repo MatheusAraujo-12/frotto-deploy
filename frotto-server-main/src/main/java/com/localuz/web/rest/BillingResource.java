@@ -13,8 +13,11 @@ import com.localuz.service.SubscriptionCancellationService;
 import com.localuz.service.SubscriptionPlanChangeService;
 import com.localuz.service.UserService;
 import com.localuz.service.dto.BillingMeDTO;
+import com.localuz.domain.enumeration.PlanCode;
+import com.localuz.service.dto.PlanChangePreviewDTO;
 import com.localuz.service.dto.PlanChangeRequest;
 import com.localuz.service.dto.PlanChangeResultDTO;
+import com.localuz.service.dto.PlanUpgradeStatusDTO;
 import com.localuz.service.dto.PlanDTO;
 import com.localuz.service.dto.PricePreviewDTO;
 import com.localuz.service.dto.PricingResult;
@@ -122,6 +125,31 @@ public class BillingResource {
     @PostMapping("/change-plan")
     public PlanChangeResultDTO changePlan(@Valid @RequestBody PlanChangeRequest request) {
         return subscriptionPlanChangeService.changePlan(getCurrentUser(), request.getTargetPlanCode());
+    }
+
+    /**
+     * 5G.12.1: server-computed confirmation data (prorated amount due now, next recurring price,
+     * cycle end) for the caller's own subscription. Informational only - POST /change-plan never
+     * trusts a previewed value.
+     */
+    @GetMapping("/change-plan/preview")
+    public PlanChangePreviewDTO previewChangePlan(@RequestParam PlanCode targetPlanCode) {
+        return subscriptionPlanChangeService.previewChange(getCurrentUser(), targetPlanCode);
+    }
+
+    /** 5G.12.1: removes the caller's scheduled downgrade after the provider confirms the original recurring amount. No charge. */
+    @PostMapping("/change-plan/undo-downgrade")
+    public PlanChangeResultDTO undoDowngrade() {
+        return subscriptionPlanChangeService.undoDowngrade(getCurrentUser());
+    }
+
+    /**
+     * 5G.12.1: the caller's latest prorated upgrade. Reconciles with Mercado Pago server-side
+     * before answering - the browser's return from the checkout (query string) is never trusted.
+     */
+    @GetMapping("/plan-upgrade")
+    public PlanUpgradeStatusDTO getPlanUpgradeStatus() {
+        return subscriptionPlanChangeService.upgradeStatus(getCurrentUser());
     }
 
     @GetMapping("/me")

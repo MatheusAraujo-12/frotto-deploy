@@ -136,9 +136,10 @@ public class Subscription implements Serializable {
      * 5G.12: a scheduled downgrade (or a not-yet-effective plan change in general). Only ever set
      * together as a group by SubscriptionPlanChangeSteps, and cleared as a group either when the
      * change is rolled back (provider rejected the new price) or effectuated (a renewal confirmed
-     * on/after planChangeEffectiveAt - see SubscriptionPlanChangeSteps#effectuateIfDue). An upgrade
-     * never touches these fields: it applies to plan/contractedPrice/contractedVehicleCount
-     * immediately instead, per product decision (no proration in this first version).
+     * on/after planChangeEffectiveAt - see SubscriptionPlanChangeSteps#effectuateIfDue), undone
+     * (5G.12.1, after the provider confirmed the original amount), or superseded by an upgrade.
+     * 5G.12.1: an upgrade never writes these fields - its prorated payment lives in
+     * SubscriptionPlanUpgrade, and it only clears a scheduled downgrade once it is fully applied.
      */
     @ManyToOne
     @JoinColumn(name = "pending_plan_id")

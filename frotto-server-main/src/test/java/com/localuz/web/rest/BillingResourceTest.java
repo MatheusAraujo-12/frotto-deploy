@@ -29,7 +29,9 @@ import com.localuz.service.dto.BillingCheckoutRequest;
 import com.localuz.service.dto.EntitlementSnapshot;
 import com.localuz.service.dto.PlanChangeRequest;
 import com.localuz.service.dto.PlanChangeResultDTO;
+import com.localuz.service.dto.PlanChangeStatus;
 import com.localuz.service.dto.PlanChangeType;
+import com.localuz.service.dto.PlanUpgradeStatusDTO;
 import com.localuz.service.dto.PricePreviewDTO;
 import com.localuz.service.dto.PricingResult;
 import com.localuz.service.dto.SubscriptionCancellationResultDTO;
@@ -347,7 +349,9 @@ class BillingResourceTest {
     @Test
     void changePlanResolvesOnlyTheAuthenticatedUserAndRequestedTargetPlan() {
         when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));
-        PlanChangeResultDTO result = new PlanChangeResultDTO(PlanCode.BRONZE, PlanCode.SILVER, PlanChangeType.UPGRADE, Instant.now(), new BigDecimal("44.90"), false);
+        PlanChangeResultDTO result = new PlanChangeResultDTO(PlanCode.BRONZE, PlanCode.SILVER, PlanChangeType.UPGRADE,
+            PlanChangeStatus.UPGRADE_PAYMENT_REQUIRED, null, new BigDecimal("44.90"), new BigDecimal("9.67"), new BigDecimal("44.90"),
+            "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=x");
         when(subscriptionPlanChangeService.changePlan(currentUser, PlanCode.SILVER)).thenReturn(result);
         PlanChangeRequest request = new PlanChangeRequest();
         request.setTargetPlanCode(PlanCode.SILVER);
@@ -387,6 +391,82 @@ class BillingResourceTest {
         org.mockito.InOrder order = Mockito.inOrder(subscriptionPlanChangeService, billingPaymentStateService);
         order.verify(subscriptionPlanChangeService).effectuateDueChangesForUser(9L);
         order.verify(billingPaymentStateService).getState(currentUser);
+    }
+
+    // --- 5G.12.1: preview / undo-downgrade / plan-upgrade status ---
+
+    private org.springframework.test.web.servlet.MockMvc mvc(com.fasterxml.jackson.databind.ObjectMapper mapper) {
+        return org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(billingResource)
+            .setControllerAdvice(new com.localuz.web.rest.errors.ExceptionTranslator(Mockito.mock(org.springframework.core.env.Environment.class)))
+            .setMessageConverters(new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(mapper)).build();
+    }
+
+    @Test
+    void newPlanChangeEndpointsResolveOnlyTheAuthenticatedUser() {
+        when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));
+
+        billingResource.previewChangePlan(PlanCode.GOLD);
+        billingResource.undoDowngrade();
+        billingResource.getPlanUpgradeStatus();
+
+        Mockito.verify(subscriptionPlanChangeService).previewChange(currentUser, PlanCode.GOLD);
+        Mockito.verify(subscriptionPlanChangeService).undoDowngrade(currentUser);
+        Mockito.verify(subscriptionPlanChangeService).upgradeStatus(currentUser);
+    }
+
+    @Test
+    void newPlanChangeEndpointsAcceptNoUserIdOrAmount() {
+        assertThat(getMethod("undoDowngrade").getParameterCount()).isZero();
+        assertThat(getMethod("getPlanUpgradeStatus").getParameterCount()).isZero();
+        try {
+            assertThat(BillingResource.class.getDeclaredMethod("previewChangePlan", PlanCode.class).getParameterCount()).isEqualTo(1);
+        } catch (NoSuchMethodException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    @Test
+    void newPlanChangeEndpointsRejectAnUnauthenticatedCaller() {
+        when(userService.getUserWithAuthorities()).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> billingResource.undoDowngrade()).isInstanceOf(BadRequestAlertException.class);
+        assertThatThrownBy(() -> billingResource.getPlanUpgradeStatus()).isInstanceOf(BadRequestAlertException.class);
+        assertThatThrownBy(() -> billingResource.previewChangePlan(PlanCode.GOLD)).isInstanceOf(BadRequestAlertException.class);
+        Mockito.verifyNoInteractions(subscriptionPlanChangeService);
+    }
+
+    @Test
+    void upgradeResponseNeverExposesProviderIdsReferencesOrKeys() throws Exception {
+        when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));
+        when(subscriptionPlanChangeService.upgradeStatus(currentUser)).thenReturn(PlanUpgradeStatusDTO.none());
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper()
+            .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+
+        String body = mvc(mapper).perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/billing/plan-upgrade"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+            .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(mapper.readTree(body).path("status").asText()).isEqualTo("NONE");
+        assertThat(Arrays.stream(PlanUpgradeStatusDTO.class.getDeclaredFields()).map(Field::getName))
+            .doesNotContain("externalReference", "externalPaymentId", "externalPreferenceId", "externalSubscriptionId", "idempotencyKey", "userId");
+        assertThat(Arrays.stream(PlanChangeResultDTO.class.getDeclaredFields()).map(Field::getName))
+            .doesNotContain("externalReference", "externalPaymentId", "externalPreferenceId", "externalSubscriptionId", "idempotencyKey", "userId");
+    }
+
+    @Test
+    void upgradeInProgressIsA409WithAStableMessageKey() throws Exception {
+        when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));
+        when(subscriptionPlanChangeService.changePlan(currentUser, PlanCode.GOLD))
+            .thenThrow(new com.localuz.web.rest.errors.BillingPlanUpgradeInProgressException());
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper()
+            .registerModule(new org.zalando.problem.jackson.ProblemModule());
+
+        String body = mvc(mapper).perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/billing/change-plan")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{\"targetPlanCode\":\"GOLD\"}"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isConflict())
+            .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(mapper.readTree(body).path("message").asText()).isEqualTo("error.BILLING_PLAN_UPGRADE_IN_PROGRESS");
     }
 
 }

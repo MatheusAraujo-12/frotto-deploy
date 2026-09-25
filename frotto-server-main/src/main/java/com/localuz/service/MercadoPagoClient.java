@@ -15,4 +15,12 @@ public interface MercadoPagoClient {
     MercadoPagoAuthorizedPayment getAuthorizedPayment(String authorizedPaymentId);
     com.localuz.service.dto.MercadoPagoPayment getPayment(String paymentId);
     java.util.Optional<MercadoPagoAuthorizedPayment> findAuthorizedPaymentByPaymentId(String paymentId);
+    /**
+     * 5G.12.1: creates a one-off Checkout Pro preference (POST /checkout/preferences). Creating a
+     * preference never charges anyone by itself, and the official reference documents no
+     * idempotency header for it - callers make retries safe by reusing the same external_reference.
+     */
+    com.localuz.service.dto.MercadoPagoPaymentPreference createPaymentPreference(com.localuz.service.dto.MercadoPagoPaymentPreferenceRequest request);
+    /** 5G.12.1: discovery only (GET /v1/payments/search?external_reference=...) - callers must re-read every id with getPayment before trusting it. */
+    java.util.List<String> searchPaymentIdsByExternalReference(String externalReference);
 }

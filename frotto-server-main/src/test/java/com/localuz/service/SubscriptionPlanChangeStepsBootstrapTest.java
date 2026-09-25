@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.Mockito.mock;
 
+import com.localuz.repository.SubscriptionPlanUpgradeRepository;
 import com.localuz.repository.SubscriptionRepository;
 import com.localuz.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -42,6 +43,22 @@ class SubscriptionPlanChangeStepsBootstrapTest {
         @Bean
         SubscriptionFinancialCoverageService subscriptionFinancialCoverageService() {
             return mock(SubscriptionFinancialCoverageService.class);
+        }
+
+        @Bean
+        SubscriptionPlanUpgradeRepository subscriptionPlanUpgradeRepository() {
+            return mock(SubscriptionPlanUpgradeRepository.class);
+        }
+    }
+
+    /** 5G.12.1: SubscriptionPlanUpgradeSteps has the same dual-constructor shape. */
+    @Test
+    void springCanInstantiateUpgradeStepsThroughItsOwnConstructorResolution() {
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.register(CollaboratorBeans.class, SubscriptionPlanChangeSteps.class, SubscriptionPlanUpgradeSteps.class);
+
+            assertThatCode(context::refresh).doesNotThrowAnyException();
+            assertThat(context.getBean(SubscriptionPlanUpgradeSteps.class)).isNotNull();
         }
     }
 

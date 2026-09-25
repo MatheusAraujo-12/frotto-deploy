@@ -403,6 +403,103 @@ class MercadoPagoHttpClientTest {
             .isInstanceOf(MercadoPagoException.class).hasMessageNotContaining("provider-secret-body");
     }
 
+    // --- 5G.12.1: POST /checkout/preferences and GET /v1/payments/search ------------------------
+
+    private com.localuz.service.dto.MercadoPagoPaymentPreferenceRequest preferenceRequest() {
+        return new com.localuz.service.dto.MercadoPagoPaymentPreferenceRequest("frotto-upgrade-abc", "Frotto - upgrade proporcional para o plano SILVER",
+            new BigDecimal("9.67"), "BRL", "https://frotto.test/menu/meu-plano", java.time.Instant.parse("2026-09-10T12:30:00Z"));
+    }
+
+    @Test
+    void createPaymentPreferenceSendsOnlyDocumentedFieldsAndTheServerAmount() throws Exception {
+        when(response.statusCode()).thenReturn(201);
+        when(response.body()).thenReturn("{\"id\":\"123-pref\",\"init_point\":\"https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=123-pref\",\"external_reference\":\"frotto-upgrade-abc\"}");
+
+        com.localuz.service.dto.MercadoPagoPaymentPreference result = client.createPaymentPreference(preferenceRequest());
+
+        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http).send(captor.capture(), any(HttpResponse.BodyHandler.class));
+        HttpRequest sent = captor.getValue();
+        assertThat(sent.method()).isEqualTo("POST");
+        assertThat(sent.uri().toString()).isEqualTo("https://api.mercadopago.com/checkout/preferences");
+        assertThat(sent.headers().firstValue("Authorization")).contains("Bearer secret-token");
+        String raw = body(sent);
+        JsonNode json = mapper.readTree(raw);
+        assertThat(json.path("items")).hasSize(1);
+        assertThat(json.path("items").get(0).path("quantity").asInt()).isEqualTo(1);
+        assertThat(json.path("items").get(0).path("unit_price").decimalValue()).isEqualByComparingTo("9.67");
+        assertThat(json.path("items").get(0).path("currency_id").asText()).isEqualTo("BRL");
+        assertThat(json.path("external_reference").asText()).isEqualTo("frotto-upgrade-abc");
+        assertThat(json.path("back_urls").path("success").asText()).isEqualTo("https://frotto.test/menu/meu-plano");
+        assertThat(json.path("auto_return").asText()).isEqualTo("approved");
+        assertThat(json.path("expires").asBoolean()).isTrue();
+        assertThat(json.path("expiration_date_to").asText()).isEqualTo("2026-09-10T12:30:00.000+00:00");
+        assertThat(json.path("binary_mode").asBoolean()).isTrue();
+        assertThat(json.path("payment_methods").path("installments").asInt()).isEqualTo(1);
+        assertThat(json.path("payment_methods").path("excluded_payment_types").toString()).contains("ticket", "atm");
+        assertThat(raw).doesNotContain("secret-token", "userId", "preapproval");
+        assertThat(result.getId()).isEqualTo("123-pref");
+        assertThat(result.getCheckoutUrl()).startsWith("https://www.mercadopago.com.br/");
+    }
+
+    @Test
+    void createPaymentPreferenceRejectsAResponseForAnotherReference() {
+        when(response.statusCode()).thenReturn(201);
+        when(response.body()).thenReturn("{\"id\":\"123-pref\",\"init_point\":\"https://mp.test/x\",\"external_reference\":\"someone-else\"}");
+
+        assertThatThrownBy(() -> client.createPaymentPreference(preferenceRequest())).isInstanceOf(MercadoPagoException.class);
+    }
+
+    @Test
+    void createPaymentPreferenceClassifiesDefiniteAndAmbiguousFailures() throws Exception {
+        when(response.statusCode()).thenReturn(400); when(response.body()).thenReturn("provider-secret-body");
+        assertThatThrownBy(() -> client.createPaymentPreference(preferenceRequest()))
+            .isInstanceOfSatisfying(MercadoPagoException.class, failure -> assertThat(failure.isAmbiguous()).isFalse())
+            .hasMessageNotContaining("provider-secret-body");
+        when(response.statusCode()).thenReturn(503);
+        assertThatThrownBy(() -> client.createPaymentPreference(preferenceRequest()))
+            .isInstanceOfSatisfying(MercadoPagoException.class, failure -> assertThat(failure.isAmbiguous()).isTrue());
+        when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenThrow(new HttpTimeoutException("slow"));
+        assertThatThrownBy(() -> client.createPaymentPreference(preferenceRequest()))
+            .isInstanceOfSatisfying(MercadoPagoException.class, failure -> assertThat(failure.isAmbiguous()).isTrue());
+    }
+
+    @Test
+    void searchPaymentIdsByExternalReferenceUsesTheDocumentedQueryAndOnlyReturnsIds() throws Exception {
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("{\"paging\":{\"total\":2,\"limit\":30,\"offset\":0},\"results\":[{\"id\":222,\"status\":\"approved\"},{\"id\":111,\"status\":\"rejected\"}]}");
+
+        java.util.List<String> ids = client.searchPaymentIdsByExternalReference("frotto-upgrade-abc");
+
+        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http).send(captor.capture(), any(HttpResponse.BodyHandler.class));
+        assertThat(captor.getValue().method()).isEqualTo("GET");
+        assertThat(captor.getValue().uri().toString()).isEqualTo(
+            "https://api.mercadopago.com/v1/payments/search?sort=date_created&criteria=desc&external_reference=frotto-upgrade-abc&limit=30&offset=0");
+        assertThat(ids).containsExactly("222", "111");
+    }
+
+    @Test
+    void searchPaymentIdsFailsClosedOnMalformedOrOversizedResultsAndInvalidReferences() {
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("{\"paging\":{\"total\":31},\"results\":[]}");
+        assertThatThrownBy(() -> client.searchPaymentIdsByExternalReference("frotto-upgrade-abc")).isInstanceOf(MercadoPagoException.class);
+        when(response.body()).thenReturn("{\"results\":[]}");
+        assertThatThrownBy(() -> client.searchPaymentIdsByExternalReference("frotto-upgrade-abc")).isInstanceOf(MercadoPagoException.class);
+        assertThatThrownBy(() -> client.searchPaymentIdsByExternalReference("x&collector.id=1")).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void getPreapprovalKeepsTheProviderOffsetOfNextPaymentDate() throws Exception {
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("{\"id\":\"pre-1\",\"status\":\"authorized\",\"next_payment_date\":\"2026-10-15T10:00:00.000-04:00\",\"auto_recurring\":{\"frequency\":1,\"frequency_type\":\"months\"}}");
+
+        MercadoPagoPreapproval result = client.getPreapproval("pre-1");
+
+        assertThat(result.getNextPaymentDateWithOffset()).isEqualTo(java.time.OffsetDateTime.parse("2026-10-15T10:00:00.000-04:00"));
+        assertThat(result.getNextPaymentDate()).isEqualTo(java.time.Instant.parse("2026-10-15T14:00:00Z"));
+    }
+
     private MercadoPagoPreapprovalRequest request() {
         return new MercadoPagoPreapprovalRequest("ref-1", "payer@example.com", "Frotto GOLD", new BigDecimal("79.90"), "BRL", "https://frotto.test/menu/meu-plano");
     }

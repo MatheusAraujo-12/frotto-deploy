@@ -1,5 +1,5 @@
-import { BillingMeDTO, BillingPaymentStateDTO, PlanDTO, SubscriptionCancellationState, SubscriptionStatus } from "../../constants/BillingModels";
-import { checkoutBlocksPurchase, checkoutNeedsRefresh, fleetUsage, hasPendingPlanChange, isCheckoutInProgressError, isNoticeRedundantWithGrantedPlan, isPlanChangeBlockedByCancellation, isRecurringSubscriptionExistsError, isPlanCompatible, isSubscriptionCancelable, paymentNotice, planChangeErrorMessage, planDirection, pendingPlanChangeMessage, recurringSubscriptionExistsMessage, remoteCancellationState, remoteCurrentPeriodEnd, resumableCheckoutUrl, sourceDetail, sourceLabel, usageState, vehicleRange } from "./myPlanLogic";
+import { BillingMeDTO, BillingPaymentStateDTO, PlanDTO, PlanUpgradeStatusDTO, SubscriptionCancellationState, SubscriptionStatus } from "../../constants/BillingModels";
+import { checkoutBlocksPurchase, checkoutNeedsRefresh, fleetUsage, hasPendingPlanChange, isCheckoutInProgressError, isNoticeRedundantWithGrantedPlan, isPlanChangeBlockedByCancellation, isRecurringSubscriptionExistsError, isPlanCompatible, isSubscriptionCancelable, isUnauthorizedError, isUpgradeInProgress, paymentNotice, planChangeErrorMessage, planDirection, pendingPlanChangeMessage, recurringSubscriptionExistsMessage, remoteCancellationState, remoteCurrentPeriodEnd, resumableCheckoutUrl, sourceDetail, sourceLabel, upgradeNotice, usageState, vehicleRange } from "./myPlanLogic";
 const billing=(changes:Partial<BillingMeDTO>={}):BillingMeDTO=>({planCode:"FREE",planName:"Free",subscriptionStatus:null,billingCycle:null,subscriptionSource:null,activeVehicleCount:0,vehicleLimit:2,canAddVehicle:true,needsUpgrade:false,requiredPlanCode:"FREE",requiredPlanName:"Free",currentMonthlyPrice:0,currentPeriodStart:null,currentPeriodEnd:null,grantExpiresAt:null,cancelAtPeriodEnd:false,cancellationState:"NONE",...changes});
 const plan=(changes:Partial<PlanDTO>={}):PlanDTO=>({code:"BRONZE",name:"Bronze",minVehicles:3,maxVehicles:5,monthlyBasePrice:29.9,billingModel:"FLAT",tiers:[],...changes});
 const subscription=(status:SubscriptionStatus,financiallyCovered=true,canCancel=true,cancellationState:SubscriptionCancellationState="NONE",currentPeriodEnd:string|null=null):BillingPaymentStateDTO=>({paymentProviderSubscription:{status,planCode:"BRONZE",billingCycle:"MONTHLY",financiallyCovered,canCancel,cancellationState,currentPeriodEnd},latestCheckout:null});
@@ -103,12 +103,41 @@ describe("myPlanLogic",()=>{
   expect(hasPendingPlanChange(billing())).toBe(false);
   const pendingBilling=billing({pendingPlanCode:"BRONZE",pendingPlanName:"Bronze",pendingPlanPrice:15.9,planChangeEffectiveAt:"2026-10-09T00:00:00Z"});
   expect(hasPendingPlanChange(pendingBilling)).toBe(true);
-  expect(pendingPlanChangeMessage(pendingBilling)).toBe("Mudança para Bronze agendada para 09/10/2026.");
+  expect(pendingPlanChangeMessage(pendingBilling)).toBe("Seu plano mudará para Bronze em 09/10/2026.");
   expect(pendingPlanChangeMessage(billing())).toBeNull();
  });
  it("5G.12: falls back to 'fim do período atual' when no effective date is known",()=>{
   expect(pendingPlanChangeMessage(billing({pendingPlanCode:"BRONZE",pendingPlanName:"Bronze",pendingPlanPrice:15.9,planChangeEffectiveAt:null})))
-    .toBe("Mudança para Bronze agendada para o fim do período atual.");
+    .toBe("Seu plano mudará para Bronze no fim do período atual.");
+ });
+ const upgrade=(overrides:Partial<PlanUpgradeStatusDTO>={}):PlanUpgradeStatusDTO=>({status:"AWAITING_PAYMENT",fromPlan:"BRONZE",targetPlan:"SILVER",chargeAmount:9.67,targetPrice:44.9,checkoutUrl:"https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=x",paymentPending:false,paymentRejected:false,appliedAt:null,updatedAt:"2026-09-10T12:00:00Z",...overrides});
+ it("5G.12.1: only an open upgrade payment counts as a concurrent operation - never a scheduled downgrade",()=>{
+  expect(isUpgradeInProgress(null)).toBe(false);
+  expect(isUpgradeInProgress(upgrade())).toBe(true);
+  expect(isUpgradeInProgress(upgrade({status:"APPLYING"}))).toBe(true);
+  for(const status of ["NONE","APPLIED","EXPIRED","FAILED","REQUIRES_REVIEW"] as const) expect(isUpgradeInProgress(upgrade({status}))).toBe(false);
+ });
+ it("5G.12.1: upgrade notices never describe the target plan as active before APPLIED",()=>{
+  const now=new Date("2026-09-10T13:00:00Z").getTime();
+  const awaiting=upgradeNotice(upgrade(),now)!;
+  expect(awaiting.title).toBe("Upgrade para Prata aguardando pagamento.");
+  expect(awaiting.detail).toContain("R$ 9,67");
+  expect(awaiting.detail).toContain("só será liberado após a confirmação do pagamento");
+  expect(upgradeNotice(upgrade({paymentPending:true}),now)!.title).toBe("Estamos aguardando a confirmação do pagamento.");
+  expect(upgradeNotice(upgrade({paymentRejected:true}),now)!.detail).toContain("Seu plano atual continua ativo");
+  expect(upgradeNotice(upgrade({status:"APPLYING"}),now)!.title).toBe("Pagamento confirmado.");
+  expect(upgradeNotice(upgrade({status:"EXPIRED"}),now)).toBeNull();
+  expect(upgradeNotice(upgrade({status:"FAILED"}),now)).toBeNull();
+  expect(upgradeNotice(upgrade({status:"NONE",targetPlan:null}),now)).toBeNull();
+ });
+ it("5G.12.1: a recent APPLIED upgrade shows the amount paid and the next renewal; an old one shows nothing",()=>{
+  const applied=upgrade({status:"APPLIED",appliedAt:"2026-09-10T12:30:00Z",checkoutUrl:null});
+  const notice=upgradeNotice(applied,new Date("2026-09-10T13:00:00Z").getTime())!;
+  expect(notice.title).toBe("Upgrade realizado com sucesso");
+  expect(notice.tone).toBe("success");
+  expect(notice.detail).toBe("Seu plano agora é Prata. Valor pago agora: R$ 9,67. Próxima renovação: R$ 44,90/mês.");
+  expect(upgradeNotice(applied,new Date("2026-09-15T13:00:00Z").getTime())).toBeNull();
+  expect(upgradeNotice(upgrade({status:"REQUIRES_REVIEW"}),new Date("2026-09-11T00:00:00Z").getTime())!.tone).toBe("warning");
  });
  it("5G.12: an already-scheduled cancellation (confirmed or pending) blocks plan-change actions",()=>{
   expect(isPlanChangeBlockedByCancellation("NONE")).toBe(false);
@@ -118,9 +147,20 @@ describe("myPlanLogic",()=>{
  it("5G.12: maps every backend change-plan error key to a friendly message",()=>{
   const errorWith=(key:string)=>({response:{status:409,data:{message:`error.${key}`}}});
   expect(planChangeErrorMessage(errorWith("BILLING_PLAN_CHANGE_AMBIGUOUS_SUBSCRIPTION"))).toContain("múltiplas assinaturas ativas");
-  expect(planChangeErrorMessage(errorWith("BILLING_PLAN_CHANGE_ALREADY_PENDING"))).toContain("mudança de plano agendada");
+  expect(planChangeErrorMessage(errorWith("BILLING_PLAN_CHANGE_ALREADY_PENDING"))).toContain("downgrade agendado");
   expect(planChangeErrorMessage(errorWith("BILLING_PLAN_CHANGE_PROVIDER_REJECTED"))).toContain("não confirmou a alteração");
   expect(planChangeErrorMessage(errorWith("BILLING_PLAN_CHANGE_NOOP"))).toBe("Você já está no plano selecionado.");
+  expect(planChangeErrorMessage(errorWith("BILLING_PLAN_UPGRADE_IN_PROGRESS"))).toContain("upgrade aguardando a confirmação");
+  expect(planChangeErrorMessage(errorWith("BILLING_PLAN_CHANGE_PERIOD_UNCONFIRMED"))).toContain("Nenhuma alteração foi feita");
+  expect(planChangeErrorMessage(errorWith("BILLING_PLAN_UPGRADE_CHECKOUT_UNAVAILABLE"))).toContain("Nada foi cobrado");
+  expect(planChangeErrorMessage(errorWith("BILLING_DOWNGRADE_UNDO_REJECTED"))).toContain("downgrade continua agendado");
+  expect(planChangeErrorMessage({response:{status:400,data:{message:"error.nopendingdowngrade"}}})).toBe("Não há downgrade agendado para desfazer.");
   expect(planChangeErrorMessage({response:{status:500}})).toBe("Não foi possível concluir a mudança de plano. Tente novamente.");
+ });
+ it("5G.12.1: a real 401 is reported as an expired session, never as a generic plan-change failure",()=>{
+  const unauthorized={response:{status:401,data:{message:"error.http.401"}}};
+  expect(isUnauthorizedError(unauthorized)).toBe(true);
+  expect(isUnauthorizedError({response:{status:409}})).toBe(false);
+  expect(planChangeErrorMessage(unauthorized)).toBe("Sua sessão expirou. Faça login novamente.");
  });
 });

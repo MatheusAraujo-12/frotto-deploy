@@ -98,8 +98,8 @@ public class EntitlementService {
      * benefits still apply until effectiveAt, but new vehicle additions must already respect the
      * PENDING (lower) plan's limit - otherwise the next renewal would land the user in an
      * impossible state (more vehicles than the plan they are about to be moved to allows). An
-     * upgrade never sets pendingPlan (it applies immediately - see SubscriptionPlanChangeSteps), so
-     * this only ever narrows the limit, never widens it.
+     * upgrade never sets pendingPlan (5G.12.1: it is tracked by SubscriptionPlanUpgrade and only
+     * changes the live plan once paid and applied), so this only ever narrows the limit.
      */
     private static Integer effectiveVehicleLimit(Optional<Subscription> subscription, Plan currentPlan) {
         Integer limit = currentPlan.getMaxVehicles();

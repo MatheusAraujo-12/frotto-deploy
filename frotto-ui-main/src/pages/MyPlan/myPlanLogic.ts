@@ -1,4 +1,4 @@
-import { BillingCheckoutStatus, BillingMeDTO, BillingPaymentStateDTO, PLAN_LABELS, PlanChangeType, PlanDTO, SubscriptionCancellationState, SubscriptionSource, SubscriptionStatus } from "../../constants/BillingModels";
+import { BillingCheckoutStatus, BillingMeDTO, BillingPaymentStateDTO, PLAN_LABELS, PlanChangeType, PlanDTO, PlanUpgradeStatusDTO, SubscriptionCancellationState, SubscriptionSource, SubscriptionStatus } from "../../constants/BillingModels";
 
 /**
  * 5G.9 section B: cancelability of the remote PAYMENT_PROVIDER contract is a DIFFERENT question
@@ -77,13 +77,63 @@ export const planDirection = (currentPlan: PlanDTO, targetPlan: PlanDTO): PlanCh
 /** True once BillingMeDTO reports a scheduled downgrade (Subscription.pendingPlan) - see billingResource#getMyBilling, which effectuates any already-due change before responding. */
 export const hasPendingPlanChange = (billing: BillingMeDTO): boolean => Boolean(billing.pendingPlanCode);
 
-/** "Mudança para X agendada para DD/MM/AAAA" - null when there is nothing pending. */
+/** "Seu plano mudará para X em DD/MM/AAAA." - null when there is nothing pending. */
 export const pendingPlanChangeMessage = (billing: BillingMeDTO): string | null => {
-  if (!billing.pendingPlanCode || !billing.pendingPlanName) return null;
+  if (!billing.pendingPlanCode) return null;
+  const target = friendlyPlan(billing.pendingPlanCode);
   const date = billing.planChangeEffectiveAt ? formatDate(billing.planChangeEffectiveAt) : null;
   return date && date !== "—"
-    ? `Mudança para ${billing.pendingPlanName} agendada para ${date}.`
-    : `Mudança para ${billing.pendingPlanName} agendada para o fim do período atual.`;
+    ? `Seu plano mudará para ${target} em ${date}.`
+    : `Seu plano mudará para ${target} no fim do período atual.`;
+};
+
+/**
+ * 5G.12.1: only a prorated upgrade whose payment is awaited or being applied is a real concurrent
+ * financial operation - that, not a scheduled downgrade, is what blocks other plan changes.
+ */
+export const isUpgradeInProgress = (status: PlanUpgradeStatusDTO | null): boolean =>
+  status?.status === "AWAITING_PAYMENT" || status?.status === "APPLYING";
+
+export type UpgradeNotice = { title: string; detail: string; tone: "info" | "success" | "warning" };
+
+const RECENT_SUCCESS_MS = 24 * 60 * 60 * 1000;
+const RECENT_REVIEW_MS = 30 * 24 * 60 * 60 * 1000;
+
+const isRecent = (value: string | null, windowMs: number, now: number): boolean => {
+  if (!value) return false;
+  const time = new Date(value).getTime();
+  return !Number.isNaN(time) && now - time <= windowMs;
+};
+
+/**
+ * 5G.12.1: user-facing state of the latest prorated upgrade. The target plan is NEVER described as
+ * active before status=APPLIED; every amount shown comes from the backend DTO.
+ */
+export const upgradeNotice = (status: PlanUpgradeStatusDTO | null, now: number = Date.now()): UpgradeNotice | null => {
+  if (!status || !status.targetPlan) return null;
+  const target = friendlyPlan(status.targetPlan);
+  const charge = status.chargeAmount != null ? money(status.chargeAmount) : null;
+  const renewal = status.targetPrice != null ? `${money(status.targetPrice)}/mês` : null;
+  switch (status.status) {
+    case "AWAITING_PAYMENT":
+      if (status.paymentPending) {
+        return { title: "Estamos aguardando a confirmação do pagamento.", detail: `O plano ${target} será liberado assim que o Mercado Pago confirmar o pagamento. Seu plano atual continua ativo.`, tone: "info" };
+      }
+      if (status.paymentRejected) {
+        return { title: "O pagamento do upgrade foi recusado.", detail: `Seu plano atual continua ativo e nada foi alterado.${status.checkoutUrl ? " Você pode tentar pagar novamente." : ""}`, tone: "warning" };
+      }
+      return { title: `Upgrade para ${target} aguardando pagamento.`, detail: `${charge ? `Valor a pagar agora: ${charge}. ` : ""}O plano ${target} só será liberado após a confirmação do pagamento.`, tone: "info" };
+    case "APPLYING":
+      return { title: "Pagamento confirmado.", detail: `Estamos atualizando sua assinatura para o plano ${target}. Isso pode levar alguns instantes.`, tone: "info" };
+    case "APPLIED":
+      if (!isRecent(status.appliedAt, RECENT_SUCCESS_MS, now)) return null;
+      return { title: "Upgrade realizado com sucesso", detail: [`Seu plano agora é ${target}.`, charge ? `Valor pago agora: ${charge}.` : null, renewal ? `Próxima renovação: ${renewal}.` : null].filter(Boolean).join(" "), tone: "success" };
+    case "REQUIRES_REVIEW":
+      if (!isRecent(status.updatedAt, RECENT_REVIEW_MS, now)) return null;
+      return { title: "Não foi possível concluir o upgrade automaticamente.", detail: `Seu plano atual continua ativo. Nossa equipe vai verificar o pagamento do upgrade para ${target}.`, tone: "warning" };
+    default:
+      return null;
+  }
 };
 
 /**
@@ -96,16 +146,28 @@ export const isPlanChangeBlockedByCancellation = (cancellationState: Subscriptio
 
 const PLAN_CHANGE_ERROR_MESSAGES: Record<string, string> = {
   BILLING_PLAN_CHANGE_AMBIGUOUS_SUBSCRIPTION: "Existem múltiplas assinaturas ativas vinculadas à sua conta. Resolva ou cancele as duplicidades antes de mudar de plano.",
-  BILLING_PLAN_CHANGE_ALREADY_PENDING: "Já existe uma mudança de plano agendada para esta assinatura. Aguarde a efetivação antes de solicitar outra.",
+  BILLING_PLAN_CHANGE_ALREADY_PENDING: "Já existe um downgrade agendado. Desfaça-o antes de agendar outro.",
   BILLING_PLAN_CHANGE_PROVIDER_REJECTED: "O Mercado Pago não confirmou a alteração do valor da assinatura. Nenhuma mudança de plano foi aplicada.",
   BILLING_PLAN_CHANGE_NOOP: "Você já está no plano selecionado.",
+  BILLING_PLAN_UPGRADE_IN_PROGRESS: "Já existe um upgrade aguardando a confirmação do pagamento. Conclua ou aguarde a confirmação antes de fazer outra alteração.",
+  BILLING_PLAN_CHANGE_PERIOD_UNCONFIRMED: "Não foi possível confirmar o ciclo atual da sua assinatura para calcular o valor proporcional. Nenhuma alteração foi feita. Tente novamente mais tarde.",
+  BILLING_PLAN_UPGRADE_CHECKOUT_UNAVAILABLE: "Não foi possível gerar o pagamento do upgrade no Mercado Pago. Nada foi cobrado e seu plano atual continua o mesmo.",
+  BILLING_DOWNGRADE_UNDO_REJECTED: "O Mercado Pago não confirmou a restauração do valor da assinatura. O downgrade continua agendado.",
+  nopendingdowngrade: "Não há downgrade agendado para desfazer.",
 };
+
+/** A real 401 is never disguised as a generic failure (the global interceptor also ends the session). */
+const SESSION_EXPIRED_MESSAGE = "Sua sessão expirou. Faça login novamente.";
 
 /** Friendly message for every backend change-plan error key - see getApiErrorMessage's overrides parameter. */
 export const planChangeErrorMessage = (error: unknown): string =>
   getApiErrorMessageForOverrides(error, "Não foi possível concluir a mudança de plano. Tente novamente.", PLAN_CHANGE_ERROR_MESSAGES);
 
+export const isUnauthorizedError = (error: unknown): boolean =>
+  (error as { response?: { status?: number } })?.response?.status === 401;
+
 function getApiErrorMessageForOverrides(error: unknown, fallback: string, overrides: Record<string, string>): string {
+  if (isUnauthorizedError(error)) return SESSION_EXPIRED_MESSAGE;
   const response = (error as { response?: { status?: number; data?: { message?: string; errorKey?: string } } })?.response;
   const code = response?.data?.message || response?.data?.errorKey || "";
   const key = Object.keys(overrides).find((candidate) => code.includes(candidate));

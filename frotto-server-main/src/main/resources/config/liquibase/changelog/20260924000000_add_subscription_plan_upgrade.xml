@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <!--
+        5G.12.1: one row per prorated upgrade attempt (explicit state machine, see
+        SubscriptionPlanUpgradeStatus). Deliberately NOT a billing_invoice row: every
+        billing_invoice of a subscription is a recurring competency, and
+        SubscriptionFinancialCoverageService fails closed on any invoice without a period - a
+        one-off prorated charge stored there would revoke the user's entitlement. Nor can it live
+        in subscription.pending_* (5G.12), which already holds a scheduled downgrade that must
+        survive a failed upgrade attempt. See docs/billing-plan-change-5g12.md, section 5G.12.1.
+    -->
+    <changeSet id="20260924000000-1" author="claude">
+        <createTable tableName="subscription_plan_upgrade">
+            <column name="id" type="bigint" autoIncrement="true"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="version" type="bigint" defaultValueNumeric="0"><constraints nullable="false"/></column>
+            <column name="subscription_id" type="bigint"><constraints nullable="false"/></column>
+            <column name="from_plan_id" type="bigint"><constraints nullable="false"/></column>
+            <column name="target_plan_id" type="bigint"><constraints nullable="false"/></column>
+            <column name="from_price" type="decimal(21,2)"><constraints nullable="false"/></column>
+            <column name="target_price" type="decimal(21,2)"><constraints nullable="false"/></column>
+            <column name="target_vehicle_count" type="int"><constraints nullable="false"/></column>
+            <column name="charge_amount" type="decimal(21,2)"><constraints nullable="false"/></column>
+            <column name="currency" type="varchar(3)"><constraints nullable="false"/></column>
+            <column name="cycle_start" type="datetime(6)"><constraints nullable="false"/></column>
+            <column name="cycle_end" type="datetime(6)"><constraints nullable="false"/></column>
+            <column name="status" type="varchar(32)"><constraints nullable="false"/></column>
+            <column name="external_reference" type="varchar(64)"><constraints nullable="false"/></column>
+            <column name="external_preference_id" type="varchar(128)"></column>
+            <column name="checkout_url" type="varchar(1024)"></column>
+            <column name="checkout_expires_at" type="datetime(6)"><constraints nullable="false"/></column>
+            <column name="external_payment_id" type="varchar(128)"></column>
+            <column name="last_payment_status" type="varchar(32)"></column>
+            <column name="paid_at" type="datetime(6)"></column>
+            <column name="apply_attempts" type="int" defaultValueNumeric="0"><constraints nullable="false"/></column>
+            <column name="failure_reason" type="varchar(64)"></column>
+            <column name="applied_at" type="datetime(6)"></column>
+            <column name="created_at" type="datetime(6)"><constraints nullable="false"/></column>
+            <column name="updated_at" type="datetime(6)"><constraints nullable="false"/></column>
+        </createTable>
+        <addUniqueConstraint tableName="subscription_plan_upgrade" columnNames="external_reference" constraintName="ux_plan_upgrade_external_reference"/>
+        <addUniqueConstraint tableName="subscription_plan_upgrade" columnNames="external_payment_id" constraintName="ux_plan_upgrade_external_payment"/>
+        <createIndex tableName="subscription_plan_upgrade" indexName="idx_plan_upgrade_subscription_status">
+            <column name="subscription_id"/><column name="status"/>
+        </createIndex>
+        <createIndex tableName="subscription_plan_upgrade" indexName="idx_plan_upgrade_status">
+            <column name="status"/>
+        </createIndex>
+        <addForeignKeyConstraint baseTableName="subscription_plan_upgrade" baseColumnNames="subscription_id"
+            constraintName="fk_plan_upgrade_subscription" referencedTableName="subscription"
+            referencedColumnNames="id" onDelete="RESTRICT" onUpdate="RESTRICT"/>
+        <addForeignKeyConstraint baseTableName="subscription_plan_upgrade" baseColumnNames="from_plan_id"
+            constraintName="fk_plan_upgrade_from_plan" referencedTableName="plan"
+            referencedColumnNames="id" onDelete="RESTRICT" onUpdate="RESTRICT"/>
+        <addForeignKeyConstraint baseTableName="subscription_plan_upgrade" baseColumnNames="target_plan_id"
+            constraintName="fk_plan_upgrade_target_plan" referencedTableName="plan"
+            referencedColumnNames="id" onDelete="RESTRICT" onUpdate="RESTRICT"/>
+    </changeSet>
+</databaseChangeLog>

@@ -3,15 +3,32 @@ import MyPlanPage from "./MyPlanPage";
 import billingService from "../../services/billingService";
 import { removeToken, setToken } from "../../services/localStorage/localstorage";
 import { navigateToCheckout } from "./checkoutNavigation";
-import { BillingMeDTO, BillingPaymentStateDTO, PlanDTO } from "../../constants/BillingModels";
+import { BillingMeDTO, BillingPaymentStateDTO, PlanChangePreviewDTO, PlanChangeResultDTO, PlanDTO, PlanUpgradeStatusDTO } from "../../constants/BillingModels";
 
 jest.mock("../../services/billingService");
 jest.mock("./checkoutNavigation");
+/**
+ * 5G.12.1: markup the real IonModal would still be SHOWING during its close animation (isOpen just
+ * flipped to false, onDidDismiss not fired yet). The old page cleared the modal's subject
+ * synchronously, so that frame was empty - the "white modal" seen in staging.
+ */
+const mockClosingFrames: string[] = [];
+
 jest.mock("@ionic/react", () => {
   const React = jest.requireActual("react");
+  const { renderToStaticMarkup } = jest.requireActual("react-dom/server");
   const component = (tag: string) => ({ children, ...props }: any) =>
     React.createElement(tag, props, children);
-  const modal = ({ children, isOpen }: any) => isOpen ? React.createElement("section", { role: "dialog" }, children) : null;
+  const modal = ({ children, isOpen, onDidDismiss }: any) => {
+    const wasOpen = React.useRef(isOpen);
+    const closing = wasOpen.current && !isOpen;
+    if (closing) mockClosingFrames.push(renderToStaticMarkup(React.createElement(React.Fragment, null, children)));
+    React.useEffect(() => {
+      if (closing && onDidDismiss) onDidDismiss({});
+      wasOpen.current = isOpen;
+    });
+    return isOpen ? React.createElement("section", { role: "dialog" }, children) : null;
+  };
 
   return {
     IonApp: component("div"), IonBadge: component("span"), IonButton: component("button"),
@@ -86,6 +103,11 @@ const planCardButton = (planLabel: string, buttonLabel: string): HTMLButtonEleme
   return (Array.from(card.querySelectorAll("button")).find((button) => button.textContent === buttonLabel) as HTMLButtonElement) || null;
 };
 
+const noUpgrade: PlanUpgradeStatusDTO = {
+  status: "NONE", fromPlan: null, targetPlan: null, chargeAmount: null, targetPrice: null, checkoutUrl: null,
+  paymentPending: false, paymentRejected: false, appliedAt: null, updatedAt: null,
+};
+
 describe("MyPlanPage - checkout modal", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -96,6 +118,7 @@ describe("MyPlanPage - checkout modal", () => {
     mockedBillingService.getBillingPaymentState.mockResolvedValue(cancellablePaymentState);
     mockedBillingService.getPlans.mockResolvedValue(plans);
     mockedBillingService.getPricePreview.mockImplementation(() => new Promise(() => {}));
+    mockedBillingService.getPlanUpgradeStatus.mockResolvedValue(noUpgrade);
   });
 
   afterEach(() => localStorage.clear());
@@ -582,23 +605,43 @@ describe("MyPlanPage - checkout modal", () => {
 
 });
 
-describe("MyPlanPage - 5G.12 plan change", () => {
+describe("MyPlanPage - 5G.12 / 5G.12.1 plan change", () => {
+  const silverBilling: BillingMeDTO = { ...billing, planCode: "SILVER", planName: "Prata", currentMonthlyPrice: 99.9, requiredPlanCode: "SILVER", requiredPlanName: "Prata", currentPeriodEnd: "2026-10-09T00:00:00Z" };
+  const silverWithScheduledBronze: BillingMeDTO = { ...silverBilling, pendingPlanCode: "BRONZE", pendingPlanName: "Bronze", pendingPlanPrice: 59.9, planChangeEffectiveAt: "2026-10-09T00:00:00Z" };
+  const plansWithGold: PlanDTO[] = [...plans, { code: "GOLD", name: "Gold", minVehicles: 21, maxVehicles: 40, monthlyBasePrice: 149.9, billingModel: "FLAT", tiers: [] }];
+  const upgradePreview: PlanChangePreviewDTO = { currentPlan: "BRONZE", targetPlan: "SILVER", changeType: "UPGRADE", currentPrice: 59.9, newMonthlyPrice: 99.9, chargeNow: 13.33, cycleEnd: "2026-10-09T00:00:00Z" };
+  const downgradePreview: PlanChangePreviewDTO = { currentPlan: "SILVER", targetPlan: "BRONZE", changeType: "DOWNGRADE", currentPrice: 99.9, newMonthlyPrice: 59.9, chargeNow: null, cycleEnd: "2026-10-09T00:00:00Z" };
+  const result = (overrides: Partial<PlanChangeResultDTO>): PlanChangeResultDTO => ({
+    currentPlan: "BRONZE", targetPlan: "SILVER", changeType: "UPGRADE", status: "UPGRADE_PAYMENT_REQUIRED", effectiveAt: null, contractedPrice: 99.9,
+    chargeAmount: 13.33, nextRenewalPrice: 99.9, checkoutUrl: "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=up", pending: true, ...overrides,
+  });
+  const upgradeState = (overrides: Partial<PlanUpgradeStatusDTO>): PlanUpgradeStatusDTO => ({
+    status: "AWAITING_PAYMENT", fromPlan: "BRONZE", targetPlan: "SILVER", chargeAmount: 13.33, targetPrice: 99.9,
+    checkoutUrl: "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=up", paymentPending: false, paymentRejected: false,
+    appliedAt: null, updatedAt: new Date().toISOString(), ...overrides,
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
+    mockClosingFrames.length = 0;
     mockedBillingService.cancelSubscription.mockReset();
+    mockedBillingService.changePlan.mockReset();
+    mockedBillingService.undoDowngrade.mockReset();
+    mockedBillingService.previewChangePlan.mockReset();
     localStorage.clear();
     setToken("Bearer user-token");
     mockedBillingService.getMyBilling.mockResolvedValue(billing);
     mockedBillingService.getBillingPaymentState.mockResolvedValue(cancellablePaymentState);
     mockedBillingService.getPlans.mockResolvedValue(plans);
     mockedBillingService.getPricePreview.mockImplementation(() => new Promise(() => {}));
+    mockedBillingService.getPlanUpgradeStatus.mockResolvedValue(noUpgrade);
   });
 
   afterEach(() => localStorage.clear());
 
   it("desabilita downgrade para plano pago incompatível e habilita quando a frota cabe", async () => {
     // Current SILVER (max 20) with 15 vehicles: BRONZE (max 10) does not fit.
-    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, planCode: "SILVER", planName: "Prata", activeVehicleCount: 15, requiredPlanCode: "SILVER", requiredPlanName: "Prata" });
+    mockedBillingService.getMyBilling.mockResolvedValue({ ...silverBilling, activeVehicleCount: 15 });
     await renderLoadedPage();
 
     expect(planCardButton("Bronze", "Fazer downgrade")).toBeDisabled();
@@ -606,63 +649,206 @@ describe("MyPlanPage - 5G.12 plan change", () => {
   });
 
   it("habilita Fazer downgrade quando a frota atual cabe no plano inferior", async () => {
-    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, planCode: "SILVER", planName: "Prata", activeVehicleCount: 6, requiredPlanCode: "SILVER", requiredPlanName: "Prata" });
+    mockedBillingService.getMyBilling.mockResolvedValue(silverBilling);
     await renderLoadedPage();
 
     expect(planCardButton("Bronze", "Fazer downgrade")).toBeEnabled();
   });
 
-  it("modal de upgrade mostra o novo valor calculado pelo backend e aplica imediatamente", async () => {
-    mockedBillingService.getPricePreview.mockResolvedValue({ vehicleCount: 6, planCode: "SILVER", planName: "Prata", billingCycle: "MONTHLY", monthlyPrice: 44.9, averagePricePerVehicle: 7.48, components: [] });
-    mockedBillingService.changePlan.mockResolvedValue({ currentPlan: "BRONZE", targetPlan: "SILVER", changeType: "UPGRADE", effectiveAt: "2026-09-15T12:00:00Z", contractedPrice: 44.9, pending: false });
+  it("upgrade mostra o valor proporcional e a próxima renovação calculados pelo backend e só leva ao pagamento", async () => {
+    mockedBillingService.previewChangePlan.mockResolvedValue(upgradePreview);
+    const pendingResponse = deferred<PlanChangeResultDTO>();
+    mockedBillingService.changePlan.mockReturnValue(pendingResponse.promise);
     await renderLoadedPage();
 
     fireEvent.click(planCardButton("Prata", "Fazer upgrade")!);
-    expect(screen.getByRole("dialog")).toHaveTextContent("Alterar de Bronze para Prata");
-    expect(await screen.findByText("R$ 44,90/mês")).toBeInTheDocument();
-    expect(screen.getByText(/liberado imediatamente/)).toBeInTheDocument();
-    expect(screen.getByText(/Não haverá cobrança proporcional/)).toBeInTheDocument();
-    expect(mockedBillingService.getPricePreview).toHaveBeenCalledWith(6, "SILVER");
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("Alterar de Bronze para Prata");
+    expect(await screen.findByText("R$ 13,33")).toBeInTheDocument();
+    expect(screen.getByText("R$ 99,90/mês")).toBeInTheDocument();
+    expect(dialog).toHaveTextContent("só será liberado após a confirmação do pagamento");
+    expect(dialog).not.toHaveTextContent("Não haverá cobrança proporcional");
+    expect(mockedBillingService.previewChangePlan).toHaveBeenCalledWith("SILVER");
+    expect(mockedBillingService.getPricePreview).not.toHaveBeenCalledWith(expect.anything(), "SILVER");
 
-    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, planCode: "SILVER", planName: "Prata", currentMonthlyPrice: 44.9, requiredPlanCode: "SILVER", requiredPlanName: "Prata" });
-    fireEvent.click(screen.getByRole("button", { name: "Confirmar upgrade" }));
+    const confirm = screen.getByRole("button", { name: "Confirmar upgrade" });
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+    expect(mockedBillingService.changePlan).toHaveBeenCalledTimes(1);
     expect(mockedBillingService.changePlan).toHaveBeenCalledWith("SILVER");
+    expect(screen.getByText(/Processando/)).toBeInTheDocument();
+
+    pendingResponse.resolve(result({}));
+    await waitFor(() => expect(mockedNavigate).toHaveBeenCalledWith("https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=up"));
+    expect(mockedNavigate).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("dialog")).toHaveTextContent("Redirecionando para o Mercado Pago...");
+    // Nothing granted before the payment is confirmed.
+    expect(screen.getByText("Bronze", { selector: "h1" })).toBeInTheDocument();
+  });
+
+  it("upgrade aplicado mostra sucesso claro no modal e o modal nunca fica em branco ao fechar", async () => {
+    mockedBillingService.previewChangePlan.mockResolvedValue({ ...upgradePreview, chargeNow: 0 });
+    mockedBillingService.changePlan.mockResolvedValue(result({ status: "UPGRADE_APPLIED", chargeAmount: 0, checkoutUrl: null, pending: false, effectiveAt: "2026-09-15T12:00:00Z" }));
+    await renderLoadedPage();
+
+    fireEvent.click(planCardButton("Prata", "Fazer upgrade")!);
+    await screen.findByText("R$ 99,90/mês");
+    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, planCode: "SILVER", planName: "Prata", currentMonthlyPrice: 99.9, requiredPlanCode: "SILVER", requiredPlanName: "Prata" });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar upgrade" }));
+
+    const dialog = await screen.findByText("Upgrade realizado com sucesso");
+    expect(dialog.closest("section")).toHaveTextContent("Seu plano agora é Prata.");
+    expect(dialog.closest("section")).toHaveTextContent("Próxima renovação");
+    expect(mockedNavigate).not.toHaveBeenCalled();
+    expect(await screen.findByText("Prata", { selector: "h1" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    // The frame displayed during the close animation still carries the success content.
+    expect(mockClosingFrames[mockClosingFrames.length - 1]).toContain("Upgrade realizado com sucesso");
+  });
+
+  it("fechar o modal de confirmação sem enviar também não deixa o conteúdo em branco", async () => {
+    mockedBillingService.previewChangePlan.mockResolvedValue(upgradePreview);
+    await renderLoadedPage();
+
+    fireEvent.click(planCardButton("Prata", "Fazer upgrade")!);
+    await screen.findByText("R$ 13,33");
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(mockClosingFrames[mockClosingFrames.length - 1]).toContain("Alterar de Bronze para Prata");
+    expect(mockedBillingService.changePlan).not.toHaveBeenCalled();
+  });
+
+  it("pagamento pendente informa que aguarda confirmação e não mostra o plano novo como ativo", async () => {
+    mockedBillingService.previewChangePlan.mockResolvedValue(upgradePreview);
+    mockedBillingService.changePlan.mockResolvedValue(result({ status: "UPGRADE_PAYMENT_PENDING", checkoutUrl: null }));
+    mockedBillingService.getPlanUpgradeStatus.mockResolvedValueOnce(noUpgrade).mockResolvedValue(upgradeState({ paymentPending: true, checkoutUrl: null }));
+    await renderLoadedPage();
+
+    fireEvent.click(planCardButton("Prata", "Fazer upgrade")!);
+    await screen.findByText("R$ 13,33");
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar upgrade" }));
+
+    expect(await screen.findByRole("heading", { name: "Estamos aguardando a confirmação do pagamento." })).toBeInTheDocument();
+    expect(mockedNavigate).not.toHaveBeenCalled();
+    expect(screen.getByText("Bronze", { selector: "h1" })).toBeInTheDocument();
+    expect(await screen.findByTestId("upgrade-notice")).toHaveTextContent("Estamos aguardando a confirmação do pagamento.");
+  });
+
+  it("upgrade aguardando pagamento oferece retomar o pagamento e bloqueia outras mudanças concorrentes", async () => {
+    mockedBillingService.getPlanUpgradeStatus.mockResolvedValue(upgradeState({}));
+    await renderLoadedPage();
+
+    const notice = screen.getByTestId("upgrade-notice");
+    expect(notice).toHaveTextContent("Upgrade para Prata aguardando pagamento.");
+    expect(notice).toHaveTextContent("R$ 13,33");
+    expect(screen.getByText("Bronze", { selector: "h1" })).toBeInTheDocument();
+    expect(planCardButton("Prata", "Fazer upgrade")).toBeDisabled();
+    expect(planCardButton("Gratuito", "Mudar para Gratuito")).toBeDisabled();
+    expect(screen.getByText("Prata").closest("section")).toHaveTextContent("Aguarde a confirmação do upgrade em andamento.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Pagar upgrade" }));
+    expect(mockedNavigate).toHaveBeenCalledWith("https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=up");
+  });
+
+  it("pagamento recusado mantém o plano atual e informa claramente", async () => {
+    mockedBillingService.getPlanUpgradeStatus.mockResolvedValue(upgradeState({ paymentRejected: true }));
+    await renderLoadedPage();
+
+    expect(screen.getByTestId("upgrade-notice")).toHaveTextContent("O pagamento do upgrade foi recusado.");
+    expect(screen.getByTestId("upgrade-notice")).toHaveTextContent("Seu plano atual continua ativo");
+    expect(screen.getByText("Bronze", { selector: "h1" })).toBeInTheDocument();
+  });
+
+  it("após a confirmação do backend, atualizar o status mostra o sucesso com valor pago e próxima renovação", async () => {
+    mockedBillingService.getPlanUpgradeStatus
+      .mockResolvedValueOnce(upgradeState({ status: "APPLYING", checkoutUrl: null }))
+      .mockResolvedValue(upgradeState({ status: "APPLIED", checkoutUrl: null, appliedAt: new Date().toISOString() }));
+    await renderLoadedPage();
+
+    expect(screen.getByTestId("upgrade-notice")).toHaveTextContent("Pagamento confirmado.");
+    expect(screen.getByText("Bronze", { selector: "h1" })).toBeInTheDocument();
+
+    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, planCode: "SILVER", planName: "Prata", currentMonthlyPrice: 99.9, requiredPlanCode: "SILVER", requiredPlanName: "Prata" });
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar status do upgrade" }));
+
+    expect(await screen.findByText("Upgrade realizado com sucesso")).toBeInTheDocument();
+    expect(screen.getByTestId("upgrade-notice")).toHaveTextContent("Seu plano agora é Prata. Valor pago agora: R$ 13,33. Próxima renovação: R$ 99,90/mês.");
     expect(await screen.findByText("Prata", { selector: "h1" })).toBeInTheDocument();
   });
 
-  it("modal de downgrade explica a data de efetivação e não altera o plano atual visualmente", async () => {
-    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, planCode: "SILVER", planName: "Prata", currentPeriodEnd: "2026-10-09T00:00:00Z", requiredPlanCode: "SILVER", requiredPlanName: "Prata" });
-    mockedBillingService.getPricePreview.mockResolvedValue({ vehicleCount: 6, planCode: "BRONZE", planName: "Bronze", billingCycle: "MONTHLY", monthlyPrice: 15.9, averagePricePerVehicle: 2.65, components: [] });
-    mockedBillingService.changePlan.mockResolvedValue({ currentPlan: "SILVER", targetPlan: "BRONZE", changeType: "DOWNGRADE", effectiveAt: "2026-10-09T00:00:00Z", contractedPrice: 15.9, pending: true });
+  it("modal de downgrade explica a data de efetivação e mostra 'Mudança agendada' sem alterar o plano atual", async () => {
+    mockedBillingService.getMyBilling.mockResolvedValue(silverBilling);
+    mockedBillingService.previewChangePlan.mockResolvedValue(downgradePreview);
+    mockedBillingService.changePlan.mockResolvedValue(result({ currentPlan: "SILVER", targetPlan: "BRONZE", changeType: "DOWNGRADE", status: "DOWNGRADE_SCHEDULED", effectiveAt: "2026-10-09T00:00:00Z", chargeAmount: null, nextRenewalPrice: 59.9, checkoutUrl: null }));
     await renderLoadedPage();
 
     fireEvent.click(planCardButton("Bronze", "Fazer downgrade")!);
     expect(screen.getByRole("dialog")).toHaveTextContent("Alterar de Prata para Bronze");
     expect(screen.getByText(/continuará disponível até 09\/10\/2026/)).toBeInTheDocument();
-    await screen.findByText(/R\$ 15,90\/mês/);
+    await screen.findByText(/R\$ 59,90\/mês/);
 
-    mockedBillingService.getMyBilling.mockResolvedValue({
-      ...billing, planCode: "SILVER", planName: "Prata", currentPeriodEnd: "2026-10-09T00:00:00Z", requiredPlanCode: "SILVER", requiredPlanName: "Prata",
-      pendingPlanCode: "BRONZE", pendingPlanName: "Bronze", pendingPlanPrice: 15.9, planChangeEffectiveAt: "2026-10-09T00:00:00Z",
-    });
+    mockedBillingService.getMyBilling.mockResolvedValue(silverWithScheduledBronze);
     fireEvent.click(screen.getByRole("button", { name: "Agendar downgrade" }));
     expect(mockedBillingService.changePlan).toHaveBeenCalledWith("BRONZE");
-    // The current plan never flips to Bronze before the scheduled date - only the banner appears.
-    expect(await screen.findByText("Mudança para Bronze agendada para 09/10/2026.")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Mudança agendada", level: 2 })).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toHaveTextContent("Seu plano mudará para Bronze em 09/10/2026.");
+    expect(await screen.findByTestId("scheduled-downgrade")).toHaveTextContent("Seu plano mudará para Bronze em 09/10/2026.");
     expect(screen.getByText("Prata", { selector: "h1" })).toBeInTheDocument();
     expect(screen.queryByText("Bronze", { selector: "h1" })).not.toBeInTheDocument();
   });
 
-  it("mostra o aviso de mudança agendada e desabilita outras mudanças enquanto ela estiver pendente", async () => {
-    mockedBillingService.getMyBilling.mockResolvedValue({
-      ...billing, planCode: "SILVER", planName: "Prata", requiredPlanCode: "SILVER", requiredPlanName: "Prata",
-      pendingPlanCode: "BRONZE", pendingPlanName: "Bronze", pendingPlanPrice: 15.9, planChangeEffectiveAt: "2026-10-09T00:00:00Z",
-    });
+  it("downgrade agendado não bloqueia upgrade e oferece Desfazer downgrade", async () => {
+    mockedBillingService.getMyBilling.mockResolvedValue(silverWithScheduledBronze);
+    mockedBillingService.getPlans.mockResolvedValue(plansWithGold);
+    mockedBillingService.previewChangePlan.mockResolvedValue({ ...upgradePreview, currentPlan: "SILVER", targetPlan: "GOLD", newMonthlyPrice: 149.9, chargeNow: 16.67 });
     await renderLoadedPage();
 
-    expect(screen.getByText("Mudança para Bronze agendada para 09/10/2026.")).toBeInTheDocument();
+    const banner = screen.getByTestId("scheduled-downgrade");
+    expect(banner).toHaveTextContent("Mudança agendada");
+    expect(banner).toHaveTextContent("Seu plano mudará para Bronze em 09/10/2026.");
+    expect(screen.getByRole("button", { name: "Desfazer downgrade" })).toBeEnabled();
+    expect(planCardButton("Ouro", "Fazer upgrade")).toBeEnabled();
+    expect(planCardButton("Bronze", "Downgrade agendado")).toBeDisabled();
     expect(planCardButton("Gratuito", "Mudar para Gratuito")).toBeDisabled();
+
+    fireEvent.click(planCardButton("Ouro", "Fazer upgrade")!);
+    await screen.findByText("R$ 16,67");
+    expect(screen.getByRole("dialog")).toHaveTextContent("O downgrade agendado para Bronze será cancelado quando o upgrade for concluído. Se o pagamento não for aprovado, ele continua agendado.");
+  });
+
+  it("Desfazer downgrade envia uma única vez, confirma e remove o agendamento", async () => {
+    mockedBillingService.getMyBilling.mockResolvedValue(silverWithScheduledBronze);
+    const undo = deferred<PlanChangeResultDTO>();
+    mockedBillingService.undoDowngrade.mockReturnValue(undo.promise);
+    await renderLoadedPage();
+
+    const button = screen.getByRole("button", { name: "Desfazer downgrade" });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(mockedBillingService.undoDowngrade).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText(/Desfazendo/)).toBeInTheDocument();
+
+    mockedBillingService.getMyBilling.mockResolvedValue(silverBilling);
+    undo.resolve(result({ currentPlan: "SILVER", targetPlan: "BRONZE", changeType: "DOWNGRADE", status: "DOWNGRADE_UNDONE", chargeAmount: null, nextRenewalPrice: 99.9, checkoutUrl: null, pending: false }));
+
+    expect(await screen.findByText("Downgrade desfeito. Você continua no plano Prata e a próxima renovação volta para R$ 99,90/mês.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByTestId("scheduled-downgrade")).not.toBeInTheDocument());
+    expect(planCardButton("Bronze", "Fazer downgrade")).toBeEnabled();
+  });
+
+  it("falha ao desfazer mantém o downgrade agendado e mostra o erro", async () => {
+    mockedBillingService.getMyBilling.mockResolvedValue(silverWithScheduledBronze);
+    mockedBillingService.undoDowngrade.mockRejectedValue({ response: { status: 409, data: { message: "error.BILLING_DOWNGRADE_UNDO_REJECTED" } } });
+    await renderLoadedPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Desfazer downgrade" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("O Mercado Pago não confirmou a restauração do valor da assinatura. O downgrade continua agendado.");
+    expect(screen.getByTestId("scheduled-downgrade")).toHaveTextContent("Seu plano mudará para Bronze em 09/10/2026.");
+    expect(screen.getByRole("button", { name: "Desfazer downgrade" })).toBeEnabled();
   });
 
   it("bloqueia mudança de plano quando já existe cancelamento agendado", async () => {
@@ -677,14 +863,56 @@ describe("MyPlanPage - 5G.12 plan change", () => {
     expect(planCardButton("Prata", "Fazer upgrade")).toBeDisabled();
   });
 
-  it("trata erro 409 de mudança de plano com mensagem amigável", async () => {
-    mockedBillingService.getPricePreview.mockResolvedValue({ vehicleCount: 6, planCode: "SILVER", planName: "Prata", billingCycle: "MONTHLY", monthlyPrice: 44.9, averagePricePerVehicle: 7.48, components: [] });
-    mockedBillingService.changePlan.mockRejectedValue({ response: { status: 409, data: { message: "error.BILLING_PLAN_CHANGE_ALREADY_PENDING" } } });
+  it("trata 409 de upgrade em andamento com mensagem amigável e libera nova tentativa", async () => {
+    mockedBillingService.previewChangePlan.mockResolvedValue(upgradePreview);
+    mockedBillingService.changePlan.mockRejectedValue({ response: { status: 409, data: { message: "error.BILLING_PLAN_UPGRADE_IN_PROGRESS" } } });
     await renderLoadedPage();
 
     fireEvent.click(planCardButton("Prata", "Fazer upgrade")!);
-    await screen.findByText("R$ 44,90/mês");
+    await screen.findByText("R$ 13,33");
     fireEvent.click(screen.getByRole("button", { name: "Confirmar upgrade" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Já existe uma mudança de plano agendada para esta assinatura.");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Já existe um upgrade aguardando a confirmação do pagamento.");
+    expect(screen.getByRole("button", { name: "Confirmar upgrade" })).toBeEnabled();
+    expect(mockedNavigate).not.toHaveBeenCalled();
+  });
+
+  it("um 401 real ao mudar de plano é mostrado como sessão expirada, nunca escondido", async () => {
+    mockedBillingService.previewChangePlan.mockResolvedValue(upgradePreview);
+    mockedBillingService.changePlan.mockRejectedValue({ response: { status: 401, data: { message: "error.http.401" } } });
+    await renderLoadedPage();
+
+    fireEvent.click(planCardButton("Prata", "Fazer upgrade")!);
+    await screen.findByText("R$ 13,33");
+    const refreshesBefore = mockedBillingService.getMyBilling.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar upgrade" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Sua sessão expirou. Faça login novamente.");
+    // No follow-up requests with a dead session.
+    expect(mockedBillingService.getMyBilling.mock.calls.length).toBe(refreshesBefore);
+  });
+
+  it("falha ao atualizar os dados depois da mudança é exibida, não engolida", async () => {
+    mockedBillingService.getMyBilling.mockResolvedValue(silverBilling);
+    mockedBillingService.previewChangePlan.mockResolvedValue(downgradePreview);
+    mockedBillingService.changePlan.mockResolvedValue(result({ currentPlan: "SILVER", targetPlan: "BRONZE", changeType: "DOWNGRADE", status: "DOWNGRADE_SCHEDULED", effectiveAt: "2026-10-09T00:00:00Z", chargeAmount: null, nextRenewalPrice: 59.9, checkoutUrl: null }));
+    await renderLoadedPage();
+
+    fireEvent.click(planCardButton("Bronze", "Fazer downgrade")!);
+    await screen.findByText(/R\$ 59,90\/mês/);
+    mockedBillingService.getMyBilling.mockRejectedValue({ response: { status: 503 } });
+    fireEvent.click(screen.getByRole("button", { name: "Agendar downgrade" }));
+
+    expect(await screen.findByText("Não foi possível atualizar os dados do plano. Use Atualizar status ou recarregue a página.")).toBeInTheDocument();
+  });
+
+  it("não permite confirmar quando o backend não consegue calcular o valor proporcional", async () => {
+    mockedBillingService.previewChangePlan.mockRejectedValue({ response: { status: 409, data: { message: "error.BILLING_PLAN_CHANGE_PERIOD_UNCONFIRMED" } } });
+    await renderLoadedPage();
+
+    fireEvent.click(planCardButton("Prata", "Fazer upgrade")!);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Nenhuma alteração foi feita");
+    expect(screen.getByRole("button", { name: "Confirmar upgrade" })).toBeDisabled();
   });
 });

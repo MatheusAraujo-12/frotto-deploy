@@ -704,10 +704,14 @@ class RecurringBillingPersistenceTest {
      * UserRepository#findByIdForBillingCheckoutLock reused by checkout/cancellation) - mirrors
      * concurrentCheckoutsForTheSameUserProduceAtMostOneLogicalRecurrenceCreation above. Two real
      * transactions for the SAME user (BRONZE, subscription 90001) both request an upgrade to
-     * SILVER concurrently; the loser must block on the row lock until the winner commits, then
-     * observe the winner's now-persisted plan and refuse with a controlled BillingPlanChangeNoOp
-     * Exception (target already equals the current plan) rather than also calling the provider a
-     * second time.
+     * SILVER concurrently.
+     *
+     * 5G.12.1: an upgrade is now a prorated payment. The loser must block on the row lock until the
+     * winner committed its attempt, then either reuse that SAME attempt (same payment link) or,
+     * while the winner is still creating the checkout, refuse with a controlled
+     * BillingPlanUpgradeInProgressException. Never two attempts, never two payment links, never a
+     * recurrence PUT and never the new plan before payment. Also proves the 20260924000000
+     * subscription_plan_upgrade migration and its PESSIMISTIC_WRITE query on real MySQL.
      */
     @Test void concurrentPlanChangesForTheSameUserProduceAtMostOnePutAndNoContradictoryState() throws Exception {
         operationalSetup();
@@ -730,22 +734,41 @@ class RecurringBillingPersistenceTest {
                 repos.getRepository(BillingInvoiceRepository.class), repos.getRepository(PaymentAttemptRepository.class));
             var guard = new com.localuz.service.RecurringSubscriptionGuardService(subscriptionRepo, financialCoverage);
 
-            var stepsTarget = new com.localuz.service.SubscriptionPlanChangeSteps(users, subscriptionRepo, guard, financialCoverage);
-            var stepsProxy = new org.springframework.aop.framework.ProxyFactory(stepsTarget);
+            var upgradeRepo = repos.getRepository(SubscriptionPlanUpgradeRepository.class);
+            var transactions = new org.springframework.transaction.annotation.AnnotationTransactionAttributeSource();
+            var stepsProxy = new org.springframework.aop.framework.ProxyFactory(
+                new com.localuz.service.SubscriptionPlanChangeSteps(users, subscriptionRepo, guard, financialCoverage, upgradeRepo));
             stepsProxy.setProxyTargetClass(true);
-            stepsProxy.addAdvice(new org.springframework.transaction.interceptor.TransactionInterceptor(manager,
-                new org.springframework.transaction.annotation.AnnotationTransactionAttributeSource()));
+            stepsProxy.addAdvice(new org.springframework.transaction.interceptor.TransactionInterceptor(manager, transactions));
             var steps = (com.localuz.service.SubscriptionPlanChangeSteps) stepsProxy.getProxy();
+            var upgradeStepsProxy = new org.springframework.aop.framework.ProxyFactory(
+                new com.localuz.service.SubscriptionPlanUpgradeSteps(users, steps, upgradeRepo, subscriptionRepo));
+            upgradeStepsProxy.setProxyTargetClass(true);
+            upgradeStepsProxy.addAdvice(new org.springframework.transaction.interceptor.TransactionInterceptor(manager, transactions));
+            var upgradeSteps = (com.localuz.service.SubscriptionPlanUpgradeSteps) upgradeStepsProxy.getProxy();
 
             var client = org.mockito.Mockito.mock(com.localuz.service.MercadoPagoClient.class);
-            org.mockito.Mockito.when(client.updatePreapprovalAmount(org.mockito.ArgumentMatchers.eq("reserve-pre"),
-                org.mockito.ArgumentMatchers.eq(new BigDecimal("44.90")), org.mockito.ArgumentMatchers.eq("BRL"), org.mockito.ArgumentMatchers.anyString()))
-                .thenReturn(new com.localuz.service.dto.MercadoPagoPreapproval("reserve-pre", "authorized", "ref", null, null, null, null, null, null, new BigDecimal("44.90"), "BRL"));
+            // The recurrence currently charges the contracted BRONZE price; the paid cycle is today +/- 15 days.
             org.mockito.Mockito.when(client.getPreapproval("reserve-pre"))
-                .thenReturn(new com.localuz.service.dto.MercadoPagoPreapproval("reserve-pre", "authorized", "ref", null, null, null, null, null, null, new BigDecimal("44.90"), "BRL"));
+                .thenReturn(new com.localuz.service.dto.MercadoPagoPreapproval("reserve-pre", "authorized", "ref", null, null, null, null, 1, "months", new BigDecimal("15.90"), "BRL"));
+            org.mockito.Mockito.when(client.createPaymentPreference(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> {
+                Thread.sleep(200); // widen the window in which the loser can observe the in-flight creation
+                com.localuz.service.dto.MercadoPagoPaymentPreferenceRequest request = invocation.getArgument(0);
+                return new com.localuz.service.dto.MercadoPagoPaymentPreference("pref-1", "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=1",
+                    request.getExternalReference());
+            });
+            org.mockito.Mockito.when(client.searchPaymentIdsByExternalReference(org.mockito.ArgumentMatchers.anyString())).thenReturn(java.util.List.of());
+            var quoteCoverage = org.mockito.Mockito.mock(com.localuz.service.SubscriptionFinancialCoverageService.class);
+            Instant now = Instant.now();
+            org.mockito.Mockito.when(quoteCoverage.evaluate(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(Instant.class)))
+                .thenReturn(new com.localuz.service.dto.FinancialCoverageEvaluation(true, com.localuz.service.dto.FinancialCoverageEvaluation.CommercialState.ACTIVE,
+                    1L, now.minus(java.time.Duration.ofDays(15)), now.plus(java.time.Duration.ofDays(15)), null,
+                    com.localuz.service.dto.FinancialCoverageEvaluation.Reason.PAID));
+            var upgradeService = new com.localuz.service.SubscriptionPlanUpgradeService(upgradeSteps, upgradeRepo, client, quoteCoverage,
+                new com.localuz.config.MercadoPagoProperties());
             var cancellationService = org.mockito.Mockito.mock(com.localuz.service.SubscriptionCancellationService.class);
 
-            var service = new com.localuz.service.SubscriptionPlanChangeService(steps, cancellationService, client, pricing, plans, subscriptionRepo, cars);
+            var service = new com.localuz.service.SubscriptionPlanChangeService(steps, upgradeService, cancellationService, client, pricing, plans, subscriptionRepo, cars);
 
             com.localuz.domain.User user = new com.localuz.domain.User();
             user.setId(90001L);
@@ -766,25 +789,40 @@ class RecurringBillingPersistenceTest {
             Object resultB = b.get(30, java.util.concurrent.TimeUnit.SECONDS);
 
             var results = java.util.List.of(resultA, resultB);
-            long successes = results.stream().filter(r -> r instanceof com.localuz.service.dto.PlanChangeResultDTO).count();
-            // The loser's exact exception depends on harmless timing: if it reads before the
-            // winner's finalizeUpgrade promotes pendingPlan -> plan, it sees "already pending"; if
-            // it reads after, the target already equals the (now live) current plan and it sees a
-            // plain no-op conflict instead. Both are an equally safe, single controlled conflict -
-            // never a second PUT and never a contradictory persisted state.
+            var paymentRequired = results.stream()
+                .filter(r -> r instanceof com.localuz.service.dto.PlanChangeResultDTO)
+                .map(r -> (com.localuz.service.dto.PlanChangeResultDTO) r)
+                .toList();
+            // The loser's outcome depends on harmless timing: after the winner recorded its payment
+            // link it reuses the SAME attempt (same link); while the winner is still creating it,
+            // it gets a controlled "upgrade in progress" conflict. Both are safe.
             long controlledConflicts = results.stream()
-                .filter(r -> r instanceof com.localuz.web.rest.errors.BillingPlanChangeNoOpException
-                    || r instanceof com.localuz.web.rest.errors.BillingPlanChangeAlreadyPendingException)
-                .count();
-            assertThat(successes).as("exactly one attempt must apply the upgrade: %s", results).isEqualTo(1);
-            assertThat(controlledConflicts).as("the other attempt must observe the in-flight/applied change and refuse, not also call the provider: %s", results).isEqualTo(1);
-            org.mockito.Mockito.verify(client, org.mockito.Mockito.times(1))
-                .updatePreapprovalAmount(org.mockito.ArgumentMatchers.eq("reserve-pre"), org.mockito.ArgumentMatchers.any(),
-                    org.mockito.ArgumentMatchers.eq("BRL"), org.mockito.ArgumentMatchers.anyString());
-            try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD);
-                 var rows = connection.createStatement().executeQuery("SELECT p.code FROM subscription s JOIN plan p ON p.id = s.plan_id WHERE s.id=90001")) {
-                assertThat(rows.next()).isTrue();
-                assertThat(rows.getString(1)).isEqualTo("SILVER");
+                .filter(r -> r instanceof com.localuz.web.rest.errors.BillingPlanUpgradeInProgressException).count();
+            assertThat(paymentRequired).as("at least the winner must get a payment link: %s", results).isNotEmpty();
+            assertThat(paymentRequired.size() + controlledConflicts).as("no other outcome is acceptable: %s", results).isEqualTo(2);
+            assertThat(paymentRequired).allSatisfy(result -> {
+                assertThat(result.getStatus()).isEqualTo(com.localuz.service.dto.PlanChangeStatus.UPGRADE_PAYMENT_REQUIRED);
+                assertThat(result.getCheckoutUrl()).isEqualTo("https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=1");
+            });
+            org.mockito.Mockito.verify(client, org.mockito.Mockito.times(1)).createPaymentPreference(org.mockito.ArgumentMatchers.any());
+            org.mockito.Mockito.verify(client, org.mockito.Mockito.never()).updatePreapprovalAmount(org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+            try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {
+                try (var rows = connection.createStatement().executeQuery("SELECT p.code, s.contracted_price FROM subscription s JOIN plan p ON p.id = s.plan_id WHERE s.id=90001")) {
+                    assertThat(rows.next()).isTrue();
+                    assertThat(rows.getString(1)).as("nothing is granted before payment").isEqualTo("BRONZE");
+                    assertThat(rows.getBigDecimal(2)).isEqualByComparingTo("15.90");
+                }
+                try (var rows = connection.createStatement().executeQuery(
+                    "SELECT status, charge_amount, target_price, external_reference, checkout_url FROM subscription_plan_upgrade WHERE subscription_id=90001")) {
+                    assertThat(rows.next()).isTrue();
+                    assertThat(rows.getString("status")).isEqualTo("AWAITING_PAYMENT");
+                    assertThat(rows.getBigDecimal("charge_amount").scale()).isEqualTo(2);
+                    assertThat(rows.getBigDecimal("charge_amount")).isPositive();
+                    assertThat(rows.getString("external_reference")).startsWith("frotto-upgrade-");
+                    assertThat(rows.getString("checkout_url")).isNotNull();
+                    assertThat(rows.next()).as("exactly one attempt row").isFalse();
+                }
             }
         } finally {
             pool.shutdownNow();
@@ -984,6 +1022,7 @@ class RecurringBillingPersistenceTest {
             // INSERT (BRONZE, 100.00) - a no-op for every test that never touches these columns,
             // but required for the plan-change concurrency test below, which commits real changes
             // to subscription 90001 outside the per-test em rollback.
+            connection.createStatement().executeUpdate("DELETE FROM subscription_plan_upgrade WHERE subscription_id=90001");
             connection.createStatement().executeUpdate("UPDATE subscription SET external_provider=NULL,external_subscription_id=NULL,last_financial_reconciliation_at=NULL," +
                 "contracted_vehicle_count=1,source='PAYMENT_PROVIDER',status='ACTIVE',canceled_at=NULL,cancel_at_period_end=false," +
                 "plan_id=(SELECT id FROM plan WHERE code='BRONZE'),contracted_price=100.00," +
