@@ -1,4 +1,5 @@
-import { AdminBillingUser, GrantPlanPayload, GrantablePlanCode } from "../../constants/AdminBillingModels";
+import { AdminBillingUser, GrantPlanPayload, GrantablePlanCode, SubscriptionStatus } from "../../constants/AdminBillingModels";
+import type { FrottoBadgeVariant } from "../../components/UI/FrottoBadge";
 
 /**
  * Pure logic extracted out of AdminBillingPage so it can be unit tested without mounting any
@@ -47,6 +48,17 @@ export function validateGrantForm(
     errors.expiresAt = "Informe uma data futura.";
   }
   return errors;
+}
+
+/**
+ * Real SubscriptionStatus values only (same enum as MyPlan's statusVariant) - no invented
+ * "Trial"/"Inadimplente" bucket. CANCELED/EXPIRED are terminal-but-normal, never "danger".
+ */
+export function statusVariant(status: SubscriptionStatus | null | undefined): FrottoBadgeVariant {
+  const variants: Record<SubscriptionStatus, FrottoBadgeVariant> = {
+    ACTIVE: "success", PAST_DUE: "warning", PAUSED: "warning", CANCELED: "neutral", EXPIRED: "neutral",
+  };
+  return status ? variants[status] : "neutral";
 }
 
 export function buildGrantPayload(

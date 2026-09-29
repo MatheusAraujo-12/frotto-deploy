@@ -1,5 +1,5 @@
 import { AdminBillingUser } from "../../constants/AdminBillingModels";
-import { buildGrantPayload, canRevokeSubscription, validateGrantForm } from "./adminBillingPageLogic";
+import { buildGrantPayload, canRevokeSubscription, statusVariant, validateGrantForm } from "./adminBillingPageLogic";
 
 const baseUser: AdminBillingUser = {
   userId: 123,
@@ -50,6 +50,28 @@ describe("canRevokeSubscription", () => {
 
   it("returns false when no user is selected", () => {
     expect(canRevokeSubscription(null)).toBe(false);
+  });
+});
+
+describe("statusVariant", () => {
+  it.each([
+    ["ACTIVE", "success"],
+    ["PAST_DUE", "warning"],
+    ["PAUSED", "warning"],
+    ["CANCELED", "neutral"],
+    ["EXPIRED", "neutral"],
+  ] as const)("maps real SubscriptionStatus %s to FrottoBadge variant %s", (status, variant) => {
+    expect(statusVariant(status)).toBe(variant);
+  });
+
+  it("maps the absence of a subscription (FREE) to neutral, not success", () => {
+    expect(statusVariant(null)).toBe("neutral");
+    expect(statusVariant(undefined)).toBe("neutral");
+  });
+
+  it("never uses danger for a normal terminal state (cancellation is not an error)", () => {
+    expect(statusVariant("CANCELED")).not.toBe("danger");
+    expect(statusVariant("EXPIRED")).not.toBe("danger");
   });
 });
 

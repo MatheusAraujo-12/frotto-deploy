@@ -1,8 +1,6 @@
 import {
-  IonBadge,
   IonButton,
   IonButtons,
-  IonCard,
   IonCardContent,
   IonContent,
   IonHeader,
@@ -26,7 +24,7 @@ import {
   IonToolbar,
   useIonToast,
 } from "@ionic/react";
-import { closeCircleOutline, searchOutline } from "ionicons/icons";
+import { searchOutline } from "ionicons/icons";
 import { useCallback, useState } from "react";
 import { Redirect } from "react-router-dom";
 import {
@@ -44,7 +42,11 @@ import adminBillingService from "../../services/adminBillingService";
 import { getApiErrorMessage } from "../../services/apiErrorMessage";
 import { useAlert } from "../../services/hooks/useAlert";
 import { useAccountAuthorization } from "../../services/hooks/useAccountAuthorization";
-import { buildGrantPayload, canRevokeSubscription, validateGrantForm } from "./adminBillingPageLogic";
+import FrottoBadge from "../../components/UI/FrottoBadge";
+import FrottoCard from "../../components/UI/FrottoCard";
+import FrottoModal from "../../components/UI/FrottoModal";
+import ItemNotFound from "../../components/List/ItemNotFound";
+import { buildGrantPayload, canRevokeSubscription, statusVariant, validateGrantForm } from "./adminBillingPageLogic";
 import "./AdminBillingPage.css";
 
 const formatDateTime = (value?: string | null): string => {
@@ -278,8 +280,8 @@ const AdminBillingPage: React.FC = () => {
       </IonHeader>
 
       <IonContent fullscreen>
-        <div className="section-shell admin-billing-shell">
-          <IonCard>
+        <div className="app-shell app-shell--compact admin-billing-shell">
+          <FrottoCard>
             <IonCardContent>
               <h3>Pesquisar usuário</h3>
               <IonSearchbar
@@ -311,17 +313,14 @@ const AdminBillingPage: React.FC = () => {
                 </IonList>
               )}
               {!isSearching && searchQuery.trim().length >= 2 && searchResults.length === 0 && (
-                <div className="app-empty-state">
-                  <strong>Nenhum usuário encontrado.</strong>
-                  <span>Tente pesquisar por outro login ou e-mail.</span>
-                </div>
+                <ItemNotFound title="Nenhum usuário encontrado." description="Tente pesquisar por outro login ou e-mail." />
               )}
             </IonCardContent>
-          </IonCard>
+          </FrottoCard>
 
           {selectedUser && (
             <>
-              <IonCard>
+              <FrottoCard>
                 <IonCardContent>
                   <div className="admin-billing-user-header">
                     <div>
@@ -367,9 +366,13 @@ const AdminBillingPage: React.FC = () => {
                     </div>
                     <div className="admin-billing-fact">
                       <span className="admin-billing-fact__label">Status</span>
-                      <span className="admin-billing-fact__value">
-                        {selectedUser.subscriptionStatus ? STATUS_LABELS[selectedUser.subscriptionStatus] : "—"}
-                      </span>
+                      {selectedUser.subscriptionStatus ? (
+                        <FrottoBadge variant={statusVariant(selectedUser.subscriptionStatus)}>
+                          {STATUS_LABELS[selectedUser.subscriptionStatus]}
+                        </FrottoBadge>
+                      ) : (
+                        <span className="admin-billing-fact__value">—</span>
+                      )}
                     </div>
                     <div className="admin-billing-fact">
                       <span className="admin-billing-fact__label">Validade</span>
@@ -384,21 +387,18 @@ const AdminBillingPage: React.FC = () => {
                   </div>
 
                   <div className="admin-billing-badges">
-                    <IonBadge color={selectedUser.canAddVehicle ? "success" : "danger"}>
+                    <FrottoBadge variant={selectedUser.canAddVehicle ? "success" : "warning"}>
                       {selectedUser.canAddVehicle ? "Pode cadastrar veículo" : "Precisa de upgrade"}
-                    </IonBadge>
+                    </FrottoBadge>
                   </div>
                 </IonCardContent>
-              </IonCard>
+              </FrottoCard>
 
-              <IonCard>
+              <FrottoCard>
                 <IonCardContent>
                   <h3>Histórico resumido</h3>
                   {selectedUser.history.length === 0 ? (
-                    <div className="app-empty-state">
-                      <strong>Nenhum histórico ainda.</strong>
-                      <span>Este usuário nunca teve uma assinatura registrada.</span>
-                    </div>
+                    <ItemNotFound title="Nenhum histórico ainda." description="Este usuário nunca teve uma assinatura registrada." />
                   ) : (
                     <IonList>
                       {selectedUser.history.map((entry) => (
@@ -420,9 +420,9 @@ const AdminBillingPage: React.FC = () => {
                     </IonList>
                   )}
                 </IonCardContent>
-              </IonCard>
+              </FrottoCard>
 
-              <IonCard>
+              <FrottoCard>
                 <IonCardContent>
                   <h3>Cliente legado</h3>
                   <p className="admin-billing-muted">
@@ -473,7 +473,7 @@ const AdminBillingPage: React.FC = () => {
                     </div>
                   )}
                 </IonCardContent>
-              </IonCard>
+              </FrottoCard>
             </>
           )}
         </div>
@@ -485,19 +485,19 @@ const AdminBillingPage: React.FC = () => {
           setIsGrantModalOpen(false);
         }}
       >
-        <IonHeader>
-          <IonToolbar>
-            <IonTitle>Conceder plano</IonTitle>
-            <IonButtons slot="end">
-              <IonButton onClick={() => setIsGrantModalOpen(false)}>
-                <IonIcon icon={closeCircleOutline} slot="icon-only" />
-              </IonButton>
-            </IonButtons>
-          </IonToolbar>
-        </IonHeader>
-        <IonContent>
-          <div className="section-shell">
-            <IonCard>
+        <FrottoModal
+          pageId="admin-billing-grant-modal"
+          title="Conceder plano"
+          onCancel={() => setIsGrantModalOpen(false)}
+          cancelLabel="Cancelar"
+          cancelDisabled={isSavingGrant}
+          primaryLabel="Confirmar"
+          onPrimaryAction={() => void submitGrant()}
+          primaryDisabled={isSavingGrant}
+          isLoading={isSavingGrant}
+        >
+          <div className="app-shell app-shell--compact">
+            <FrottoCard>
               <IonCardContent>
                 <div className={`app-form-field${grantErrors.planCode ? " app-form-field--invalid" : ""}`}>
                   <IonItem className="app-form-item">
@@ -557,19 +557,10 @@ const AdminBillingPage: React.FC = () => {
                     />
                   </IonItem>
                 </div>
-
-                <div className="admin-billing-modal-actions">
-                  <IonButton fill="outline" onClick={() => setIsGrantModalOpen(false)}>
-                    Cancelar
-                  </IonButton>
-                  <IonButton onClick={() => void submitGrant()} disabled={isSavingGrant}>
-                    Confirmar
-                  </IonButton>
-                </div>
               </IonCardContent>
-            </IonCard>
+            </FrottoCard>
           </div>
-        </IonContent>
+        </FrottoModal>
       </IonModal>
     </IonPage>
   );

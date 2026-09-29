@@ -1,7 +1,10 @@
 export type PlanCode = "FREE" | "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" | "FROTTA";
 export type GrantablePlanCode = Exclude<PlanCode, "FREE">;
 export type SubscriptionSource = "PAYMENT_PROVIDER" | "ADMIN_GRANT" | "GRANDFATHERED";
-export type SubscriptionStatus = "ACTIVE" | "PAST_DUE" | "CANCELED" | "EXPIRED";
+// Must mirror the backend's SubscriptionStatus enum exactly (com.localuz.domain.enumeration.SubscriptionStatus)
+// - PAUSED was missing here even though the backend can return it (e.g. a PAYMENT_PROVIDER
+// subscription paused by Mercado Pago), which made STATUS_LABELS[status] resolve to undefined.
+export type SubscriptionStatus = "ACTIVE" | "PAST_DUE" | "PAUSED" | "CANCELED" | "EXPIRED";
 export type BillingCycle = "MONTHLY" | "YEARLY";
 
 export interface AdminUserSearchResult {
@@ -111,6 +114,7 @@ export const SOURCE_LABELS: Record<SubscriptionSource, string> = {
 export const STATUS_LABELS: Record<SubscriptionStatus, string> = {
   ACTIVE: "Ativa",
   PAST_DUE: "Em atraso",
+  PAUSED: "Pausada",
   CANCELED: "Cancelada",
   EXPIRED: "Expirada",
 };
