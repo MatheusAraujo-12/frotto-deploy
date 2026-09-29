@@ -25,6 +25,7 @@ import { RouteComponentProps, useHistory, useLocation } from "react-router";
 import { formatDateView } from "../../services/dateFormat";
 import CarExpenseAdd from "./CarExpenseAddModal/CarExpenseAdd";
 import { currencyFormat } from "../../services/currencyFormat";
+import ItemNotFound from "../../components/List/ItemNotFound";
 import { add, walletOutline } from "ionicons/icons";
 import "./CarExpenses.css";
 
@@ -111,6 +112,7 @@ const CarExpenses: React.FC<CarExpenseDetail> = ({ match }) => {
           <IonButtons slot="end">
             <IonButton
               className="app-primary-btn car-expenses-add-btn"
+              aria-label={`${TEXT.newCarExpense} ${TEXT.carExpense}`}
               onClick={() => {
                 setModalCarExpense({});
                 setIsModalOpen(true);
@@ -157,7 +159,7 @@ const CarExpenses: React.FC<CarExpenseDetail> = ({ match }) => {
                     }}
                   >
                     <div className="car-expense-list-item__wrap">
-                      <div className="app-soft-icon app-soft-icon--danger">
+                      <div className="app-soft-icon car-expense-list-item__icon">
                         <IonIcon icon={walletOutline} />
                       </div>
 
@@ -172,7 +174,7 @@ const CarExpenses: React.FC<CarExpenseDetail> = ({ match }) => {
                         </div>
 
                         <div className="car-expense-list-item__aside ion-text-wrap">
-                          <p className="car-expense-list-item__value">
+                          <p className="car-expense-list-item__value app-text-financial-negative">
                             {currencyFormat(carExpense.cost)}
                           </p>
                           <p className="car-expense-list-item__hint">
@@ -187,10 +189,10 @@ const CarExpenses: React.FC<CarExpenseDetail> = ({ match }) => {
             </div>
 
             {!isLoading && filteredList.length === 0 && (
-              <div className="app-empty-state">
-                <strong>{TEXT.noExpenses}</strong>
-                <span>Nenhuma despesa encontrada para os filtros atuais.</span>
-              </div>
+              <ItemNotFound
+                title={TEXT.noExpenses}
+                description="Nenhuma despesa encontrada para os filtros atuais."
+              />
             )}
           </section>
         </div>

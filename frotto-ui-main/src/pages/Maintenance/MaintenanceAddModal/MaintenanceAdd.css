@@ -50,6 +50,10 @@
   line-height: 1.35;
 }
 
+.maintenance-add-summary__value--financial-negative {
+  color: var(--frotto-financial-negative);
+}
+
 .maintenance-add-services-list {
   display: grid;
   gap: 10px;
@@ -75,6 +79,7 @@
 .maintenance-add-services-list__total {
   margin-left: 8px;
   font-weight: 700;
+  color: var(--frotto-financial-negative);
 }
 
 .maintenance-add-services-list__item {
@@ -222,13 +227,6 @@
   color: var(--ion-color-medium);
 }
 
-.maintenance-add-reminders-empty {
-  margin: 0;
-}
-
-.maintenance-add-empty-state {
-  margin: 0;
-}
 
 @media (max-width: 640px) {
   .maintenance-add-summary {

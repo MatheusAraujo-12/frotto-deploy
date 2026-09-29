@@ -26,6 +26,7 @@ import { formatDateView } from "../../services/dateFormat";
 import MaintenanceAdd from "./MaintenanceAddModal/MaintenanceAdd";
 import { currencyFormat } from "../../services/currencyFormat";
 import { servicesToString } from "../../services/toString";
+import ItemNotFound from "../../components/List/ItemNotFound";
 import { buildOutline } from "ionicons/icons";
 import "./Maintenances.css";
 
@@ -137,6 +138,7 @@ const Maintenances: React.FC<MaintenanceDetail> = ({ match }) => {
                     key={maintenance.id ?? `maintenance-${index}`}
                     button
                     detail={false}
+                    lines="none"
                     className="maintenance-list-item"
                     onClick={() => {
                       setModalMaintenance(maintenance);
@@ -144,7 +146,7 @@ const Maintenances: React.FC<MaintenanceDetail> = ({ match }) => {
                     }}
                   >
                     <div className="maintenance-list-item__wrap">
-                      <div className="app-soft-icon">
+                      <div className="app-soft-icon maintenance-list-item__icon">
                         <IonIcon icon={buildOutline} />
                       </div>
 
@@ -182,7 +184,7 @@ const Maintenances: React.FC<MaintenanceDetail> = ({ match }) => {
                         </div>
 
                         <div className="maintenance-list-item__aside ion-text-wrap">
-                          <p className="maintenance-list-item__value">
+                          <p className="maintenance-list-item__value app-text-financial-negative">
                             {currencyFormat(maintenance.cost)}
                           </p>
                         </div>
@@ -194,10 +196,10 @@ const Maintenances: React.FC<MaintenanceDetail> = ({ match }) => {
             </div>
 
             {!isLoading && filteredList.length === 0 && (
-              <div className="app-empty-state">
-                <strong>{TEXT.noMaintenance}</strong>
-                <span>Nenhuma manutenção encontrada para os filtros atuais.</span>
-              </div>
+              <ItemNotFound
+                title={TEXT.noMaintenance}
+                description="Nenhuma manutenção encontrada para os filtros atuais."
+              />
             )}
           </section>
         </div>

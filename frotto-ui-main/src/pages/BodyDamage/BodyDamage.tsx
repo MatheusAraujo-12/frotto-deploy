@@ -1,9 +1,10 @@
-import { IonBadge, IonIcon } from "@ionic/react";
+import { IonIcon } from "@ionic/react";
 import { alertCircleOutline, checkmarkDoneOutline } from "ionicons/icons";
 import { CarBodyDamageModel } from "../../constants/CarModels";
 import { TEXT } from "../../constants/texts";
 import { currencyFormat } from "../../services/currencyFormat";
 import { formatDateView } from "../../services/dateFormat";
+import FrottoBadge from "../../components/UI/FrottoBadge";
 
 interface BodyDamageProps {
   carDamage: CarBodyDamageModel;
@@ -26,9 +27,9 @@ const BodyDamage: React.FC<BodyDamageProps> = ({ carDamage }) => {
         <div className="body-damage-list-item__main ion-text-wrap">
           <div className="body-damage-list-item__top">
             <h3 className="body-damage-list-item__title">{carDamage.part || "-"}</h3>
-            <IonBadge color={carDamage.resolved ? "success" : "warning"}>
+            <FrottoBadge variant={carDamage.resolved ? "success" : "warning"}>
               {carDamage.resolved ? TEXT.resolved : TEXT.notResolved}
-            </IonBadge>
+            </FrottoBadge>
           </div>
           <p className="body-damage-list-item__meta">
             {formatDateView(carDamage.date)}
@@ -39,7 +40,7 @@ const BodyDamage: React.FC<BodyDamageProps> = ({ carDamage }) => {
         </div>
 
         <div className="body-damage-list-item__aside ion-text-wrap">
-          <p className="body-damage-list-item__value">
+          <p className="body-damage-list-item__value app-text-financial-negative">
             {currencyFormat(carDamage.cost)}
           </p>
           <p className="body-damage-list-item__hint">{TEXT.cost}</p>

@@ -2,7 +2,6 @@ import {
   IonBackButton,
   IonButton,
   IonButtons,
-  IonCard,
   IonCardContent,
   IonCardSubtitle,
   IonContent,
@@ -23,8 +22,12 @@ import {
   normalizeCarRecord,
   resolveCarIdentity,
 } from "../../components/Car/carIdentity";
+import ItemNotFound from "../../components/List/ItemNotFound";
+import FrottoBadge, { FrottoBadgeVariant } from "../../components/UI/FrottoBadge";
+import FrottoCard from "../../components/UI/FrottoCard";
 import endpoints from "../../constants/endpoints";
 import {
+  CarAdminStatus,
   CarDriverModel,
   CarModel,
   InspectionModel,
@@ -42,6 +45,20 @@ import InspectionAdd from "../Inspection/InspectionAddModal/InspectionAdd";
 import MaintenanceAdd from "../Maintenance/MaintenanceAddModal/MaintenanceAdd";
 import CarAdd from "./CarAddModal/CarAdd";
 import "./Car.css";
+
+// Mesma decisão de status oficializada em DESIGN_SYSTEM.md (seção 13) para
+// CarListItem, aplicada aqui ao cabeçalho da página de detalhe. ATIVO não
+// tem entrada fixa: sem override administrativo, o status reflete se há
+// motorista ativo (ver `carStatus` abaixo).
+const ADMIN_STATUS_BADGE_VARIANT: Record<
+  Exclude<CarAdminStatus, "ATIVO">,
+  FrottoBadgeVariant
+> = {
+  RETIRADO: "dark",
+  A_VENDA: "info",
+  MANUTENCAO: "warning",
+  BLOQUEADO: "danger",
+};
 
 interface CarDetail
   extends RouteComponentProps<{
@@ -176,6 +193,24 @@ const Car: React.FC<CarDetail> = ({ match }) => {
     return items.join(" - ") || "Sem dados principais do veículo";
   }, [car?.group, car?.plate]);
 
+  const carStatus = useMemo((): {
+    label: string;
+    variant: FrottoBadgeVariant;
+  } => {
+    const adminStatus = (car?.adminStatus || "ATIVO") as CarAdminStatus;
+
+    if (adminStatus !== "ATIVO") {
+      return {
+        label: resolveAdminStatusLabel(adminStatus),
+        variant: ADMIN_STATUS_BADGE_VARIANT[adminStatus],
+      };
+    }
+
+    return driver
+      ? { label: "Alugado", variant: "success" }
+      : { label: "Disponível", variant: "warning" };
+  }, [car?.adminStatus, driver]);
+
   const closeAddInspectionModal = useCallback(
     (response?: InspectionModel) => {
       setAddInspectionModalOpen(false);
@@ -202,8 +237,8 @@ const Car: React.FC<CarDetail> = ({ match }) => {
 
   return (
     <IonPage id="car-page">
-      <IonHeader>
-        <IonToolbar>
+      <IonHeader className="ion-no-border">
+        <IonToolbar className="app-toolbar-clean">
           <IonButtons slot="start">
             <IonBackButton defaultHref="/menu" />
           </IonButtons>
@@ -212,8 +247,8 @@ const Car: React.FC<CarDetail> = ({ match }) => {
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <div className="section-shell car-page-shell">
-          <IonCard className="car-page__card">
+        <div className="app-shell app-shell--compact car-page-shell">
+          <FrottoCard className="car-page__card">
             <IonCardSubtitle className="car-page__eyebrow">
               {TEXT.carData}
             </IonCardSubtitle>
@@ -229,7 +264,15 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                 />
 
                 <div className="car-page__headline-block">
-                  <h2 className="car-page__headline">{carHeadline}</h2>
+                  <div className="car-page__headline-row">
+                    <h2 className="car-page__headline">{carHeadline}</h2>
+                    <FrottoBadge
+                      variant={carStatus.variant}
+                      className="car-page__status-badge"
+                    >
+                      {carStatus.label}
+                    </FrottoBadge>
+                  </div>
                   <p className="car-page__subheadline">{carSubheadline}</p>
                 </div>
               </div>
@@ -261,7 +304,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                   {TEXT.edit}
                 </IonButton>
                 <IonButton
-                  className="app-semantic-btn app-semantic--success"
+                  className="app-semantic-btn car-page__action--financial-positive"
                   size="small"
                   fill="outline"
                   routerLink={`/menu/carros/${match.params.id}/receitas`}
@@ -269,7 +312,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                   {TEXT.incomes}
                 </IonButton>
                 <IonButton
-                  className="app-semantic-btn app-semantic--danger"
+                  className="app-semantic-btn car-page__action--financial-negative"
                   size="small"
                   fill="outline"
                   routerLink={`/menu/carros/${match.params.id}/despesas`}
@@ -278,9 +321,9 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                 </IonButton>
               </div>
             </IonCardContent>
-          </IonCard>
+          </FrottoCard>
 
-          <IonCard className="car-page__card">
+          <FrottoCard className="car-page__card">
             <IonCardSubtitle className="car-page__eyebrow">
               {TEXT.driver}
             </IonCardSubtitle>
@@ -320,7 +363,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                   </div>
                 </>
               ) : (
-                <div className="car-page__empty">{TEXT.noDriver}</div>
+                <ItemNotFound message={TEXT.noDriver} />
               )}
               <div className="app-actions-row car-page__actions">
                 <IonButton
@@ -355,9 +398,9 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                 </IonButton>
               </div>
             </IonCardContent>
-          </IonCard>
+          </FrottoCard>
 
-          <IonCard className="car-page__card">
+          <FrottoCard className="car-page__card">
             <IonCardSubtitle className="car-page__eyebrow">
               {TEXT.lastInspection}
             </IonCardSubtitle>
@@ -379,7 +422,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                   />
                 </div>
               ) : (
-                <div className="car-page__empty">{TEXT.noInspection}</div>
+                <ItemNotFound message={TEXT.noInspection} />
               )}
               <div className="app-actions-row car-page__actions">
                 <IonButton
@@ -408,9 +451,9 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                 </IonButton>
               </div>
             </IonCardContent>
-          </IonCard>
+          </FrottoCard>
 
-          <IonCard className="car-page__card">
+          <FrottoCard className="car-page__card">
             <IonCardSubtitle className="car-page__eyebrow">
               {TEXT.lastMaintenance}
             </IonCardSubtitle>
@@ -439,7 +482,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                   </p>
                 </>
               ) : (
-                <div className="car-page__empty">{TEXT.noMaintenance}</div>
+                <ItemNotFound message={TEXT.noMaintenance} />
               )}
               <div className="app-actions-row car-page__actions">
                 <IonButton
@@ -468,7 +511,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                 </IonButton>
               </div>
             </IonCardContent>
-          </IonCard>
+          </FrottoCard>
         </div>
       </IonContent>
 

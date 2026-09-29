@@ -35,6 +35,7 @@ import CarSelector from "../../components/Car/CarSelector";
 import CarListItem from "./CarListItem";
 import { filterListObj } from "../../services/filterList";
 import ItemNotFound from "../../components/List/ItemNotFound";
+import FrottoBadge from "../../components/UI/FrottoBadge";
 import {
   CarExpenseModel,
   CarModel,
@@ -525,12 +526,13 @@ const Cars: React.FC = () => {
             <IonMenuButton menu="main-menu" autoHide={false} />
           </IonButtons>
 
-          <IonTitle>{TEXT.cars}</IonTitle>
+          <IonTitle>Veículos</IonTitle>
 
           <IonButtons slot="end">
             <IonButton
               id="cars-action-trigger"
               className="cars-add-btn"
+              aria-label="Adicionar veículo"
               onClick={(event) => handleOpenActionPicker(event.nativeEvent)}
             >
               <IonIcon slot="icon-only" icon={add} />
@@ -541,7 +543,7 @@ const Cars: React.FC = () => {
         <IonToolbar className="app-subtoolbar">
           <IonSearchbar
             debounce={500}
-            placeholder={TEXT.search}
+            placeholder="Placa, veículo ou motorista"
             value={searchValue}
             onIonChange={(e) => setSearchValue(e.detail.value || "")}
           />
@@ -552,16 +554,29 @@ const Cars: React.FC = () => {
       <IonContent>
         <div className="app-shell app-shell--compact">
           <div className="cars-section-head">
-            <h2 className="app-section-title">Veículos ativos</h2>
-            <p className="app-section-subtitle">{carsListCaption}</p>
-            <div className="cars-status-summary">
-              <span className="cars-status-chip car-status-success">
-                {activeCarsCount} {activeCarsCount === 1 ? "ativo" : "ativos"}
-              </span>
-              <span className="cars-status-chip car-status-neutral">
-                {inactiveCarsCount} {inactiveCarsCount === 1 ? "inativo" : "inativos"}
-              </span>
+            <div className="cars-page-head">
+              <p className="cars-page-head__desc">
+                Gerencie os veículos da sua frota.
+              </p>
+              <IonButton
+                className="cars-page-head__cta"
+                onClick={handleOpenAddCarModal}
+              >
+                <IonIcon slot="start" icon={add} />
+                Novo veículo
+              </IonButton>
             </div>
+
+            <div className="cars-status-summary">
+              <FrottoBadge variant="success">
+                {activeCarsCount} {activeCarsCount === 1 ? "ativo" : "ativos"}
+              </FrottoBadge>
+              <FrottoBadge variant="neutral">
+                {inactiveCarsCount} {inactiveCarsCount === 1 ? "inativo" : "inativos"}
+              </FrottoBadge>
+            </div>
+
+            <p className="app-section-subtitle cars-list-hint">{carsListCaption}</p>
           </div>
 
           <div className="cars-list-wrap">
@@ -576,7 +591,18 @@ const Cars: React.FC = () => {
 
           {!isLoading && filteredList.length === 0 && (
             <div className="cars-empty-wrap">
-              <ItemNotFound />
+              {carList.length === 0 ? (
+                <ItemNotFound
+                  title="Nenhum veículo cadastrado"
+                  description="Cadastre o primeiro veículo para começar a gerenciar sua frota."
+                  actionLabel="Cadastrar veículo"
+                  onAction={handleOpenAddCarModal}
+                />
+              ) : (
+                <ItemNotFound
+                  message={`Nenhum veículo encontrado para "${searchValue.trim()}"`}
+                />
+              )}
             </div>
           )}
         </div>

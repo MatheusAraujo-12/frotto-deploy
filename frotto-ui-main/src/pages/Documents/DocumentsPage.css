@@ -96,7 +96,7 @@
 
 #documents-page .documents-warning {
   margin: 0;
-  color: #a16207;
+  color: var(--frotto-warning);
   font-size: 0.84rem;
   line-height: 1.45;
 }
@@ -204,13 +204,6 @@
   color: var(--ion-color-medium);
 }
 
-#documents-page .documents-checklist-item-card {
-  padding: 10px 12px;
-  border: 1px solid var(--ion-border-color);
-  border-radius: 14px;
-  background: var(--app-card-strong);
-}
-
 #documents-page .documents-checklist-contact-card {
   padding: 4px;
   border: 1px solid var(--ion-border-color);
@@ -222,18 +215,6 @@
   display: flex;
   justify-content: flex-end;
   padding: 2px 8px 8px;
-}
-
-#documents-page .documents-checklist-item-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-}
-
-#documents-page .documents-checklist-item-label {
-  flex: 1;
-  min-width: 0;
 }
 
 #documents-page .documents-checklist-note {
@@ -339,11 +320,6 @@
     flex: 1 1 100%;
   }
 
-  #documents-page .documents-checklist-item-row {
-    flex-wrap: wrap;
-  }
-
-  #documents-page .documents-checklist-item-row ion-button,
   #documents-page .documents-checklist-add ion-button,
   #documents-page .documents-checklist-contact-actions ion-button {
     width: 100%;

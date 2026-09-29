@@ -25,6 +25,7 @@ import { RouteComponentProps, useHistory, useLocation } from "react-router";
 import { formatDateView } from "../../services/dateFormat";
 import IncomeAdd from "./IncomeAddModal/IncomeAdd";
 import { currencyFormat } from "../../services/currencyFormat";
+import ItemNotFound from "../../components/List/ItemNotFound";
 import { add, cashOutline } from "ionicons/icons";
 import "./Incomes.css";
 
@@ -111,6 +112,7 @@ const Incomes: React.FC<IncomeDetail> = ({ match }) => {
           <IonButtons slot="end">
             <IonButton
               className="app-primary-btn incomes-add-btn"
+              aria-label={`${TEXT.newIncome} ${TEXT.income}`}
               onClick={() => {
                 setModalIncomeValue({});
                 setIsModalOpen(true);
@@ -157,7 +159,7 @@ const Incomes: React.FC<IncomeDetail> = ({ match }) => {
                     }}
                   >
                     <div className="income-list-item__wrap">
-                      <div className="app-soft-icon app-soft-icon--success">
+                      <div className="app-soft-icon income-list-item__icon">
                         <IonIcon icon={cashOutline} />
                       </div>
 
@@ -172,7 +174,7 @@ const Incomes: React.FC<IncomeDetail> = ({ match }) => {
                         </div>
 
                         <div className="income-list-item__aside ion-text-wrap">
-                          <p className="income-list-item__value">
+                          <p className="income-list-item__value app-text-financial-positive">
                             {currencyFormat(income.cost)}
                           </p>
                           <p className="income-list-item__hint">
@@ -187,10 +189,10 @@ const Incomes: React.FC<IncomeDetail> = ({ match }) => {
             </div>
 
             {!isLoading && filteredList.length === 0 && (
-              <div className="app-empty-state">
-                <strong>{TEXT.itensNotFound}</strong>
-                <span>Nenhuma receita encontrada para os filtros atuais.</span>
-              </div>
+              <ItemNotFound
+                title={TEXT.itensNotFound}
+                description="Nenhuma receita encontrada para os filtros atuais."
+              />
             )}
           </section>
         </div>

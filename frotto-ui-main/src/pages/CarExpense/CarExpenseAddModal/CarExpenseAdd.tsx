@@ -1,7 +1,6 @@
 import {
   IonButton,
   IonButtons,
-  IonCard,
   IonCardContent,
   IonCardHeader,
   IonCardSubtitle,
@@ -23,6 +22,7 @@ import { yupResolver } from "@hookform/resolvers/yup";
 
 import FormDate from "../../../components/Form/FormDate";
 import CarSelector from "../../../components/Car/CarSelector";
+import FrottoCard from "../../../components/UI/FrottoCard";
 import { CarModel, CarExpenseModel } from "../../../constants/CarModels";
 import api from "../../../services/axios/axios";
 import endpoints from "../../../constants/endpoints";
@@ -238,7 +238,7 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
               </p>
             </div>
 
-            <IonCard className="app-panel-card">
+            <FrottoCard>
               <IonCardHeader className="app-panel-header">
                 <div className="app-soft-icon">
                   <IonIcon icon={receiptOutline} />
@@ -324,12 +324,12 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
                   )}
                 </form>
               </IonCardContent>
-            </IonCard>
+            </FrottoCard>
 
             {!formInitial.id && !replicateForAllCars && (
               <>
                 {!selectedCar && !carId && (
-                  <IonCard className="app-panel-card">
+                  <FrottoCard>
                     <IonCardHeader className="app-panel-header">
                       <div className="app-soft-icon">
                         <IonIcon icon={carSportOutline} />
@@ -352,11 +352,11 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
 
                       <CarSelector onSelect={handleCarSelect} />
                     </IonCardContent>
-                  </IonCard>
+                  </FrottoCard>
                 )}
 
                 {(selectedCar || carId) && (
-                  <IonCard className="app-panel-card app-panel-card--soft">
+                  <FrottoCard className="app-panel-card--soft">
                     <IonCardHeader className="app-panel-header">
                       <div className="app-soft-icon">
                         <IonIcon icon={carSportOutline} />
@@ -384,7 +384,7 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
                         </div>
                       </IonCardContent>
                     )}
-                  </IonCard>
+                  </FrottoCard>
                 )}
               </>
             )}

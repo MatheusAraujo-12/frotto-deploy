@@ -25,6 +25,7 @@ import { RouteComponentProps } from "react-router";
 import InspectionAdd from "./InspectionAddModal/InspectionAdd";
 import { formatDateView } from "../../services/dateFormat";
 import { currencyFormat } from "../../services/currencyFormat";
+import ItemNotFound from "../../components/List/ItemNotFound";
 import { clipboardOutline } from "ionicons/icons";
 import "./Inspections.css";
 
@@ -139,7 +140,7 @@ const Inspections: React.FC<InspectionDetail> = ({ match }) => {
                     }}
                   >
                     <div className="inspection-list-item__wrap">
-                      <div className="app-soft-icon">
+                      <div className="app-soft-icon inspection-list-item__icon">
                         <IonIcon icon={clipboardOutline} />
                       </div>
 
@@ -157,7 +158,7 @@ const Inspections: React.FC<InspectionDetail> = ({ match }) => {
                         </div>
 
                         <div className="inspection-list-item__aside ion-text-wrap">
-                          <p className="inspection-list-item__value">
+                          <p className="inspection-list-item__value app-text-financial-negative">
                             {currencyFormat(inspection.cost)}
                           </p>
                           <p className="inspection-list-item__meta">
@@ -172,10 +173,10 @@ const Inspections: React.FC<InspectionDetail> = ({ match }) => {
             </div>
 
             {!isLoading && filteredList.length === 0 && (
-              <div className="app-empty-state">
-                <strong>{TEXT.noInspection}</strong>
-                <span>Nenhuma inspeção encontrada para os filtros atuais.</span>
-              </div>
+              <ItemNotFound
+                title={TEXT.noInspection}
+                description="Nenhuma inspeção encontrada para os filtros atuais."
+              />
             )}
           </section>
         </div>

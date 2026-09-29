@@ -1,7 +1,4 @@
-#car-page .section-shell.car-page-shell {
-  max-width: 960px;
-  display: flex;
-  flex-direction: column;
+#car-page .app-shell.car-page-shell {
   gap: 14px;
 }
 
@@ -40,13 +37,16 @@
   min-width: 0;
 }
 
-#car-page .car-page__brand-line {
-  margin: 0;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ion-color-medium);
+#car-page .car-page__headline-row {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+#car-page .car-page__status-badge {
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
 #car-page .car-page__headline {
@@ -101,14 +101,20 @@
   font-weight: 700;
 }
 
-#car-page .car-page__empty {
-  padding: 12px 14px;
-  border: 1px dashed rgba(var(--ion-color-primary-rgb), 0.22);
-  border-radius: 12px;
-  background: rgba(var(--ion-color-primary-rgb), 0.05);
-  font-size: 0.9rem;
-  line-height: 1.45;
-  color: var(--ion-color-medium);
+#car-page .car-page__action--financial-positive {
+  --app-semantic-color: var(--frotto-financial-positive);
+  --app-semantic-color-rgb: var(--frotto-financial-positive-rgb);
+  --app-semantic-contrast: var(--frotto-status-contrast);
+  --app-semantic-soft: var(--frotto-financial-positive-soft);
+  --app-semantic-border: rgba(var(--frotto-financial-positive-rgb), 0.22);
+}
+
+#car-page .car-page__action--financial-negative {
+  --app-semantic-color: var(--frotto-financial-negative);
+  --app-semantic-color-rgb: var(--frotto-financial-negative-rgb);
+  --app-semantic-contrast: var(--frotto-status-contrast);
+  --app-semantic-soft: var(--frotto-financial-negative-soft);
+  --app-semantic-border: rgba(var(--frotto-financial-negative-rgb), 0.22);
 }
 
 #car-page .car-page__actions {
@@ -133,7 +139,7 @@
 }
 
 @media (max-width: 720px) {
-  #car-page .section-shell.car-page-shell {
+  #car-page .app-shell.car-page-shell {
     gap: 12px;
   }
 
@@ -153,286 +159,5 @@
 @media (max-width: 640px) {
   #car-page .car-page__actions ion-button {
     flex: 1 1 100%;
-  }
-}
-
-#cars-page .section-shell.cars-shell--list {
-  max-width: 1080px;
-  gap: 12px;
-  min-width: 0;
-}
-
-#cars-page .cars-fleet-summary-card {
-  margin: 0;
-  width: 100%;
-  max-width: 100%;
-}
-
-#cars-page .cars-fleet-summary-card::part(native) {
-  background: var(--app-car-card-panel-surface);
-  border-color: var(--app-car-card-border);
-  box-shadow: var(--app-car-card-shadow);
-}
-
-#cars-page .cars-fleet-summary-card--loading {
-  opacity: 0.9;
-}
-
-#cars-page .cars-fleet-summary {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding: 10px;
-  min-width: 0;
-}
-
-#cars-page .cars-fleet-summary__item {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px solid var(--app-car-card-border);
-  background: var(--app-car-card-soft-surface);
-}
-
-#cars-page .cars-fleet-summary__item--active {
-  border-color: var(--app-car-status-active-border);
-  background: rgba(var(--ion-color-tertiary-rgb), 0.1);
-}
-
-#cars-page .cars-fleet-summary__item--inactive {
-  border-color: var(--app-car-card-border);
-  background: var(--app-car-card-panel-surface);
-}
-
-#cars-page .cars-fleet-summary__label {
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ion-color-medium);
-}
-
-#cars-page .cars-fleet-summary__value {
-  font-size: 1.04rem;
-  font-weight: 800;
-  line-height: 1.1;
-  color: var(--ion-text-color);
-}
-
-#cars-page .cars-fleet-summary__item--active .cars-fleet-summary__value {
-  color: var(--app-car-status-active-text);
-}
-
-#cars-page .cars-list-section__header {
-  align-items: center;
-  width: 100%;
-  min-width: 0;
-}
-
-#cars-page .cars-list-section__title {
-  font-size: 0.98rem;
-}
-
-#cars-page .cars-list-section__caption {
-  margin-top: 2px;
-  font-size: 0.82rem;
-  line-height: 1.35;
-}
-
-#cars-page .cards-grid--cars {
-  width: 100%;
-  min-width: 0;
-  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
-  gap: 12px;
-}
-
-#cars-page .car-card {
-  margin: 0;
-  width: 100%;
-  max-width: 100%;
-}
-
-#cars-page .car-card::part(native) {
-  background: var(--app-car-card-surface);
-  border-color: var(--app-car-card-border);
-  box-shadow: var(--app-car-card-shadow);
-}
-
-#cars-page .car-card:hover {
-  transform: translateY(-1px);
-}
-
-#cars-page .car-card__main {
-  display: grid;
-  gap: 10px;
-  min-height: 0;
-  padding: 13px 14px;
-}
-
-#cars-page .car-card__topline {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: start;
-}
-
-#cars-page .car-card__headline {
-  min-width: 0;
-  gap: 10px;
-  align-items: flex-start;
-}
-
-#cars-page .car-card__headline-copy {
-  gap: 2px;
-}
-
-#cars-page .car-card__brand-name {
-  font-size: 0.66rem;
-}
-
-#cars-page .car-card__title {
-  font-size: 0.98rem;
-  font-weight: 750;
-  line-height: 1.25;
-}
-
-#cars-page .car-card__badge {
-  min-height: 28px;
-  padding: 5px 10px;
-  font-size: 0.72rem;
-}
-
-#cars-page .car-card__meta {
-  gap: 8px;
-}
-
-#cars-page .car-card__meta-item {
-  gap: 4px;
-  padding: 9px 10px;
-  border-radius: 12px;
-  border-color: var(--app-car-card-border);
-  background: var(--app-car-card-soft-surface);
-}
-
-#cars-page .car-card__meta-label,
-#cars-page .car-card__km-label,
-#cars-page .car-card__detail-label {
-  font-size: 0.65rem;
-}
-
-#cars-page .car-card__meta-value {
-  font-size: 0.88rem;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
-}
-
-#cars-page .car-card__meta-value--plate {
-  font-size: 0.9rem;
-  letter-spacing: 0.06em;
-}
-
-#cars-page .car-card__footer {
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
-  padding-top: 8px;
-}
-
-#cars-page .car-card__footer-main {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 10px;
-  align-items: center;
-}
-
-#cars-page .car-card__km {
-  gap: 4px;
-  padding: 9px 10px;
-  border-radius: 14px;
-  min-width: 108px;
-  border-color: var(--app-car-card-border);
-  background: var(--app-car-card-panel-surface);
-}
-
-#cars-page .car-card__km-value {
-  font-size: 1.08rem;
-  line-height: 1;
-}
-
-#cars-page .car-card__km-value small {
-  font-size: 0.66rem;
-}
-
-#cars-page .car-card__detail {
-  gap: 4px;
-  align-self: stretch;
-}
-
-#cars-page .car-card__detail-value {
-  font-size: 0.86rem;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
-}
-
-#cars-page .car-card__actions {
-  gap: 6px;
-  justify-content: flex-end;
-}
-
-#cars-page .car-card__action {
-  width: 34px;
-  height: 34px;
-  border-radius: 11px;
-}
-
-#cars-page .car-card__icon {
-  font-size: 0.92rem;
-}
-
-@media (max-width: 720px) {
-  #cars-page .section-shell.cars-shell--list {
-    gap: 12px;
-  }
-
-  #cars-page .cards-grid--cars {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  #cars-page .cars-fleet-summary {
-    padding: 10px;
-  }
-
-  #cars-page .car-card__main {
-    padding: 13px;
-    gap: 10px;
-  }
-
-  #cars-page .car-card__footer {
-    grid-template-columns: 1fr;
-    align-items: start;
-  }
-}
-
-@media (max-width: 560px) {
-  #cars-page .cars-fleet-summary {
-    grid-template-columns: 1fr;
-  }
-
-  #cars-page .car-card__topline,
-  #cars-page .car-card__meta,
-  #cars-page .car-card__footer-main {
-    grid-template-columns: 1fr;
-  }
-
-  #cars-page .car-card__badge {
-    justify-self: start;
-  }
-
-  #cars-page .car-card__actions {
-    justify-content: flex-start;
   }
 }

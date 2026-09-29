@@ -1,7 +1,6 @@
 import {
   IonButton,
   IonButtons,
-  IonCard,
   IonCardContent,
   IonCheckbox,
   IonContent,
@@ -28,6 +27,7 @@ import { MaintenanceServiceModel } from "../../../constants/CarModels";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { filterObject } from "../../../services/filterList";
 import ItemNotFound from "../../../components/List/ItemNotFound";
+import FrottoCard from "../../../components/UI/FrottoCard";
 import {
   currencyFormat,
   updateNumberByKeyandPrevious,
@@ -157,7 +157,7 @@ const ServiceAddModal: React.FC<ServiceAddModalProps> = ({
       <IonContent>
         <div className="app-shell app-shell--compact">
           <section className="app-section">
-            <IonCard className="app-panel-card">
+            <FrottoCard>
               <IonCardContent>
                 <IonList>
                   {Object.entries(filteredList).map(([key, value]) => {
@@ -225,7 +225,7 @@ const ServiceAddModal: React.FC<ServiceAddModalProps> = ({
                     )}
                 </IonList>
               </IonCardContent>
-            </IonCard>
+            </FrottoCard>
           </section>
         </div>
       </IonContent>

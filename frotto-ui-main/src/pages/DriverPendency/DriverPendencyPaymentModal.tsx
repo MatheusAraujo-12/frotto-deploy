@@ -1,22 +1,16 @@
 import {
   IonButton,
-  IonButtons,
-  IonCard,
   IonCardContent,
   IonCardHeader,
   IonCardSubtitle,
   IonCardTitle,
-  IonContent,
-  IonHeader,
-  IonPage,
-  IonProgressBar,
-  IonTitle,
-  IonToolbar,
 } from "@ionic/react";
 import { useEffect, useMemo, useState } from "react";
 import { DriverPendencyModel } from "../../constants/CarModels";
 import { TEXT } from "../../constants/texts";
 import FormCurrency from "../../components/Form/FormCurrency";
+import FrottoCard from "../../components/UI/FrottoCard";
+import FrottoModal from "../../components/UI/FrottoModal";
 import { currencyFormat } from "../../services/currencyFormat";
 import { useAlert } from "../../services/hooks/useAlert";
 import "./DriverPendencyPaymentModal.css";
@@ -105,33 +99,16 @@ const DriverPendencyPaymentModal: React.FC<DriverPendencyPaymentModalProps> = ({
   };
 
   return (
-    <IonPage id="driver-pendency-payment-page">
-      <IonHeader className="ion-no-border">
-        <IonToolbar className="app-toolbar-clean">
-          <IonButtons slot="start">
-            <IonButton
-              fill="clear"
-              className="app-outline-btn"
-              disabled={isLoading}
-              onClick={closeModal}
-            >
-              {TEXT.cancel}
-            </IonButton>
-          </IonButtons>
-          <IonTitle>{TEXT.settleDebt}</IonTitle>
-          <IonButtons slot="end">
-            <IonButton
-              className="app-primary-btn"
-              disabled={isLoading}
-              onClick={() => void handleSubmit()}
-            >
-              {TEXT.confirm}
-            </IonButton>
-          </IonButtons>
-          {isLoading && <IonProgressBar type="indeterminate"></IonProgressBar>}
-        </IonToolbar>
-      </IonHeader>
-      <IonContent>
+    <FrottoModal
+      pageId="driver-pendency-payment-page"
+      title={TEXT.settleDebt}
+      onCancel={closeModal}
+      cancelDisabled={isLoading}
+      primaryLabel={TEXT.confirm}
+      onPrimaryAction={() => void handleSubmit()}
+      primaryDisabled={isLoading}
+      isLoading={isLoading}
+    >
         <div className="app-form-page__body">
           <div className="app-form-page__panel">
             <h3 className="app-form-page__title">Como deseja registrar esta quitação?</h3>
@@ -140,11 +117,23 @@ const DriverPendencyPaymentModal: React.FC<DriverPendencyPaymentModalProps> = ({
                 <strong>{pendency?.name || TEXT.driverPendency}</strong>
               </p>
               <p>Total da dívida: {currencyFormat(pendency?.cost || 0)}</p>
-              <p>Já pago: {currencyFormat(paidAmount)}</p>
-              <p>Saldo restante: {currencyFormat(remainingAmount)}</p>
+              <p>
+                Já pago:{" "}
+                <span className={paidAmount > 0 ? "app-text-financial-positive" : undefined}>
+                  {currencyFormat(paidAmount)}
+                </span>
+              </p>
+              <p>
+                Saldo restante:{" "}
+                <span
+                  className={remainingAmount > 0 ? "app-text-financial-negative" : undefined}
+                >
+                  {currencyFormat(remainingAmount)}
+                </span>
+              </p>
             </div>
 
-            <IonCard className="app-panel-card driver-pendency-payment-card">
+            <FrottoCard className="driver-pendency-payment-card">
               <IonCardHeader className="app-panel-header">
                 <div className="app-panel-header__content">
                   <IonCardTitle className="app-panel-title">Forma de quitação</IonCardTitle>
@@ -195,11 +184,10 @@ const DriverPendencyPaymentModal: React.FC<DriverPendencyPaymentModalProps> = ({
                   </>
                 )}
               </IonCardContent>
-            </IonCard>
+            </FrottoCard>
           </div>
         </div>
-      </IonContent>
-    </IonPage>
+    </FrottoModal>
   );
 };
 

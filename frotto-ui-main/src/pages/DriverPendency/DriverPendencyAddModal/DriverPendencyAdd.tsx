@@ -1,18 +1,10 @@
 import {
   IonButton,
-  IonButtons,
-  IonCard,
   IonCardContent,
   IonCardHeader,
   IonCardSubtitle,
   IonCardTitle,
-  IonContent,
-  IonHeader,
   IonIcon,
-  IonPage,
-  IonProgressBar,
-  IonTitle,
-  IonToolbar,
 } from "@ionic/react";
 import { receiptOutline } from "ionicons/icons";
 import { TEXT } from "../../../constants/texts";
@@ -36,6 +28,8 @@ import FormCurrency from "../../../components/Form/FormCurrency";
 import FormDate from "../../../components/Form/FormDate";
 import FormInput from "../../../components/Form/FormInput";
 import FormInputArea from "../../../components/Form/FormInputArea";
+import FrottoCard from "../../../components/UI/FrottoCard";
+import FrottoModal from "../../../components/UI/FrottoModal";
 import { currencyFormat } from "../../../services/currencyFormat";
 import "./DriverPendencyAdd.css";
 
@@ -75,12 +69,20 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
     Math.min(Number(watch("paidAmount") || 0), costValue)
   );
   const remainingAmountValue = Math.max(costValue - paidAmountValue, 0);
-  const statusLabel =
-    remainingAmountValue === 0
-      ? TEXT.debtPaid
-      : paidAmountValue > 0
-      ? TEXT.debtPartiallyPaid
-      : TEXT.debtOpen;
+  const isPaidStatus = remainingAmountValue === 0;
+  const isPartialStatus = !isPaidStatus && paidAmountValue > 0;
+  const statusLabel = isPaidStatus
+    ? TEXT.debtPaid
+    : isPartialStatus
+    ? TEXT.debtPartiallyPaid
+    : TEXT.debtOpen;
+  // Mesma decisão de DriverPendencies.tsx: aberto/parcial não são "crítico"
+  // nem usam Danger — ver DESIGN_SYSTEM.md seção 19.
+  const statusToneClass = isPaidStatus
+    ? "app-soft-box--success"
+    : isPartialStatus
+    ? "app-soft-box--info"
+    : "app-soft-box--warning";
 
   const onSubmit = async (newDriverPendency: DriverPendencyModel) => {
     setisLoading(true);
@@ -144,34 +146,15 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
   };
 
   return (
-    <IonPage id="driver-pendency-add-page">
-      <IonHeader className="ion-no-border">
-        <IonToolbar className="app-toolbar-clean">
-          <IonButtons slot="start">
-            <IonButton
-              fill="clear"
-              className="app-outline-btn driver-pendency-add-cancel-btn"
-              onClick={() => {
-                closeModal();
-              }}
-            >
-              {TEXT.cancel}
-            </IonButton>
-          </IonButtons>
-          <IonTitle>{pageTitle}</IonTitle>
-          <IonButtons slot="end">
-            <IonButton
-              className="app-primary-btn driver-pendency-add-save-btn"
-              disabled={isLoading}
-              onClick={handleSubmit(onSubmit)}
-            >
-              {TEXT.save}
-            </IonButton>
-          </IonButtons>
-          {isLoading && <IonProgressBar type="indeterminate"></IonProgressBar>}
-        </IonToolbar>
-      </IonHeader>
-      <IonContent>
+    <FrottoModal
+      pageId="driver-pendency-add-page"
+      title={pageTitle}
+      onCancel={() => closeModal()}
+      primaryLabel={TEXT.save}
+      onPrimaryAction={handleSubmit(onSubmit)}
+      primaryDisabled={isLoading}
+      isLoading={isLoading}
+    >
         <div className="app-shell app-shell--compact driver-pendency-add-shell">
           <section className="app-section">
             <div className="driver-pendency-add-section-head">
@@ -182,7 +165,7 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
               </p>
             </div>
 
-            <IonCard className="app-panel-card">
+            <FrottoCard>
               <IonCardHeader className="app-panel-header">
                 <div className="app-soft-icon">
                   <IonIcon icon={receiptOutline} />
@@ -243,10 +226,10 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
                   />
                 </form>
               </IonCardContent>
-            </IonCard>
+            </FrottoCard>
 
             {formInitial.id && (
-              <IonCard className="app-panel-card">
+              <FrottoCard>
                 <IonCardHeader className="app-panel-header">
                   <div className="app-panel-header__content">
                     <IonCardTitle className="app-panel-title">
@@ -258,10 +241,17 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
                   </div>
                 </IonCardHeader>
                 <IonCardContent>
-                  <div className="app-soft-box app-soft-box--warning driver-pendency-add-lock-note">
+                  <div className={`app-soft-box ${statusToneClass} driver-pendency-add-lock-note`}>
                     <strong>Status atual:</strong> {statusLabel}
                     <br />
-                    <strong>{TEXT.pendingAmount}:</strong> {currencyFormat(remainingAmountValue)}
+                    <strong>{TEXT.pendingAmount}:</strong>{" "}
+                    <span
+                      className={
+                        remainingAmountValue > 0 ? "app-text-financial-negative" : undefined
+                      }
+                    >
+                      {currencyFormat(remainingAmountValue)}
+                    </span>
                   </div>
 
                   <form className="app-form-grid driver-pendency-add-form">
@@ -297,7 +287,7 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
                     </IonButton>
                   )}
                 </IonCardContent>
-              </IonCard>
+              </FrottoCard>
             )}
 
             {formInitial.id && (
@@ -311,8 +301,7 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
             )}
           </section>
         </div>
-      </IonContent>
-    </IonPage>
+    </FrottoModal>
   );
 };
 

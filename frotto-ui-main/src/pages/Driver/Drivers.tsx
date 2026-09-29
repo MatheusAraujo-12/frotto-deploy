@@ -4,6 +4,7 @@ import {
   IonButtons,
   IonContent,
   IonHeader,
+  IonIcon,
   IonItem,
   IonLabel,
   IonList,
@@ -16,6 +17,7 @@ import {
   useIonRouter,
   useIonViewWillEnter,
 } from "@ionic/react";
+import { personCircleOutline } from "ionicons/icons";
 import api from "../../services/axios/axios";
 import endpoints from "../../constants/endpoints";
 import { TEXT } from "../../constants/texts";
@@ -27,6 +29,7 @@ import {
 } from "../../constants/CarModels";
 import { filterListObj } from "../../services/filterList";
 import ItemNotFound from "../../components/List/ItemNotFound";
+import FrottoBadge from "../../components/UI/FrottoBadge";
 import { RouteComponentProps, useHistory, useLocation } from "react-router";
 import DriverAdd from "./DriverAddModal/DriverAdd";
 import { formatDateView } from "../../services/dateFormat";
@@ -187,28 +190,35 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
     nav.push(`/menu/carros/motorista/${carDriver.id}/pendencias`);
   };
 
+  const openDriverEditor = useCallback(
+    (carDriver: CarDriverModel) => {
+      setModalDriver(carDriver);
+      setIsModalOpen(true);
+      nav.push(nav.location.pathname + "?modalOpened=true");
+    },
+    [nav]
+  );
+
   return (
     <IonPage id="drivers-page">
-      <IonHeader>
-        <IonToolbar>
+      <IonHeader className="ion-no-border">
+        <IonToolbar className="app-toolbar-clean">
           <IonButtons slot="start">
             <IonBackButton defaultHref="/menu" />
           </IonButtons>
           <IonTitle>{TEXT.drivers}</IonTitle>
         </IonToolbar>
-        <IonToolbar>
-          <div className="app-toolbar-search">
-            <IonSearchbar
-              debounce={500}
-              placeholder={TEXT.search}
-              onIonChange={(e) => setSearchValue(e.detail.value)}
-            ></IonSearchbar>
-          </div>
+        <IonToolbar className="app-subtoolbar">
+          <IonSearchbar
+            debounce={500}
+            placeholder={TEXT.search}
+            onIonChange={(e) => setSearchValue(e.detail.value)}
+          ></IonSearchbar>
           {isLoading && <IonProgressBar type="indeterminate"></IonProgressBar>}
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <div className="section-shell">
+        <div className="app-shell app-shell--compact">
           <IonList className="app-nested-list">
             <IonItem className="app-nested-list__title">
               <IonLabel>
@@ -217,49 +227,18 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
             </IonItem>
 
             {activeDoneList.active && (
-              <IonItem
-                className="app-nested-list__item"
-                button
-                onClick={() => {
-                  setModalDriver(activeDoneList.active!);
-                  setIsModalOpen(true);
-                  nav.push(nav.location.pathname + "?modalOpened=true");
-                }}
-              >
-                <div className="driver-row">
-                  <div className="driver-col-left">
-                    <h2>{activeDoneList.active?.driver?.name}</h2>
-                    <p>{formatCPF(activeDoneList.active?.driver?.cpf)}</p>
-                    <p>{formatTel(activeDoneList.active?.driver?.contact)}</p>
-                  </div>
-                  <div className="driver-col-right">
-                    <p>{`${formatDateView(activeDoneList.active?.startDate)}`}</p>
-                    <p>{currencyFormat(activeDoneList.active?.warranty)}</p>
-                    {formatDriverContract(activeDoneList.active?.contractNumber) && (
-                      <p>{formatDriverContract(activeDoneList.active?.contractNumber)}</p>
-                    )}
-                    <p>
-                      {TEXT.totalOutstanding}:{" "}
-                      {currencyFormat(getOutstandingDebt(activeDoneList.active))}
-                    </p>
-                    <p>{`${activeDoneList.active?.driver?.email}`}</p>
-                    <div className="driver-col-actions">
-                      <IonButton
-                        className="driver-pendency-button app-semantic-btn app-semantic--warning"
-                        size="small"
-                        fill="outline"
-                        onClick={(event) =>
-                          openDriverPendencies(event, activeDoneList.active)
-                        }
-                      >
-                        {TEXT.driverPendencies}
-                      </IonButton>
-                    </div>
-                  </div>
-                </div>
-              </IonItem>
+              <DriverRow
+                carDriver={activeDoneList.active}
+                outstandingDebt={getOutstandingDebt(activeDoneList.active)}
+                onOpen={() => openDriverEditor(activeDoneList.active!)}
+                onOpenPendencies={(event) =>
+                  openDriverPendencies(event, activeDoneList.active)
+                }
+              />
             )}
-            {!isLoading && !activeDoneList.active && <ItemNotFound />}
+            {!isLoading && !activeDoneList.active && (
+              <ItemNotFound message="Nenhum motorista ativo neste veículo." />
+            )}
           </IonList>
           <IonList className="app-nested-list">
             <IonItem className="app-nested-list__title">
@@ -268,54 +247,18 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
               </IonLabel>
             </IonItem>
 
-            {activeDoneList.done.map((carDriver: CarDriverModel, index) => {
-              return (
-                <IonItem
-                  className="app-nested-list__item"
-                  key={index}
-                  button
-                  onClick={() => {
-                    setModalDriver(carDriver);
-                    setIsModalOpen(true);
-                    nav.push(nav.location.pathname + "?modalOpened=true");
-                  }}
-                >
-                  <div className="driver-row">
-                    <div className="driver-col-left">
-                      <h2>{carDriver?.driver?.name}</h2>
-                      <p>{formatCPF(carDriver?.driver?.cpf)}</p>
-                      <p>{formatTel(carDriver?.driver?.contact)}</p>
-                    </div>
-                    <div className="driver-col-right">
-                      <p>{`${formatDateView(
-                        carDriver?.startDate
-                      )} - ${formatDateView(carDriver?.endDate)}`}</p>
-                      {formatDriverContract(carDriver?.contractNumber) && (
-                        <p>{formatDriverContract(carDriver?.contractNumber)}</p>
-                      )}
-                      <p>
-                        {TEXT.totalOutstanding}:{" "}
-                        {currencyFormat(getOutstandingDebt(carDriver))}
-                      </p>
-                      <p>{`${carDriver?.driver?.email}`}</p>
-                      <div className="driver-col-actions">
-                        <IonButton
-                          className="driver-pendency-button app-semantic-btn app-semantic--warning"
-                          size="small"
-                          fill="outline"
-                          onClick={(event) =>
-                            openDriverPendencies(event, carDriver)
-                          }
-                        >
-                          {TEXT.driverPendencies}
-                        </IonButton>
-                      </div>
-                    </div>
-                  </div>
-                </IonItem>
-              );
-            })}
-            {!isLoading && activeDoneList.done.length === 0 && <ItemNotFound />}
+            {activeDoneList.done.map((carDriver: CarDriverModel, index) => (
+              <DriverRow
+                key={carDriver.id ?? index}
+                carDriver={carDriver}
+                outstandingDebt={getOutstandingDebt(carDriver)}
+                onOpen={() => openDriverEditor(carDriver)}
+                onOpenPendencies={(event) => openDriverPendencies(event, carDriver)}
+              />
+            ))}
+            {!isLoading && activeDoneList.done.length === 0 && (
+              <ItemNotFound message="Nenhum motorista anterior registrado." />
+            )}
           </IonList>
         </div>
       </IonContent>
@@ -331,6 +274,60 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
 };
 
 export default Drivers;
+
+const DriverRow: React.FC<{
+  carDriver: CarDriverModel;
+  outstandingDebt: number;
+  onOpen: () => void;
+  onOpenPendencies: (event: MouseEvent) => void;
+}> = ({ carDriver, outstandingDebt, onOpen, onOpenPendencies }) => {
+  const hasDebt = outstandingDebt > 0;
+  const contractLabel = formatDriverContract(carDriver?.contractNumber);
+  const period = carDriver?.concluded
+    ? `${formatDateView(carDriver?.startDate)} - ${formatDateView(carDriver?.endDate)}`
+    : formatDateView(carDriver?.startDate);
+
+  return (
+    <IonItem className="app-nested-list__item driver-list-item" button onClick={onOpen}>
+      <div className="driver-row">
+        <div className="driver-col-left">
+          <div className="driver-list-item__avatar app-soft-icon">
+            <IonIcon icon={personCircleOutline} />
+          </div>
+          <div className="driver-col-left__content">
+            <div className="driver-list-item__header">
+              <h2>{carDriver?.driver?.name}</h2>
+              <FrottoBadge variant={carDriver?.concluded ? "neutral" : "success"}>
+                {carDriver?.concluded ? TEXT.resolved : TEXT.active}
+              </FrottoBadge>
+            </div>
+            <p>{formatCPF(carDriver?.driver?.cpf)}</p>
+            <p>{formatTel(carDriver?.driver?.contact)}</p>
+            <p>{`${carDriver?.driver?.email || ""}`}</p>
+          </div>
+        </div>
+        <div className="driver-col-right">
+          <p>{period}</p>
+          <p>{currencyFormat(carDriver?.warranty)}</p>
+          {contractLabel && <p>{contractLabel}</p>}
+          <p className={hasDebt ? "app-text-financial-negative" : undefined}>
+            {TEXT.totalOutstanding}: {currencyFormat(outstandingDebt)}
+          </p>
+          <div className="driver-col-actions">
+            <IonButton
+              className="driver-pendency-button app-semantic-btn app-semantic--warning"
+              size="small"
+              fill="outline"
+              onClick={onOpenPendencies}
+            >
+              {TEXT.driverPendencies}
+            </IonButton>
+          </div>
+        </div>
+      </div>
+    </IonItem>
+  );
+};
 
 function formatDriverContract(contractNumber?: string): string | undefined {
   const value = `${contractNumber || ""}`.trim();

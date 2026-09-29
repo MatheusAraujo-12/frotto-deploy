@@ -38,6 +38,12 @@
   box-shadow: var(--app-shadow-hover);
 }
 
+.inspection-list-item__icon {
+  border-color: rgba(var(--frotto-financial-negative-rgb), 0.24);
+  background: var(--frotto-financial-negative-soft);
+  color: var(--frotto-financial-negative);
+}
+
 .inspection-list-item__wrap {
   width: 100%;
   display: flex;
@@ -91,7 +97,6 @@
   margin: 0;
   font-size: 0.96rem;
   font-weight: 700;
-  color: var(--ion-text-color);
 }
 
 @media (max-width: 640px) {

@@ -71,7 +71,7 @@
   gap: 10px;
 }
 
-.body-damage-list-item__top ion-badge {
+.body-damage-list-item__top .frotto-badge {
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -107,7 +107,6 @@
   margin: 0;
   font-size: 0.96rem;
   font-weight: 700;
-  color: var(--ion-text-color);
 }
 
 .body-damage-list-item__hint {

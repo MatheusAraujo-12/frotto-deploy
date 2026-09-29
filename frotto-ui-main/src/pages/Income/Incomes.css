@@ -43,6 +43,12 @@
   box-shadow: var(--app-shadow-hover);
 }
 
+.income-list-item__icon {
+  border-color: rgba(var(--frotto-financial-positive-rgb), 0.24);
+  background: var(--frotto-financial-positive-soft);
+  color: var(--frotto-financial-positive);
+}
+
 .income-list-item__wrap {
   width: 100%;
   display: flex;
@@ -89,7 +95,6 @@
   margin: 0;
   font-size: 0.96rem;
   font-weight: 700;
-  color: var(--ion-text-color);
 }
 
 .income-list-item__hint {

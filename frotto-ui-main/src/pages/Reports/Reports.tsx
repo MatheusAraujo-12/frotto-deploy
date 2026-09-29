@@ -1,7 +1,6 @@
 import {
   IonButton,
   IonButtons,
-  IonCard,
   IonCardContent,
   IonCardHeader,
   IonCardSubtitle,
@@ -14,9 +13,12 @@ import {
   IonMenuButton,
   IonPage,
   IonProgressBar,
+  IonSegment,
+  IonSegmentButton,
   IonTitle,
   IonToolbar,
 } from "@ionic/react";
+import FrottoCard from "../../components/UI/FrottoCard";
 import api from "../../services/axios/axios";
 import endpoints from "../../constants/endpoints";
 import { TEXT } from "../../constants/texts";
@@ -198,6 +200,19 @@ const Reports: React.FC<IncomeDetail> = () => {
     }
   };
 
+  const handleReportTypeChange = (value: REPORTS) => {
+    setValue(
+      "group",
+      groupAfterReportChange(
+        group,
+        reportValue === REPORTS.maintenance,
+        value === REPORTS.maintenance
+      )
+    );
+    setValue("report", value);
+    setReportValue(value);
+  };
+
   return (
     <IonPage id="reports-page">
       <IonHeader className="ion-no-border">
@@ -219,7 +234,7 @@ const Reports: React.FC<IncomeDetail> = () => {
               </p>
             </div>
 
-            <IonCard className="app-panel-card">
+            <FrottoCard>
               <IonCardHeader className="app-panel-header">
                 <div className="app-soft-icon">
                   <IonIcon icon={readerOutline} />
@@ -239,26 +254,39 @@ const Reports: React.FC<IncomeDetail> = () => {
                   className="app-form-grid reports-form"
                   onSubmit={(event) => event.preventDefault()}
                 >
-                  <FormSelect
-                    label={TEXT.report}
-                    options={Object.values(REPORTS)}
-                    errorsObj={errors}
-                    errorName="report"
-                    initialValue={watch("report")}
-                    changeCallback={(value: REPORTS) => {
-                      setValue(
-                        "group",
-                        groupAfterReportChange(
-                          group,
-                          reportValue === REPORTS.maintenance,
-                          value === REPORTS.maintenance
-                        )
-                      );
-                      setValue("report", value);
-                      setReportValue(value);
+                  {/* Segmented control on wider screens; falls back to a select below
+                      720px, where "Histórico Financeiro" no longer fits 3-up without
+                      forcing horizontal overflow on the card. Same value/handler. */}
+                  <IonSegment
+                    value={watch("report")}
+                    className="app-segment-shell reports-type-segment reports-type-segment--wide"
+                    aria-label={TEXT.report}
+                    onIonChange={(event) => {
+                      const value = (event.detail.value as REPORTS) || REPORTS.month;
+                      handleReportTypeChange(value);
                     }}
-                    required
-                  />
+                  >
+                    {Object.values(REPORTS).map((value) => (
+                      <IonSegmentButton key={value} value={value}>
+                        <IonLabel>{value}</IonLabel>
+                      </IonSegmentButton>
+                    ))}
+                  </IonSegment>
+
+                  <div className="reports-type-select-narrow">
+                    <FormSelect
+                      label={TEXT.report}
+                      options={Object.values(REPORTS)}
+                      errorsObj={errors}
+                      errorName="report"
+                      initialValue={watch("report")}
+                      changeCallback={(value: REPORTS) => handleReportTypeChange(value)}
+                      required
+                    />
+                  </div>
+
+                  <p className="app-section-subtitle reports-filters-subtitle">Filtros</p>
+
                   <FormSelect
                     label={TEXT.group}
                     options={
@@ -328,6 +356,7 @@ const Reports: React.FC<IncomeDetail> = () => {
                           <IonLabel>{TEXT.allCarsInGroup}</IonLabel>
                           <IonButton
                             slot="end"
+                            className="app-outline-btn"
                             fill="outline"
                             size="small"
                             disabled={!group || loadingGroupCars || groupCars.length === 0}
@@ -365,6 +394,7 @@ const Reports: React.FC<IncomeDetail> = () => {
                           </IonLabel>
                           <IonButton
                             slot="end"
+                            className="app-outline-btn"
                             fill="outline"
                             size="small"
                             onClick={() => setSelectedCar(null)}
@@ -398,7 +428,7 @@ const Reports: React.FC<IncomeDetail> = () => {
                   </IonButton>
                 </form>
               </IonCardContent>
-            </IonCard>
+            </FrottoCard>
           </section>
         </div>
       </IonContent>

@@ -1,7 +1,6 @@
 import {
   IonButton,
   IonButtons,
-  IonCard,
   IonCardContent,
   IonCardHeader,
   IonCardSubtitle,
@@ -23,6 +22,7 @@ import { yupResolver } from "@hookform/resolvers/yup";
 
 import FormDate from "../../../components/Form/FormDate";
 import CarSelector from "../../../components/Car/CarSelector";
+import FrottoCard from "../../../components/UI/FrottoCard";
 import { CarModel, IncomeModel } from "../../../constants/CarModels";
 import api from "../../../services/axios/axios";
 import endpoints from "../../../constants/endpoints";
@@ -211,7 +211,7 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
             </div>
 
             {!selectedCar && !carId && (
-              <IonCard className="app-panel-card">
+              <FrottoCard>
                 <IonCardHeader className="app-panel-header">
                   <div className="app-soft-icon">
                     <IonIcon icon={carSportOutline} />
@@ -234,11 +234,11 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
 
                   <CarSelector onSelect={handleCarSelect} />
                 </IonCardContent>
-              </IonCard>
+              </FrottoCard>
             )}
 
             {selectedCar && !carId && (
-              <IonCard className="app-panel-card app-panel-card--soft">
+              <FrottoCard className="app-panel-card--soft">
                 <IonCardHeader className="app-panel-header">
                   <div className="app-soft-icon">
                     <IonIcon icon={carSportOutline} />
@@ -264,11 +264,11 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
                     </IonButton>
                   </div>
                 </IonCardContent>
-              </IonCard>
+              </FrottoCard>
             )}
 
             {(selectedCar || carId) && (
-              <IonCard className="app-panel-card">
+              <FrottoCard>
                 <IonCardHeader className="app-panel-header">
                   <div className="app-soft-icon">
                     <IonIcon icon={cashOutline} />
@@ -342,7 +342,7 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
                     </div>
                   </form>
                 </IonCardContent>
-              </IonCard>
+              </FrottoCard>
             )}
 
             {formInitial.id && (

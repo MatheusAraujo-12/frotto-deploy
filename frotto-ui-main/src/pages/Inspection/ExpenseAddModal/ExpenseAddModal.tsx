@@ -1,7 +1,6 @@
 import {
   IonButton,
   IonButtons,
-  IonCard,
   IonCardContent,
   IonCardHeader,
   IonCardSubtitle,
@@ -27,6 +26,7 @@ import FormInput from "../../../components/Form/FormInput";
 import FormSelectFilterAdd from "../../../components/Form/FormSelectFilterAdd";
 import { EXPENSES_KEY } from "../../../services/localStorage/localstorage";
 import FormCurrency from "../../../components/Form/FormCurrency";
+import FrottoCard from "../../../components/UI/FrottoCard";
 import { useCallback, useEffect } from "react";
 import { useAlert } from "../../../services/hooks/useAlert";
 
@@ -104,7 +104,7 @@ const ExpenseAddModal: React.FC<ExpenseAddModalProps> = ({
       <IonContent>
         <div className="app-shell app-shell--compact">
           <section className="app-section">
-            <IonCard className="app-panel-card">
+            <FrottoCard>
               <IonCardHeader className="app-panel-header">
                 <div className="app-soft-icon">
                   <IonIcon icon={receiptOutline} />
@@ -160,7 +160,7 @@ const ExpenseAddModal: React.FC<ExpenseAddModalProps> = ({
                   />
                 </form>
               </IonCardContent>
-            </IonCard>
+            </FrottoCard>
           </section>
         </div>
       </IonContent>

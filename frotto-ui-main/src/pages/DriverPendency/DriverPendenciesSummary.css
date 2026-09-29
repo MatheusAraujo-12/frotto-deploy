@@ -4,7 +4,7 @@
 }
 
 #driver-pendencies-page .driver-pendencies-driver-card:focus-visible {
-  box-shadow: 0 0 0 3px rgba(56, 128, 255, 0.22);
+  box-shadow: var(--frotto-focus-ring);
 }
 
 .driver-pendencies-driver-card__action {
@@ -43,7 +43,7 @@
 }
 
 .driver-pendency-summary-driver__info strong {
-  color: var(--ion-color-dark);
+  color: var(--frotto-text-primary);
   font-size: 15px;
   font-weight: 700;
   overflow: hidden;
@@ -52,7 +52,7 @@
 }
 
 .driver-pendency-summary-driver__info span {
-  color: var(--ion-color-medium);
+  color: var(--frotto-text-muted);
   font-size: 12px;
   margin-top: 2px;
 }
@@ -71,8 +71,8 @@
 
 .driver-pendency-summary-row {
   align-items: center;
-  background: var(--ion-color-light);
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: var(--app-card-strong);
+  border: var(--app-border);
   border-radius: 8px;
   color: inherit;
   display: grid;
@@ -105,7 +105,7 @@
 }
 
 .driver-pendency-summary-row__main strong {
-  color: var(--ion-color-dark);
+  color: var(--frotto-text-primary);
   font-size: 14px;
   font-weight: 700;
   line-height: 1.2;
@@ -115,7 +115,7 @@
 }
 
 .driver-pendency-summary-row__main span {
-  color: var(--ion-color-medium);
+  color: var(--frotto-text-muted);
   font-size: 12px;
   margin-top: 4px;
 }
@@ -128,13 +128,17 @@
 }
 
 .driver-pendency-summary-row__amounts strong {
-  color: var(--ion-color-dark);
+  color: var(--frotto-text-primary);
   font-size: 13px;
   font-weight: 800;
   white-space: nowrap;
 }
 
-.driver-pendency-summary-row__amounts ion-badge {
+.driver-pendency-summary-row__amounts strong.app-text-financial-negative {
+  color: var(--frotto-financial-negative);
+}
+
+.driver-pendency-summary-row__amounts .frotto-badge {
   font-size: 10px;
   line-height: 1;
   max-width: 98px;
@@ -144,7 +148,7 @@
 }
 
 .driver-pendency-summary-row__arrow {
-  color: var(--ion-color-medium);
+  color: var(--frotto-text-muted);
   font-size: 18px;
 }
 

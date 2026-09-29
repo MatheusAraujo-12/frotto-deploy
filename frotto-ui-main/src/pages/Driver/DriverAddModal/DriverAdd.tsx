@@ -1,16 +1,17 @@
 import {
-  IonButton,
-  IonButtons,
-  IonContent,
-  IonHeader,
+  IonCardContent,
+  IonCardHeader,
+  IonCardSubtitle,
+  IonCardTitle,
+  IonIcon,
   IonItem,
-  IonLabel,
-  IonPage,
-  IonProgressBar,
   IonRange,
-  IonTitle,
-  IonToolbar,
 } from "@ionic/react";
+import {
+  documentTextOutline,
+  locationOutline,
+  personCircleOutline,
+} from "ionicons/icons";
 import { TEXT } from "../../../constants/texts";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAlert } from "../../../services/hooks/useAlert";
@@ -37,6 +38,8 @@ import FormToggle from "../../../components/Form/FormToggle";
 import FormCurrency from "../../../components/Form/FormCurrency";
 import FormInputMask from "../../../components/Form/FormInputMask";
 import FormInputLabel from "../../../components/Form/FormInputLabel";
+import FrottoCard from "../../../components/UI/FrottoCard";
+import FrottoModal from "../../../components/UI/FrottoModal";
 import { currencyFormat } from "../../../services/currencyFormat";
 import { getApiErrorMessage } from "../../../services/apiErrorMessage";
 import { buildInvalidFieldsMessage } from "../../../services/formErrors";
@@ -338,300 +341,352 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
     showErrorAlert(buildInvalidFieldsMessage(invalidErrors, DRIVER_FIELD_LABELS));
   };
 
-  return (
-    <IonPage id="car-add-page">
-      <IonHeader>
-        <IonToolbar>
-          <IonButtons slot="start">
-            <IonButton color="danger" onClick={() => closeModal()}>
-              {TEXT.cancel}
-            </IonButton>
-          </IonButtons>
-          <IonTitle>{TEXT.addCarDriver}</IonTitle>
-          <IonButtons slot="end">
-            <IonButton
-              disabled={isLoading}
-              strong={true}
-              onClick={handleSubmit(onSubmit, onInvalid)}
-            >
-              {TEXT.save}
-            </IonButton>
-          </IonButtons>
-          {isLoading && <IonProgressBar type="indeterminate"></IonProgressBar>}
-        </IonToolbar>
-      </IonHeader>
-      <IonContent>
-        <form>
-          <IonItem className="app-form-section-title">
-            <IonLabel>
-              <h1>{TEXT.driverContract}</h1>
-            </IonLabel>
-          </IonItem>
-          <FormDate
-            id="start-date-driver-add"
-            initialValue={watch("startDate") ?? ""}
-            label={TEXT.dateStart}
-            presentation="date"
-            errorsObj={errors}
-            errorName="startDate"
-            formCallBack={(value: string) => {
-              updateField("startDate", value);
-            }}
-          />
-          <FormCurrency
-            label={TEXT.warranty}
-            errorsObj={errors}
-            errorName="warranty"
-            initialValue={watch("warranty") ?? 0}
-            maxlength={20}
-            changeCallback={(value: number) => {
-              updateField("warranty", value);
-            }}
-          />
-          <FormInput
-            label="Número do contrato"
-            errorsObj={errors}
-            errorName="contractNumber"
-            initialValue={watch("contractNumber") ?? ""}
-            maxlength={120}
-            changeCallback={(value: string) => {
-              updateField("contractNumber", value);
-            }}
-          />
-          <FormToggle
-            label={TEXT.resolved}
-            initialValue={watch("concluded") ?? false}
-            changeCallback={(value: boolean) => {
-              updateField("concluded", value);
-              setShowConcluded(value);
-            }}
-          />
+  const pageTitle = formInitial.id ? TEXT.editDriver : TEXT.newDriver;
+  const outstandingDebt = driverDebtSummary?.totalOutstanding || 0;
 
-          {showConcluded && (
-            <>
-              <FormDate
-                id="end-date-driver-add"
-                initialValue={watch("endDate") ?? ""}
-                label={TEXT.dateEnd}
-                presentation="date"
-                formCallBack={(value: string) => {
-                  updateField("endDate", value);
-                }}
-              />
-              <FormCurrency
-                label={TEXT.debt}
-                errorsObj={errors}
-                errorName="debt"
-                initialValue={watch("debt") ?? 0}
-                maxlength={20}
-                changeCallback={(value: number) => {
-                  updateField("debt", value);
-                }}
-              />
-              <IonItem className="app-form-item">
-                <FormInputLabel name={TEXT.score}></FormInputLabel>
-                <IonRange
-                  value={watch("score") ?? 1}
-                  pin={true}
-                  ticks={true}
-                  snaps={true}
-                  min={1}
-                  max={5}
-                  onIonKnobMoveEnd={({ detail }) => {
-                    updateField("score", +detail.value);
-                  }}
-                ></IonRange>
-              </IonItem>
-            </>
-          )}
-          <IonItem className="app-form-section-title">
-            <IonLabel>
-              <h1>{TEXT.driver}</h1>
-            </IonLabel>
-          </IonItem>
-          <FormInputMask
-            label={TEXT.cpf}
-            errorsObj={errors}
-            errorName="driverCpf"
-            initialValue={watch("driverCpf") ?? ""}
-            inputmode="numeric"
-            maxlength={50}
-            changeCallback={(value: string) => {
-              updateField("driverCpf", value);
-              loadDriverByCpf(value);
-            }}
-          />
-          <FormInput
-            label={TEXT.name}
-            errorsObj={errors}
-            errorName="driverName"
-            initialValue={watch("driverName") ?? ""}
-            maxlength={50}
-            changeCallback={(value: string) => {
-              updateField("driverName", value);
-            }}
-          />
-          {watch("driverId") && (
-            <IonItem className="app-form-item">
-              <IonLabel className="ion-text-wrap">
-                <p>
-                  <strong>{TEXT.totalOutstanding}:</strong>{" "}
-                  {currencyFormat(driverDebtSummary?.totalOutstanding)}
-                </p>
-                <p>
-                  {TEXT.openPendencies}:{" "}
-                  {driverDebtSummary?.openPendenciesCount || 0}
-                </p>
-              </IonLabel>
-            </IonItem>
-          )}
-          <FormInputMask
-            label={TEXT.contact}
-            errorsObj={errors}
-            errorName="driverContact"
-            initialValue={watch("driverContact") ?? ""}
-            inputmode="tel"
-            maskOptions={{
-              mask: "(00) 00000-00000",
-            }}
-            changeCallback={(value: string) => {
-              updateField("driverContact", value);
-            }}
-          />
-          <FormInput
-            label={TEXT.email}
-            errorsObj={errors}
-            errorName="driverEmail"
-            type="email"
-            initialValue={watch("driverEmail") ?? ""}
-            maxlength={50}
-            changeCallback={(value: string) => {
-              updateField("driverEmail", value);
-            }}
-          />
-          <FormInputMask
-            label={TEXT.emergencyContact}
-            errorsObj={errors}
-            errorName="driverEmergencyContact"
-            initialValue={watch("driverEmergencyContact") ?? ""}
-            inputmode="tel"
-            maskOptions={{
-              mask: "(00) 00000-00000",
-            }}
-            changeCallback={(value: string) => {
-              updateField("driverEmergencyContact", value);
-            }}
-          />
-          <FormInputMask
-            label={TEXT.emergencyContact}
-            errorsObj={errors}
-            errorName="driverEmergencyContactSecond"
-            initialValue={watch("driverEmergencyContactSecond") ?? ""}
-            inputmode="tel"
-            maskOptions={{
-              mask: "(00) 00000-00000",
-            }}
-            changeCallback={(value: string) => {
-              updateField("driverEmergencyContactSecond", value);
-            }}
-          />
-          <FormInput
-            label={TEXT.documentLicense}
-            errorsObj={errors}
-            errorName="driverDocumentDriverLicense"
-            initialValue={watch("driverDocumentDriverLicense") ?? ""}
-            maxlength={30}
-            changeCallback={(value: string) => {
-              updateField("driverDocumentDriverLicense", value);
-            }}
-          />
-          <FormInput
-            label={TEXT.documentRegister}
-            errorsObj={errors}
-            errorName="driverDocumentDriverRegister"
-            initialValue={watch("driverDocumentDriverRegister") ?? ""}
-            maxlength={30}
-            changeCallback={(value: string) => {
-              updateField("driverDocumentDriverRegister", value);
-            }}
-          />
-          <FormInput
-            label={TEXT.publicScore}
-            errorsObj={errors}
-            errorName="driverPublicScore"
-            type="number"
-            initialValue={watch("driverPublicScore") ?? ""}
-            maxlength={20}
-            changeCallback={(value: string) => {
-              updateField("driverPublicScore", value);
-            }}
-          />
-          <FormInput
-            label={TEXT.country}
-            errorsObj={errors}
-            errorName="driverAddressCountry"
-            initialValue={watch("driverAddressCountry") ?? ""}
-            maxlength={20}
-            changeCallback={(value: string) => {
-              updateField("driverAddressCountry", value);
-            }}
-          />
-          <FormInputMask
-            label={TEXT.zip}
-            errorsObj={errors}
-            errorName="driverAddressZip"
-            initialValue={watch("driverAddressZip") ?? ""}
-            inputmode="numeric"
-            maskOptions={{
-              mask: "00.000-000",
-            }}
-            changeCallback={(value: string) => {
-              updateField("driverAddressZip", value);
-            }}
-          />
-          <FormSelect
-            label={TEXT.state}
-            options={STATES_BR}
-            errorsObj={errors}
-            errorName="driverAddressState"
-            initialValue={watch("driverAddressState") ?? ""}
-            changeCallback={(value: string) => {
-              updateField("driverAddressState", value);
-            }}
-          />
-          <FormInput
-            label={TEXT.city}
-            errorsObj={errors}
-            errorName="driverAddressCity"
-            initialValue={watch("driverAddressCity") ?? ""}
-            maxlength={20}
-            changeCallback={(value: string) => {
-              updateField("driverAddressCity", value);
-            }}
-          />
-          <FormInput
-            label={TEXT.district}
-            errorsObj={errors}
-            errorName="driverAddressDistrict"
-            initialValue={watch("driverAddressDistrict") ?? ""}
-            maxlength={30}
-            changeCallback={(value: string) => {
-              updateField("driverAddressDistrict", value);
-            }}
-          />
-          <FormInput
-            label={TEXT.address}
-            errorsObj={errors}
-            errorName="driverAddressName"
-            initialValue={watch("driverAddressName") ?? ""}
-            maxlength={50}
-            changeCallback={(value: string) => {
-              updateField("driverAddressName", value);
-            }}
-          />
-        </form>
-      </IonContent>
-    </IonPage>
+  return (
+    <FrottoModal
+      pageId="driver-add-page"
+      title={pageTitle}
+      onCancel={() => closeModal()}
+      primaryLabel={TEXT.save}
+      onPrimaryAction={handleSubmit(onSubmit, onInvalid)}
+      primaryDisabled={isLoading}
+      isLoading={isLoading}
+    >
+        <div className="app-shell app-shell--compact">
+          <section className="app-section">
+            <FrottoCard>
+              <IonCardHeader className="app-panel-header">
+                <div className="app-soft-icon">
+                  <IonIcon icon={documentTextOutline} />
+                </div>
+                <div className="app-panel-header__content">
+                  <IonCardTitle className="app-panel-title">
+                    {TEXT.driverContract}
+                  </IonCardTitle>
+                  <IonCardSubtitle className="app-panel-subtitle">
+                    Vigência, caução e número do contrato.
+                  </IonCardSubtitle>
+                </div>
+              </IonCardHeader>
+              <IonCardContent>
+                <form className="app-form-grid">
+                  <FormDate
+                    id="start-date-driver-add"
+                    initialValue={watch("startDate") ?? ""}
+                    label={TEXT.dateStart}
+                    presentation="date"
+                    errorsObj={errors}
+                    errorName="startDate"
+                    formCallBack={(value: string) => {
+                      updateField("startDate", value);
+                    }}
+                  />
+                  <FormCurrency
+                    label={TEXT.warranty}
+                    errorsObj={errors}
+                    errorName="warranty"
+                    initialValue={watch("warranty") ?? 0}
+                    maxlength={20}
+                    changeCallback={(value: number) => {
+                      updateField("warranty", value);
+                    }}
+                  />
+                  <FormInput
+                    label="Número do contrato"
+                    errorsObj={errors}
+                    errorName="contractNumber"
+                    initialValue={watch("contractNumber") ?? ""}
+                    maxlength={120}
+                    changeCallback={(value: string) => {
+                      updateField("contractNumber", value);
+                    }}
+                  />
+                  <FormToggle
+                    label={TEXT.resolved}
+                    initialValue={watch("concluded") ?? false}
+                    changeCallback={(value: boolean) => {
+                      updateField("concluded", value);
+                      setShowConcluded(value);
+                    }}
+                  />
+
+                  {showConcluded && (
+                    <>
+                      <FormDate
+                        id="end-date-driver-add"
+                        initialValue={watch("endDate") ?? ""}
+                        label={TEXT.dateEnd}
+                        presentation="date"
+                        formCallBack={(value: string) => {
+                          updateField("endDate", value);
+                        }}
+                      />
+                      <FormCurrency
+                        label={TEXT.debt}
+                        errorsObj={errors}
+                        errorName="debt"
+                        initialValue={watch("debt") ?? 0}
+                        maxlength={20}
+                        changeCallback={(value: number) => {
+                          updateField("debt", value);
+                        }}
+                      />
+                      <IonItem className="app-form-item">
+                        <FormInputLabel name={TEXT.score}></FormInputLabel>
+                        <IonRange
+                          value={watch("score") ?? 1}
+                          pin={true}
+                          ticks={true}
+                          snaps={true}
+                          min={1}
+                          max={5}
+                          onIonKnobMoveEnd={({ detail }) => {
+                            updateField("score", +detail.value);
+                          }}
+                        ></IonRange>
+                      </IonItem>
+                    </>
+                  )}
+                </form>
+              </IonCardContent>
+            </FrottoCard>
+
+            <FrottoCard>
+              <IonCardHeader className="app-panel-header">
+                <div className="app-soft-icon">
+                  <IonIcon icon={personCircleOutline} />
+                </div>
+                <div className="app-panel-header__content">
+                  <IonCardTitle className="app-panel-title">
+                    {TEXT.driver}
+                  </IonCardTitle>
+                  <IonCardSubtitle className="app-panel-subtitle">
+                    Identificação, contatos e documentos do motorista.
+                  </IonCardSubtitle>
+                </div>
+              </IonCardHeader>
+              <IonCardContent>
+                <form className="app-form-grid">
+                  <FormInputMask
+                    label={TEXT.cpf}
+                    errorsObj={errors}
+                    errorName="driverCpf"
+                    initialValue={watch("driverCpf") ?? ""}
+                    inputmode="numeric"
+                    maxlength={50}
+                    changeCallback={(value: string) => {
+                      updateField("driverCpf", value);
+                      loadDriverByCpf(value);
+                    }}
+                  />
+                  <FormInput
+                    label={TEXT.name}
+                    errorsObj={errors}
+                    errorName="driverName"
+                    initialValue={watch("driverName") ?? ""}
+                    maxlength={50}
+                    changeCallback={(value: string) => {
+                      updateField("driverName", value);
+                    }}
+                  />
+                  {watch("driverId") && (
+                    <div
+                      className={`app-soft-box driver-add-debt-box ${
+                        outstandingDebt > 0
+                          ? "app-soft-box--warning"
+                          : "app-soft-box--success"
+                      }`}
+                    >
+                      <p>
+                        <strong>{TEXT.totalOutstanding}:</strong>{" "}
+                        <span
+                          className={
+                            outstandingDebt > 0
+                              ? "app-text-financial-negative"
+                              : undefined
+                          }
+                        >
+                          {currencyFormat(outstandingDebt)}
+                        </span>
+                      </p>
+                      <p>
+                        {TEXT.openPendencies}:{" "}
+                        {driverDebtSummary?.openPendenciesCount || 0}
+                      </p>
+                    </div>
+                  )}
+                  <FormInputMask
+                    label={TEXT.contact}
+                    errorsObj={errors}
+                    errorName="driverContact"
+                    initialValue={watch("driverContact") ?? ""}
+                    inputmode="tel"
+                    maskOptions={{
+                      mask: "(00) 00000-00000",
+                    }}
+                    changeCallback={(value: string) => {
+                      updateField("driverContact", value);
+                    }}
+                  />
+                  <FormInput
+                    label={TEXT.email}
+                    errorsObj={errors}
+                    errorName="driverEmail"
+                    type="email"
+                    initialValue={watch("driverEmail") ?? ""}
+                    maxlength={50}
+                    changeCallback={(value: string) => {
+                      updateField("driverEmail", value);
+                    }}
+                  />
+                  <FormInputMask
+                    label={TEXT.emergencyContact}
+                    errorsObj={errors}
+                    errorName="driverEmergencyContact"
+                    initialValue={watch("driverEmergencyContact") ?? ""}
+                    inputmode="tel"
+                    maskOptions={{
+                      mask: "(00) 00000-00000",
+                    }}
+                    changeCallback={(value: string) => {
+                      updateField("driverEmergencyContact", value);
+                    }}
+                  />
+                  <FormInputMask
+                    label={TEXT.emergencyContact}
+                    errorsObj={errors}
+                    errorName="driverEmergencyContactSecond"
+                    initialValue={watch("driverEmergencyContactSecond") ?? ""}
+                    inputmode="tel"
+                    maskOptions={{
+                      mask: "(00) 00000-00000",
+                    }}
+                    changeCallback={(value: string) => {
+                      updateField("driverEmergencyContactSecond", value);
+                    }}
+                  />
+                  <FormInput
+                    label={TEXT.documentLicense}
+                    errorsObj={errors}
+                    errorName="driverDocumentDriverLicense"
+                    initialValue={watch("driverDocumentDriverLicense") ?? ""}
+                    maxlength={30}
+                    changeCallback={(value: string) => {
+                      updateField("driverDocumentDriverLicense", value);
+                    }}
+                  />
+                  <FormInput
+                    label={TEXT.documentRegister}
+                    errorsObj={errors}
+                    errorName="driverDocumentDriverRegister"
+                    initialValue={watch("driverDocumentDriverRegister") ?? ""}
+                    maxlength={30}
+                    changeCallback={(value: string) => {
+                      updateField("driverDocumentDriverRegister", value);
+                    }}
+                  />
+                  <FormInput
+                    label={TEXT.publicScore}
+                    errorsObj={errors}
+                    errorName="driverPublicScore"
+                    type="number"
+                    initialValue={watch("driverPublicScore") ?? ""}
+                    maxlength={20}
+                    changeCallback={(value: string) => {
+                      updateField("driverPublicScore", value);
+                    }}
+                  />
+                </form>
+              </IonCardContent>
+            </FrottoCard>
+
+            <FrottoCard>
+              <IonCardHeader className="app-panel-header">
+                <div className="app-soft-icon">
+                  <IonIcon icon={locationOutline} />
+                </div>
+                <div className="app-panel-header__content">
+                  <IonCardTitle className="app-panel-title">
+                    Endereço
+                  </IonCardTitle>
+                  <IonCardSubtitle className="app-panel-subtitle">
+                    Endereço de referência do motorista.
+                  </IonCardSubtitle>
+                </div>
+              </IonCardHeader>
+              <IonCardContent>
+                <form className="app-form-grid">
+                  <FormInput
+                    label={TEXT.country}
+                    errorsObj={errors}
+                    errorName="driverAddressCountry"
+                    initialValue={watch("driverAddressCountry") ?? ""}
+                    maxlength={20}
+                    changeCallback={(value: string) => {
+                      updateField("driverAddressCountry", value);
+                    }}
+                  />
+                  <FormInputMask
+                    label={TEXT.zip}
+                    errorsObj={errors}
+                    errorName="driverAddressZip"
+                    initialValue={watch("driverAddressZip") ?? ""}
+                    inputmode="numeric"
+                    maskOptions={{
+                      mask: "00.000-000",
+                    }}
+                    changeCallback={(value: string) => {
+                      updateField("driverAddressZip", value);
+                    }}
+                  />
+                  <FormSelect
+                    label={TEXT.state}
+                    options={STATES_BR}
+                    errorsObj={errors}
+                    errorName="driverAddressState"
+                    initialValue={watch("driverAddressState") ?? ""}
+                    changeCallback={(value: string) => {
+                      updateField("driverAddressState", value);
+                    }}
+                  />
+                  <FormInput
+                    label={TEXT.city}
+                    errorsObj={errors}
+                    errorName="driverAddressCity"
+                    initialValue={watch("driverAddressCity") ?? ""}
+                    maxlength={20}
+                    changeCallback={(value: string) => {
+                      updateField("driverAddressCity", value);
+                    }}
+                  />
+                  <FormInput
+                    label={TEXT.district}
+                    errorsObj={errors}
+                    errorName="driverAddressDistrict"
+                    initialValue={watch("driverAddressDistrict") ?? ""}
+                    maxlength={30}
+                    changeCallback={(value: string) => {
+                      updateField("driverAddressDistrict", value);
+                    }}
+                  />
+                  <FormInput
+                    label={TEXT.address}
+                    errorsObj={errors}
+                    errorName="driverAddressName"
+                    initialValue={watch("driverAddressName") ?? ""}
+                    maxlength={50}
+                    changeCallback={(value: string) => {
+                      updateField("driverAddressName", value);
+                    }}
+                  />
+                </form>
+              </IonCardContent>
+            </FrottoCard>
+          </section>
+        </div>
+    </FrottoModal>
   );
 };
 

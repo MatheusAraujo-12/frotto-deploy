@@ -82,3 +82,25 @@
 .reports-submit-btn {
   margin-top: 4px;
 }
+
+.reports-type-segment {
+  margin-bottom: 2px;
+}
+
+.reports-type-select-narrow {
+  display: none;
+}
+
+.reports-filters-subtitle {
+  margin: 4px 2px 0;
+}
+
+@media (max-width: 720px) {
+  .reports-type-segment--wide {
+    display: none;
+  }
+
+  .reports-type-select-narrow {
+    display: block;
+  }
+}

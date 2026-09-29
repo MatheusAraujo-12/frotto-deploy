@@ -3,6 +3,7 @@ import React from "react";
 import { IonIcon, IonItem, IonNote, IonText } from "@ionic/react";
 import { trashOutline } from "ionicons/icons";
 import CarBrandMark from "../../components/Car/CarBrandMark";
+import FrottoBadge, { FrottoBadgeVariant } from "../../components/UI/FrottoBadge";
 import {
   normalizeCarRecord,
   resolveCarIdentity,
@@ -18,6 +19,9 @@ interface CarListItemProps extends CarModel {
   onDeleted?: (deletedCarId: number) => void;
 }
 
+// Rótulos preservados como estavam (sem acentuação) — divergência conhecida
+// em relação a Car.tsx/selectOptions.ts, documentada em DESIGN_SYSTEM.md.
+// Não normalizar nesta migração visual.
 const ADMIN_STATUS_LABEL: Record<CarAdminStatus, string> = {
   ATIVO: "Ativo",
   RETIRADO: "Retirado",
@@ -26,12 +30,16 @@ const ADMIN_STATUS_LABEL: Record<CarAdminStatus, string> = {
   BLOQUEADO: "Bloqueado",
 };
 
-const ADMIN_STATUS_CLASS: Record<CarAdminStatus, string> = {
-  ATIVO: "car-status-neutral",
-  RETIRADO: "car-status-dark",
-  A_VENDA: "car-status-info",
-  MANUTENCAO: "car-status-warning",
-  BLOQUEADO: "car-status-danger",
+// Decisão oficial (DESIGN_SYSTEM.md, seção "Decisões de status"): A_VENDA usa
+// variant="info" — é um estado informativo, não um warning. Os tokens legados
+// --app-car-status-sale-* (família âmbar) ficam como candidatos a consolidação
+// futura, não devem ser usados aqui.
+const ADMIN_STATUS_VARIANT: Record<CarAdminStatus, FrottoBadgeVariant> = {
+  ATIVO: "neutral",
+  RETIRADO: "dark",
+  A_VENDA: "info",
+  MANUTENCAO: "warning",
+  BLOQUEADO: "danger",
 };
 
 const CarListItem: React.FC<CarListItemProps> = (car) => {
@@ -47,11 +55,11 @@ const CarListItem: React.FC<CarListItemProps> = (car) => {
     ? "Alugado"
     : "Disponivel";
 
-  const statusClass = hasAdminOverride
-    ? ADMIN_STATUS_CLASS[adminStatus]
+  const statusVariant: FrottoBadgeVariant = hasAdminOverride
+    ? ADMIN_STATUS_VARIANT[adminStatus]
     : normalizedCar?.driverName
-    ? "car-status-success"
-    : "car-status-warning";
+    ? "success"
+    : "warning";
 
   const handleDelete = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -97,9 +105,9 @@ const CarListItem: React.FC<CarListItemProps> = (car) => {
               <h2 className="car-list-item__title">
                 <IonText color="primary">{carIdentity.displayName}</IonText>
               </h2>
-              <div className={`car-list-item__status ${statusClass}`}>
+              <FrottoBadge variant={statusVariant} className="car-list-item__status">
                 {statusLabel}
-              </div>
+              </FrottoBadge>
             </div>
 
             <p className="car-list-item__meta">

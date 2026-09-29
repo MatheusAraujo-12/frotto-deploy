@@ -1,7 +1,6 @@
 import {
   IonButton,
   IonButtons,
-  IonCard,
   IonCardContent,
   IonCardHeader,
   IonCardSubtitle,
@@ -32,6 +31,8 @@ import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import FormDate from "../../../components/Form/FormDate";
 import CarSelector from "../../../components/Car/CarSelector";
+import FrottoCard from "../../../components/UI/FrottoCard";
+import ItemNotFound from "../../../components/List/ItemNotFound";
 import {
   CarModel,
   MaintenanceModel,
@@ -48,6 +49,7 @@ import {
 } from "./maintenanceValidationSchema";
 import ServiceAddModal from "../ServiceAddModal/ServiceAddModal";
 import { currencyFormat } from "../../../services/currencyFormat";
+import { formatDateView } from "../../../services/dateFormat";
 import FormDeleteButton from "../../../components/Form/FormDeleteButton";
 import ReminderAdd from "../../Reminders/ReminderAddModal/reminderAdd";
 import "./MaintenanceAdd.css";
@@ -305,7 +307,7 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
             </div>
 
             {!selectedCar && !carId && (
-              <IonCard className="app-panel-card">
+              <FrottoCard>
                 <IonCardHeader className="app-panel-header">
                   <div className="app-soft-icon">
                     <IonIcon icon={carSportOutline} />
@@ -324,11 +326,11 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
                     <CarSelector onSelect={handleSelectCar} />
                   </div>
                 </IonCardContent>
-              </IonCard>
+              </FrottoCard>
             )}
 
             {selectedCar && !carId && (
-              <IonCard className="app-panel-card app-panel-card--soft">
+              <FrottoCard className="app-panel-card--soft">
                 <IonCardHeader className="app-panel-header">
                   <div className="app-soft-icon">
                     <IonIcon icon={carSportOutline} />
@@ -354,12 +356,12 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
                     </IonButton>
                   </div>
                 </IonCardContent>
-              </IonCard>
+              </FrottoCard>
             )}
 
             {(selectedCar || carId) && (
               <>
-                <IonCard className="app-panel-card app-panel-card--soft">
+                <FrottoCard className="app-panel-card--soft">
                   <IonCardHeader className="app-panel-header">
                     <div className="app-soft-icon">
                       <IonIcon icon={buildOutline} />
@@ -381,7 +383,7 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
                           {TEXT.date}
                         </span>
                         <strong className="maintenance-add-summary__value">
-                          {date || "-"}
+                          {date ? formatDateView(date) : "-"}
                         </strong>
                       </div>
                       <div className="app-soft-box app-soft-box--neutral">
@@ -400,19 +402,19 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
                           {local || "-"}
                         </strong>
                       </div>
-                      <div className="app-soft-box app-soft-box--success">
+                      <div className="app-soft-box app-soft-box--neutral">
                         <span className="maintenance-add-summary__label">
                           {TEXT.total}
                         </span>
-                        <strong className="maintenance-add-summary__value">
+                        <strong className="maintenance-add-summary__value maintenance-add-summary__value--financial-negative">
                           {currencyFormat(totalCost)}
                         </strong>
                       </div>
                     </div>
                   </IonCardContent>
-                </IonCard>
+                </FrottoCard>
 
-                <IonCard className="app-panel-card">
+                <FrottoCard>
                   <IonCardHeader className="app-panel-header">
                     <div className="app-soft-icon">
                       <IonIcon icon={buildOutline} />
@@ -493,7 +495,6 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
                             <h2>{TEXT.maintenanceServices}</h2>
                             {totalCost > 0 && (
                               <IonText
-                                color="primary"
                                 className="maintenance-add-services-list__total"
                               >
                                 ({currencyFormat(totalCost)})
@@ -545,20 +546,20 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
                             );
                           })
                         ) : (
-                          <div className="app-empty-state maintenance-add-empty-state">
-                            <strong>{TEXT.maintenanceServices}</strong>
-                            <span>Nenhum servico adicionado.</span>
-                          </div>
+                          <ItemNotFound
+                            title={TEXT.maintenanceServices}
+                            description="Nenhum servico adicionado."
+                          />
                         )}
                       </IonList>
                     </form>
                   </IonCardContent>
-                </IonCard>
+                </FrottoCard>
               </>
             )}
 
             {!formInitial.id && (
-              <IonCard className="app-panel-card">
+              <FrottoCard>
                 <IonCardHeader className="app-panel-header">
                   <div className="app-soft-icon">
                     <IonIcon icon={notificationsOutline} />
@@ -616,14 +617,14 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
                         );
                       })
                     ) : (
-                      <div className="app-empty-state maintenance-add-reminders-empty">
-                        <strong>{TEXT.reminders}</strong>
-                        <span>{TEXT.noReminders}</span>
-                      </div>
+                      <ItemNotFound
+                        title={TEXT.reminders}
+                        description={TEXT.noReminders}
+                      />
                     )}
                   </IonList>
                 </IonCardContent>
-              </IonCard>
+              </FrottoCard>
             )}
 
             {formInitial.id && (

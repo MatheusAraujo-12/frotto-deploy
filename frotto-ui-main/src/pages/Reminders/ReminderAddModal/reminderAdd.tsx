@@ -1,7 +1,6 @@
 import {
   IonButton,
   IonButtons,
-  IonCard,
   IonCardContent,
   IonCardHeader,
   IonCardSubtitle,
@@ -25,6 +24,7 @@ import { useAlert } from "../../../services/hooks/useAlert";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import CarSelector from "../../../components/Car/CarSelector";
+import FrottoCard from "../../../components/UI/FrottoCard";
 import { CarModel, ReminderModel } from "../../../constants/CarModels";
 import api from "../../../services/axios/axios";
 import endpoints from "../../../constants/endpoints";
@@ -250,7 +250,7 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
             </div>
 
             {!selectedCar && !carId && (
-              <IonCard className="app-panel-card">
+              <FrottoCard>
                 <IonCardHeader className="app-panel-header">
                   <div className="app-soft-icon">
                     <IonIcon icon={carSportOutline} />
@@ -273,11 +273,11 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
 
                   <CarSelector onSelect={handleSelectCar} />
                 </IonCardContent>
-              </IonCard>
+              </FrottoCard>
             )}
 
             {selectedCar && !carId && (
-              <IonCard className="app-panel-card app-panel-card--soft">
+              <FrottoCard className="app-panel-card--soft">
                 <IonCardHeader className="app-panel-header">
                   <div className="app-soft-icon">
                     <IonIcon icon={carSportOutline} />
@@ -303,11 +303,11 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
                     </IonButton>
                   </div>
                 </IonCardContent>
-              </IonCard>
+              </FrottoCard>
             )}
 
             {(selectedCar || carId) && (
-              <IonCard className="app-panel-card">
+              <FrottoCard>
                 <IonCardHeader className="app-panel-header">
                   <div className="app-soft-icon">
                     <IonIcon icon={notificationsOutline} />
@@ -344,7 +344,7 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
                     />
                   </form>
                 </IonCardContent>
-              </IonCard>
+              </FrottoCard>
             )}
 
             {formInitial.id && (
@@ -359,7 +359,7 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
             )}
 
             {!formInitial.id && (selectedCar || carId) && (
-              <IonCard className="app-panel-card app-panel-card--soft">
+              <FrottoCard className="app-panel-card--soft">
                 <IonCardHeader className="app-panel-header">
                   <div className="app-soft-icon">
                     <IonIcon icon={bulbOutline} />
@@ -382,7 +382,7 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
                     <li>Alinhamento e balanceamento</li>
                   </ul>
                 </IonCardContent>
-              </IonCard>
+              </FrottoCard>
             )}
           </section>
         </div>

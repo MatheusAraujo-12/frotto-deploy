@@ -79,11 +79,11 @@
 }
 
 .driver-pendency-list-item--open::part(native) {
-  border-color: rgba(var(--ion-color-danger-rgb), 0.18);
+  border-color: rgba(var(--ion-color-warning-rgb), 0.22);
 }
 
 .driver-pendency-list-item--partial::part(native) {
-  border-color: rgba(var(--ion-color-warning-rgb), 0.22);
+  border-color: rgba(var(--frotto-info-rgb), 0.22);
 }
 
 .driver-pendency-list-item--paid::part(native) {
@@ -178,6 +178,18 @@
   font-size: 0.94rem;
   line-height: 1.35;
   color: var(--ion-text-color);
+}
+
+.driver-pendency-list-item__stat strong.app-text-financial-positive {
+  color: var(--frotto-financial-positive);
+}
+
+.driver-pendency-list-item__stat strong.app-text-financial-negative {
+  color: var(--frotto-financial-negative);
+}
+
+.driver-pendencies-summary__value.app-text-financial-negative {
+  color: var(--frotto-financial-negative);
 }
 
 .driver-pendency-list-item__actions {

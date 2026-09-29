@@ -1,118 +1,237 @@
-#login-page .auth-content::part(background),
-#register-page .auth-content::part(background) {
-  background: var(--ion-background-color);
+.auth-page .auth-toolbar {
+  --background: var(--frotto-background);
+  --color: var(--frotto-text-primary);
+  --border-width: 0;
 }
 
-#login-page .auth-shell,
-#register-page .auth-shell {
-  max-width: 480px;
-  padding-top: 24px;
-  padding-bottom: 24px;
+.auth-page .auth-content {
+  --background: var(--frotto-background);
 }
 
-#login-page .auth-card,
-#register-page .auth-card {
-  margin: 0;
+.auth-page ion-progress-bar {
+  --progress-background: var(--frotto-primary);
 }
 
-#login-page .auth-card__header {
-  align-items: center;
-}
-
-#login-page .auth-logo {
-  width: 56px;
-  height: 56px;
-  min-width: 56px;
-  border-radius: 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(var(--ion-color-primary-rgb), 0.22);
-  background: rgba(var(--ion-color-primary-rgb), 0.12);
-  box-shadow: var(--app-shadow);
-  overflow: hidden;
-}
-
-#login-page .auth-logo img {
+.auth-page .auth-shell {
   width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-#login-page .auth-form,
-#register-page .auth-form {
-  gap: 10px;
-}
-
-#login-page .auth-form ion-item,
-#register-page .auth-form ion-item {
-  --background: var(--app-card-strong);
-  --border-color: transparent;
-  --inner-border-width: 0;
-  --highlight-color-focused: var(--ion-color-tertiary);
-  --padding-start: 12px;
-  --inner-padding-end: 10px;
-  border: 1px solid var(--ion-border-color);
-  border-radius: 12px;
-  overflow: hidden;
-  margin: 0;
-}
-
-#login-page .auth-form ion-item::part(native),
-#register-page .auth-form ion-item::part(native) {
-  background: var(--app-card-strong);
-  border-radius: 12px;
-  padding-left: 12px;
-  padding-right: 10px;
-  min-height: 62px;
-}
-
-#login-page .auth-form ion-item.ion-focused,
-#register-page .auth-form ion-item.ion-focused {
-  border-color: rgba(var(--ion-color-tertiary-rgb), 0.65);
-  box-shadow: 0 0 0 2px rgba(var(--ion-color-tertiary-rgb), 0.18);
-}
-
-#login-page .auth-form ion-label,
-#register-page .auth-form ion-label {
-  font-weight: 600 !important;
-  color: var(--ion-text-color) !important;
-  opacity: 0.88;
-}
-
-#login-page .auth-form ion-input,
-#register-page .auth-form ion-input {
-  --color: var(--ion-text-color);
-  --placeholder-color: var(--ion-color-medium);
-  font-size: 0.95rem;
-}
-
-#login-page .auth-form > ion-text,
-#login-page .auth-form ion-text.ion-padding-start,
-#register-page .auth-form > ion-text,
-#register-page .auth-form ion-text.ion-padding-start {
-  display: block;
-  margin: -4px 4px 4px 10px;
-  padding-left: 0 !important;
-  font-size: 0.82rem;
-}
-
-#login-page .auth-actions,
-#register-page .auth-actions {
+  max-width: 1120px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: var(--frotto-space-9);
   display: grid;
-  gap: 8px;
-  margin-top: 4px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--frotto-space-9);
 }
 
-#login-page .auth-actions ion-button,
-#register-page .auth-actions ion-button {
+.auth-brand {
+  padding: var(--frotto-space-6) 0;
+  color: var(--frotto-text-primary);
+}
+
+.auth-brand__logo {
+  display: block;
+  width: 224px;
+  height: 104px;
+  max-width: 100%;
+  object-fit: cover;
+  border-radius: var(--frotto-radius-lg);
+}
+
+.auth-brand__eyebrow {
+  margin: var(--frotto-space-8) 0 var(--frotto-space-4);
+  color: var(--frotto-primary-text);
+  font-size: var(--frotto-font-size-xs);
+  font-weight: var(--frotto-font-weight-semibold);
+  letter-spacing: var(--frotto-letter-spacing-wide);
+}
+
+.auth-brand h2 {
+  margin: 0 0 var(--frotto-space-5);
+  font-size: var(--frotto-font-size-3xl);
+  font-weight: var(--frotto-font-weight-semibold);
+  line-height: var(--frotto-line-height-tight);
+  letter-spacing: var(--frotto-letter-spacing-tight);
+}
+
+.auth-brand__context > p:last-child {
+  max-width: 32ch;
+  margin: 0;
+  color: var(--frotto-text-secondary);
+  line-height: var(--frotto-line-height-relaxed);
+}
+
+.auth-panel {
+  min-width: 0;
+  padding: var(--frotto-space-8);
+  border: 1px solid var(--frotto-border);
+  border-radius: var(--frotto-radius-lg);
+  background: var(--frotto-surface);
+}
+
+.auth-panel__header {
+  margin-bottom: var(--frotto-space-7);
+}
+
+.auth-panel__header h1 {
+  margin: 0 0 var(--frotto-space-3);
+  color: var(--frotto-text-primary);
+  font-size: var(--frotto-font-size-2xl);
+  font-weight: var(--frotto-font-weight-semibold);
+  line-height: var(--frotto-line-height-tight);
+}
+
+.auth-panel__header p {
+  margin: 0;
+  color: var(--frotto-text-secondary);
+  font-size: var(--frotto-font-size-sm);
+  line-height: var(--frotto-line-height-relaxed);
+}
+
+.auth-page .auth-form {
+  gap: var(--frotto-space-5);
+}
+
+.auth-page .auth-form .app-form-item {
   margin: 0;
 }
 
-@media (max-width: 480px) {
-  #login-page .auth-shell,
-  #register-page .auth-shell {
-    padding-left: 14px;
-    padding-right: 14px;
+.auth-page .auth-form .app-form-item::part(native) {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: var(--frotto-space-3) var(--frotto-space-4);
+}
+
+.auth-page .auth-form ion-label {
+  flex: none;
+  max-width: 100%;
+  margin: 0 0 var(--frotto-space-1);
+  font-size: var(--frotto-font-size-sm);
+  opacity: 1;
+}
+
+.auth-page .auth-form ion-input {
+  --ion-color-primary: var(--frotto-text-primary);
+  --ion-color-primary-rgb: var(--frotto-text-primary-rgb);
+  width: 100%;
+  font-size: var(--frotto-font-size-md);
+  text-align: start;
+  --padding-start: 0;
+  --padding-end: 0;
+  --padding-top: var(--frotto-space-2);
+  --padding-bottom: var(--frotto-space-2);
+}
+
+.auth-page .auth-form .app-form-error {
+  margin: var(--frotto-space-2) 0 0;
+  font-size: var(--frotto-font-size-sm);
+  line-height: var(--frotto-line-height-normal);
+}
+
+.auth-actions {
+  margin-top: var(--frotto-space-1);
+}
+
+.auth-page .auth-actions ion-button {
+  margin: 0;
+  min-height: var(--frotto-space-9);
+}
+
+.auth-page .auth-form ion-input input {
+  text-align: start;
+}
+
+/* Ionic can serialize disabled="false"; only its real disabled class should
+   dim these actions, rather than the legacy global [disabled] selector. */
+.auth-page ion-button:not(.button-disabled) {
+  opacity: 1;
+  filter: none;
+  cursor: pointer;
+}
+
+.auth-page .app-primary-btn:not(.button-disabled):hover {
+  --background: var(--frotto-primary-hover);
+  --color: var(--frotto-primary-hover-contrast);
+}
+
+.auth-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  column-gap: var(--frotto-space-1);
+  margin-top: var(--frotto-space-6);
+  color: var(--frotto-text-secondary);
+  font-size: var(--frotto-font-size-sm);
+}
+
+.auth-page .auth-link {
+  --background: transparent;
+  --border-width: 0;
+  --color: var(--frotto-primary-text);
+  --padding-start: var(--frotto-space-2);
+  --padding-end: var(--frotto-space-2);
+  margin: 0;
+  min-height: var(--frotto-space-9);
+  font-size: inherit;
+  text-transform: none;
+}
+
+.auth-page ion-button::part(native):focus-visible,
+.auth-page ion-back-button::part(native):focus-visible {
+  outline: 2px solid var(--frotto-focus-color);
+  outline-offset: 2px;
+}
+
+.auth-status {
+  margin-top: var(--frotto-space-2);
+  color: var(--frotto-text-secondary);
+  text-align: center;
+  font-size: var(--frotto-font-size-sm);
+}
+
+.auth-status:empty {
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .auth-page .auth-shell {
+    max-width: 520px;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--frotto-space-5);
+    padding: var(--frotto-space-4) var(--frotto-space-5) max(var(--frotto-space-6), env(safe-area-inset-bottom));
+  }
+
+  .auth-brand {
+    padding: 0;
+  }
+
+  .auth-brand__logo {
+    width: 168px;
+    height: 72px;
+  }
+
+  .auth-brand__context {
+    display: none;
+  }
+
+  .auth-panel {
+    padding: var(--frotto-space-6);
+  }
+
+  .auth-panel__header {
+    margin-bottom: var(--frotto-space-6);
+  }
+}
+
+@media (max-width: 360px) {
+  .auth-page .auth-shell {
+    padding-inline: var(--frotto-space-3);
+  }
+
+  .auth-panel {
+    padding: var(--frotto-space-4);
   }
 }

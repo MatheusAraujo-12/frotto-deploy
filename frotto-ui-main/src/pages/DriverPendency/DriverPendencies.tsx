@@ -1,9 +1,7 @@
 import {
   IonBackButton,
-  IonBadge,
   IonButton,
   IonButtons,
-  IonCard,
   IonCardContent,
   IonCardHeader,
   IonCardSubtitle,
@@ -35,6 +33,9 @@ import {
 import { filterListObj } from "../../services/filterList";
 import { RouteComponentProps, useHistory, useLocation } from "react-router";
 import DriverPendencyAdd from "./DriverPendencyAddModal/DriverPendencyAdd";
+import ItemNotFound from "../../components/List/ItemNotFound";
+import FrottoBadge, { FrottoBadgeVariant } from "../../components/UI/FrottoBadge";
+import FrottoCard from "../../components/UI/FrottoCard";
 import { currencyFormat } from "../../services/currencyFormat";
 import {
   add,
@@ -225,16 +226,21 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
     return TEXT.debtOpen;
   };
 
-  const statusColor = (status?: DriverPendencyStatus) => {
+  // Decisão oficial (DESIGN_SYSTEM.md seção 19): pendência em aberto não é
+  // "crítica" — Danger fica reservado a erro/ação destrutiva. OPEN usa
+  // warning (atenção), PARTIALLY_PAID usa info (em progresso), PAID usa
+  // success. O valor monetário (não o status) é quem carrega o significado
+  // financeiro, via financial-negative/positive — ver renderização abaixo.
+  const statusVariant = (status?: DriverPendencyStatus): FrottoBadgeVariant => {
     if (status === "PAID") return "success";
-    if (status === "PARTIALLY_PAID") return "warning";
-    return "danger";
+    if (status === "PARTIALLY_PAID") return "info";
+    return "warning";
   };
 
   const statusToneClass = (status?: DriverPendencyStatus) => {
     if (status === "PAID") return "app-soft-icon--success";
-    if (status === "PARTIALLY_PAID") return "app-soft-icon--warning";
-    return "app-soft-icon--danger";
+    if (status === "PARTIALLY_PAID") return "app-soft-icon--info";
+    return "app-soft-icon--warning";
   };
 
   const statusIcon = (status?: DriverPendencyStatus) => {
@@ -419,6 +425,7 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
           <IonButtons slot="end">
             <IonButton
               className="app-primary-btn driver-pendencies-add-btn"
+              aria-label="Adicionar pendência"
               onClick={() => {
                 setModalDriverPendencyValue({});
                 setIsModalOpen(true);
@@ -452,17 +459,10 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
             </div>
 
             {driverCar && (
-              <IonCard
-                className="app-panel-card app-panel-card--soft driver-pendencies-driver-card"
-                role="button"
-                tabIndex={0}
+              <FrottoCard
+                interactive
+                className="app-panel-card--soft driver-pendencies-driver-card"
                 onClick={openSummaryModal}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    openSummaryModal();
-                  }
-                }}
               >
                 <IonCardHeader className="app-panel-header">
                   <div
@@ -501,7 +501,11 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                       <span className="driver-pendencies-summary__label">
                         Em aberto
                       </span>
-                      <strong className="driver-pendencies-summary__value">
+                      <strong
+                        className={`driver-pendencies-summary__value${
+                          hasOutstandingBalance ? " app-text-financial-negative" : ""
+                        }`}
+                      >
                         {currencyFormat(totalOutstanding)}
                       </strong>
                     </div>
@@ -531,10 +535,10 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                     </div>
                   </div>
                 </IonCardContent>
-              </IonCard>
+              </FrottoCard>
             )}
 
-            <IonCard className="app-panel-card">
+            <FrottoCard>
               <IonCardHeader className="app-panel-header">
                 <div
                   className={`app-soft-icon ${
@@ -599,9 +603,9 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                                   )}
                                 </div>
                               </div>
-                              <IonBadge color={statusColor(driverPendency.status)}>
+                              <FrottoBadge variant={statusVariant(driverPendency.status)}>
                                 {getStatusLabel(driverPendency.status)}
-                              </IonBadge>
+                              </FrottoBadge>
                             </div>
 
                             {driverPendency.note && (
@@ -617,13 +621,27 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                               </p>
                               <p className="driver-pendency-list-item__stat">
                                 <span>{TEXT.debtPaid}</span>
-                                <strong>
+                                <strong
+                                  className={
+                                    (driverPendency.paidAmount || 0) > 0
+                                      ? "app-text-financial-positive"
+                                      : undefined
+                                  }
+                                >
                                   {currencyFormat(driverPendency.paidAmount || 0)}
                                 </strong>
                               </p>
                               <p className="driver-pendency-list-item__stat">
                                 <span>{TEXT.pendingAmount}</span>
-                                <strong>{currencyFormat(remainingAmount)}</strong>
+                                <strong
+                                  className={
+                                    remainingAmount > 0
+                                      ? "app-text-financial-negative"
+                                      : undefined
+                                  }
+                                >
+                                  {currencyFormat(remainingAmount)}
+                                </strong>
                               </p>
                             </div>
 
@@ -668,13 +686,13 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                 </div>
 
                 {!isLoading && filteredList.length === 0 && (
-                  <div className="app-empty-state">
-                    <strong>{TEXT.driverPendencies}</strong>
-                    <span>Nenhuma pendência encontrada para os filtros atuais.</span>
-                  </div>
+                  <ItemNotFound
+                    title="Nenhuma pendência encontrada"
+                    description="Ajuste a busca ou cadastre uma nova pendência para este motorista."
+                  />
                 )}
               </IonCardContent>
-            </IonCard>
+            </FrottoCard>
           </section>
         </div>
       </IonContent>
@@ -711,7 +729,7 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
           <IonToolbar className="app-toolbar-clean">
             <IonTitle>Resumo das pendências</IonTitle>
             <IonButtons slot="end">
-              <IonButton fill="clear" color="medium" onClick={closeSummaryModal}>
+              <IonButton fill="clear" color="medium" aria-label="Fechar resumo das pendências" onClick={closeSummaryModal}>
                 <IonIcon slot="icon-only" icon={closeOutline} />
               </IonButton>
             </IonButtons>
@@ -749,7 +767,11 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                 <span className="driver-pendencies-summary__label">
                   Em aberto
                 </span>
-                <strong className="driver-pendencies-summary__value">
+                <strong
+                  className={`driver-pendencies-summary__value${
+                    hasOutstandingBalance ? " app-text-financial-negative" : ""
+                  }`}
+                >
                   {currencyFormat(totalOutstanding)}
                 </strong>
               </div>
@@ -798,10 +820,16 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                     </span>
 
                     <span className="driver-pendency-summary-row__amounts">
-                      <strong>{currencyFormat(remainingAmount)}</strong>
-                      <IonBadge color={statusColor(driverPendency.status)}>
+                      <strong
+                        className={
+                          remainingAmount > 0 ? "app-text-financial-negative" : undefined
+                        }
+                      >
+                        {currencyFormat(remainingAmount)}
+                      </strong>
+                      <FrottoBadge variant={statusVariant(driverPendency.status)}>
                         {getStatusLabel(driverPendency.status)}
-                      </IonBadge>
+                      </FrottoBadge>
                     </span>
 
                     <IonIcon
@@ -813,10 +841,7 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
               })}
 
               {!isLoading && summaryPendencyList.length === 0 && (
-                <div className="app-empty-state">
-                  <strong>{TEXT.driverPendencies}</strong>
-                  <span>Nenhuma pendência cadastrada para este motorista.</span>
-                </div>
+                <ItemNotFound message="Nenhuma pendência cadastrada para este motorista." />
               )}
             </section>
           </div>

@@ -1,7 +1,6 @@
 import {
   IonButton,
   IonButtons,
-  IonCard,
   IonCardContent,
   IonCardHeader,
   IonCardSubtitle,
@@ -39,6 +38,7 @@ import {
   InspectionForm,
 } from "./InspectionValidationSchema";
 import FormDate from "../../../components/Form/FormDate";
+import FrottoCard from "../../../components/UI/FrottoCard";
 import api from "../../../services/axios/axios";
 import endpoints from "../../../constants/endpoints";
 import {
@@ -321,7 +321,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
       <IonContent>
         <div className="app-shell app-shell--compact">
           <section className="app-section">
-            <IonCard className="app-panel-card">
+            <FrottoCard>
               <IonCardHeader className="app-panel-header">
                 <div className="app-soft-icon">
                   <IonIcon icon={clipboardOutline} />
@@ -374,9 +374,9 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                   />
                 </form>
               </IonCardContent>
-            </IonCard>
+            </FrottoCard>
 
-            <IonCard className="app-panel-card">
+            <FrottoCard>
               <IonCardHeader className="app-panel-header">
                 <div className="app-soft-icon">
                   <IonIcon icon={sparklesOutline} />
@@ -419,9 +419,9 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                   />
                 </form>
               </IonCardContent>
-            </IonCard>
+            </FrottoCard>
 
-            <IonCard className="app-panel-card">
+            <FrottoCard>
               <IonCardHeader className="app-panel-header">
                 <div className="app-soft-icon">
                   <IonIcon icon={carSportOutline} />
@@ -557,9 +557,9 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                   />
                 </form>
               </IonCardContent>
-            </IonCard>
+            </FrottoCard>
 
-            <IonCard className="app-panel-card">
+            <FrottoCard>
               <IonCardHeader className="app-panel-header">
                 <div className="app-soft-icon">
                   <IonIcon icon={receiptOutline} />
@@ -625,13 +625,13 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                   )}
 
                   {expensesList.length === 0 && (
-                    <ItemNotFound />
+                    <ItemNotFound message="Nenhuma despesa adicionada." />
                   )}
                 </IonList>
               </IonCardContent>
-            </IonCard>
+            </FrottoCard>
 
-            <IonCard className="app-panel-card">
+            <FrottoCard>
               <IonCardHeader className="app-panel-header">
                 <div className="app-soft-icon app-soft-icon--warning">
                   <IonIcon icon={warningOutline} />
@@ -692,10 +692,12 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                       ) : null
                   )}
 
-                  {carDamagesList.length === 0 && <ItemNotFound />}
+                  {carDamagesList.length === 0 && (
+                    <ItemNotFound message="Nenhuma avaria registrada." />
+                  )}
                 </IonList>
               </IonCardContent>
-            </IonCard>
+            </FrottoCard>
 
             {formInitial.id && (
               <div>

@@ -1,0 +1,21 @@
+#car-body-damage-add-page .body-damage-add-content {
+  --padding-bottom: 20px;
+}
+
+.body-damage-add-shell {
+  gap: 16px;
+}
+
+.body-damage-add-section-head {
+  display: grid;
+  gap: 4px;
+}
+
+.body-damage-add-photos {
+  display: grid;
+  gap: 10px;
+}
+
+.body-damage-add-photo-item {
+  --min-height: 56px;
+}

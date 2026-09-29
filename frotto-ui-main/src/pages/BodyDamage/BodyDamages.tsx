@@ -2,7 +2,6 @@ import {
   IonBackButton,
   IonButton,
   IonButtons,
-  IonCard,
   IonCardContent,
   IonCardHeader,
   IonCardSubtitle,
@@ -30,6 +29,8 @@ import { filterListObj } from "../../services/filterList";
 import { RouteComponentProps, useHistory, useLocation } from "react-router";
 import BodyDamageAdd from "./BodyDamageAddModal/BodyDamageAdd";
 import BodyDamage from "./BodyDamage";
+import ItemNotFound from "../../components/List/ItemNotFound";
+import FrottoCard from "../../components/UI/FrottoCard";
 import "./BodyDamages.css";
 
 interface BodyDamageDetail
@@ -131,6 +132,7 @@ const BodyDamages: React.FC<BodyDamageDetail> = ({ match }) => {
           <IonButtons slot="end">
             <IonButton
               className="app-primary-btn body-damages-add-btn"
+              aria-label={TEXT.addCarDamage}
               disabled={isLoading}
               onClick={(event) => {
                 event.preventDefault();
@@ -162,7 +164,7 @@ const BodyDamages: React.FC<BodyDamageDetail> = ({ match }) => {
               </p>
             </div>
 
-            <IonCard className="app-panel-card">
+            <FrottoCard>
               <IonCardHeader className="app-panel-header">
                 <div className="app-soft-icon app-soft-icon--warning">
                   <IonIcon icon={warningOutline} />
@@ -197,15 +199,15 @@ const BodyDamages: React.FC<BodyDamageDetail> = ({ match }) => {
                 </div>
 
                 {!isLoading && activeDoneList.active.length === 0 && (
-                  <div className="app-empty-state">
-                    <strong>{TEXT.carDamagesActive}</strong>
-                    <span>Nenhum dano pendente encontrado.</span>
-                  </div>
+                  <ItemNotFound
+                    title={TEXT.carDamagesActive}
+                    description="Nenhum dano pendente encontrado."
+                  />
                 )}
               </IonCardContent>
-            </IonCard>
+            </FrottoCard>
 
-            <IonCard className="app-panel-card">
+            <FrottoCard>
               <IonCardHeader className="app-panel-header">
                 <div className="app-soft-icon app-soft-icon--success">
                   <IonIcon icon={checkmarkDoneOutline} />
@@ -240,13 +242,13 @@ const BodyDamages: React.FC<BodyDamageDetail> = ({ match }) => {
                 </div>
 
                 {!isLoading && activeDoneList.done.length === 0 && (
-                  <div className="app-empty-state">
-                    <strong>{TEXT.carDamagesDone}</strong>
-                    <span>Nenhum dano finalizado encontrado.</span>
-                  </div>
+                  <ItemNotFound
+                    title={TEXT.carDamagesDone}
+                    description="Nenhum dano finalizado encontrado."
+                  />
                 )}
               </IonCardContent>
-            </IonCard>
+            </FrottoCard>
           </section>
         </div>
       </IonContent>

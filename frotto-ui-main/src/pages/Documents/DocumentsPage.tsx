@@ -1,8 +1,6 @@
 import {
-  IonBadge,
   IonButton,
   IonButtons,
-  IonCard,
   IonCardContent,
   IonCardHeader,
   IonCardSubtitle,
@@ -19,8 +17,6 @@ import {
   IonMenuButton,
   IonModal,
   IonProgressBar,
-  IonSelect,
-  IonSelectOption,
   IonTextarea,
   IonTitle,
   IonToolbar,
@@ -29,11 +25,16 @@ import {
 } from "@ionic/react";
 import {
   add,
+  alertCircleOutline,
+  clipboardOutline,
   closeCircleOutline,
+  constructOutline,
   documentTextOutline,
   filterOutline,
+  receiptOutline,
   refreshOutline,
   trashOutline,
+  walletOutline,
 } from "ionicons/icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DriverPendencyModel } from "../../constants/CarModels";
@@ -64,6 +65,12 @@ import { maskPhone, sanitizeDigits } from "../../services/profileFormat";
 import endpoints from "../../constants/endpoints";
 import api from "../../services/axios/axios";
 import { resolveApiUrl } from "../../services/resolveApiUrl";
+import ItemNotFound from "../../components/List/ItemNotFound";
+import FrottoBadge, { FrottoBadgeVariant } from "../../components/UI/FrottoBadge";
+import FrottoCard from "../../components/UI/FrottoCard";
+import FormInput from "../../components/Form/FormInput";
+import FormSelect from "../../components/Form/FormSelect";
+import FormInputLabel from "../../components/Form/FormInputLabel";
 import "./DocumentsPage.css";
 
 const AUTOCOMPLETE_DELAY = 300;
@@ -107,12 +114,34 @@ type ChecklistTires = {
 const MIN_EMERGENCY_CONTACTS = 2;
 const DOCUMENTS_DEV_LOG = process.env.NODE_ENV === "development";
 
-const documentToneClass = (status: DocumentStatus): string => {
-  if (status === "DRAFT") return "app-soft-icon--warning";
-  if (status === "FINAL" || status === "SENT") return "app-soft-icon--success";
-  if (status === "CANCELED") return "app-soft-icon--danger";
-  return "";
+// Mapeamento oficial de status (DESIGN_SYSTEM.md seção 22): rascunho é
+// atenção (ainda incompleto), finalizado/enviado são estágios positivos
+// distintos do mesmo fluxo (não usar Danger aqui), cancelado é um estado
+// morto/inativo, não um erro nem uma ação destrutiva.
+const DOCUMENT_STATUS_VARIANT: Record<DocumentStatus, FrottoBadgeVariant> = {
+  DRAFT: "warning",
+  FINAL: "success",
+  SENT: "info",
+  CANCELED: "neutral",
 };
+
+const DOCUMENT_STATUS_TONE_CLASS: Record<DocumentStatus, string> = {
+  DRAFT: "app-soft-icon--warning",
+  FINAL: "app-soft-icon--success",
+  SENT: "app-soft-icon--info",
+  CANCELED: "app-soft-icon--neutral",
+};
+
+const DOCUMENT_TYPE_ICON: Record<DocumentType, string> = {
+  MULTA: alertCircleOutline,
+  MANUTENCAO_COMPARTILHADA: constructOutline,
+  RECIBO_ALUGUEL: receiptOutline,
+  CONFISSAO_DIVIDA: walletOutline,
+  ENTREGA_DEVOLUCAO_CHECKLIST: clipboardOutline,
+};
+
+const documentToneClass = (status: DocumentStatus): string =>
+  DOCUMENT_STATUS_TONE_CLASS[status] || "";
 
 const DocumentsPage: React.FC = () => {
   const { showErrorAlert } = useAlert();
@@ -131,6 +160,10 @@ const DocumentsPage: React.FC = () => {
   const [filterCar, setFilterCar] = useState<CarSearchModel | null>(null);
   const [filterDriverOptions, setFilterDriverOptions] = useState<DriverSearchModel[]>([]);
   const [filterCarOptions, setFilterCarOptions] = useState<CarSearchModel[]>([]);
+
+  const hasActiveFilters = Boolean(
+    filterType || filterStatus || filterDriver || filterCar
+  );
 
   const [viewDocument, setViewDocument] = useState<DocumentModel | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -1926,7 +1959,7 @@ const DocumentsPage: React.FC = () => {
               </p>
             </div>
 
-            <IonCard className="documents-filter-card app-panel-card app-panel-card--soft">
+            <FrottoCard className="documents-filter-card app-panel-card--soft">
               <IonCardHeader className="app-panel-header">
                 <div className="app-soft-icon">
                   <IonIcon icon={filterOutline} />
@@ -2007,20 +2040,29 @@ const DocumentsPage: React.FC = () => {
                   </IonButton>
                 </div>
               </IonCardContent>
-            </IonCard>
+            </FrottoCard>
 
             {!isLoading && !documents.length ? (
-              <div className="app-empty-state documents-empty-state">
-                <strong>Nenhum documento encontrado.</strong>
-                <span>Ajuste os filtros ou crie um novo documento.</span>
-              </div>
+              hasActiveFilters ? (
+                <ItemNotFound
+                  title="Nenhum resultado encontrado"
+                  description="Ajuste os filtros para ver outros documentos."
+                />
+              ) : (
+                <ItemNotFound
+                  title="Nenhum documento cadastrado"
+                  description="Crie o primeiro documento para começar."
+                  actionLabel="Novo Documento"
+                  onAction={openWizard}
+                />
+              )
             ) : (
               <div className="documents-result-list">
                 {documents.map((item) => (
-                  <IonCard key={`doc-${item.id}`} className="documents-result-card app-panel-card">
+                  <FrottoCard key={`doc-${item.id}`} className="documents-result-card">
                     <IonCardHeader className="app-panel-header documents-result-header">
                       <div className={`app-soft-icon ${documentToneClass(item.status)}`.trim()}>
-                        <IonIcon icon={documentTextOutline} />
+                        <IonIcon icon={DOCUMENT_TYPE_ICON[item.type] || documentTextOutline} />
                       </div>
                       <div className="app-panel-header__content">
                         <IonCardTitle className="app-panel-title">
@@ -2030,9 +2072,9 @@ const DocumentsPage: React.FC = () => {
                           {formatDate(item.createdAt)}
                         </IonCardSubtitle>
                       </div>
-                      <IonBadge color={resolveStatusColor(item.status)}>
+                      <FrottoBadge variant={DOCUMENT_STATUS_VARIANT[item.status] || "neutral"}>
                         {resolveStatusLabel(item.status)}
-                      </IonBadge>
+                      </FrottoBadge>
                     </IonCardHeader>
                     <IonCardContent>
                       <div className="documents-result-meta">
@@ -2084,12 +2126,12 @@ const DocumentsPage: React.FC = () => {
                         </IonButton>
                       </div>
                     </IonCardContent>
-                  </IonCard>
+                  </FrottoCard>
                 ))}
               </div>
             )}
 
-            <IonCard className="documents-pagination-card app-panel-card app-panel-card--soft">
+            <FrottoCard className="documents-pagination-card app-panel-card--soft">
               <IonCardContent>
                 <div className="app-actions-row app-actions-row--between documents-pagination-controls">
                   <IonButton
@@ -2111,7 +2153,7 @@ const DocumentsPage: React.FC = () => {
                   </IonButton>
                 </div>
               </IonCardContent>
-            </IonCard>
+            </FrottoCard>
           </section>
         </div>
       </IonContent>
@@ -2127,7 +2169,7 @@ const DocumentsPage: React.FC = () => {
           <IonToolbar className="app-toolbar-clean">
             <IonTitle>Documento #{viewDocument?.id}</IonTitle>
             <IonButtons slot="end">
-              <IonButton onClick={() => setIsViewModalOpen(false)}>
+              <IonButton aria-label="Fechar" onClick={() => setIsViewModalOpen(false)}>
                 <IonIcon icon={closeCircleOutline} slot="icon-only" />
               </IonButton>
             </IonButtons>
@@ -2135,7 +2177,7 @@ const DocumentsPage: React.FC = () => {
         </IonHeader>
         <IonContent>
           <div className="app-shell app-shell--compact">
-            <IonCard className="app-panel-card">
+            <FrottoCard>
               <IonCardContent>
                 <p><strong>Tipo:</strong> {resolveTypeLabel(viewDocument?.type || "MULTA")}</p>
                 <p><strong>Status:</strong> {resolveStatusLabel(viewDocument?.status || "DRAFT")}</p>
@@ -2145,7 +2187,7 @@ const DocumentsPage: React.FC = () => {
                 <p><strong>Atualizado:</strong> {formatDate(viewDocument?.updatedAt)}</p>
                 <p><strong>Anexos:</strong> {viewDocument?.attachments?.length || 0}</p>
               </IonCardContent>
-            </IonCard>
+            </FrottoCard>
           </div>
         </IonContent>
         <IonFooter>
@@ -2169,7 +2211,7 @@ const DocumentsPage: React.FC = () => {
           <IonToolbar className="app-toolbar-clean">
             <IonTitle>{savedDocument?.id ? "Editar Documento" : "Novo Documento"} - Passo {wizardStep}/3</IonTitle>
             <IonButtons slot="end">
-              <IonButton onClick={closeWizard}>
+              <IonButton aria-label="Fechar" onClick={closeWizard}>
                 <IonIcon icon={closeCircleOutline} slot="icon-only" />
               </IonButton>
             </IonButtons>
@@ -2178,7 +2220,7 @@ const DocumentsPage: React.FC = () => {
         <IonContent>
           <div className="app-shell app-shell--compact documents-shell">
             {wizardStep === 1 && (
-              <IonCard className="app-panel-card">
+              <FrottoCard>
                 <IonCardContent>
                   <h3>Passo 1 - Motorista/Carro</h3>
                   <Autocomplete
@@ -2240,11 +2282,11 @@ const DocumentsPage: React.FC = () => {
                     }}
                   />
                 </IonCardContent>
-              </IonCard>
+              </FrottoCard>
             )}
 
             {wizardStep === 2 && (
-              <IonCard className="app-panel-card">
+              <FrottoCard>
                 <IonCardContent>
                   <h3>Passo 2 - Tipo</h3>
                   <SelectField
@@ -2257,11 +2299,11 @@ const DocumentsPage: React.FC = () => {
                     <p className="documents-warning">Esse tipo exige vínculo com carro.</p>
                   )}
                 </IonCardContent>
-              </IonCard>
+              </FrottoCard>
             )}
 
             {wizardStep === 3 && (
-              <IonCard className="app-panel-card">
+              <FrottoCard>
                 <IonCardContent>
                   <h3>Passo 3 - Formulário</h3>
                   {renderTypeFields()}
@@ -2290,7 +2332,7 @@ const DocumentsPage: React.FC = () => {
                     </IonItem>
                   )}
                 </IonCardContent>
-              </IonCard>
+              </FrottoCard>
             )}
           </div>
         </IonContent>
@@ -2356,42 +2398,57 @@ type FieldProps = {
 };
 
 const TextField: React.FC<FieldProps> = ({ label, value, onChange }) => (
-  <IonItem>
-    <IonLabel position="stacked">{label}</IonLabel>
-    <IonInput value={value || ""} onIonChange={(e) => onChange(e.detail.value || "")} />
-  </IonItem>
+  <FormInput
+    label={label}
+    initialValue={value || ""}
+    changeCallback={(v: string) => onChange(v || "")}
+  />
 );
 
+// Mantém a máscara decimal existente (sanitiza a cada tecla, formata no blur)
+// — não usa FormCurrency porque essa máscara já é diferente (não é uma
+// entrada monetária "R$" mascarada por dígito) e trocar mudaria o
+// comportamento de digitação. Só o invólucro visual foi alinhado ao Form*.
 const DecimalField: React.FC<FieldProps> = ({ label, value, onChange }) => (
-  <IonItem>
-    <IonLabel position="stacked">{label}</IonLabel>
-    <IonInput
-      type="text"
-      inputmode="decimal"
-      value={value || ""}
-      onIonChange={(e) => onChange(sanitizeDecimalInput(e.detail.value || ""))}
-      onIonBlur={() => onChange(formatDecimalInput(value || ""))}
-    />
-  </IonItem>
+  <div className="app-form-field">
+    <IonItem className="app-form-item">
+      <FormInputLabel name={label} />
+      <IonInput
+        type="text"
+        inputmode="decimal"
+        class="ion-text-end"
+        color="primary"
+        value={value || ""}
+        onIonChange={(e) => onChange(sanitizeDecimalInput(e.detail.value || ""))}
+        onIonBlur={() => onChange(formatDecimalInput(value || ""))}
+      />
+    </IonItem>
+  </div>
 );
 
 const IntegerField: React.FC<FieldProps> = ({ label, value, onChange }) => (
-  <IonItem>
-    <IonLabel position="stacked">{label}</IonLabel>
-    <IonInput
-      type="number"
-      inputmode="numeric"
-      value={value || ""}
-      onIonChange={(e) => onChange((e.detail.value || "").replace(/\D+/g, ""))}
-    />
-  </IonItem>
+  <div className="app-form-field">
+    <IonItem className="app-form-item">
+      <FormInputLabel name={label} />
+      <IonInput
+        type="number"
+        inputmode="numeric"
+        class="ion-text-end"
+        color="primary"
+        value={value || ""}
+        onIonChange={(e) => onChange((e.detail.value || "").replace(/\D+/g, ""))}
+      />
+    </IonItem>
+  </div>
 );
 
 const AreaField: React.FC<FieldProps> = ({ label, value, onChange }) => (
-  <IonItem>
-    <IonLabel position="stacked">{label}</IonLabel>
-    <IonTextarea value={value || ""} autoGrow onIonChange={(e) => onChange(e.detail.value || "")} />
-  </IonItem>
+  <div className="app-form-field">
+    <IonItem className="app-form-item app-form-item--textarea">
+      <FormInputLabel name={label} />
+      <IonTextarea value={value || ""} autoGrow onIonChange={(e) => onChange(e.detail.value || "")} />
+    </IonItem>
+  </div>
 );
 
 const SelectField: React.FC<FieldProps & { options: Array<{ value: string; label: string }> }> = ({
@@ -2400,16 +2457,12 @@ const SelectField: React.FC<FieldProps & { options: Array<{ value: string; label
   onChange,
   options,
 }) => (
-  <IonItem>
-    <IonLabel position="stacked">{label}</IonLabel>
-    <IonSelect value={value || ""} onIonChange={(event) => onChange(event.detail.value)}>
-      {options.map((option) => (
-        <IonSelectOption key={`${label}-${option.value}`} value={option.value}>
-          {option.label}
-        </IonSelectOption>
-      ))}
-    </IonSelect>
-  </IonItem>
+  <FormSelect
+    label={label}
+    initialValue={value || ""}
+    options={options}
+    changeCallback={(v: string) => onChange(v)}
+  />
 );
 
 const Autocomplete = <T,>({
@@ -2430,15 +2483,17 @@ const Autocomplete = <T,>({
   onClear: () => void;
 }) => (
   <div className="documents-autocomplete">
-    <IonItem>
-      <IonLabel position="stacked">{label}</IonLabel>
-      <IonInput value={value} onIonChange={(event) => onChange(event.detail.value || "")} />
-      {value ? (
-        <IonButton fill="clear" slot="end" onClick={onClear}>
-          Limpar
-        </IonButton>
-      ) : null}
-    </IonItem>
+    <div className="app-form-field">
+      <IonItem className="app-form-item">
+        <FormInputLabel name={label} />
+        <IonInput value={value} onIonChange={(event) => onChange(event.detail.value || "")} />
+        {value ? (
+          <IonButton fill="clear" slot="end" onClick={onClear}>
+            Limpar
+          </IonButton>
+        ) : null}
+      </IonItem>
+    </div>
     {options.length > 0 && (
       <IonList className="documents-autocomplete-list">
         {options.map((item, index) => (
@@ -2457,13 +2512,6 @@ function resolveTypeLabel(type: DocumentType): string {
 
 function resolveStatusLabel(status: DocumentStatus): string {
   return DOCUMENT_STATUSES.find((item) => item.value === status)?.label || status;
-}
-
-function resolveStatusColor(status: DocumentStatus): "warning" | "success" | "medium" | "danger" {
-  if (status === "DRAFT") return "warning";
-  if (status === "FINAL") return "success";
-  if (status === "SENT") return "medium";
-  return "danger";
 }
 
 function sanitizeChecklistCustomKey(value: any): string {

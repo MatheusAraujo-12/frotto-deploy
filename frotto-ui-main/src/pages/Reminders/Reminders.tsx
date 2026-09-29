@@ -23,6 +23,7 @@ import { ReminderModel } from "../../constants/CarModels";
 import { filterListObj } from "../../services/filterList";
 import { RouteComponentProps, useHistory, useLocation } from "react-router";
 import ReminderAdd from "./ReminderAddModal/reminderAdd";
+import ItemNotFound from "../../components/List/ItemNotFound";
 import { add, notificationsOutline } from "ionicons/icons";
 import "./Reminders.css";
 
@@ -108,6 +109,7 @@ const Reminders: React.FC<ReminderDetail> = ({ match }) => {
           <IonButtons slot="end">
             <IonButton
               className="app-primary-btn reminders-add-btn"
+              aria-label={`${TEXT.new} ${TEXT.reminder}`}
               onClick={() => {
                 setModalReminderValue({});
                 setIsModalOpen(true);
@@ -145,6 +147,7 @@ const Reminders: React.FC<ReminderDetail> = ({ match }) => {
                     key={reminder.id ?? `reminder-${index}`}
                     button
                     detail={false}
+                    lines="none"
                     className="reminder-list-item"
                     onClick={() => {
                       setModalReminderValue(reminder);
@@ -172,10 +175,10 @@ const Reminders: React.FC<ReminderDetail> = ({ match }) => {
             </div>
 
             {!isLoading && filteredList.length === 0 && (
-              <div className="app-empty-state">
-                <strong>{TEXT.noReminders}</strong>
-                <span>Nenhum lembrete encontrado para os filtros atuais.</span>
-              </div>
+              <ItemNotFound
+                title={TEXT.noReminders}
+                description="Nenhum lembrete encontrado para os filtros atuais."
+              />
             )}
           </section>
         </div>

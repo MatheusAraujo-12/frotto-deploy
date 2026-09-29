@@ -1,18 +1,9 @@
 import {
-  IonButton,
-  IonButtons,
-  IonCard,
   IonCardContent,
   IonCardHeader,
   IonCardSubtitle,
   IonCardTitle,
-  IonContent,
-  IonHeader,
   IonIcon,
-  IonPage,
-  IonProgressBar,
-  IonTitle,
-  IonToolbar,
   useIonRouter,
 } from "@ionic/react";
 import { carSportOutline } from "ionicons/icons";
@@ -43,6 +34,8 @@ import FormInput from "../../../components/Form/FormInput";
 import FormSelect from "../../../components/Form/FormSelect";
 import FormDeleteButton from "../../../components/Form/FormDeleteButton";
 import FormCurrency from "../../../components/Form/FormCurrency";
+import FrottoCard from "../../../components/UI/FrottoCard";
+import FrottoModal from "../../../components/UI/FrottoModal";
 import {
   buildCarLegacyName,
   resolveCarIdentity,
@@ -131,35 +124,18 @@ const CarAdd: React.FC<CarAddModalProps> = ({ closeModal, initialValues }) => {
   };
 
   return (
-    <IonPage id="car-add-page">
-      <IonHeader className="ion-no-border">
-        <IonToolbar className="app-toolbar-clean">
-          <IonButtons slot="start">
-            <IonButton
-              fill="clear"
-              className="app-outline-btn"
-              onClick={() => closeModal()}
-            >
-              {TEXT.cancel}
-            </IonButton>
-          </IonButtons>
-          <IonTitle>{TEXT.addCar}</IonTitle>
-          <IonButtons slot="end">
-            <IonButton
-              className="app-primary-btn"
-              disabled={isLoading}
-              onClick={handleSubmit(onSubmit)}
-            >
-              {TEXT.save}
-            </IonButton>
-          </IonButtons>
-          {isLoading && <IonProgressBar type="indeterminate"></IonProgressBar>}
-        </IonToolbar>
-      </IonHeader>
-      <IonContent>
+    <FrottoModal
+      pageId="car-add-page"
+      title={formInitial.id ? TEXT.editCar : TEXT.newCar}
+      onCancel={() => closeModal()}
+      primaryLabel={TEXT.save}
+      onPrimaryAction={handleSubmit(onSubmit)}
+      primaryDisabled={isLoading}
+      isLoading={isLoading}
+    >
         <div className="app-shell app-shell--compact">
           <section className="app-section">
-            <IonCard className="app-panel-card">
+            <FrottoCard>
               <IonCardHeader className="app-panel-header">
                 <div className="app-soft-icon">
                   <IonIcon icon={carSportOutline} />
@@ -324,7 +300,7 @@ const CarAdd: React.FC<CarAddModalProps> = ({ closeModal, initialValues }) => {
                   />
                 </form>
               </IonCardContent>
-            </IonCard>
+            </FrottoCard>
 
             {formInitial.id && (
               <div>
@@ -337,8 +313,7 @@ const CarAdd: React.FC<CarAddModalProps> = ({ closeModal, initialValues }) => {
             )}
           </section>
         </div>
-      </IonContent>
-    </IonPage>
+    </FrottoModal>
   );
 };
 
