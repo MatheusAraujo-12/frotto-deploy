@@ -26,6 +26,10 @@ public class Car implements Serializable {
     @Column(name = "id")
     private Long id;
 
+    @Version
+    @Column(name = "row_version", nullable = false)
+    private Long rowVersion;
+
     @Size(max = 60)
     @Column(name = "name", length = 60)
     private String name;
@@ -71,6 +75,42 @@ public class Car implements Serializable {
 
     @Column(name = "active")
     private Boolean active;
+
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    @Column(name = "deleted", nullable = false)
+    private Boolean deleted = false;
+    public Boolean getDeleted() { return deleted; }
+    public void setDeleted(Boolean value) { deleted = value; }
+
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+    public Instant getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(Instant value) { deletedAt = value; }
+
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    @Column(name = "deleted_by_user_id")
+    private Long deletedByUserId;
+    public Long getDeletedByUserId() { return deletedByUserId; }
+    public void setDeletedByUserId(Long value) { deletedByUserId = value; }
+
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    @Column(name = "restored_at")
+    private Instant restoredAt;
+    public Instant getRestoredAt() { return restoredAt; }
+    public void setRestoredAt(Instant value) { restoredAt = value; }
+
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    @Column(name = "restored_by_user_id")
+    private Long restoredByUserId;
+    public Long getRestoredByUserId() { return restoredByUserId; }
+    public void setRestoredByUserId(Long value) { restoredByUserId = value; }
+
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    @Column(name = "restore_reason", length = 500)
+    private String restoreReason;
+    public String getRestoreReason() { return restoreReason; }
+    public void setRestoreReason(String value) { restoreReason = value; }
 
     @Enumerated(EnumType.STRING)
     @Column(name = "admin_status", length = 32)
