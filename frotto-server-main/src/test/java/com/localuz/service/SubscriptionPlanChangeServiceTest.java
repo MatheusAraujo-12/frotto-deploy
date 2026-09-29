@@ -1132,6 +1132,46 @@ class SubscriptionPlanChangeServiceTest {
     }
 
     @Test
+    void renewalCompetencyAnchoredMinutesBeforeTheEffectiveDateStillPromotesTheDowngrade() {
+        // Competency derived from startDate (date_created) + sequence; effectiveAt from next_payment_date.
+        Plan gold = plan(1L, PlanCode.GOLD, 16, 30, "79.90");
+        Plan bronze = plan(2L, PlanCode.BRONZE, 3, 5, "15.90");
+        Subscription subscription = subscription(32L, gold, SubscriptionStatus.ACTIVE, NOW, "pre-21", "79.90");
+        scheduleDowngrade(subscription, bronze, "15.90");
+        Instant effectiveAt = NOW.minusSeconds(3600);
+        subscription.setPlanChangeEffectiveAt(effectiveAt);
+        when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(subscription));
+        when(subscriptionRepository.findById(32L)).thenReturn(Optional.of(subscription));
+        when(financialCoverage.evaluate(eq(subscription), eq(NOW))).thenReturn(new FinancialCoverageEvaluation(true, CommercialState.ACTIVE,
+            101L, effectiveAt.minusSeconds(25 * 60), effectiveAt.plus(Duration.ofDays(30)), null, Reason.PAID));
+
+        service.effectuateDueChangesForUser(1L);
+
+        assertThat(subscription.getPlan().getCode()).isEqualTo(PlanCode.BRONZE);
+        assertThat(subscription.getPendingPlan()).isNull();
+    }
+
+    @Test
+    void theCompetencyPaidBeforeTheDowngradeNeverPromotesItDespiteTheTolerance() {
+        Plan gold = plan(1L, PlanCode.GOLD, 16, 30, "79.90");
+        Plan bronze = plan(2L, PlanCode.BRONZE, 3, 5, "15.90");
+        Subscription subscription = subscription(33L, gold, SubscriptionStatus.ACTIVE, NOW, "pre-22", "79.90");
+        scheduleDowngrade(subscription, bronze, "15.90");
+        Instant effectiveAt = NOW.minusSeconds(3600);
+        subscription.setPlanChangeEffectiveAt(effectiveAt);
+        when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(subscription));
+        when(subscriptionRepository.findById(33L)).thenReturn(Optional.of(subscription));
+        // Still the previous (GOLD) competency: started ~30 days before the effective date.
+        when(financialCoverage.evaluate(eq(subscription), eq(NOW))).thenReturn(new FinancialCoverageEvaluation(true, CommercialState.ACTIVE,
+            102L, effectiveAt.minus(Duration.ofDays(30)), effectiveAt.plus(Duration.ofDays(2)), null, Reason.PAID));
+
+        service.effectuateDueChangesForUser(1L);
+
+        assertThat(subscription.getPlan().getCode()).isEqualTo(PlanCode.GOLD);
+        assertThat(subscription.getPendingPlan().getCode()).isEqualTo(PlanCode.BRONZE);
+    }
+
+    @Test
     void chargebackOrRefundEvidenceAtEffectuationTimeNeverPromotesThePendingPlan() {
         Plan gold = plan(1L, PlanCode.GOLD, 16, 30, "79.90");
         Plan bronze = plan(2L, PlanCode.BRONZE, 3, 5, "15.90");

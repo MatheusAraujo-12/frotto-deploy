@@ -16,6 +16,7 @@ import com.localuz.web.rest.errors.BillingPlanChangeNoOpException;
 import com.localuz.web.rest.errors.BillingPlanUpgradeInProgressException;
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.EnumSet;
 import java.util.List;
@@ -51,6 +52,8 @@ public class SubscriptionPlanChangeSteps {
     static final List<SubscriptionStatus> ELIGIBLE_STATUSES = List.of(SubscriptionStatus.ACTIVE);
     static final Set<SubscriptionPlanUpgradeStatus> OPEN_UPGRADE_STATUSES =
         EnumSet.of(SubscriptionPlanUpgradeStatus.AWAITING_PAYMENT, SubscriptionPlanUpgradeStatus.APPLYING);
+    /** See effectuateIfDue: absorbs date_created vs next_payment_date drift; far below one monthly cycle. */
+    static final Duration RENEWAL_ANCHOR_TOLERANCE = Duration.ofDays(1);
 
     private final UserRepository userRepository;
     private final SubscriptionRepository subscriptionRepository;
@@ -231,6 +234,13 @@ public class SubscriptionPlanChangeSteps {
      * atingiu a data") - a renewal that failed, is still pending, or reflects a chargeback/refund
      * (any Reason other than PAID) leaves the pending change exactly as scheduled, never applied
      * and never dropped.
+     *
+     * The two dates come from different provider anchors: effectiveAt is the preapproval's
+     * next_payment_date, while a renewal competency is derived from the subscription's startDate
+     * (preapproval date_created) + sequence (MercadoPagoPaymentInvoiceTemporalEnricher). They may
+     * differ by minutes/hours, which with a strict comparison would push the downgrade a whole
+     * cycle late. RENEWAL_ANCHOR_TOLERANCE absorbs that drift while staying far below one monthly
+     * cycle, so the competency still being paid BEFORE the change can never qualify.
      */
     @Transactional
     public Subscription effectuateIfDue(Long subscriptionId, Instant now) {
@@ -249,7 +259,7 @@ public class SubscriptionPlanChangeSteps {
         FinancialCoverageEvaluation evaluation = financialCoverage.evaluate(subscription, now);
         boolean renewedOnOrAfterEffectiveDate = evaluation.reason() == FinancialCoverageEvaluation.Reason.PAID
             && evaluation.coverageStart() != null
-            && !evaluation.coverageStart().isBefore(subscription.getPlanChangeEffectiveAt());
+            && !evaluation.coverageStart().isBefore(subscription.getPlanChangeEffectiveAt().minus(RENEWAL_ANCHOR_TOLERANCE));
         if (!renewedOnOrAfterEffectiveDate) {
             return subscription;
         }
