@@ -61,23 +61,26 @@ public class SubscriptionPlanChangeSteps {
     private final SubscriptionFinancialCoverageService financialCoverage;
     private final SubscriptionPlanUpgradeRepository upgradeRepository;
     private final Clock clock;
+    private final com.localuz.repository.CarRepository cars;
+
 
     @Autowired
     public SubscriptionPlanChangeSteps(UserRepository userRepository, SubscriptionRepository subscriptionRepository,
         RecurringSubscriptionGuardService recurringSubscriptionGuard, SubscriptionFinancialCoverageService financialCoverage,
-        SubscriptionPlanUpgradeRepository upgradeRepository) {
-        this(userRepository, subscriptionRepository, recurringSubscriptionGuard, financialCoverage, upgradeRepository, Clock.systemUTC());
+        SubscriptionPlanUpgradeRepository upgradeRepository, com.localuz.repository.CarRepository cars) {
+        this(userRepository, subscriptionRepository, recurringSubscriptionGuard, financialCoverage, upgradeRepository, cars, Clock.systemUTC());
     }
 
     SubscriptionPlanChangeSteps(UserRepository userRepository, SubscriptionRepository subscriptionRepository,
         RecurringSubscriptionGuardService recurringSubscriptionGuard, SubscriptionFinancialCoverageService financialCoverage,
-        SubscriptionPlanUpgradeRepository upgradeRepository, Clock clock) {
+        SubscriptionPlanUpgradeRepository upgradeRepository, com.localuz.repository.CarRepository cars, Clock clock) {
         this.userRepository = userRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.recurringSubscriptionGuard = recurringSubscriptionGuard;
         this.financialCoverage = financialCoverage;
         this.upgradeRepository = upgradeRepository;
         this.clock = clock;
+        this.cars = cars;
     }
 
     /**
@@ -110,6 +113,13 @@ public class SubscriptionPlanChangeSteps {
             throw new BillingPlanChangeAmbiguousSubscriptionException();
         }
         Subscription subscription = candidates.get(0);
+        if (subscription.getPlanChangeOperationUntil() != null && subscription.getPlanChangeOperationUntil().isAfter(clock.instant())) {
+            throw new com.localuz.web.rest.errors.BillingDowngradeUndoConflictException();
+        }
+        if (DynamicFleetBillingSteps.locked(subscription)) {
+            throw new BadRequestAlertException("A próxima renovação já está fechada. Aguarde a confirmação da cobrança para mudar o plano.",
+                ENTITY_NAME, "BILLING_RENEWAL_LOCKED");
+        }
         if (!ELIGIBLE_STATUSES.contains(subscription.getStatus())) {
             throw new BadRequestAlertException("Subscription status does not allow a plan change", ENTITY_NAME, "statusnoteligible");
         }
@@ -145,6 +155,7 @@ public class SubscriptionPlanChangeSteps {
     @Transactional
     public Subscription markPlanChangeIntent(Long userId, Plan targetPlan, BigDecimal price, int vehicleCount) {
         Subscription subscription = lockAndValidateForChange(userId);
+        assertFleetCount(userId, vehicleCount);
         Plan currentPlan = subscription.getPlan();
         if (currentPlan.getCode() == targetPlan.getCode()) {
             throw new BillingPlanChangeNoOpException();
@@ -168,10 +179,13 @@ public class SubscriptionPlanChangeSteps {
                 ENTITY_NAME, "missingperiodend");
         }
         subscription.setPendingPlan(targetPlan);
+        subscription.setPlanChangeProviderConfirmed(false);
         subscription.setPendingContractedPrice(price);
         subscription.setPendingContractedVehicleCount(vehicleCount);
         subscription.setPlanChangeEffectiveAt(effectiveAt);
         subscription.setPlanChangeRequestedAt(clock.instant());
+        subscription.setPlanChangeToken(java.util.UUID.randomUUID().toString());
+        subscription.setPlanChangeOperationUntil(clock.instant().plus(Duration.ofMinutes(5)));
         return subscriptionRepository.save(subscription);
     }
 
@@ -183,46 +197,99 @@ public class SubscriptionPlanChangeSteps {
      * by-leaving-state-as-is philosophy as SubscriptionCancellationSteps#resolveAfterUnconfirmedResponse.
      */
     @Transactional
-    public void rollbackPendingChange(Long subscriptionId) {
-        subscriptionRepository.findById(subscriptionId).ifPresent(subscription -> {
-            clearPending(subscription);
-            subscriptionRepository.save(subscription);
-        });
+    public void rollbackPendingChange(Long userId, Long subscriptionId, String token) {
+        userRepository.findByIdForBillingCheckoutLock(userId).orElseThrow();
+        Subscription subscription = subscriptionRepository.findByIdForUpdate(subscriptionId).orElseThrow();
+        if (token == null || !Objects.equals(token, subscription.getPlanChangeToken())) {
+            throw new com.localuz.web.rest.errors.BillingDowngradeUndoConflictException();
+        }
+        clearPending(subscription);
+        subscriptionRepository.saveAndFlush(subscription);
     }
 
     /**
      * 5G.12.1 "Desfazer downgrade", step 1: locks and validates that there IS a scheduled downgrade
-     * to undo and no upgrade payment is open. Nothing is written - the pending fields are only
+     * to undo and no upgrade payment is open. A bounded operation lease prevents racing provider writes; the pending fields are only
      * cleared by clearUndoneDowngrade, after the provider confirmed the restored amount.
      */
     @Transactional
     public Subscription lockForUndoDowngrade(Long userId) {
         Subscription subscription = lockAndValidateForChange(userId);
         if (subscription.getPendingPlan() == null) {
-            throw new BadRequestAlertException("There is no scheduled downgrade to undo", ENTITY_NAME, "nopendingdowngrade");
+            if (!isPendingCleared(subscription)) throw new com.localuz.web.rest.errors.BillingDowngradeUndoConflictException();
+            return subscription;
         }
         if (hasOpenUpgrade(subscription.getId())) {
             throw new BillingPlanUpgradeInProgressException();
         }
+        subscription.setPlanChangeProviderConfirmed(false);
+        // Fence each operation independently; a stale completion cannot clear a newer attempt.
+        subscription.setPlanChangeToken(java.util.UUID.randomUUID().toString());
+        subscription.setPlanChangeOperationUntil(clock.instant().plus(Duration.ofMinutes(5)));
+        subscriptionRepository.saveAndFlush(subscription);
         return subscription;
+    }
+
+    /** Release after HTTP completes. A process crash leaves a bounded lease for safe recovery. */
+    @Transactional
+    public void releasePlanChangeOperation(Long subscriptionId, String token) {
+        Subscription subscription = subscriptionRepository.findByIdForUpdate(subscriptionId).orElseThrow();
+        if (Objects.equals(token, subscription.getPlanChangeToken())) {
+            subscription.setPlanChangeOperationUntil(null);
+            subscriptionRepository.saveAndFlush(subscription);
+        }
+    }
+
+    void assertFleetCount(Long userId, int expected) {
+        if (cars.countBillableByUserId(userId) != expected) {
+            throw new BadRequestAlertException("A quantidade de veículos mudou. Atualize a cotação e tente novamente.", ENTITY_NAME, "BILLING_FLEET_QUOTE_CONFLICT");
+        }
+    }
+
+    @Transactional
+    public void confirmScheduledDowngrade(Long subscriptionId, String token) {
+        Subscription subscription = subscriptionRepository.findByIdForUpdate(subscriptionId).orElseThrow();
+        if (subscription.getPendingPlan() == null || !Objects.equals(token, subscription.getPlanChangeToken())) {
+            throw new com.localuz.web.rest.errors.BillingDowngradeUndoConflictException();
+        }
+        subscription.setPlanChangeProviderConfirmed(true);
+        subscriptionRepository.saveAndFlush(subscription);
+    }
+
+    @Transactional
+    public void confirmAlreadyUndone(Long userId, Long subscriptionId, Long currentPlanId, BigDecimal price) {
+        userRepository.findByIdForBillingCheckoutLock(userId).orElseThrow();
+        Subscription subscription = subscriptionRepository.findByIdForUpdate(subscriptionId).orElseThrow();
+        if (!isPendingCleared(subscription) || !Objects.equals(subscription.getPlan().getId(), currentPlanId)
+            || !Objects.equals(subscription.getUser().getId(), userId) || subscription.getContractedPrice().compareTo(price) != 0
+            || hasOpenUpgrade(subscriptionId) || Boolean.TRUE.equals(subscription.getCancelAtPeriodEnd())
+            || !subscriptionRepository.isDowngradeCleared(subscriptionId)) {
+            throw new com.localuz.web.rest.errors.BillingDowngradeUndoConflictException();
+        }
     }
 
     /**
      * 5G.12.1 "Desfazer downgrade", step 2: clears the scheduled downgrade only if it is still the
-     * SAME one the provider restoration was done for (same pending plan and request instant) - a
+     * SAME one the provider restoration was done for (same pending plan and durable UUID) - a
      * concurrent effectuation or another request in between leaves the row untouched.
      */
     @Transactional
-    public Subscription clearUndoneDowngrade(Long userId, Long subscriptionId, Long pendingPlanId, Instant requestedAt) {
+    public Subscription clearUndoneDowngrade(Long userId, Long subscriptionId, Long pendingPlanId, String token) {
         userRepository.findByIdForBillingCheckoutLock(userId).orElseThrow(() -> new IllegalArgumentException("Authenticated user is required"));
-        Subscription subscription = subscriptionRepository.findById(subscriptionId)
+        Subscription subscription = subscriptionRepository.findByIdForUpdate(subscriptionId)
             .orElseThrow(() -> new IllegalStateException("Subscription disappeared during downgrade undo: " + subscriptionId));
         if (subscription.getPendingPlan() == null || !Objects.equals(subscription.getPendingPlan().getId(), pendingPlanId)
-            || !Objects.equals(subscription.getPlanChangeRequestedAt(), requestedAt)) {
-            return subscription;
+            || !Objects.equals(subscription.getUser().getId(), userId)
+            || token == null || !Objects.equals(subscription.getPlanChangeToken(), token)
+            || hasOpenUpgrade(subscriptionId) || Boolean.TRUE.equals(subscription.getCancelAtPeriodEnd())) {
+            throw new com.localuz.web.rest.errors.BillingDowngradeUndoConflictException();
         }
         clearPending(subscription);
-        return subscriptionRepository.save(subscription);
+        subscriptionRepository.saveAndFlush(subscription);
+        if (!isPendingCleared(subscription) || !subscriptionRepository.isDowngradeCleared(subscriptionId)) {
+            throw new com.localuz.web.rest.errors.BillingDowngradeUndoConflictException();
+        }
+        return subscription;
     }
 
     /**
@@ -276,5 +343,15 @@ public class SubscriptionPlanChangeSteps {
         subscription.setPendingContractedVehicleCount(null);
         subscription.setPlanChangeEffectiveAt(null);
         subscription.setPlanChangeRequestedAt(null);
+        subscription.setPlanChangeToken(null);
+        subscription.setPlanChangeOperationUntil(null);
+        subscription.setPlanChangeProviderConfirmed(null);
+    }
+
+    static boolean isPendingCleared(Subscription subscription) {
+        return subscription != null && subscription.getPendingPlan() == null
+            && subscription.getPendingContractedPrice() == null && subscription.getPendingContractedVehicleCount() == null
+            && subscription.getPlanChangeEffectiveAt() == null && subscription.getPlanChangeRequestedAt() == null
+            && subscription.getPlanChangeToken() == null;
     }
 }

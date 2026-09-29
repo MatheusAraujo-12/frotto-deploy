@@ -236,6 +236,9 @@ aws:
 # point this gates, and the Billing Etapa 3 report for the grandfathering rollout that should
 # land before this is ever turned on anywhere real users exist.
 billing:
+  dynamic-fleet:
+    enabled: ${BILLING_DYNAMIC_FLEET_ENABLED:false}
+    interval-ms: ${BILLING_DYNAMIC_FLEET_INTERVAL_MS:900000}
   recurring-reconciliation:
     enabled: ${BILLING_RECURRING_RECONCILIATION_ENABLED:false}
     interval-minutes: ${BILLING_RECURRING_RECONCILIATION_INTERVAL_MINUTES:15}

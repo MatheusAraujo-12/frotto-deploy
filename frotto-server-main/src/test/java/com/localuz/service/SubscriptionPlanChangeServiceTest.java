@@ -105,14 +105,14 @@ class SubscriptionPlanChangeServiceTest {
         planRepository = mock(PlanRepository.class);
         recurringSubscriptionGuard = mock(RecurringSubscriptionGuardService.class);
         financialCoverage = mock(SubscriptionFinancialCoverageService.class);
+        carRepository = mock(CarRepository.class);
         steps = new SubscriptionPlanChangeSteps(userRepository, subscriptionRepository, recurringSubscriptionGuard, financialCoverage,
-            upgradeRepository, clock);
+            upgradeRepository, carRepository, clock);
         SubscriptionPlanUpgradeSteps upgradeSteps = new SubscriptionPlanUpgradeSteps(userRepository, steps, upgradeRepository,
             subscriptionRepository, clock);
         cancellationService = mock(SubscriptionCancellationService.class);
         client = mock(MercadoPagoClient.class);
         pricingService = mock(PricingService.class);
-        carRepository = mock(CarRepository.class);
         MercadoPagoProperties properties = new MercadoPagoProperties();
         properties.setBackUrl(BACK_URL);
         upgradeService = new SubscriptionPlanUpgradeService(upgradeSteps, upgradeRepository, client, financialCoverage, properties, clock);
@@ -126,6 +126,10 @@ class SubscriptionPlanChangeServiceTest {
         when(financialCoverage.evaluate(any(Subscription.class), any(Instant.class)))
             .thenReturn(new FinancialCoverageEvaluation(true, CommercialState.ACTIVE, 7L, CYCLE_START, PERIOD_END, null, Reason.PAID));
         when(subscriptionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(subscriptionRepository.isDowngradeCleared(any())).thenReturn(true);
+        when(subscriptionRepository.findByIdForUpdate(any())).thenAnswer(invocation ->
+            subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER).stream()
+                .filter(value -> value.getId().equals(invocation.getArgument(0))).findFirst());
         // Pricing is computed BEFORE the lock/validation, so it is unavoidably called even for
         // requests later rejected by validation. Tests asserting on a price stub it explicitly.
         when(pricingService.calculatePriceForPlan(any(), Mockito.anyInt()))
@@ -177,7 +181,7 @@ class SubscriptionPlanChangeServiceTest {
         when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(subscription));
         when(subscriptionRepository.findById(subscription.getId())).thenReturn(Optional.of(subscription));
         when(planRepository.findByCode(target.getCode())).thenReturn(Optional.of(target));
-        when(carRepository.countByUserIdAndActiveTrue(1L)).thenReturn((long) vehicles);
+        when(carRepository.countBillableByUserId(1L)).thenReturn((long) vehicles);
         when(pricingService.calculatePriceForPlan(target.getCode(), vehicles))
             .thenReturn(new PricingResult(target.getCode(), target.getCode().name(), vehicles, new BigDecimal(targetPrice), List.of()));
         when(client.getPreapproval(subscription.getExternalSubscriptionId()))
@@ -467,7 +471,7 @@ class SubscriptionPlanChangeServiceTest {
         Subscription subscription = subscription(13L, silver, SubscriptionStatus.ACTIVE, PERIOD_END, "pre-4", "44.90");
         scheduleDowngrade(subscription, bronze, "15.90");
         when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(subscription));
-        when(subscriptionRepository.findById(13L)).thenReturn(Optional.of(subscription));
+        Mockito.doReturn(Optional.of(subscription)).when(subscriptionRepository).findByIdForUpdate(13L);
         when(client.getPreapproval("pre-4")).thenReturn(preapproval("pre-4", "44.90"));
 
         PlanChangeResultDTO result = service.undoDowngrade(user);
@@ -475,7 +479,7 @@ class SubscriptionPlanChangeServiceTest {
         assertThat(result.getStatus()).isEqualTo(PlanChangeStatus.DOWNGRADE_UNDONE);
         assertThat(result.getNextRenewalPrice()).isEqualByComparingTo("44.90");
         assertThat(result.getChargeAmount()).isNull();
-        verify(client).updatePreapprovalAmount(eq("pre-4"), eq(new BigDecimal("44.90")), eq("BRL"), anyString());
+        verify(client, never()).updatePreapprovalAmount(anyString(), any(), anyString(), anyString());
         assertThat(subscription.getPendingPlan()).isNull();
         assertThat(subscription.getPendingContractedPrice()).isNull();
         assertThat(subscription.getPendingContractedVehicleCount()).isNull();
@@ -492,7 +496,7 @@ class SubscriptionPlanChangeServiceTest {
         Subscription subscription = subscription(13L, silver, SubscriptionStatus.ACTIVE, PERIOD_END, "pre-4", "44.90");
         scheduleDowngrade(subscription, bronze, "15.90");
         when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(subscription));
-        when(subscriptionRepository.findById(13L)).thenReturn(Optional.of(subscription));
+        Mockito.doReturn(Optional.of(subscription)).when(subscriptionRepository).findByIdForUpdate(13L);
         when(client.updatePreapprovalAmount(eq("pre-4"), any(), eq("BRL"), anyString()))
             .thenThrow(new MercadoPagoException("rejected", false, 400, "bad_request", null));
 
@@ -500,7 +504,7 @@ class SubscriptionPlanChangeServiceTest {
 
         assertThat(subscription.getPendingPlan().getCode()).isEqualTo(PlanCode.BRONZE);
         assertThat(subscription.getPendingContractedPrice()).isEqualByComparingTo("15.90");
-        verify(client, never()).getPreapproval(anyString());
+        verify(client).getPreapproval("pre-4");
     }
 
     @Test
@@ -510,7 +514,7 @@ class SubscriptionPlanChangeServiceTest {
         Subscription subscription = subscription(13L, silver, SubscriptionStatus.ACTIVE, PERIOD_END, "pre-4", "44.90");
         scheduleDowngrade(subscription, bronze, "15.90");
         when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(subscription));
-        when(subscriptionRepository.findById(13L)).thenReturn(Optional.of(subscription));
+        Mockito.doReturn(Optional.of(subscription)).when(subscriptionRepository).findByIdForUpdate(13L);
         when(client.getPreapproval("pre-4")).thenReturn(preapproval("pre-4", "15.90"));
 
         assertThatThrownBy(() -> service.undoDowngrade(user)).isInstanceOf(BillingDowngradeUndoRejectedException.class);
@@ -524,7 +528,7 @@ class SubscriptionPlanChangeServiceTest {
         Subscription subscription = subscription(13L, silver, SubscriptionStatus.ACTIVE, PERIOD_END, "pre-4", "44.90");
         scheduleDowngrade(subscription, bronze, "15.90");
         when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(subscription));
-        when(subscriptionRepository.findById(13L)).thenReturn(Optional.of(subscription));
+        Mockito.doReturn(Optional.of(subscription)).when(subscriptionRepository).findByIdForUpdate(13L);
         when(client.updatePreapprovalAmount(eq("pre-4"), any(), eq("BRL"), anyString())).thenThrow(new MercadoPagoException("timeout", true));
         when(client.getPreapproval("pre-4")).thenThrow(new MercadoPagoException("down", false, 503, null, null));
 
@@ -533,13 +537,111 @@ class SubscriptionPlanChangeServiceTest {
     }
 
     @Test
-    void undoDowngradeWithoutAScheduledDowngradeIsRejectedWithoutProviderCalls() {
+    void retryAfterSuccessfulUndoIsIdempotent() {
         Plan silver = plan(2L, PlanCode.SILVER, 6, 15, "44.90");
         Subscription subscription = subscription(13L, silver, SubscriptionStatus.ACTIVE, PERIOD_END, "pre-4", "44.90");
         when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(subscription));
 
-        assertThatThrownBy(() -> service.undoDowngrade(user)).isInstanceOf(BadRequestAlertException.class);
+        when(client.getPreapproval("pre-4")).thenReturn(preapproval("pre-4", "44.90"));
+        assertThat(service.undoDowngrade(user).getStatus()).isEqualTo(PlanChangeStatus.DOWNGRADE_UNDONE);
         verify(client, never()).updatePreapprovalAmount(anyString(), any(), anyString(), anyString());
+    }
+
+    @Test
+    void undoPutThenAuthoritativeGetClearsAllPendingFields() {
+        Subscription subscription = undoFixture();
+        when(client.getPreapproval("pre-4")).thenReturn(preapproval("pre-4", "15.90"), preapproval("pre-4", "44.90"));
+        assertThat(service.undoDowngrade(user).getStatus()).isEqualTo(PlanChangeStatus.DOWNGRADE_UNDONE);
+        assertThat(SubscriptionPlanChangeSteps.isPendingCleared(subscription)).isTrue();
+        verify(subscriptionRepository, Mockito.atLeastOnce()).saveAndFlush(subscription);
+        verify(client).updatePreapprovalAmount(eq("pre-4"), eq(new BigDecimal("44.90")), eq("BRL"), anyString());
+    }
+
+    @Test
+    void changedPendingPlanCannotProduceFalseUndoSuccess() {
+        Subscription subscription = undoFixture();
+        when(client.getPreapproval("pre-4")).thenAnswer(call -> {
+            subscription.setPendingPlan(plan(99L, PlanCode.FREE, 0, 2, "0.00"));
+            return preapproval("pre-4", "44.90");
+        });
+        assertThatThrownBy(() -> service.undoDowngrade(user))
+            .isInstanceOf(com.localuz.web.rest.errors.BillingDowngradeUndoConflictException.class);
+        assertThat(subscription.getPendingPlan().getId()).isEqualTo(99L);
+    }
+
+    @Test
+    void changedIntentTokenCannotProduceFalseUndoSuccess() {
+        Subscription subscription = undoFixture();
+        when(client.getPreapproval("pre-4")).thenAnswer(call -> {
+            subscription.setPlanChangeToken(java.util.UUID.randomUUID().toString());
+            return preapproval("pre-4", "44.90");
+        });
+        assertThatThrownBy(() -> service.undoDowngrade(user))
+            .isInstanceOf(com.localuz.web.rest.errors.BillingDowngradeUndoConflictException.class);
+        assertThat(subscription.getPendingPlan()).isNotNull();
+    }
+
+    @Test
+    void timestampPrecisionChangeDoesNotChangeIntentIdentity() {
+        Subscription subscription = undoFixture();
+        subscription.setPlanChangeRequestedAt(Instant.parse("2026-09-29T10:15:20.123456789Z"));
+        when(client.getPreapproval("pre-4")).thenAnswer(call -> {
+            subscription.setPlanChangeRequestedAt(Instant.parse("2026-09-29T10:15:20.123456Z"));
+            return preapproval("pre-4", "44.90");
+        });
+        assertThat(service.undoDowngrade(user).getStatus()).isEqualTo(PlanChangeStatus.DOWNGRADE_UNDONE);
+        assertThat(SubscriptionPlanChangeSteps.isPendingCleared(subscription)).isTrue();
+    }
+
+    @Test
+    void inFlightDowngradePreventsRacingUndoAndUpgradeBeforeAnyProviderWrite() {
+        Subscription subscription = undoFixture();
+        subscription.setPlanChangeOperationUntil(NOW.plusSeconds(120));
+        assertThatThrownBy(() -> service.undoDowngrade(user))
+            .isInstanceOf(com.localuz.web.rest.errors.BillingDowngradeUndoConflictException.class);
+        assertThatThrownBy(() -> steps.lockAndValidateForChange(user.getId()))
+            .isInstanceOf(com.localuz.web.rest.errors.BillingDowngradeUndoConflictException.class);
+        verify(client, never()).updatePreapprovalAmount(anyString(), any(), anyString(), anyString());
+    }
+
+    @Test
+    void expiredOperationLeaseCanRecoverAnAlreadyRestoredProvider() {
+        Subscription subscription = undoFixture();
+        subscription.setPlanChangeOperationUntil(NOW.minusSeconds(1));
+        when(client.getPreapproval("pre-4")).thenReturn(preapproval("pre-4", "44.90"));
+        assertThat(service.undoDowngrade(user).getStatus()).isEqualTo(PlanChangeStatus.DOWNGRADE_UNDONE);
+        assertThat(subscription.getPlanChangeOperationUntil()).isNull();
+        verify(client, never()).updatePreapprovalAmount(anyString(), any(), anyString(), anyString());
+    }
+
+    private Subscription undoFixture() {
+        Subscription subscription = subscription(13L, plan(2L, PlanCode.SILVER, 6, 15, "44.90"),
+            SubscriptionStatus.ACTIVE, PERIOD_END, "pre-4", "44.90");
+        scheduleDowngrade(subscription, plan(1L, PlanCode.BRONZE, 3, 5, "15.90"), "15.90");
+        when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(subscription));
+        Mockito.doReturn(Optional.of(subscription)).when(subscriptionRepository).findByIdForUpdate(13L);
+        return subscription;
+    }
+
+    @Test void databaseThatStillReportsPendingNeverProducesUndoSuccess() {
+        undoFixture();
+        when(client.getPreapproval("pre-4")).thenReturn(preapproval("pre-4", "44.90"));
+        when(subscriptionRepository.isDowngradeCleared(13L)).thenReturn(false);
+        assertThatThrownBy(() -> service.undoDowngrade(user))
+            .isInstanceOf(com.localuz.web.rest.errors.BillingDowngradeUndoConflictException.class);
+    }
+
+    @Test void fleetChangingWhileUpgradeIsQuotedCannotCreateAnIncorrectCharge() {
+        Plan bronze = plan(1L, PlanCode.BRONZE, 3, 5, "15.90");
+        Plan silver = plan(2L, PlanCode.SILVER, 6, 15, "44.90");
+        Subscription subscription = subscription(10L, bronze, SubscriptionStatus.ACTIVE, PERIOD_END, "pre-quote", "15.90");
+        givenLiveContract(subscription, silver, 4, "44.90", "15.90");
+        when(client.getPreapproval("pre-quote")).thenAnswer(call -> {
+            when(carRepository.countBillableByUserId(1L)).thenReturn(5L);
+            return preapproval("pre-quote", "15.90");
+        });
+        assertThatThrownBy(() -> service.changePlan(user, PlanCode.SILVER)).isInstanceOf(BadRequestAlertException.class);
+        verify(client, never()).createPaymentPreference(any());
     }
 
     // --- E) Idempotency ----------------------------------------------------------------------------
@@ -842,9 +944,9 @@ class SubscriptionPlanChangeServiceTest {
         Plan bronze = plan(2L, PlanCode.BRONZE, 3, 5, "15.90");
         Subscription subscription = subscription(13L, gold, SubscriptionStatus.ACTIVE, PERIOD_END, "pre-4", "79.90");
         when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(subscription));
-        when(subscriptionRepository.findById(13L)).thenReturn(Optional.of(subscription));
+        Mockito.doReturn(Optional.of(subscription)).when(subscriptionRepository).findByIdForUpdate(13L);
         when(planRepository.findByCode(PlanCode.BRONZE)).thenReturn(Optional.of(bronze));
-        when(carRepository.countByUserIdAndActiveTrue(1L)).thenReturn(4L);
+        when(carRepository.countBillableByUserId(1L)).thenReturn(4L);
         when(pricingService.calculatePriceForPlan(PlanCode.BRONZE, 4)).thenReturn(new PricingResult(PlanCode.BRONZE, "BRONZE", 4, new BigDecimal("15.90"), List.of()));
         when(client.getPreapproval("pre-4")).thenReturn(preapproval("pre-4", "15.90"));
 
@@ -869,7 +971,7 @@ class SubscriptionPlanChangeServiceTest {
     void downgradeWithIncompatibleFleetIsRejectedBeforeAnyProviderCall() {
         Plan bronze = plan(2L, PlanCode.BRONZE, 3, 5, "15.90");
         when(planRepository.findByCode(PlanCode.BRONZE)).thenReturn(Optional.of(bronze));
-        when(carRepository.countByUserIdAndActiveTrue(1L)).thenReturn(8L);
+        when(carRepository.countBillableByUserId(1L)).thenReturn(8L);
 
         assertThatThrownBy(() -> service.changePlan(user, PlanCode.BRONZE)).isInstanceOf(BadRequestAlertException.class);
 
@@ -886,7 +988,7 @@ class SubscriptionPlanChangeServiceTest {
         when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(subscription));
         when(subscriptionRepository.findById(22L)).thenReturn(Optional.of(subscription));
         when(planRepository.findByCode(PlanCode.BRONZE)).thenReturn(Optional.of(bronze));
-        when(carRepository.countByUserIdAndActiveTrue(1L)).thenReturn(4L);
+        when(carRepository.countBillableByUserId(1L)).thenReturn(4L);
         when(pricingService.calculatePriceForPlan(PlanCode.BRONZE, 4)).thenReturn(new PricingResult(PlanCode.BRONZE, "BRONZE", 4, new BigDecimal("15.90"), List.of()));
         when(client.updatePreapprovalAmount(eq("pre-11"), any(), eq("BRL"), anyString()))
             .thenThrow(new MercadoPagoException("rejected", false, 400, "bad_request", null));
@@ -907,7 +1009,7 @@ class SubscriptionPlanChangeServiceTest {
         when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(subscription));
         when(subscriptionRepository.findById(24L)).thenReturn(Optional.of(subscription));
         when(planRepository.findByCode(PlanCode.BRONZE)).thenReturn(Optional.of(bronze));
-        when(carRepository.countByUserIdAndActiveTrue(1L)).thenReturn(4L);
+        when(carRepository.countBillableByUserId(1L)).thenReturn(4L);
         when(pricingService.calculatePriceForPlan(PlanCode.BRONZE, 4)).thenReturn(new PricingResult(PlanCode.BRONZE, "BRONZE", 4, new BigDecimal("15.90"), List.of()));
         when(client.updatePreapprovalAmount(eq("pre-13"), any(), eq("BRL"), anyString())).thenThrow(new MercadoPagoException("timeout", true));
         when(client.getPreapproval("pre-13")).thenReturn(preapproval("pre-13", "79.90"), preapproval("pre-13", "999.99"));
@@ -928,7 +1030,7 @@ class SubscriptionPlanChangeServiceTest {
         when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(subscription));
         when(subscriptionRepository.findById(27L)).thenReturn(Optional.of(subscription));
         when(planRepository.findByCode(PlanCode.BRONZE)).thenReturn(Optional.of(bronze));
-        when(carRepository.countByUserIdAndActiveTrue(1L)).thenReturn(4L);
+        when(carRepository.countBillableByUserId(1L)).thenReturn(4L);
         when(pricingService.calculatePriceForPlan(PlanCode.BRONZE, 4)).thenReturn(new PricingResult(PlanCode.BRONZE, "BRONZE", 4, new BigDecimal("15.90"), List.of()));
         when(client.getPreapproval("pre-16")).thenReturn(preapproval("pre-16", "15.90"));
 
@@ -946,7 +1048,7 @@ class SubscriptionPlanChangeServiceTest {
         Subscription subscription = subscription(14L, bronze, SubscriptionStatus.ACTIVE, PERIOD_END, "pre-5", "15.90");
         when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(subscription));
         when(planRepository.findByCode(PlanCode.BRONZE)).thenReturn(Optional.of(bronze));
-        when(carRepository.countByUserIdAndActiveTrue(1L)).thenReturn(4L);
+        when(carRepository.countBillableByUserId(1L)).thenReturn(4L);
 
         assertThatThrownBy(() -> service.changePlan(user, PlanCode.BRONZE)).isInstanceOf(BillingPlanChangeNoOpException.class);
         Mockito.verifyNoInteractions(client);
@@ -957,7 +1059,7 @@ class SubscriptionPlanChangeServiceTest {
         Plan silver = plan(1L, PlanCode.SILVER, 6, 15, "44.90");
         when(planRepository.findByCode(PlanCode.SILVER)).thenReturn(Optional.of(silver));
         when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of());
-        when(carRepository.countByUserIdAndActiveTrue(1L)).thenReturn(2L);
+        when(carRepository.countBillableByUserId(1L)).thenReturn(2L);
 
         assertThatThrownBy(() -> service.changePlan(user, PlanCode.SILVER)).isInstanceOf(BadRequestAlertException.class);
         Mockito.verifyNoInteractions(client);
@@ -993,7 +1095,7 @@ class SubscriptionPlanChangeServiceTest {
         subscription.setCancelAtPeriodEnd(true);
         when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(subscription));
         when(planRepository.findByCode(PlanCode.SILVER)).thenReturn(Optional.of(silver));
-        when(carRepository.countByUserIdAndActiveTrue(1L)).thenReturn(4L);
+        when(carRepository.countBillableByUserId(1L)).thenReturn(4L);
 
         assertThatThrownBy(() -> service.changePlan(user, PlanCode.SILVER)).isInstanceOf(BadRequestAlertException.class);
         Mockito.verifyNoInteractions(client);
@@ -1007,7 +1109,7 @@ class SubscriptionPlanChangeServiceTest {
         Subscription subscription = subscription(17L, bronze, status, PERIOD_END, "pre-8", "15.90");
         when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(subscription));
         when(planRepository.findByCode(PlanCode.SILVER)).thenReturn(Optional.of(silver));
-        when(carRepository.countByUserIdAndActiveTrue(1L)).thenReturn(4L);
+        when(carRepository.countBillableByUserId(1L)).thenReturn(4L);
 
         assertThatThrownBy(() -> service.changePlan(user, PlanCode.SILVER)).isInstanceOf(BadRequestAlertException.class);
         Mockito.verifyNoInteractions(client);
@@ -1018,7 +1120,7 @@ class SubscriptionPlanChangeServiceTest {
         Plan silver = plan(1L, PlanCode.SILVER, 6, 15, "44.90");
         when(planRepository.findByCode(PlanCode.SILVER)).thenReturn(Optional.of(silver));
         when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of());
-        when(carRepository.countByUserIdAndActiveTrue(1L)).thenReturn(4L);
+        when(carRepository.countBillableByUserId(1L)).thenReturn(4L);
 
         assertThatThrownBy(() -> service.changePlan(user, PlanCode.SILVER)).isInstanceOf(BadRequestAlertException.class);
         Mockito.verifyNoInteractions(client);
@@ -1031,7 +1133,7 @@ class SubscriptionPlanChangeServiceTest {
         Subscription subscription = subscription(18L, bronze, SubscriptionStatus.ACTIVE, PERIOD_END, "pre-9", "15.90");
         when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(subscription));
         when(planRepository.findByCode(PlanCode.SILVER)).thenReturn(Optional.of(silver));
-        when(carRepository.countByUserIdAndActiveTrue(1L)).thenReturn(4L);
+        when(carRepository.countBillableByUserId(1L)).thenReturn(4L);
         when(financialCoverage.evaluate(eq(subscription), any(Instant.class)))
             .thenReturn(new FinancialCoverageEvaluation(false, CommercialState.UNRESOLVED, null, null, null, null, Reason.FINANCIAL_CONFLICT));
 
@@ -1047,7 +1149,7 @@ class SubscriptionPlanChangeServiceTest {
         Subscription newer = subscription(20L, bronze, SubscriptionStatus.ACTIVE, PERIOD_END, "pre-new", "15.90");
         when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(older, newer));
         when(planRepository.findByCode(PlanCode.SILVER)).thenReturn(Optional.of(silver));
-        when(carRepository.countByUserIdAndActiveTrue(1L)).thenReturn(4L);
+        when(carRepository.countBillableByUserId(1L)).thenReturn(4L);
 
         assertThatThrownBy(() -> service.changePlan(user, PlanCode.SILVER)).isInstanceOf(BillingPlanChangeAmbiguousSubscriptionException.class);
         Mockito.verifyNoInteractions(client);
@@ -1063,7 +1165,7 @@ class SubscriptionPlanChangeServiceTest {
         Plan silver = plan(1L, PlanCode.SILVER, 6, 15, "44.90");
         when(planRepository.findByCode(PlanCode.SILVER)).thenReturn(Optional.of(silver));
         when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of());
-        when(carRepository.countByUserIdAndActiveTrue(any())).thenReturn(4L);
+        when(carRepository.countBillableByUserId(any())).thenReturn(4L);
 
         assertThatThrownBy(() -> service.changePlan(user, PlanCode.SILVER)).isInstanceOf(BadRequestAlertException.class);
         assertThatThrownBy(() -> service.changePlan(otherUser, PlanCode.SILVER)).isInstanceOf(BadRequestAlertException.class);

@@ -156,7 +156,27 @@ public class BillingResource {
     public BillingMeDTO getMyBilling() {
         User user = getCurrentUser();
         subscriptionPlanChangeService.effectuateDueChangesForUser(user.getId());
-        return BillingMeDTO.from(entitlementService.getSnapshot(user));
+        var snapshot = entitlementService.getSnapshot(user);
+        BillingMeDTO dto = BillingMeDTO.from(snapshot);
+        Subscription subscription = snapshot.getSubscription();
+        if (subscription != null && subscription.getSource() == com.localuz.domain.enumeration.SubscriptionSource.PAYMENT_PROVIDER
+            && !Boolean.TRUE.equals(subscription.getCancelAtPeriodEnd())) {
+            var candidate = subscription.getPendingPlan() == null ? subscription.getPlan() : subscription.getPendingPlan();
+            if (candidate.getMaxVehicles() == null || snapshot.getActiveVehicleCount() <= candidate.getMaxVehicles()) {
+                dto.setProjectedNextRenewalPrice(pricingService.calculatePriceForPlan(candidate.getCode(),
+                    Math.toIntExact(snapshot.getActiveVehicleCount())).getMonthlyPrice());
+            }
+            dto.setNextRenewalAt(subscription.getCurrentPeriodEnd());
+            if (com.localuz.service.DynamicFleetBillingSteps.locked(subscription)) {
+                dto.setNextRenewalPrice(subscription.getNextRenewalPrice());
+                dto.setNextRenewalVehicleCount(subscription.getNextRenewalVehicleCount());
+                dto.setNextRenewalAt(subscription.getNextRenewalAt());
+                dto.setNextRenewalLockedAt(subscription.getNextRenewalLockedAt());
+                dto.setNextRenewalSyncedAt(subscription.getNextRenewalSyncedAt());
+                dto.setNextRenewalState(subscription.getNextRenewalState());
+            }
+        }
+        return dto;
     }
 
     @GetMapping("/payment-state")

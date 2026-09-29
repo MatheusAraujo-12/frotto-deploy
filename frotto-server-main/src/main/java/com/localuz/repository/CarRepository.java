@@ -60,10 +60,6 @@ public interface CarRepository extends JpaRepository<Car, Long> {
     @Query("select count(car) from Car car where car.user.id = :userId and car.deleted = false")
     long countBillableByUserId(@Param("userId") Long userId);
 
-    /** Transitional alias while plan-change consumers migrate in the next commit. */
-    @Deprecated
-    default long countByUserIdAndActiveTrue(Long userId) { return countBillableByUserId(userId); }
-
     @Query("select car from Car car where car.user.login = ?#{principal.username} and car.deleted = true")
     List<Car> findDeletedByCurrentUser();
 
