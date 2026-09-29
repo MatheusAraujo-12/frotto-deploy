@@ -32,7 +32,7 @@ import tech.jhipster.web.util.HeaderUtil;
 
 /** REST controller for managing {@link com.localuz.domain.Maintenance}. */
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/maintenances")
 @Transactional
 public class MaintenanceResource {
 
@@ -63,14 +63,14 @@ public class MaintenanceResource {
         this.serviceRepository = serviceRepository;
     }
 
-    @GetMapping("/maintenances/car/{carId}")
+    @GetMapping("/car/{carId}")
     public List<Maintenance> getMaintenanceByCar(@PathVariable Long carId) {
         log.debug("REST request to get Maintenance  by carId : {}", carId);
         List<Maintenance> driverCars = maintenanceRepository.findByCurrentUserAndCarIdByDate(carId);
         return driverCars;
     }
 
-    @GetMapping("/maintenances/{id}")
+    @GetMapping("/{id}")
     public Maintenance getMaintenanceById(@PathVariable Long id) {
         log.debug("REST request to get Maintenance  by id : {}", id);
         Optional<Maintenance> maintenance = maintenanceRepository.findByCurrentUserAndMaintenanceId(id);
@@ -80,7 +80,7 @@ public class MaintenanceResource {
         return null;
     }
 
-    @PostMapping("/maintenances/car/{carId}")
+    @PostMapping("/car/{carId}")
     public ResponseEntity<Maintenance> createMaintenance(@PathVariable Long carId, @Valid @RequestBody Maintenance maintenance)
         throws URISyntaxException {
         log.debug("REST request to save Maintenance : {}", maintenance);
@@ -103,7 +103,7 @@ public class MaintenanceResource {
             .body(result);
     }
 
-    @DeleteMapping("/maintenances/{id}")
+    @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteMaintenance(@PathVariable Long id) {
         log.debug("REST request to delete Maintenance : {}", id);
         Optional<Maintenance> existingMaintenanceOpt = maintenanceRepository.findByCurrentUserAndMaintenanceId(id);
@@ -118,7 +118,7 @@ public class MaintenanceResource {
             .build();
     }
 
-    @PutMapping("/maintenances/{id}")
+    @PutMapping("/{id}")
     public ResponseEntity<Maintenance> updateMaintenance(
         @PathVariable(value = "id", required = false) final Long id,
         @Valid @RequestBody Maintenance maintenance

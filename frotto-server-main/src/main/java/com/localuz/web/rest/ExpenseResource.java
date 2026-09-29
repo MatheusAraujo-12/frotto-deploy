@@ -27,7 +27,7 @@ import tech.jhipster.web.util.HeaderUtil;
 
 /** REST controller for managing {@link com.localuz.domain.Expense}. */
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/expenses")
 @Transactional
 public class ExpenseResource {
 
@@ -47,7 +47,7 @@ public class ExpenseResource {
         this.inspectionRepository = inspectionRepository;
     }
 
-    @GetMapping("/expenses/{id}")
+    @GetMapping("/{id}")
     public Expense getExpenseById(@PathVariable Long id) {
         log.debug("REST request to get Expense  by id : {}", id);
         Optional<Expense> existingExpenseOpt = expenseRepository.findByCurrentUserAndExpenseId(id);
@@ -57,7 +57,7 @@ public class ExpenseResource {
         return null;
     }
 
-    @PostMapping("/expenses/inspection/{inspectionId}")
+    @PostMapping("/inspection/{inspectionId}")
     public ResponseEntity<Expense> createExpense(@Valid @RequestBody Expense expense, @PathVariable Long inspectionId)
         throws URISyntaxException {
         log.debug("REST request to save Expense : {}", expense);
@@ -77,7 +77,7 @@ public class ExpenseResource {
             .body(result);
     }
 
-    @DeleteMapping("/expenses/{id}")
+    @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteExpense(@PathVariable Long id) {
         log.debug("REST request to delete Expense : {}", id);
         Optional<Expense> existingExpenseOpt = expenseRepository.findByCurrentUserAndExpenseId(id);
@@ -92,7 +92,7 @@ public class ExpenseResource {
             .build();
     }
 
-    @PutMapping("/expenses/{id}")
+    @PutMapping("/{id}")
     public ResponseEntity<Expense> updateExpense(
         @PathVariable(value = "id", required = false) final Long id,
         @Valid @RequestBody Expense expense

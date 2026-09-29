@@ -29,7 +29,7 @@ import tech.jhipster.web.util.HeaderUtil;
 
 /** REST controller for managing {@link com.localuz.domain.CarExpense}. */
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/car-expenses")
 @Transactional
 public class CarExpenseResource {
 
@@ -49,20 +49,20 @@ public class CarExpenseResource {
         this.carRepository = carRepository;
     }
 
-    @GetMapping("/car-expenses/car-all")
+    @GetMapping("/car-all")
     public List<CarExpense> getAllCarExpensesByCurrentUser() {
         log.debug("REST request to get all CarExpenses for current user");
         return carExpenseRepository.findByCurrentUser();
     }
 
-    @GetMapping("/car-expenses/car/{carId}")
+    @GetMapping("/car/{carId}")
     public List<CarExpense> getCarExpenseByCar(@PathVariable Long carId) {
         log.debug("REST request to get CarExpense  by carId : {}", carId);
         List<CarExpense> carExpenses = carExpenseRepository.findByCurrentUserAndCarIdByDate(carId);
         return carExpenses;
     }
 
-    @GetMapping("/car-expenses/{id}")
+    @GetMapping("/{id}")
     public CarExpense getCarExpenseById(@PathVariable Long id) {
         log.debug("REST request to get CarExpense  by id : {}", id);
         Optional<CarExpense> carExpense = carExpenseRepository.findByCurrentUserAndCarExpenseId(id);
@@ -72,7 +72,7 @@ public class CarExpenseResource {
         return null;
     }
 
-    @PostMapping("/car-expenses/car/{carId}")
+    @PostMapping("/car/{carId}")
     public ResponseEntity<CarExpense> createCarExpense(@PathVariable Long carId, @Valid @RequestBody CarExpense carExpense)
         throws URISyntaxException {
         log.debug("REST request to save CarExpense : {}", carExpense);
@@ -93,7 +93,7 @@ public class CarExpenseResource {
             .body(result);
     }
 
-    @DeleteMapping("/car-expenses/{id}")
+    @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteCarExpense(@PathVariable Long id) {
         log.debug("REST request to delete CarExpense : {}", id);
         Optional<CarExpense> existingCarExpenseOpt = carExpenseRepository.findByCurrentUserAndCarExpenseId(id);
@@ -108,7 +108,7 @@ public class CarExpenseResource {
             .build();
     }
 
-    @PutMapping("/car-expenses/{id}")
+    @PutMapping("/{id}")
     public ResponseEntity<CarExpense> updateCarExpense(
         @PathVariable(value = "id", required = false) final Long id,
         @Valid @RequestBody CarExpense carExpense
@@ -134,7 +134,7 @@ public class CarExpenseResource {
             .body(result);
     }
 
-    @PostMapping("/car-expenses/car-all")
+    @PostMapping("/car-all")
     public ResponseEntity<List<CarExpense>> createCarExpenseForAllActiveCars(@Valid @RequestBody CarExpense carExpense)
         throws URISyntaxException {
         log.debug("REST request to save CarExpense for all active cars : {}", carExpense);

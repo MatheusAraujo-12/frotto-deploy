@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 import tech.jhipster.web.util.HeaderUtil;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/debt-item-types")
 @Transactional
 public class DebtItemTypeResource {
 
@@ -42,7 +42,7 @@ public class DebtItemTypeResource {
         this.debtItemTypeService = debtItemTypeService;
     }
 
-    @GetMapping("/debt-item-types")
+    @GetMapping
     public List<DebtItemTypeDTO> getDebtItemTypes(@RequestParam(name = "active", required = false, defaultValue = "true") String active) {
         log.debug("REST request to get debt item types with active filter: {}", active);
         return debtItemTypeService.list(active);
@@ -59,7 +59,7 @@ public class DebtItemTypeResource {
     // dados (avaliar se deveria ser por conta ou continuar global-e-aberto por decisão de
     // produto), não um bug isolado — deixado para uma etapa futura, junto com o trabalho de
     // billing/multiusuário, que provavelmente vai mexer em ownership de qualquer forma.
-    @PostMapping("/debt-item-types")
+    @PostMapping
     public ResponseEntity<DebtItemTypeDTO> createDebtItemType(@RequestBody DebtItemTypeSaveDTO payload) throws URISyntaxException {
         log.debug("REST request to create debt item type: {}", payload == null ? null : payload.getName());
         DebtItemTypeDTO result = debtItemTypeService.create(payload);
@@ -69,7 +69,7 @@ public class DebtItemTypeResource {
             .body(result);
     }
 
-    @PatchMapping("/debt-item-types/{id}")
+    @PatchMapping("/{id}")
     @PreAuthorize("hasAuthority(\"" + AuthoritiesConstants.ADMIN + "\")")
     public ResponseEntity<DebtItemTypeDTO> updateDebtItemType(@PathVariable Long id, @RequestBody DebtItemTypeSaveDTO payload) {
         log.debug("REST request to update debt item type id={} payload={}", id, payload == null ? null : payload.getName());
@@ -80,7 +80,7 @@ public class DebtItemTypeResource {
             .body(result);
     }
 
-    @DeleteMapping("/debt-item-types/{id}")
+    @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority(\"" + AuthoritiesConstants.ADMIN + "\")")
     public ResponseEntity<Void> deleteDebtItemType(@PathVariable Long id) {
         log.debug("REST request to deactivate debt item type id={}", id);

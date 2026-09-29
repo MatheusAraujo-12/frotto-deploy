@@ -56,7 +56,7 @@ import org.springframework.web.server.ResponseStatusException;
 import tech.jhipster.web.util.HeaderUtil;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/documents")
 @Transactional
 public class DocumentResource {
 
@@ -98,7 +98,7 @@ public class DocumentResource {
         this.objectMapper = objectMapper;
     }
 
-    @PostMapping("/documents")
+    @PostMapping
     public ResponseEntity<DocumentDTO> createDocument(@RequestBody DocumentSaveDTO payload) throws URISyntaxException {
         validateCreatePayload(payload);
 
@@ -125,7 +125,7 @@ public class DocumentResource {
             .body(response);
     }
 
-    @GetMapping("/documents")
+    @GetMapping
     public List<DocumentDTO> getDocuments(
         @RequestParam(name = "driverId", required = false) Long driverId,
         @RequestParam(name = "carId", required = false) Long carId,
@@ -150,13 +150,13 @@ public class DocumentResource {
         return response;
     }
 
-    @GetMapping("/documents/{id}")
+    @GetMapping("/{id}")
     public DocumentDTO getDocumentById(@PathVariable Long id) {
         DriverDocument document = getDocumentOrThrow(id);
         return toDto(document, true);
     }
 
-    @DeleteMapping("/documents/{id}")
+    @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteDocument(@PathVariable Long id) {
         DriverDocument document = getDocumentOrThrow(id);
         deleteStoredFiles(readAttachments(document.getAttachmentsJson()));
@@ -168,7 +168,7 @@ public class DocumentResource {
             .build();
     }
 
-    @PatchMapping("/documents/{id}")
+    @PatchMapping("/{id}")
     public ResponseEntity<DocumentDTO> updateDocumentDraft(@PathVariable Long id, @RequestBody DocumentSaveDTO payload) {
         DriverDocument document = getDocumentOrThrow(id);
         if (document.getStatus() != DocumentStatus.DRAFT) {
@@ -207,7 +207,7 @@ public class DocumentResource {
         return ResponseEntity.ok(toDto(result, true));
     }
 
-    @PostMapping("/documents/{id}/finalize")
+    @PostMapping("/{id}/finalize")
     public ResponseEntity<DocumentDTO> finalizeDocument(@PathVariable Long id) {
         DriverDocument document = getDocumentOrThrow(id);
         DocumentStatus previousStatus = document.getStatus();
@@ -221,7 +221,7 @@ public class DocumentResource {
         return ResponseEntity.ok(toDto(result, true));
     }
 
-    @PostMapping("/documents/{id}/generate-pdf")
+    @PostMapping("/{id}/generate-pdf")
     public ResponseEntity<DocumentDTO> markDocumentPdfGenerated(
         @PathVariable Long id,
         @RequestBody(required = false) DocumentGeneratePdfDTO payload
@@ -234,7 +234,7 @@ public class DocumentResource {
         return ResponseEntity.ok(toDto(document, true));
     }
 
-    @PostMapping("/documents/{id}/mark-sent")
+    @PostMapping("/{id}/mark-sent")
     public ResponseEntity<DocumentDTO> markDocumentAsSent(@PathVariable Long id) {
         DriverDocument document = getDocumentOrThrow(id);
         document.setStatus(DocumentStatus.SENT);
@@ -242,7 +242,7 @@ public class DocumentResource {
         return ResponseEntity.ok(toDto(result, true));
     }
 
-    @PostMapping(value = "/documents/{id}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/{id}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<DocumentDTO> uploadDocumentAttachments(@PathVariable Long id, @RequestParam("file") MultipartFile[] files) {
         DriverDocument document = getDocumentOrThrow(id);
         List<String> attachments = new ArrayList<>(readAttachments(document.getAttachmentsJson()));

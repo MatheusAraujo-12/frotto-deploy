@@ -32,7 +32,7 @@ import tech.jhipster.web.util.HeaderUtil;
 
 /** REST controller for managing {@link com.localuz.domain.DriverCar}. */
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/driver-cars")
 @Transactional
 public class DriverCarResource {
 
@@ -63,14 +63,14 @@ public class DriverCarResource {
         this.addressRepository = addressRepository;
     }
 
-    @GetMapping("/driver-cars/car/{carId}")
+    @GetMapping("/car/{carId}")
     public List<DriverCar> getDriverCarByCar(@PathVariable Long carId) {
         log.debug("REST request to get DriverCar  by carId : {}", carId);
         List<DriverCar> driverCars = driverCarRepository.findByCurrentUserAndCarIdByDate(carId);
         return driverCars;
     }
 
-    @GetMapping("/driver-cars/{id}")
+    @GetMapping("/{id}")
     public DriverCar getDriverCarById(@PathVariable Long id) {
         log.debug("REST request to get DriverCar  by id : {}", id);
         Optional<DriverCar> driverCar = driverCarRepository.findByCurrentUserAndId(id);
@@ -80,7 +80,7 @@ public class DriverCarResource {
         return null;
     }
 
-    @PostMapping("/driver-cars/car/{carId}")
+    @PostMapping("/car/{carId}")
     public ResponseEntity<DriverCar> createDriverCarByCar(@PathVariable Long carId, @Valid @RequestBody DriverCar driverCar)
         throws URISyntaxException {
         log.debug("REST request to save DriverCar : {}", driverCar);
@@ -134,7 +134,7 @@ public class DriverCarResource {
             .body(result);
     }
 
-    @DeleteMapping("/driver-cars/{id}")
+    @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteDriverCarById(@PathVariable Long id) {
         log.debug("REST request to delete DriverCar : {}", id);
         Optional<DriverCar> carBodyDamage = driverCarRepository.findByCurrentUserAndId(id);
@@ -148,7 +148,7 @@ public class DriverCarResource {
             .build();
     }
 
-    @PutMapping("/driver-cars/{id}")
+    @PutMapping("/{id}")
     public ResponseEntity<DriverCar> updateDriverCarById(
         @PathVariable(value = "id", required = false) final Long id,
         @RequestBody DriverCar driverCar

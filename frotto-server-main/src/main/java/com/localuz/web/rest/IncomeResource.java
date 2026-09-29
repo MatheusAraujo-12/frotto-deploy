@@ -28,7 +28,7 @@ import tech.jhipster.web.util.HeaderUtil;
 
 /** REST controller for managing {@link com.localuz.domain.Income}. */
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/incomes")
 @Transactional
 public class IncomeResource {
 
@@ -48,14 +48,14 @@ public class IncomeResource {
         this.carRepository = carRepository;
     }
 
-    @GetMapping("/incomes/car/{carId}")
+    @GetMapping("/car/{carId}")
     public List<Income> getIncomeByCar(@PathVariable Long carId) {
         log.debug("REST request to get Income  by carId : {}", carId);
         List<Income> incomes = incomeRepository.findByCurrentUserAndCarIdByDate(carId);
         return incomes;
     }
 
-    @GetMapping("/incomes/{id}")
+    @GetMapping("/{id}")
     public Income getIncomeById(@PathVariable Long id) {
         log.debug("REST request to get Income  by id : {}", id);
         Optional<Income> income = incomeRepository.findByCurrentUserAndIncomeId(id);
@@ -65,7 +65,7 @@ public class IncomeResource {
         return null;
     }
 
-    @PostMapping("/incomes/car/{carId}")
+    @PostMapping("/car/{carId}")
     public ResponseEntity<Income> createIncome(@PathVariable Long carId, @Valid @RequestBody Income income) throws URISyntaxException {
         log.debug("REST request to save Income : {}", income);
         if (income.getId() != null) {
@@ -85,7 +85,7 @@ public class IncomeResource {
             .body(result);
     }
 
-    @DeleteMapping("/incomes/{id}")
+    @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteIncome(@PathVariable Long id) {
         log.debug("REST request to delete Income : {}", id);
         Optional<Income> existingIncomeOpt = incomeRepository.findByCurrentUserAndIncomeId(id);
@@ -100,7 +100,7 @@ public class IncomeResource {
             .build();
     }
 
-    @PutMapping("/incomes/{id}")
+    @PutMapping("/{id}")
     public ResponseEntity<Income> updateIncome(
         @PathVariable(value = "id", required = false) final Long id,
         @Valid @RequestBody Income income

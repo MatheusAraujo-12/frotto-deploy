@@ -20,7 +20,7 @@ import tech.jhipster.web.util.HeaderUtil;
 
 /** REST controller for managing {@link com.localuz.domain.Service}. */
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/services")
 @Transactional
 public class ServiceResource {
 
@@ -40,7 +40,7 @@ public class ServiceResource {
         this.maintenanceRepository = maintenanceRepository;
     }
 
-    @GetMapping("/services/{id}")
+    @GetMapping("/{id}")
     public Service getServiceById(@PathVariable Long id) {
         log.debug("REST request to get Service  by id : {}", id);
         Optional<Service> existingServiceOpt = serviceRepository.findByCurrentUserAndServiceId(id);
@@ -50,7 +50,7 @@ public class ServiceResource {
         return null;
     }
 
-    @PostMapping("/services/maintenance/{maintenanceId}")
+    @PostMapping("/maintenance/{maintenanceId}")
     public ResponseEntity<Service> createServiceByMaintenanceId(@Valid @RequestBody Service service, @PathVariable Long maintenanceId)
         throws URISyntaxException {
         log.debug("REST request to save Service : {}", service);
@@ -70,7 +70,7 @@ public class ServiceResource {
             .body(result);
     }
 
-    @DeleteMapping("/services/{id}")
+    @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteService(@PathVariable Long id) {
         log.debug("REST request to delete Service : {}", id);
         Optional<Service> existingServiceOpt = serviceRepository.findByCurrentUserAndServiceId(id);
@@ -85,7 +85,7 @@ public class ServiceResource {
             .build();
     }
 
-    @PutMapping("/services/{id}")
+    @PutMapping("/{id}")
     public ResponseEntity<Service> updateService(
         @PathVariable(value = "id", required = false) final Long id,
         @Valid @RequestBody Service service

@@ -28,7 +28,7 @@ import tech.jhipster.web.util.HeaderUtil;
 
 /** REST controller for managing {@link com.localuz.domain.Reminder}. */
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/reminders")
 @Transactional
 public class ReminderResource {
 
@@ -48,14 +48,14 @@ public class ReminderResource {
         this.carRepository = carRepository;
     }
 
-    @GetMapping("/reminders/car/{carId}")
+    @GetMapping("/car/{carId}")
     public List<Reminder> getReminderByCar(@PathVariable Long carId) {
         log.debug("REST request to get Reminder  by carId : {}", carId);
         List<Reminder> reminders = reminderRepository.findByCurrentUserAndCarId(carId);
         return reminders;
     }
 
-    @GetMapping("/reminders/{id}")
+    @GetMapping("/{id}")
     public Reminder getReminderById(@PathVariable Long id) {
         log.debug("REST request to get Reminder  by id : {}", id);
         Optional<Reminder> reminder = reminderRepository.findByCurrentUserAndReminderId(id);
@@ -65,7 +65,7 @@ public class ReminderResource {
         return null;
     }
 
-    @PostMapping("/reminders/car/{carId}")
+    @PostMapping("/car/{carId}")
     public ResponseEntity<Reminder> createReminder(@PathVariable Long carId, @Valid @RequestBody Reminder reminder)
         throws URISyntaxException {
         log.debug("REST request to save Reminder : {}", reminder);
@@ -86,7 +86,7 @@ public class ReminderResource {
             .body(result);
     }
 
-    @DeleteMapping("/reminders/{id}")
+    @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteReminder(@PathVariable Long id) {
         log.debug("REST request to delete Reminder : {}", id);
         Optional<Reminder> existingReminderOpt = reminderRepository.findByCurrentUserAndReminderId(id);
@@ -101,7 +101,7 @@ public class ReminderResource {
             .build();
     }
 
-    @PutMapping("/reminders/{id}")
+    @PutMapping("/{id}")
     public ResponseEntity<Reminder> updateReminder(
         @PathVariable(value = "id", required = false) final Long id,
         @Valid @RequestBody Reminder reminder

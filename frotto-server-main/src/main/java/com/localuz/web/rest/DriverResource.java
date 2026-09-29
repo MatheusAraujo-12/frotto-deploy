@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /** REST controller for managing {@link com.localuz.domain.Driver}. */
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/drivers")
 @Transactional
 public class DriverResource {
 
@@ -29,7 +29,7 @@ public class DriverResource {
     // qualquer motorista do sistema — inclusive de outra conta — para qualquer usuário
     // autenticado que soubesse/adivinhasse um CPF. Agora só retorna o motorista se ele estiver
     // vinculado (via driver_car) a um carro do usuário autenticado.
-    @GetMapping("/drivers/{cpf}")
+    @GetMapping("/{cpf}")
     public Driver findByCpf(@PathVariable String cpf) {
         Optional<Driver> driver = driverRepository.findByCurrentUserAndCpf(cpf);
         if (driver.isPresent()) {
@@ -38,7 +38,7 @@ public class DriverResource {
         return null;
     }
 
-    @GetMapping("/drivers/search")
+    @GetMapping("/search")
     public List<DriverSearchDTO> searchDrivers(@RequestParam(name = "q", required = false, defaultValue = "") String q) {
         String normalizedQuery = q == null ? "" : q.trim();
         String digitsOnly = normalizedQuery.replaceAll("\\D+", "");

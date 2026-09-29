@@ -37,7 +37,7 @@ import tech.jhipster.web.util.HeaderUtil;
 
 /** REST controller for managing {@link com.localuz.domain.Inspection}. */
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/inspections")
 @Transactional
 public class InspectionResource {
 
@@ -72,14 +72,14 @@ public class InspectionResource {
         this.carService = carService;
     }
 
-    @GetMapping("/inspections/car/{carId}")
+    @GetMapping("/car/{carId}")
     public List<Inspection> getInspectionByCar(@PathVariable Long carId) {
         log.debug("REST request to get Inspection  by carId : {}", carId);
         List<Inspection> driverCars = inspectionRepository.findByCurrentUserAndCarIdByDate(carId);
         return driverCars;
     }
 
-    @GetMapping("/inspections/{id}")
+    @GetMapping("/{id}")
     public Inspection getInspectionById(@PathVariable Long id) {
         log.debug("REST request to get Inspection  by id : {}", id);
         Optional<Inspection> inspection = inspectionRepository.findByCurrentUserAndInspectionId(id);
@@ -89,7 +89,7 @@ public class InspectionResource {
         return null;
     }
 
-    @PostMapping("/inspections/car/{carId}")
+    @PostMapping("/car/{carId}")
     public ResponseEntity<Inspection> createInspection(@Valid @RequestBody Inspection inspection, @PathVariable Long carId)
         throws URISyntaxException {
         log.debug("REST request to save Inspection : {}", inspection);
@@ -110,7 +110,7 @@ public class InspectionResource {
             .body(result);
     }
 
-    @DeleteMapping("/inspections/{id}")
+    @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteInspection(@PathVariable Long id) {
         log.debug("REST request to delete Inspection : {}", id);
         Optional<Inspection> existingInspectionOpt = inspectionRepository.findByCurrentUserAndInspectionId(id);
@@ -125,7 +125,7 @@ public class InspectionResource {
             .build();
     }
 
-    @PutMapping("/inspections/{id}")
+    @PutMapping("/{id}")
     public ResponseEntity<Inspection> updateInspection(
         @PathVariable(value = "id", required = false) final Long id,
         @Valid @RequestBody Inspection inspection
