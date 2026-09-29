@@ -28,7 +28,7 @@ Todos os consumidores de billing usam `countBillableByUserId`. `activeVehicleCou
 
 - DELETE próprio: lock da conta, bloqueio se upgrade aberto, marca deleted/date/actor + active=false; nunca remove o Car ou suas relações.
 - JSON não pode escrever deleted nem auditoria. PATCH de excluído é rejeitado, inclusive active/deleted/adminStatus. Criação força estado normal e ignora auditoria enviada.
-- Receitas, despesas, motorista, manutenção, serviço, inspeção, dano, lembrete, pendência/pagamento operacional e documentos verificam o Car persistido antes de escrever. Referências filhas de inspeção não podem mover despesas/pneus/danos de outro histórico; danos são associados a partir do registro autorizado persistido, não mesclados cegamente do JSON.
+- Receitas, despesas, motorista, manutenção, serviço, inspeção, dano, lembrete, pendência/pagamento operacional e documentos verificam o Car persistido antes de escrever. Referências filhas de inspeção/manutenção não podem mover despesas/pneus/danos/serviços de outro histórico; danos são associados a partir do registro autorizado persistido, não mesclados cegamente do JSON.
 - `/api/cars/deleted` só lista veículos do usuário. `/menu/veiculos-excluidos` apresenta nome/placa/marca/modelo/data e consulta de receitas, despesas, motoristas, inspeções, danos, manutenções, lembretes e documentos (paginados). Sem comandos de edição/restauração. Consultas históricas e relatórios por veículo mantêm os dados.
 - Placa normalizada já excluída na mesma conta bloqueia self-service (`VEHICLE_PREVIOUSLY_DELETED`); não há reativação implícita. A validação também impede duplicata de não excluído e roda sob lock da conta.
 - `POST /api/admin/cars/{id}/restore`, `ROLE_ADMIN`, body `{ "reason": "Exclusão acidental" }`: motivo não vazio, até 500 caracteres; confere limite, downgrade pendente, upgrade aberto e colisão de placa. Atualiza deleted=false/active=true e restoredAt/restoredByUserId/restoreReason. Preserva adminStatus e auditoria anterior de exclusão. Não cobra.
@@ -97,7 +97,7 @@ Regressões novas/estendidas:
 - SubscriptionPlanChangeServiceTest: limpeza efetiva, provider já restaurado, PUT+GET, token/plano divergente, precisão temporal simulada, escalar persistido não limpo, retry sem pendência, operação concorrente/reserva expirada, cotação de upgrade obsoleta.
 - SubscriptionPlanChangeStepsBootstrapTest: construção do bean/AOP sem EntityManager artificial.
 - VehicleLifecycleServiceTest, CarResourceEnforcementTest, VehicleRestorationSecurityTest: estados operacionais, contagem/limites, JSON read-only, delete/PATCH, placa, admin/motivo/auditoria, pending/upgrade, role USER negada no proxy real de método.
-- InspectionHistoryProtectionTest: excluído só leitura e rejeição de referência a dano de outro veículo.
+- InspectionHistoryProtectionTest: excluído só leitura e rejeição de referências a dano/serviço de outro histórico.
 - DynamicFleetBillingTest/SchedulerTest: 24h, Platinum/Frotta, mesma preapproval, snapshot imutável, retries/falhas, REVIEW, downgrade/upgrade/cancelamento, paginação limitada e 429.
 - FleetRenewalEvidenceTest: preço/contagem pagos, moeda/valor divergentes, competência anterior, refund e downgrade progressivo.
 - BillingResourceTest/BillingMeDTOTest: campos seguros, ausência de pending, preço atual/fechado/projetado.

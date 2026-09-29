@@ -41,4 +41,18 @@ class InspectionHistoryProtectionTest {
         assertThat(resource.getInspectionById(4L)).isSameAs(historical);
         verify(inspections, never()).save(any());
     }
+    @Test void maintenanceCannotImportServiceIdsFromDeletedVehicleHistory() {
+        var maintenances = mock(MaintenanceRepository.class);
+        var cars = mock(CarRepository.class);
+        var services = mock(ServiceRepository.class);
+        var resource = new MaintenanceResource(maintenances, cars, mock(CarService.class), services);
+        Car operational = new Car().id(1L);
+        when(cars.findByCurrentUserAndId(1L)).thenReturn(Optional.of(operational));
+        com.localuz.domain.Service historical = new com.localuz.domain.Service(); historical.setId(99L);
+        Maintenance incoming = new Maintenance(); incoming.setServices(Set.of(historical));
+        assertThatThrownBy(() -> resource.createMaintenance(1L, incoming)).isInstanceOf(BadRequestAlertException.class);
+        verify(services, never()).saveAll(any());
+        verify(maintenances, never()).save(any());
+    }
+
 }

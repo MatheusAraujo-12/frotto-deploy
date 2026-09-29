@@ -94,6 +94,7 @@ public class MaintenanceResource {
         Car maintenanceCar = existingCarOpt.get();
         com.localuz.service.VehicleLifecycleService.requireOperational(maintenanceCar);
         maintenance.setCar(maintenanceCar);
+        validateServices(maintenance, null);
 
         carService.updateCarOdometerByDate(maintenance.getDate(), maintenance.getOdometer(), maintenanceCar);
 
@@ -139,6 +140,7 @@ public class MaintenanceResource {
         Car maintenanceCar = existingMaintenanceOpt.get().getCar();
         com.localuz.service.VehicleLifecycleService.requireOperational(maintenanceCar);
         maintenance.setCar(maintenanceCar);
+        validateServices(maintenance, existingMaintenanceOpt.get());
 
         List<Service> currentServices = serviceRepository.findAllByMaintenance(maintenance);
         List<Long> currentServiceIds = currentServices.stream().map(Service::getId).collect(Collectors.toList());
@@ -160,4 +162,15 @@ public class MaintenanceResource {
             .headers(HeaderUtil.createEntityUpdateAlert(applicationName, false, ENTITY_NAME, maintenance.getId().toString()))
             .body(result);
     }
+    private void validateServices(Maintenance incoming, Maintenance existing) {
+        var allowedIds = existing == null ? java.util.Set.<Long>of() : existing.getServices().stream()
+            .map(Service::getId).collect(Collectors.toSet());
+        for (Service service : incoming.getServices()) {
+            if (service.getId() != null && !allowedIds.contains(service.getId())) {
+                throw new BadRequestAlertException("Serviço não pertence a esta manutenção.", ENTITY_NAME, "invalidchildreference");
+            }
+            service.setMaintenance(incoming);
+        }
+    }
+
 }
