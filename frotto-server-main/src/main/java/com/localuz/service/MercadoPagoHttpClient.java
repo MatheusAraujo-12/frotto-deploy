@@ -68,10 +68,21 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
         if (node.hasNonNull("transaction_amount_refunded") && decimal(node, "transaction_amount_refunded") == null) {
             throw invalidFinancialResponse();
         }
+        return parsePayment(node, id);
+    }
+
+    private com.localuz.service.dto.MercadoPagoPayment parsePayment(JsonNode node, String id) {
+        JsonNode transactionData = node.path("point_of_interaction").path("transaction_data");
         return new com.localuz.service.dto.MercadoPagoPayment(id, text(node, "status"), safeCode(node, "status_detail"),
             decimal(node, "transaction_amount"), text(node, "currency_id"), instant(node, "date_created"),
             instant(node, "date_approved"), instant(node, "date_last_updated"), text(node, "external_reference"),
-            decimal(node, "transaction_amount_refunded"));
+            decimal(node, "transaction_amount_refunded"), text(transactionData, "subscription_id"),
+            subscriptionSequenceNumber(transactionData));
+    }
+
+    private Integer subscriptionSequenceNumber(JsonNode transactionData) {
+        JsonNode number = transactionData.path("subscription_sequence").path("number");
+        return number.isIntegralNumber() && number.canConvertToInt() && number.intValue() > 0 ? number.intValue() : null;
     }
 
     @Override public java.util.Optional<MercadoPagoAuthorizedPayment> findAuthorizedPaymentByPaymentId(String id) {

@@ -44,8 +44,23 @@ public class MercadoPagoFinancialIngestion {
 
     public record FinancialSnapshot(MercadoPagoAuthorizedPayment charge, MercadoPagoPayment payment, MercadoPagoPreapproval preapproval) {}
 
+    /**
+     * A bare Payment paired with the preapproval it was correlated to via
+     * point_of_interaction.transaction_data.subscription_id (see fetchPaymentSnapshot). Used
+     * instead of FinancialSnapshot when there is no AuthorizedPayment charge to anchor on - the
+     * Frotto checkout flow (POST /preapproval with status=pending + back_url/init_point, no
+     * card_token_id) never produces one (see the 5G.9 root-cause investigation).
+     */
+    public record PaymentSnapshot(MercadoPagoPayment payment, MercadoPagoPreapproval preapproval) {}
+
     @Transactional
     public boolean ingest(String type, String resourceId) {
+        if ("payment".equals(type)) {
+            MercadoPagoPayment payment = client.getPayment(resourceId);
+            if (payment == null || !resourceId.equals(payment.getId())) return ignored("payment_id_mismatch");
+            PaymentSnapshot snapshot = fetchPaymentSnapshot(payment, () -> {});
+            return snapshot != null && persistFromPayment(snapshot, null);
+        }
         FinancialSnapshot snapshot = fetch(type, resourceId, null, () -> {});
         return snapshot != null && persist(snapshot, null);
     }
@@ -56,27 +71,26 @@ public class MercadoPagoFinancialIngestion {
         return persist(snapshot, expectedSubscriptionId);
     }
 
+    /** Reconciliation calls this bean through its transactional proxy AFTER all HTTP has completed. */
+    @Transactional
+    public boolean ingestPaymentSnapshot(PaymentSnapshot snapshot, Long expectedSubscriptionId) {
+        return persistFromPayment(snapshot, expectedSubscriptionId);
+    }
 
+    /** Charge-anchored path: only ever reachable for the "subscription_authorized_payment" event
+     * type today. Nothing in the Frotto integration currently produces that resource (see the
+     * 5G.9 investigation) - kept as-is in case a future flow (e.g. card_token_id) starts using it;
+     * never used as a silent fallback for the "payment" event type, which is handled entirely by
+     * fetchPaymentSnapshot/persistFromPayment instead (see ingest(...) above). */
     public FinancialSnapshot fetch(String type, String resourceId, String expectedPreapprovalId, Runnable beforeHttp) {
-        MercadoPagoAuthorizedPayment charge;
-        MercadoPagoPayment payment = null;
-        if ("payment".equals(type)) {
-            beforeHttp.run(); payment = client.getPayment(resourceId);
-            if (payment == null || !resourceId.equals(payment.getId())) return ignoredSnapshot("payment_id_mismatch");
-            beforeHttp.run(); Optional<MercadoPagoAuthorizedPayment> match = client.findAuthorizedPaymentByPaymentId(resourceId);
-            if (match.isEmpty()) return ignoredSnapshot("no_unique_charge");
-            // The client has already reconfirmed the unique search hit using the individual GET.
-            charge = match.get();
-        } else if ("subscription_authorized_payment".equals(type)) {
-            beforeHttp.run(); charge = client.getAuthorizedPayment(resourceId);
-            if (charge == null || !resourceId.equals(charge.getId())) return ignoredSnapshot("charge_id_mismatch");
-            if (expectedPreapprovalId != null && !expectedPreapprovalId.equals(charge.getPreapprovalId())) {
-                return ignoredSnapshot("reconciliation_owner_mismatch");
-            }
-            if (charge.getPaymentId() != null) { beforeHttp.run(); payment = client.getPayment(charge.getPaymentId()); }
-        } else {
-            return ignoredSnapshot("unsupported_type");
+        if (!"subscription_authorized_payment".equals(type)) return ignoredSnapshot("unsupported_type");
+        beforeHttp.run(); MercadoPagoAuthorizedPayment charge = client.getAuthorizedPayment(resourceId);
+        if (charge == null || !resourceId.equals(charge.getId())) return ignoredSnapshot("charge_id_mismatch");
+        if (expectedPreapprovalId != null && !expectedPreapprovalId.equals(charge.getPreapprovalId())) {
+            return ignoredSnapshot("reconciliation_owner_mismatch");
         }
+        MercadoPagoPayment payment = null;
+        if (charge.getPaymentId() != null) { beforeHttp.run(); payment = client.getPayment(charge.getPaymentId()); }
         if (charge.getId() == null || charge.getPreapprovalId() == null
             || (payment != null && !Objects.equals(charge.getPaymentId(), payment.getId()))) {
             return ignoredSnapshot("correlation_mismatch");
@@ -90,6 +104,30 @@ public class MercadoPagoFinancialIngestion {
             return ignoredSnapshot("preapproval_mismatch");
         }
         return new FinancialSnapshot(charge, payment, preapproval);
+    }
+
+    /**
+     * Correlates a bare Payment to its Subscription via
+     * point_of_interaction.transaction_data.subscription_id - a documented Payment field present on
+     * both the initial and every renewal charge (unlike external_reference, only confirmed for the
+     * initial checkout payment). Mirrors fetch()'s authoritative-GET-then-cross-check shape: the
+     * subscription_id is re-confirmed against a fresh GET /preapproval, never trusted on its own.
+     */
+    public PaymentSnapshot fetchPaymentSnapshot(MercadoPagoPayment payment, Runnable beforeHttp) {
+        String subscriptionId = payment.getSubscriptionId();
+        if (subscriptionId == null || subscriptionId.isBlank()) return ignoredPaymentSnapshot("payment_missing_subscription_id");
+        beforeHttp.run();
+        MercadoPagoPreapproval preapproval = client.getPreapproval(subscriptionId);
+        if (preapproval == null || !subscriptionId.equals(preapproval.getId())
+            || conflictingReference(payment.getExternalReference(), preapproval.getExternalReference())) {
+            return ignoredPaymentSnapshot("preapproval_mismatch");
+        }
+        return new PaymentSnapshot(payment, preapproval);
+    }
+
+    private PaymentSnapshot ignoredPaymentSnapshot(String reason) {
+        ignored(reason);
+        return null;
     }
 
     private FinancialSnapshot ignoredSnapshot(String reason) {
@@ -145,6 +183,128 @@ public class MercadoPagoFinancialIngestion {
         upsertAttempt(invoice, charge, payment, chargeMoneyMatches);
         invoices.saveAndFlush(invoice);
         return true;
+    }
+
+    /**
+     * Payment-anchored path (see PaymentSnapshot). Mirrors persist()'s invariants - authoritative
+     * subscription lock before any read/write, money/status validation, idempotent invoice/attempt
+     * upsert, fail-closed on any ambiguity - but keys the invoice on the competency period derived
+     * from subscription_sequence.number (MercadoPagoPaymentInvoiceTemporalEnricher) instead of an
+     * external_authorized_payment_id, since no AuthorizedPayment charge exists for this flow.
+     */
+    private boolean persistFromPayment(PaymentSnapshot snapshot, Long expectedSubscriptionId) {
+        MercadoPagoPayment payment = snapshot.payment();
+        MercadoPagoPreapproval preapproval = snapshot.preapproval();
+        validateRefundSnapshot(payment);
+        // Lock the existing parent before ANY financial read/write. The lock also serializes first inserts.
+        Subscription subscription = subscriptions.findForFinancialIngestion(PROVIDER, preapproval.getId()).orElse(null);
+        if (subscription == null || subscription.getSource() != SubscriptionSource.PAYMENT_PROVIDER
+            || !PROVIDER.equals(subscription.getExternalProvider())
+            || !preapproval.getId().equals(subscription.getExternalSubscriptionId())) return ignored("no_matching_subscription");
+
+        if (expectedSubscriptionId != null && !expectedSubscriptionId.equals(subscription.getId())) {
+            return ignored("reconciliation_subscription_mismatch");
+        }
+        String paymentCurrency = currency(payment.getCurrencyId());
+        Optional<PaymentAttemptStatus> mappedStatus = mapper.payment(payment.getStatus());
+        if (!validAmount(payment.getTransactionAmount()) || paymentCurrency == null || mappedStatus.isEmpty()) {
+            return ignored("incomplete_or_unknown_payment");
+        }
+        PaymentAttempt existingAttempt = attempts.findByProviderAndExternalPaymentId(PROVIDER, payment.getId()).orElse(null);
+        BillingInvoice invoice = existingAttempt != null ? existingAttempt.getBillingInvoice()
+            : findOrCreateInvoiceForPayment(subscription, payment, preapproval, paymentCurrency, mappedStatus.get());
+        if (!Objects.equals(invoice.getSubscription().getId(), subscription.getId())) return ignored("invoice_owner_mismatch");
+        boolean freshInvoice = invoice.getId() == null;
+        boolean chargeMoneyMatches = freshInvoice || moneyMatches(invoice, payment.getTransactionAmount(), paymentCurrency);
+        if (!chargeMoneyMatches) LOG.warn("Mercado Pago financial inconsistency reason=charge_money_mismatch invoiceId={}", invoice.getId());
+        MercadoPagoPaymentInvoiceTemporalEnricher.Result temporal = MercadoPagoPaymentInvoiceTemporalEnricher.enrich(
+            invoice, payment, subscription, preapproval.getFrequency(), preapproval.getFrequencyType());
+        if (temporal == MercadoPagoPaymentInvoiceTemporalEnricher.Result.CONFLICT) {
+            LOG.warn("Mercado Pago temporal conflict invoiceId={} reason=competency_mismatch", invoice.getId());
+        }
+        if (freshInvoice || newer(payment.getDateLastUpdated(), invoice.getProviderUpdatedAt())) {
+            invoice.setProviderUpdatedAt(payment.getDateLastUpdated());
+            if (invoice.getProviderCreatedAt() == null) invoice.setProviderCreatedAt(payment.getDateCreated());
+        }
+        invoice.setLastReconciledAt(Instant.now());
+        invoices.saveAndFlush(invoice);
+        upsertAttemptFromPayment(invoice, existingAttempt, payment, mappedStatus.get(), paymentCurrency, chargeMoneyMatches);
+        invoices.saveAndFlush(invoice);
+        return true;
+    }
+
+    /**
+     * Looks up the invoice for the competency period this payment belongs to (so a retry payment
+     * for the same cycle attaches to the SAME invoice instead of fabricating a duplicate), falling
+     * back to a fresh, unperiodized invoice when the period cannot be derived yet -
+     * SubscriptionFinancialCoverageService already treats a null period as never covered, so this
+     * never manufactures coverage out of an unresolved competency.
+     */
+    private BillingInvoice findOrCreateInvoiceForPayment(Subscription subscription, MercadoPagoPayment payment,
+        MercadoPagoPreapproval preapproval, String currency, PaymentAttemptStatus status) {
+        Integer sequence = payment.getSubscriptionSequenceNumber();
+        if (sequence != null && sequence >= 1 && preapproval.getFrequency() != null) {
+            Instant[] period = MercadoPagoPaymentInvoiceTemporalEnricher.computePeriod(
+                subscription.getStartDate(), sequence, preapproval.getFrequency(), preapproval.getFrequencyType());
+            if (period != null) {
+                BillingInvoice existing = invoices
+                    .findBySubscriptionIdAndPeriodStartAndPeriodEnd(subscription.getId(), period[0], period[1]).orElse(null);
+                if (existing != null) return existing;
+            }
+        }
+        BillingInvoice invoice = new BillingInvoice();
+        invoice.setSubscription(subscription);
+        invoice.setProvider(PROVIDER);
+        invoice.setAmount(payment.getTransactionAmount().setScale(2));
+        invoice.setCurrency(currency);
+        invoice.setStatus(status == PaymentAttemptStatus.PROCESSING ? BillingInvoiceStatus.PROCESSING : BillingInvoiceStatus.PENDING);
+        return invoice;
+    }
+
+    /** Payment-anchored twin of upsertAttempt: no "provisional" placeholder is needed since a bare
+     * Payment (unlike an AuthorizedPayment charge) is never observed before its own evidence exists. */
+    private void upsertAttemptFromPayment(BillingInvoice invoice, PaymentAttempt existing, MercadoPagoPayment payment,
+        PaymentAttemptStatus status, String paymentCurrency, boolean chargeMoneyMatches) {
+        boolean firstPayment = existing == null;
+        if (!firstPayment && !newer(payment.getDateLastUpdated(), existing.getProviderUpdatedAt())) return;
+        if (!firstPayment && BillingPaymentEvidence.reversed(existing) && status == PaymentAttemptStatus.APPROVED
+            && payment.getRefundedAmount() == null) {
+            // An incomplete approval cannot erase an already confirmed reversal.
+            ignored("incomplete_approval_after_reversal");
+            return;
+        }
+        PaymentAttempt attempt = existing == null ? newAttempt(invoice) : existing;
+        attempt.setExternalPaymentId(payment.getId());
+        // A terminal financial observation must not regress to a pending state, even on a newer snapshot.
+        if (!firstPayment && terminal(attempt.getStatus()) && !terminal(status)) return;
+        attempt.setStatus(status);
+        attempt.setProviderStatus(code(payment.getStatus(), 64));
+        if (code(payment.getStatusDetail(), 128) != null) attempt.setStatusDetail(code(payment.getStatusDetail(), 128));
+        attempt.setAmount(payment.getTransactionAmount().setScale(2));
+        attempt.setCurrency(paymentCurrency);
+        if (attempt.getProviderCreatedAt() == null) attempt.setProviderCreatedAt(payment.getDateCreated());
+        if (attempt.getAttemptedAt() == null) attempt.setAttemptedAt(payment.getDateCreated());
+        attempt.setProviderUpdatedAt(payment.getDateLastUpdated());
+        if (attempt.getApprovedAt() == null && payment.getDateApproved() != null) attempt.setApprovedAt(payment.getDateApproved());
+        if (validAmount(payment.getRefundedAmount()) && payment.getRefundedAmount().compareTo(payment.getTransactionAmount()) <= 0) {
+            attempt.setRefundedAmount(payment.getRefundedAmount().setScale(2));
+        }
+        attempt.setObservedAt(Instant.now());
+        attempts.saveAndFlush(attempt);
+        if (!chargeMoneyMatches || !moneyMatches(invoice, attempt.getAmount(), attempt.getCurrency())) {
+            LOG.warn("Mercado Pago financial inconsistency reason=payment_money_mismatch invoiceId={} attemptId={}", invoice.getId(), attempt.getId());
+            return;
+        }
+        var evidence = attempts.findByBillingInvoiceIdOrderByIdAsc(invoice.getId());
+        boolean approved = evidence.stream().anyMatch(a -> BillingPaymentEvidence.approved(invoice, a));
+        if (approved) {
+            invoice.setStatus(BillingInvoiceStatus.PAID);
+            if (invoice.getPaidAt() == null && attempt.getStatus() == PaymentAttemptStatus.APPROVED) invoice.setPaidAt(attempt.getApprovedAt());
+        } else if (evidence.stream().anyMatch(a -> a.getStatus() == PaymentAttemptStatus.CHARGEDBACK)) {
+            invoice.setStatus(BillingInvoiceStatus.CHARGEDBACK);
+        } else if (evidence.stream().anyMatch(BillingPaymentEvidence::reversed)) {
+            invoice.setStatus(BillingInvoiceStatus.REFUNDED);
+        }
     }
 
     private void upsertAttempt(BillingInvoice invoice, MercadoPagoAuthorizedPayment charge, MercadoPagoPayment payment,

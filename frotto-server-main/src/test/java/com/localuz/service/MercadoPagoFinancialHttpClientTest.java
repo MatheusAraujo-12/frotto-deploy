@@ -71,6 +71,23 @@ class MercadoPagoFinancialHttpClientTest {
         assertThat(requests.getValue().method()).isEqualTo("GET");
     }
 
+    @Test void parsesTheSubscriptionLinkOfARenewalPayment() throws Exception {
+        when(response.body()).thenReturn("{\"id\":20,\"status\":\"approved\",\"transaction_amount\":\"100.00\",\"currency_id\":\"BRL\","
+            + "\"point_of_interaction\":{\"transaction_data\":{\"subscription_id\":\"pre-1\",\"subscription_sequence\":{\"number\":3,\"total\":null}}}}");
+        var payment = client.getPayment("20");
+        assertThat(payment.getSubscriptionId()).isEqualTo("pre-1");
+        assertThat(payment.getSubscriptionSequenceNumber()).isEqualTo(3);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"0", "-1", "\"3\"", "1.5", "null"})
+    void invalidSubscriptionSequenceIsLeftUnknownNeverGuessed(String number) throws Exception {
+        when(response.body()).thenReturn("{\"id\":20,\"status\":\"approved\",\"transaction_amount\":\"100.00\",\"currency_id\":\"BRL\","
+            + "\"point_of_interaction\":{\"transaction_data\":{\"subscription_sequence\":{\"number\":" + number + "}}}}");
+        var payment = client.getPayment("20");
+        assertThat(payment.getSubscriptionId()).isNull();
+        assertThat(payment.getSubscriptionSequenceNumber()).isNull();
+    }
+
     @ParameterizedTest @ValueSource(strings = {"\"bad\"", "{}", "true", "[]"})
     void malformedRefundAmountIsNotSilentlyTreatedAsAbsent(String refund) {
         when(response.body()).thenReturn("{\"id\":20,\"status\":\"approved\",\"transaction_amount_refunded\":" + refund + "}");

@@ -440,6 +440,17 @@ class RecurringBillingPersistenceTest {
         assertThat(em.find(BillingInvoice.class, second.getId()).getDueAt()).isNull();
     }
 
+    /**
+     * A "payment" webhook is correlated to its Subscription via
+     * point_of_interaction.transaction_data.subscription_id (parsed onto MercadoPagoPayment as
+     * subscriptionId/subscriptionSequenceNumber) - see MercadoPagoFinancialIngestion#ingest and
+     * #fetchPaymentSnapshot/#persistFromPayment, and the mock-level equivalent of this test in
+     * MercadoPagoFinancialIngestionTest. The Frotto checkout flow never produces a queryable
+     * AuthorizedPayment resource for findAuthorizedPaymentByPaymentId to search for (confirmed
+     * experimentally in staging - see the 5G.9 report), so this real-repositories test anchors on
+     * subscriptionId like production traffic does, instead of a charge-anchored
+     * "subscription_authorized_payment" provisional that Frotto's integration never actually emits.
+     */
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
     void financialIngestionReplaysAndEnrichesUsingRealRepositories(boolean temporal) {
@@ -450,34 +461,28 @@ class RecurringBillingPersistenceTest {
         org.mockito.Mockito.when(client.getPreapproval("pre-ingest")).thenReturn(
             new com.localuz.service.dto.MercadoPagoPreapproval("pre-ingest", "authorized", "ref", null,
                 null, null, null, temporal ? 1 : null, temporal ? "months" : null));
-        com.localuz.service.dto.MercadoPagoAuthorizedPayment provisional = new com.localuz.service.dto.MercadoPagoAuthorizedPayment(
-            "charge-ingest", "processed", "pre-ingest", "approved", null, new BigDecimal("100.00"), "BRL", SEPTEMBER, SEPTEMBER, null, "ref");
-        org.mockito.Mockito.when(client.getAuthorizedPayment("charge-ingest")).thenReturn(provisional);
+        org.mockito.Mockito.when(client.getPayment("payment-ingest")).thenReturn(new com.localuz.service.dto.MercadoPagoPayment(
+            "payment-ingest", "approved", "accredited", new BigDecimal("100.0"), "brl", SEPTEMBER,
+            SEPTEMBER.plusSeconds(10), SEPTEMBER.plusSeconds(20), "ref", null,
+            "pre-ingest", temporal ? 1 : null));
         com.localuz.service.MercadoPagoFinancialIngestion ingestion = new com.localuz.service.MercadoPagoFinancialIngestion(
             client, new JpaRepositoryFactory(em).getRepository(SubscriptionRepository.class), invoices, attempts,
             new com.localuz.service.MercadoPagoBillingStatusMapper());
-        assertThat(ingestion.ingest("subscription_authorized_payment", "charge-ingest")).isTrue();
-        BillingInvoice invoice = invoices.findByProviderAndExternalAuthorizedPaymentId(PROVIDER, "charge-ingest").orElseThrow();
-        Long attemptId = attempts.findByBillingInvoiceIdOrderByIdAsc(invoice.getId()).get(0).getId();
-        java.time.OffsetDateTime debit = java.time.OffsetDateTime.parse("2026-01-31T23:30:00-03:00");
-        org.mockito.Mockito.when(client.findAuthorizedPaymentByPaymentId("payment-ingest")).thenReturn(java.util.Optional.of(
-            new com.localuz.service.dto.MercadoPagoAuthorizedPayment("charge-ingest", "processed", "pre-ingest", "approved", "payment-ingest",
-                new BigDecimal("100.0"), "brl", SEPTEMBER, SEPTEMBER.plusSeconds(20), temporal ? debit.toInstant() : null, "ref", temporal ? debit : null)));
-        org.mockito.Mockito.when(client.getPayment("payment-ingest")).thenReturn(new com.localuz.service.dto.MercadoPagoPayment(
-            "payment-ingest", "approved", "accredited", new BigDecimal("100.0"), "brl", SEPTEMBER,
-            SEPTEMBER.plusSeconds(10), SEPTEMBER.plusSeconds(20), "ref", null));
-        ingestion.ingest("payment", "payment-ingest");
+        assertThat(ingestion.ingest("payment", "payment-ingest")).isTrue();
+        BillingInvoice invoice = invoices.findBySubscriptionIdOrderByPeriodStartAsc(subscription.getId()).get(0);
+        Long invoiceId = invoice.getId();
+        Long attemptId = attempts.findByBillingInvoiceIdOrderByIdAsc(invoiceId).get(0).getId();
         em.clear();
-        ingestion.ingest("payment", "payment-ingest");
+        assertThat(ingestion.ingest("payment", "payment-ingest")).isTrue();
         em.clear();
-        BillingInvoice loaded = invoices.findByProviderAndExternalAuthorizedPaymentId(PROVIDER, "charge-ingest").orElseThrow();
-        assertThat(loaded.getId()).isEqualTo(invoice.getId());
+        BillingInvoice loaded = em.find(BillingInvoice.class, invoiceId);
         assertThat(loaded.getStatus()).isEqualTo(BillingInvoiceStatus.PAID);
+        assertThat(loaded.getPaidAt()).isEqualTo(SEPTEMBER.plusSeconds(10));
         if (temporal) {
-            assertThat(loaded.getPeriodStart()).isEqualTo(debit.toInstant());
-            assertThat(loaded.getPeriodEnd()).isEqualTo(Instant.parse("2026-03-01T02:30:00Z"));
-            assertThat(loaded.getDueAt()).isEqualTo(debit.toInstant());
-            assertThat(loaded.getGracePeriodEnd()).isEqualTo(debit.toInstant().plus(Duration.ofHours(72)));
+            assertThat(loaded.getPeriodStart()).isEqualTo(SEPTEMBER);
+            assertThat(loaded.getPeriodEnd()).isEqualTo(OCTOBER);
+            assertThat(loaded.getDueAt()).isEqualTo(SEPTEMBER);
+            assertThat(loaded.getGracePeriodEnd()).isEqualTo(SEPTEMBER.plus(Duration.ofHours(72)));
         } else {
             assertThat(loaded.getPeriodStart()).isNull();
             assertThat(loaded.getDueAt()).isNull();
