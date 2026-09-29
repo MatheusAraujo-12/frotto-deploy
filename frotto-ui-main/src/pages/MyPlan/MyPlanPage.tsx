@@ -305,8 +305,8 @@ const MyPlanPage: React.FC = () => {
     }
   };
 
-  if (loading) return <IonPage id="my-plan-page"><PageHeader /><IonContent><div className="section-shell"><Loading /></div></IonContent></IonPage>;
-  if (error || !billing) return <IonPage id="my-plan-page"><PageHeader /><IonContent><div className="section-shell"><div className="my-plan-state"><IonIcon icon={informationCircleOutline} /><h2>Não foi possível carregar seu plano</h2><p>{error || "Entre novamente para consultar seus dados."}</p><IonButton onClick={() => void load()}>Tentar novamente</IonButton></div></div></IonContent></IonPage>;
+  if (loading) return <IonPage id="my-plan-page"><PageHeader /><IonContent><div className="app-shell"><Loading /></div></IonContent></IonPage>;
+  if (error || !billing) return <IonPage id="my-plan-page"><PageHeader /><IonContent><div className="app-shell"><div className="my-plan-state"><IonIcon icon={informationCircleOutline} /><h2>Não foi possível carregar seu plano</h2><p>{error || "Entre novamente para consultar seus dados."}</p><IonButton onClick={() => void load()}>Tentar novamente</IonButton></div></div></IonContent></IonPage>;
 
   const state = usageState(billing);
   const progress = billing.vehicleLimit == null ? 0 : Math.min(1, billing.activeVehicleCount / billing.vehicleLimit);
@@ -336,7 +336,7 @@ const MyPlanPage: React.FC = () => {
   return <IonPage id="my-plan-page">
     <PageHeader />
     <IonContent>
-      <div className="section-shell my-plan-shell">
+      <div className="app-shell my-plan-shell">
         {notice && <div className={`my-plan-alert my-plan-alert--${notice.tone}`} role={notice.tone === "warning" || notice.tone === "danger" ? "alert" : "status"}><strong>{notice.title}</strong><span>{notice.detail}</span>{resumeUrl && <IonButton size="small" onClick={() => navigateToCheckout(resumeUrl)}>Continuar pagamento</IonButton>}{checkoutNeedsRefresh(paymentState) && <IonButton size="small" fill="outline" onClick={() => void load()}>Atualizar status</IonButton>}</div>}
         {upgradeNote && <div className={`my-plan-alert my-plan-alert--${upgradeNote.tone}`} role={upgradeNote.tone === "warning" ? "alert" : "status"} data-testid="upgrade-notice">
           <strong>{upgradeNote.title}</strong><span>{upgradeNote.detail}</span>

@@ -1,4 +1,4 @@
-import { readFileSync } from "fs";
+import { readdirSync, readFileSync } from "fs";
 import { resolve } from "path";
 
 const read = (name: string) => readFileSync(resolve(__dirname, name), "utf8");
@@ -53,5 +53,20 @@ describe("design system accessibility contract", () => {
       expect(html).toContain(resolveToken('--frotto-background', { ...primitives, ...palette }).toLowerCase());
     });
     expect(read('variables.css')).not.toMatch(/prefers-color-scheme/);
+  });
+});
+
+describe("design system layout contract", () => {
+  const sourceFiles = (dir: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
+      const path = resolve(dir, entry.name);
+      if (entry.isDirectory()) return sourceFiles(path);
+      return /\.tsx$/.test(entry.name) && !/\.test\.tsx$/.test(entry.name) ? [path] : [];
+    });
+
+  it("no screen still uses the pre-design-system section-shell (its CSS was removed with the old global.css)", () => {
+    const offenders = sourceFiles(resolve(__dirname, "..")).filter(file => /\bsection-shell\b/.test(readFileSync(file, "utf8")));
+    expect(offenders).toEqual([]);
+    expect(read("legacy.css")).toMatch(/\.app-shell\s*\{/);
   });
 });
