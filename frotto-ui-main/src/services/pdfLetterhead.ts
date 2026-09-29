@@ -5,8 +5,8 @@ import { resolveApiUrl } from "./resolveApiUrl";
 
 export const PDF_LETTERHEAD_PAGE_MARGINS: [number, number, number, number] = [40, 115, 40, 60];
 
-const AVATAR_CACHE_PREFIX = "frotto:pdf:avatar:data-url:";
-const avatarMemoryCache = new Map<string, string>();
+const IMAGE_DATA_URL_CACHE_PREFIX = "frotto:pdf:image:data-url:";
+const imageDataUrlMemoryCache = new Map<string, string>();
 
 type FiscalIdentity = {
   fiscalName: string;
@@ -16,22 +16,25 @@ type FiscalIdentity = {
   stateRegistration: string;
 };
 
-export async function loadPdfLetterheadData(): Promise<{ profile: MeResponseDTO | null; avatarDataUrl: string }> {
+/**
+ * Identidade documental: a logomarca (não o avatar) é a única imagem elegível
+ * para o cabeçalho de PDFs de Documentos/Relatórios. Ver DESIGN_SYSTEM.md
+ * seção 26 — avatar nunca é usado como fallback quando não há logomarca.
+ */
+export async function loadPdfLetterheadData(): Promise<{ profile: MeResponseDTO | null; logoDataUrl: string }> {
   try {
     const profile = await profileService.getMe();
-    const rawAvatarUrl = `${profile.avatarUrl ?? profile.imageUrl ?? ""}`.trim();
-    console.log("[PDF] avatarUrl", rawAvatarUrl || null);
-    const avatarDataUrl = await loadAvatarDataUrl(rawAvatarUrl);
-    console.log("[PDF] avatarDataUrl length", avatarDataUrl?.length || 0);
-    return { profile, avatarDataUrl };
+    const rawLogoUrl = `${profile.logoUrl || ""}`.trim();
+    const logoDataUrl = await loadLogoDataUrl(rawLogoUrl);
+    return { profile, logoDataUrl };
   } catch (_error) {
-    return { profile: null, avatarDataUrl: "" };
+    return { profile: null, logoDataUrl: "" };
   }
 }
 
 export function buildPdfLetterhead(
   profile: MeResponseDTO | null,
-  avatarDataUrl: string,
+  logoDataUrl: string,
   pageSize: any,
   pageMargins: [number, number, number, number] = PDF_LETTERHEAD_PAGE_MARGINS
 ) {
@@ -71,11 +74,11 @@ export function buildPdfLetterhead(
     });
   }
 
-  const headerColumns = avatarDataUrl
+  const headerColumns = logoDataUrl
     ? [
         {
           width: 70,
-          image: avatarDataUrl,
+          image: logoDataUrl,
           fit: [60, 60],
         },
         {
@@ -136,8 +139,8 @@ export function resolveFiscalIdentity(profile: MeResponseDTO | null): FiscalIden
   };
 }
 
-async function loadAvatarDataUrl(rawAvatarUrl: string): Promise<string> {
-  const candidates = resolveAvatarCandidates(rawAvatarUrl);
+async function loadLogoDataUrl(rawLogoUrl: string): Promise<string> {
+  const candidates = resolveLogoCandidates(rawLogoUrl);
   for (const candidate of candidates) {
     const dataUrl = await loadImageAsDataUrl(candidate);
     if (dataUrl) {
@@ -147,17 +150,17 @@ async function loadAvatarDataUrl(rawAvatarUrl: string): Promise<string> {
   return "";
 }
 
-function resolveAvatarCandidates(rawAvatarUrl: string): string[] {
-  const value = `${rawAvatarUrl || ""}`.trim();
+function resolveLogoCandidates(rawLogoUrl: string): string[] {
+  const value = `${rawLogoUrl || ""}`.trim();
   if (!value) {
     return [];
   }
 
-  const candidates = [resolveApiUrl(value), resolveS3AvatarUrl(value)];
+  const candidates = [resolveApiUrl(value), resolveS3LogoUrl(value)];
   return candidates.filter((item, index) => Boolean(item) && candidates.indexOf(item) === index);
 }
 
-function resolveS3AvatarUrl(path: string): string {
+function resolveS3LogoUrl(path: string): string {
   const value = `${path || ""}`.trim();
   if (!value) {
     return "";
@@ -195,15 +198,15 @@ export async function loadImageAsDataUrl(url: string): Promise<string> {
     return "";
   }
 
-  const memoryCached = avatarMemoryCache.get(normalizedUrl);
+  const memoryCached = imageDataUrlMemoryCache.get(normalizedUrl);
   if (memoryCached) {
     return memoryCached;
   }
 
-  const localCacheKey = `${AVATAR_CACHE_PREFIX}${encodeURIComponent(normalizedUrl)}`;
-  const localCached = readLocalAvatarCache(localCacheKey);
+  const localCacheKey = `${IMAGE_DATA_URL_CACHE_PREFIX}${encodeURIComponent(normalizedUrl)}`;
+  const localCached = readLocalImageCache(localCacheKey);
   if (localCached) {
-    avatarMemoryCache.set(normalizedUrl, localCached);
+    imageDataUrlMemoryCache.set(normalizedUrl, localCached);
     return localCached;
   }
 
@@ -211,11 +214,11 @@ export async function loadImageAsDataUrl(url: string): Promise<string> {
     const response = await api.get<Blob>(normalizedUrl, { responseType: "blob" });
     const fromApi = await blobToImageDataUrl(response.data);
     if (fromApi) {
-      avatarMemoryCache.set(normalizedUrl, fromApi);
-      writeLocalAvatarCache(localCacheKey, fromApi);
+      imageDataUrlMemoryCache.set(normalizedUrl, fromApi);
+      writeLocalImageCache(localCacheKey, fromApi);
       return fromApi;
     }
-    throw new Error("invalid avatar image data from api");
+    throw new Error("invalid image data from api");
   } catch (apiError) {
     try {
       const response = await fetch(normalizedUrl);
@@ -225,20 +228,20 @@ export async function loadImageAsDataUrl(url: string): Promise<string> {
       const blob = await response.blob();
       const fromFetch = await blobToImageDataUrl(blob);
       if (fromFetch) {
-        avatarMemoryCache.set(normalizedUrl, fromFetch);
-        writeLocalAvatarCache(localCacheKey, fromFetch);
+        imageDataUrlMemoryCache.set(normalizedUrl, fromFetch);
+        writeLocalImageCache(localCacheKey, fromFetch);
         return fromFetch;
       }
-      throw new Error("invalid avatar image data from fetch");
+      throw new Error("invalid image data from fetch");
     } catch (fetchError) {
-      console.warn("[PDF] avatar load failed", fetchError || apiError);
+      console.warn("[PDF] image load failed", fetchError || apiError);
     }
   }
 
   return "";
 }
 
-function readLocalAvatarCache(key: string): string {
+function readLocalImageCache(key: string): string {
   try {
     return `${localStorage.getItem(key) || ""}`;
   } catch (_error) {
@@ -246,7 +249,7 @@ function readLocalAvatarCache(key: string): string {
   }
 }
 
-function writeLocalAvatarCache(key: string, dataUrl: string) {
+function writeLocalImageCache(key: string, dataUrl: string) {
   try {
     localStorage.setItem(key, dataUrl);
   } catch (_error) {
@@ -267,7 +270,7 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(`${reader.result || ""}`);
-    reader.onerror = () => reject(reader.error || new Error("Avatar read failed"));
+    reader.onerror = () => reject(reader.error || new Error("Image read failed"));
     reader.readAsDataURL(blob);
   });
 }

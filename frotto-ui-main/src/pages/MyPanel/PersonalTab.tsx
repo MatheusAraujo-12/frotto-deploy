@@ -1,20 +1,17 @@
 import {
   IonAvatar,
   IonButton,
-  IonCard,
-  IonCardContent,
-  IonCardHeader,
-  IonCardSubtitle,
-  IonCardTitle,
   IonIcon,
   IonInput,
   IonItem,
-  IonLabel,
-  IonText,
 } from "@ionic/react";
-import { imageOutline, personCircleOutline } from "ionicons/icons";
+import { imageOutline } from "ionicons/icons";
 import { maskCPF, maskPhone } from "../../services/profileFormat";
 import { FormErrors, PersonalForm } from "./profilePanelUtils";
+import FormInputLabel from "../../components/Form/FormInputLabel";
+import FormError from "../../components/Form/FormError";
+import { getFormErrorId } from "../../components/Form/FormItemWrapper";
+import ItemNotFound from "../../components/List/ItemNotFound";
 
 interface PersonalTabProps {
   form: PersonalForm;
@@ -29,13 +26,6 @@ interface PersonalTabProps {
   onChangeAvatar: () => void;
   onRemoveAvatar: () => void;
 }
-
-const renderFieldError = (show: boolean, message?: string) =>
-  show && message ? (
-    <IonText color="danger" className="app-form-error">
-      {message}
-    </IonText>
-  ) : null;
 
 const getInputValue = (event: any): string =>
   event?.detail?.value ?? event?.target?.value ?? event?.currentTarget?.value ?? "";
@@ -52,28 +42,35 @@ const PersonalTab: React.FC<PersonalTabProps> = ({
   onQuickSave,
   onChangeAvatar,
   onRemoveAvatar,
-}) => (
-  <IonCard className="app-panel-card">
-    <IonCardHeader className="app-panel-header">
-      <div className="app-soft-icon">
-        <IonIcon icon={personCircleOutline} />
-      </div>
-      <div className="app-panel-header__content">
-        <IonCardTitle className="app-panel-title">Dados Pessoais</IonCardTitle>
-        <IonCardSubtitle className="app-panel-subtitle">
-          Mantenha suas informações básicas sempre atualizadas.
-        </IonCardSubtitle>
-      </div>
-    </IonCardHeader>
-    <IonCardContent>
+}) => {
+  const fieldError = (field: keyof PersonalForm) => {
+    const show = touched[field] && Boolean(errors[field]);
+    const id = getFormErrorId(field);
+    return {
+      show,
+      id,
+      wrapClassName: show ? "app-form-field app-form-field--invalid" : "app-form-field",
+      ariaInvalid: show ? ("true" as const) : undefined,
+      ariaDescribedby: show ? id : undefined,
+      node: show ? <FormError id={id} message={errors[field] as string} /> : null,
+    };
+  };
+
+  const nameField = fieldError("personalName");
+  const cpfField = fieldError("personalCpf");
+  const birthField = fieldError("personalBirthDate");
+  const emailField = fieldError("personalEmail");
+  const phoneField = fieldError("personalPhone");
+
+  return (
+    <>
       {!hasData && (
-        <div className="app-empty-state">
-          <strong>Nenhum dado pessoal salvo</strong>
-          <span>Preencha os campos abaixo para começar.</span>
-          <IonButton size="small" fill="outline" className="app-outline-btn" onClick={onQuickSave}>
-            Salvar agora
-          </IonButton>
-        </div>
+        <ItemNotFound
+          title="Nenhum dado pessoal salvo"
+          description="Preencha os campos abaixo para começar."
+          actionLabel="Salvar agora"
+          onAction={onQuickSave}
+        />
       )}
 
       <div className="app-avatar-block">
@@ -106,79 +103,99 @@ const PersonalTab: React.FC<PersonalTabProps> = ({
       </div>
 
       <div className="app-form-grid">
-        <IonItem className="app-form-item">
-          <IonLabel position="stacked">Nome</IonLabel>
-          <IonInput
-            value={form.personalName}
-            placeholder="Ex.: Matheus Silva"
-            onIonInput={(event: any) => {
-              onTouch("personalName");
-              onChange({ ...form, personalName: getInputValue(event) });
-            }}
-            onIonBlur={() => onTouch("personalName")}
-          />
-        </IonItem>
-        {renderFieldError(touched.personalName, errors.personalName)}
+        <div className={nameField.wrapClassName}>
+          <IonItem className="app-form-item">
+            <FormInputLabel name="Nome" />
+            <IonInput
+              value={form.personalName}
+              placeholder="Ex.: Matheus Silva"
+              aria-invalid={nameField.ariaInvalid}
+              aria-describedby={nameField.ariaDescribedby}
+              onIonInput={(event: any) => {
+                onTouch("personalName");
+                onChange({ ...form, personalName: getInputValue(event) });
+              }}
+              onIonBlur={() => onTouch("personalName")}
+            />
+          </IonItem>
+          {nameField.node}
+        </div>
 
-        <IonItem className="app-form-item">
-          <IonLabel position="stacked">CPF</IonLabel>
-          <IonInput
-            value={form.personalCpf}
-            placeholder="000.000.000-00"
-            onIonInput={(event: any) => {
-              onTouch("personalCpf");
-              onChange({ ...form, personalCpf: maskCPF(getInputValue(event)) });
-            }}
-            onIonBlur={() => onTouch("personalCpf")}
-          />
-        </IonItem>
-        {renderFieldError(touched.personalCpf, errors.personalCpf)}
+        <div className={cpfField.wrapClassName}>
+          <IonItem className="app-form-item">
+            <FormInputLabel name="CPF" />
+            <IonInput
+              value={form.personalCpf}
+              placeholder="000.000.000-00"
+              aria-invalid={cpfField.ariaInvalid}
+              aria-describedby={cpfField.ariaDescribedby}
+              onIonInput={(event: any) => {
+                onTouch("personalCpf");
+                onChange({ ...form, personalCpf: maskCPF(getInputValue(event)) });
+              }}
+              onIonBlur={() => onTouch("personalCpf")}
+            />
+          </IonItem>
+          {cpfField.node}
+        </div>
 
-        <IonItem className="app-form-item">
-          <IonLabel position="stacked">Data de nascimento</IonLabel>
-          <IonInput
-            type="date"
-            value={form.personalBirthDate}
-            onIonInput={(event: any) => {
-              onTouch("personalBirthDate");
-              onChange({ ...form, personalBirthDate: getInputValue(event) });
-            }}
-            onIonBlur={() => onTouch("personalBirthDate")}
-          />
-        </IonItem>
-        {renderFieldError(touched.personalBirthDate, errors.personalBirthDate)}
+        <div className={birthField.wrapClassName}>
+          <IonItem className="app-form-item">
+            <FormInputLabel name="Data de nascimento" />
+            <IonInput
+              type="date"
+              value={form.personalBirthDate}
+              aria-invalid={birthField.ariaInvalid}
+              aria-describedby={birthField.ariaDescribedby}
+              onIonInput={(event: any) => {
+                onTouch("personalBirthDate");
+                onChange({ ...form, personalBirthDate: getInputValue(event) });
+              }}
+              onIonBlur={() => onTouch("personalBirthDate")}
+            />
+          </IonItem>
+          {birthField.node}
+        </div>
 
-        <IonItem className="app-form-item">
-          <IonLabel position="stacked">E-mail</IonLabel>
-          <IonInput
-            type="email"
-            value={form.personalEmail}
-            placeholder="voce@email.com"
-            onIonInput={(event: any) => {
-              onTouch("personalEmail");
-              onChange({ ...form, personalEmail: getInputValue(event) });
-            }}
-            onIonBlur={() => onTouch("personalEmail")}
-          />
-        </IonItem>
-        {renderFieldError(touched.personalEmail, errors.personalEmail)}
+        <div className={emailField.wrapClassName}>
+          <IonItem className="app-form-item">
+            <FormInputLabel name="E-mail" />
+            <IonInput
+              type="email"
+              value={form.personalEmail}
+              placeholder="voce@email.com"
+              aria-invalid={emailField.ariaInvalid}
+              aria-describedby={emailField.ariaDescribedby}
+              onIonInput={(event: any) => {
+                onTouch("personalEmail");
+                onChange({ ...form, personalEmail: getInputValue(event) });
+              }}
+              onIonBlur={() => onTouch("personalEmail")}
+            />
+          </IonItem>
+          {emailField.node}
+        </div>
 
-        <IonItem className="app-form-item">
-          <IonLabel position="stacked">Telefone</IonLabel>
-          <IonInput
-            value={form.personalPhone}
-            placeholder="(11) 99999-9999"
-            onIonInput={(event: any) => {
-              onTouch("personalPhone");
-              onChange({ ...form, personalPhone: maskPhone(getInputValue(event)) });
-            }}
-            onIonBlur={() => onTouch("personalPhone")}
-          />
-        </IonItem>
-        {renderFieldError(touched.personalPhone, errors.personalPhone)}
+        <div className={phoneField.wrapClassName}>
+          <IonItem className="app-form-item">
+            <FormInputLabel name="Telefone" />
+            <IonInput
+              value={form.personalPhone}
+              placeholder="(11) 99999-9999"
+              aria-invalid={phoneField.ariaInvalid}
+              aria-describedby={phoneField.ariaDescribedby}
+              onIonInput={(event: any) => {
+                onTouch("personalPhone");
+                onChange({ ...form, personalPhone: maskPhone(getInputValue(event)) });
+              }}
+              onIonBlur={() => onTouch("personalPhone")}
+            />
+          </IonItem>
+          {phoneField.node}
+        </div>
       </div>
-    </IonCardContent>
-  </IonCard>
-);
+    </>
+  );
+};
 
 export default PersonalTab;

@@ -37,7 +37,7 @@ export async function createDocumentPdfBlob(document: DocumentModel): Promise<Bl
     header: (_currentPage: number, _pageCount: number, pageSize: any) =>
       buildPdfLetterhead(
         letterheadData.profile,
-        letterheadData.avatarDataUrl,
+        letterheadData.logoDataUrl,
         pageSize,
         PDF_LETTERHEAD_PAGE_MARGINS
       ) as any,

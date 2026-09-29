@@ -125,6 +125,7 @@ const endpoints = {
   ME_TAX_DATA: apiEndpoint("/me/tax-data"),
   ME_CHANGE_PASSWORD: apiEndpoint("/me/change-password"),
   ME_AVATAR: apiEndpoint("/me/avatar"),
+  ME_LOGO: apiEndpoint("/me/logo"),
   ACCOUNT: apiEndpoint("/account"),
 
   BILLING_ME: apiEndpoint("/billing/me"),

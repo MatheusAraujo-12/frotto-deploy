@@ -1,7 +1,5 @@
 import { MeResponseDTO, TaxPersonType } from "../../services/profileService";
 import { maskCNPJ, maskCPF, maskPhone, sanitizeDigits } from "../../services/profileFormat";
-
-export type PanelTab = "pessoal" | "fiscal" | "segurança";
 export type FormErrors<T extends string> = Partial<Record<T, string>>;
 
 export interface PersonalForm {
@@ -29,13 +27,6 @@ export interface SecurityForm {
   oldPassword: string;
   newPassword: string;
   confirmPassword: string;
-}
-
-export interface CadastroForm {
-  firstName: string;
-  lastName: string;
-  imageUrl: string;
-  langKey: string;
 }
 
 export const PASSWORD_MIN_LENGTH = 4;
@@ -68,13 +59,6 @@ export const EMPTY_SECURITY_FORM: SecurityForm = {
   confirmPassword: "",
 };
 
-export const EMPTY_CADASTRO_FORM: CadastroForm = {
-  firstName: "",
-  lastName: "",
-  imageUrl: "",
-  langKey: "",
-};
-
 export const EMPTY_PERSONAL_TOUCHED: Record<keyof PersonalForm, boolean> = {
   personalName: false,
   personalCpf: false,
@@ -100,13 +84,6 @@ export const EMPTY_SECURITY_TOUCHED: Record<keyof SecurityForm, boolean> = {
   oldPassword: false,
   newPassword: false,
   confirmPassword: false,
-};
-
-export const EMPTY_CADASTRO_TOUCHED: Record<keyof CadastroForm, boolean> = {
-  firstName: false,
-  lastName: false,
-  imageUrl: false,
-  langKey: false,
 };
 
 export const normalizeText = (value: string): string => value.trim();
@@ -144,13 +121,6 @@ export const mapFiscalForm = (data: MeResponseDTO): FiscalForm => ({
   taxAddress: asText(data.taxAddress),
 });
 
-export const mapCadastroForm = (data: MeResponseDTO): CadastroForm => ({
-  firstName: asText(data.firstName),
-  lastName: asText(data.lastName),
-  imageUrl: asText(data.imageUrl),
-  langKey: asText(data.langKey),
-});
-
 export const serializePersonalForm = (form: PersonalForm): string =>
   JSON.stringify({
     personalName: normalizeText(form.personalName),
@@ -174,14 +144,6 @@ export const serializeFiscalForm = (form: FiscalForm): string =>
     taxAddress: normalizeText(form.taxAddress),
   });
 
-export const serializeCadastroForm = (form: CadastroForm): string =>
-  JSON.stringify({
-    firstName: normalizeText(form.firstName),
-    lastName: normalizeText(form.lastName),
-    imageUrl: normalizeText(form.imageUrl),
-    langKey: normalizeText(form.langKey),
-  });
-
 export const hasPersonalData = (form: PersonalForm): boolean =>
   Boolean(
     normalizeText(form.personalName) ||
@@ -203,14 +165,6 @@ export const hasFiscalData = (form: FiscalForm): boolean =>
           normalizeText(form.taxIe) ||
           sanitizeDigits(form.taxContactPhone) ||
           normalizeText(form.taxAddress)
-  );
-
-export const hasCadastroData = (form: CadastroForm): boolean =>
-  Boolean(
-    normalizeText(form.firstName) ||
-      normalizeText(form.lastName) ||
-      normalizeText(form.imageUrl) ||
-      normalizeText(form.langKey)
   );
 
 export const validatePersonal = (form: PersonalForm): FormErrors<keyof PersonalForm> => {
@@ -251,11 +205,5 @@ export const validateSecurity = (form: SecurityForm): FormErrors<keyof SecurityF
   if (form.confirmPassword && form.newPassword !== form.confirmPassword) {
     errors.confirmPassword = "A confirmação da senha não confere.";
   }
-  return errors;
-};
-
-export const validateCadastro = (form: CadastroForm): FormErrors<keyof CadastroForm> => {
-  const errors: FormErrors<keyof CadastroForm> = {};
-  if (form.langKey && normalizeText(form.langKey).length > 10) errors.langKey = "Idioma deve ter no máximo 10 caracteres.";
   return errors;
 };

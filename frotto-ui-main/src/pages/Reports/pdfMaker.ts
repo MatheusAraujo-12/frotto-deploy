@@ -54,12 +54,7 @@ async function createReportPdf(content: any[]) {
     styles: getStyles(),
     pageMargins: PDF_LETTERHEAD_PAGE_MARGINS,
     header: (_currentPage: number, _pageCount: number, pageSize: any) =>
-      buildPdfLetterhead(
-        headerData.profile,
-        headerData.avatarDataUrl,
-        pageSize,
-        PDF_LETTERHEAD_PAGE_MARGINS
-      ),
+      buildPdfLetterhead(headerData.profile, headerData.logoDataUrl, pageSize, PDF_LETTERHEAD_PAGE_MARGINS),
   };
 
   const pdfObj = pdfMake.createPdf(docRef);

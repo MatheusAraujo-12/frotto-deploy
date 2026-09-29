@@ -168,6 +168,46 @@ public class MeService {
         return meMapper.toDto(savedUser);
     }
 
+    public MeResponseDTO uploadLogo(String currentUser, MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BadRequestAlertException("Imagem nao enviada", ENTITY_NAME, "emptylogo");
+        }
+
+        String contentType = StringUtils.defaultString(file.getContentType());
+        String originalFilename = StringUtils.defaultString(file.getOriginalFilename()).toLowerCase(Locale.ROOT);
+        if (!contentType.startsWith("image/") && !isAllowedImageFilename(originalFilename)) {
+            throw new BadRequestAlertException("Arquivo de imagem invalido", ENTITY_NAME, "invalidlogo");
+        }
+
+        User user = getCurrentUser(currentUser);
+        String fileName = awsS3FileService.uploadFile(file, "LOGO_" + user.getId());
+        if (StringUtils.isBlank(fileName)) {
+            throw new BadRequestAlertException("Falha ao enviar imagem", ENTITY_NAME, "logouploadfailed");
+        }
+
+        user.setLogoUrl(fileName);
+        User savedUser = userRepository.save(user);
+        return meMapper.toDto(savedUser);
+    }
+
+    public MeResponseDTO removeLogo(String currentUser) {
+        User user = getCurrentUser(currentUser);
+        String currentLogoUrl = StringUtils.trimToNull(user.getLogoUrl());
+
+        if (currentLogoUrl != null) {
+            String fileName = extractFileName(currentLogoUrl);
+            try {
+                awsS3FileService.deleteFile(fileName);
+            } catch (Exception ex) {
+                log.warn("Falha ao remover logomarca do S3: {}", fileName, ex);
+            }
+        }
+
+        user.setLogoUrl(null);
+        User savedUser = userRepository.save(user);
+        return meMapper.toDto(savedUser);
+    }
+
     private User getCurrentUser(String currentUser) {
         return userRepository
             .findOneByLogin(currentUser)

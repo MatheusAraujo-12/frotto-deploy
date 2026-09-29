@@ -9,6 +9,7 @@ export interface MeResponseDTO {
   lastName: string | null;
   avatarUrl?: string | null;
   imageUrl: string | null;
+  logoUrl: string | null;
   langKey: string | null;
   personalName: string | null;
   personalCpf: string | null;
@@ -100,6 +101,29 @@ const profileService = {
 
   async removeAvatar(): Promise<MeResponseDTO> {
     const { data } = await api.delete<MeResponseDTO>(endpoints.ME_AVATAR());
+    return data;
+  },
+
+  async uploadLogo(file: File): Promise<MeResponseDTO> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const { data } = await api.patch<MeResponseDTO>(endpoints.ME_LOGO(), formData);
+      return data;
+    } catch (error: any) {
+      const status = error?.response?.status;
+      // Backward compatibility for environments that still expose POST.
+      if (status === 404 || status === 405) {
+        const { data } = await api.post<MeResponseDTO>(endpoints.ME_LOGO(), formData);
+        return data;
+      }
+      throw error;
+    }
+  },
+
+  async removeLogo(): Promise<MeResponseDTO> {
+    const { data } = await api.delete<MeResponseDTO>(endpoints.ME_LOGO());
     return data;
   },
 };

@@ -16,13 +16,14 @@ import {
 } from "@ionic/react";
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { car, cardOutline, clipboard, documentTextOutline, logOutOutline, personCircleOutline } from "ionicons/icons";
+import { car, cardOutline, clipboard, documentTextOutline, logOutOutline, settingsOutline } from "ionicons/icons";
 
 import api from "../../services/axios/axios";
 import { useAccountAuthorization } from "../../services/hooks/useAccountAuthorization";
 import { removeToken } from "../../services/localStorage/localstorage";
 import profileService, { MeResponseDTO } from "../../services/profileService";
 import { resolveApiUrl } from "../../services/resolveApiUrl";
+import { getActiveTheme, setTheme, subscribeTheme } from "../../services/theme";
 import { TEXT } from "../../constants/texts";
 
 const resolveMenuDisplayName = (profile: MeResponseDTO | null): string => {
@@ -178,7 +179,7 @@ const toInitials = (name: string): string => {
 const Menu: React.FC = () => {
   const history = useIonRouter();
   const location = useLocation();
-  const [isDark, setIsDark] = useState<boolean>(false);
+  const [isDark, setIsDark] = useState<boolean>(() => getActiveTheme() === "dark");
   const [profile, setProfile] = useState<MeResponseDTO | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState<boolean>(true);
   const { isAdmin } = useAccountAuthorization();
@@ -186,25 +187,7 @@ const Menu: React.FC = () => {
   const [menuAvatarLoadFailed, setMenuAvatarLoadFailed] = useState<boolean>(false);
   const isPublicRoute = location.pathname === "/" || location.pathname === "/cadastro";
 
-  useEffect(() => {
-    import("../../services/theme").then((mod) => {
-      const saved = mod.getTheme();
-      if (saved) {
-        mod.applyTheme(saved);
-        setIsDark(saved === "dark");
-        return;
-      }
-
-      const prefersDark =
-        typeof window !== "undefined" &&
-        window.matchMedia &&
-        window.matchMedia("(prefers-color-scheme: dark)").matches;
-
-      const themeToUse = prefersDark ? "dark" : "light";
-      mod.applyTheme(themeToUse);
-      setIsDark(themeToUse === "dark");
-    });
-  }, []);
+  useEffect(() => subscribeTheme((theme) => setIsDark(theme === "dark")), []);
 
   useEffect(() => {
     let isMounted = true;
@@ -291,10 +274,7 @@ const Menu: React.FC = () => {
   }, [avatarPaths]);
 
   const onToggleTheme = (checked: boolean) => {
-    setIsDark(checked);
-    import("../../services/theme").then((mod) => {
-      mod.setTheme(checked ? "dark" : "light");
-    });
+    setTheme(checked ? "dark" : "light");
   };
 
   const displayName = resolveMenuDisplayName(profile) || "Perfil";
@@ -369,9 +349,9 @@ const Menu: React.FC = () => {
             </IonItem>
           </IonMenuToggle>
           <IonMenuToggle>
-            <IonItem className="menu-item" routerLink="/meu-painel" routerDirection="none">
-              <IonIcon icon={personCircleOutline} slot="start"></IonIcon>
-              <IonLabel className="menu-item__label">Meu Painel</IonLabel>
+            <IonItem className="menu-item" routerLink="/menu/configuracoes" routerDirection="none">
+              <IonIcon icon={settingsOutline} slot="start"></IonIcon>
+              <IonLabel className="menu-item__label">Configurações</IonLabel>
             </IonItem>
           </IonMenuToggle>
           <IonMenuToggle>

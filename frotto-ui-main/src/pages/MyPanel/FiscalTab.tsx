@@ -1,45 +1,32 @@
 import {
-  IonButton,
-  IonCard,
-  IonCardContent,
-  IonCardHeader,
-  IonCardSubtitle,
-  IonCardTitle,
-  IonIcon,
   IonInput,
   IonItem,
-  IonLabel,
   IonSegment,
   IonSegmentButton,
+  IonLabel,
   IonText,
   IonTextarea,
 } from "@ionic/react";
-import { cardOutline } from "ionicons/icons";
 import { maskCNPJ, maskCPF, maskPhone } from "../../services/profileFormat";
 import { TaxPersonType } from "../../services/profileService";
 import { FiscalForm, FormErrors } from "./profilePanelUtils";
+import FormInputLabel from "../../components/Form/FormInputLabel";
+import FormError from "../../components/Form/FormError";
+import { getFormErrorId } from "../../components/Form/FormItemWrapper";
+import ItemNotFound from "../../components/List/ItemNotFound";
 
-interface FiscalTabProps {
+export interface FiscalFieldsProps {
   form: FiscalForm;
   touched: Record<keyof FiscalForm, boolean>;
   errors: FormErrors<keyof FiscalForm>;
-  hasData: boolean;
   onTouch: (field: keyof FiscalForm) => void;
   onChange: (form: FiscalForm) => void;
-  onQuickSave: () => void;
 }
-
-const renderFieldError = (show: boolean, message?: string) =>
-  show && message ? (
-    <IonText color="danger" className="app-form-error">
-      {message}
-    </IonText>
-  ) : null;
 
 const getInputValue = (event: any): string =>
   event?.detail?.value ?? event?.target?.value ?? event?.currentTarget?.value ?? "";
 
-const clearFieldsForTaxType = (form: FiscalForm, taxPersonType: TaxPersonType): FiscalForm => {
+export const clearFieldsForTaxType = (form: FiscalForm, taxPersonType: TaxPersonType): FiscalForm => {
   if (taxPersonType === "CPF") {
     return {
       ...form,
@@ -62,7 +49,27 @@ const clearFieldsForTaxType = (form: FiscalForm, taxPersonType: TaxPersonType): 
   };
 };
 
-const FiscalTab: React.FC<FiscalTabProps> = ({
+const fieldError = (
+  field: keyof FiscalForm,
+  touched: Record<keyof FiscalForm, boolean>,
+  errors: FormErrors<keyof FiscalForm>
+) => {
+  const show = touched[field] && Boolean(errors[field]);
+  const id = getFormErrorId(field);
+  return {
+    wrapClassName: show ? "app-form-field app-form-field--invalid" : "app-form-field",
+    ariaInvalid: show ? ("true" as const) : undefined,
+    ariaDescribedby: show ? id : undefined,
+    node: show ? <FormError id={id} message={errors[field] as string} /> : null,
+  };
+};
+
+interface FiscalCadastralFieldsProps extends FiscalFieldsProps {
+  hasData: boolean;
+  onQuickSave: () => void;
+}
+
+export const FiscalCadastralFields: React.FC<FiscalCadastralFieldsProps> = ({
   form,
   touched,
   errors,
@@ -70,33 +77,24 @@ const FiscalTab: React.FC<FiscalTabProps> = ({
   onTouch,
   onChange,
   onQuickSave,
-}) => (
-  <IonCard className="app-panel-card">
-    <IonCardHeader className="app-panel-header">
-      <div className="app-soft-icon">
-        <IonIcon icon={cardOutline} />
-      </div>
-      <div className="app-panel-header__content">
-        <IonCardTitle className="app-panel-title">Dados Fiscais</IonCardTitle>
-        <IonCardSubtitle className="app-panel-subtitle">
-          Defina o tipo de pessoa fiscal e os campos obrigatórios.
-        </IonCardSubtitle>
-      </div>
-    </IonCardHeader>
-    <IonCardContent>
-      {!hasData && (
-        <div className="app-empty-state">
-          <strong>Nenhum dado fiscal salvo</strong>
-          <span>Escolha CPF ou CNPJ e preencha as informações principais.</span>
-          <IonButton size="small" fill="outline" className="app-outline-btn" onClick={onQuickSave}>
-            Salvar agora
-          </IonButton>
-        </div>
-      )}
+}) => {
+  const landlordField = fieldError("taxLandlordName", touched, errors);
+  const cpfField = fieldError("taxCpf", touched, errors);
+  const emailField = fieldError("taxEmail", touched, errors);
+  const phoneField = fieldError("taxPhone", touched, errors);
+  const companyField = fieldError("taxCompanyName", touched, errors);
+  const cnpjField = fieldError("taxCnpj", touched, errors);
 
-      <IonText color="medium" className="my-panel-fiscal-note">
-        Os dados de cadastro são derivados automaticamente destes dados fiscais.
-      </IonText>
+  return (
+    <>
+      {!hasData && (
+        <ItemNotFound
+          title="Nenhum dado cadastral salvo"
+          description="Escolha Pessoa Física ou Jurídica e preencha as informações principais."
+          actionLabel="Salvar agora"
+          onAction={onQuickSave}
+        />
+      )}
 
       <IonSegment
         value={form.taxPersonType}
@@ -108,154 +106,209 @@ const FiscalTab: React.FC<FiscalTabProps> = ({
         }}
       >
         <IonSegmentButton value="CPF">
-          <IonLabel>CPF</IonLabel>
+          <IonLabel>Pessoa Física</IonLabel>
         </IonSegmentButton>
         <IonSegmentButton value="CNPJ">
-          <IonLabel>CNPJ</IonLabel>
+          <IonLabel>Pessoa Jurídica</IonLabel>
         </IonSegmentButton>
       </IonSegment>
 
       <div className="app-form-grid">
         {form.taxPersonType === "CPF" ? (
           <>
-            <IonItem className="app-form-item">
-              <IonLabel position="stacked">Nome do locador</IonLabel>
-              <IonInput
-                value={form.taxLandlordName}
-                placeholder="Ex.: João Locador"
-                onIonInput={(event: any) => {
-                  onTouch("taxLandlordName");
-                  onChange({ ...form, taxLandlordName: getInputValue(event) });
-                }}
-                onIonBlur={() => onTouch("taxLandlordName")}
-              />
-            </IonItem>
-            {renderFieldError(touched.taxLandlordName, errors.taxLandlordName)}
+            <div className={landlordField.wrapClassName}>
+              <IonItem className="app-form-item">
+                <FormInputLabel name="Nome" />
+                <IonInput
+                  value={form.taxLandlordName}
+                  placeholder="Ex.: João da Silva"
+                  aria-invalid={landlordField.ariaInvalid}
+                  aria-describedby={landlordField.ariaDescribedby}
+                  onIonInput={(event: any) => {
+                    onTouch("taxLandlordName");
+                    onChange({ ...form, taxLandlordName: getInputValue(event) });
+                  }}
+                  onIonBlur={() => onTouch("taxLandlordName")}
+                />
+              </IonItem>
+              {landlordField.node}
+            </div>
 
-            <IonItem className="app-form-item">
-              <IonLabel position="stacked">CPF</IonLabel>
-              <IonInput
-                value={form.taxCpf}
-                placeholder="000.000.000-00"
-                onIonInput={(event: any) => {
-                  onTouch("taxCpf");
-                  onChange({ ...form, taxCpf: maskCPF(getInputValue(event)) });
-                }}
-                onIonBlur={() => onTouch("taxCpf")}
-              />
-            </IonItem>
-            {renderFieldError(touched.taxCpf, errors.taxCpf)}
+            <div className={cpfField.wrapClassName}>
+              <IonItem className="app-form-item">
+                <FormInputLabel name="CPF" />
+                <IonInput
+                  value={form.taxCpf}
+                  placeholder="000.000.000-00"
+                  aria-invalid={cpfField.ariaInvalid}
+                  aria-describedby={cpfField.ariaDescribedby}
+                  onIonInput={(event: any) => {
+                    onTouch("taxCpf");
+                    onChange({ ...form, taxCpf: maskCPF(getInputValue(event)) });
+                  }}
+                  onIonBlur={() => onTouch("taxCpf")}
+                />
+              </IonItem>
+              {cpfField.node}
+            </div>
 
-            <IonItem className="app-form-item">
-              <IonLabel position="stacked">E-mail</IonLabel>
-              <IonInput
-                type="email"
-                value={form.taxEmail}
-                placeholder="locador@email.com"
-                onIonInput={(event: any) => {
-                  onTouch("taxEmail");
-                  onChange({ ...form, taxEmail: getInputValue(event) });
-                }}
-                onIonBlur={() => onTouch("taxEmail")}
-              />
-            </IonItem>
-            {renderFieldError(touched.taxEmail, errors.taxEmail)}
+            <div className={emailField.wrapClassName}>
+              <IonItem className="app-form-item">
+                <FormInputLabel name="E-mail" />
+                <IonInput
+                  type="email"
+                  value={form.taxEmail}
+                  placeholder="voce@email.com"
+                  aria-invalid={emailField.ariaInvalid}
+                  aria-describedby={emailField.ariaDescribedby}
+                  onIonInput={(event: any) => {
+                    onTouch("taxEmail");
+                    onChange({ ...form, taxEmail: getInputValue(event) });
+                  }}
+                  onIonBlur={() => onTouch("taxEmail")}
+                />
+              </IonItem>
+              {emailField.node}
+            </div>
 
-            <IonItem className="app-form-item">
-              <IonLabel position="stacked">Telefone</IonLabel>
-              <IonInput
-                value={form.taxPhone}
-                placeholder="(11) 99999-9999"
-                onIonInput={(event: any) => {
-                  onTouch("taxPhone");
-                  onChange({ ...form, taxPhone: maskPhone(getInputValue(event)) });
-                }}
-                onIonBlur={() => onTouch("taxPhone")}
-              />
-            </IonItem>
-            {renderFieldError(touched.taxPhone, errors.taxPhone)}
+            <div className={phoneField.wrapClassName}>
+              <IonItem className="app-form-item">
+                <FormInputLabel name="Telefone" />
+                <IonInput
+                  value={form.taxPhone}
+                  placeholder="(11) 99999-9999"
+                  aria-invalid={phoneField.ariaInvalid}
+                  aria-describedby={phoneField.ariaDescribedby}
+                  onIonInput={(event: any) => {
+                    onTouch("taxPhone");
+                    onChange({ ...form, taxPhone: maskPhone(getInputValue(event)) });
+                  }}
+                  onIonBlur={() => onTouch("taxPhone")}
+                />
+              </IonItem>
+              {phoneField.node}
+            </div>
           </>
         ) : (
           <>
-            <IonItem className="app-form-item">
-              <IonLabel position="stacked">Empresa / Razão social</IonLabel>
-              <IonInput
-                value={form.taxCompanyName}
-                placeholder="Ex.: Frotto Locações LTDA"
-                onIonInput={(event: any) => {
-                  onTouch("taxCompanyName");
-                  onChange({ ...form, taxCompanyName: getInputValue(event) });
-                }}
-                onIonBlur={() => onTouch("taxCompanyName")}
-              />
-            </IonItem>
-            {renderFieldError(touched.taxCompanyName, errors.taxCompanyName)}
+            <div className={companyField.wrapClassName}>
+              <IonItem className="app-form-item">
+                <FormInputLabel name="Razão social" />
+                <IonInput
+                  value={form.taxCompanyName}
+                  placeholder="Ex.: Frotto Locações LTDA"
+                  aria-invalid={companyField.ariaInvalid}
+                  aria-describedby={companyField.ariaDescribedby}
+                  onIonInput={(event: any) => {
+                    onTouch("taxCompanyName");
+                    onChange({ ...form, taxCompanyName: getInputValue(event) });
+                  }}
+                  onIonBlur={() => onTouch("taxCompanyName")}
+                />
+              </IonItem>
+              {companyField.node}
+            </div>
 
-            <IonItem className="app-form-item">
-              <IonLabel position="stacked">CNPJ</IonLabel>
-              <IonInput
-                value={form.taxCnpj}
-                placeholder="00.000.000/0000-00"
-                onIonInput={(event: any) => {
-                  onTouch("taxCnpj");
-                  onChange({ ...form, taxCnpj: maskCNPJ(getInputValue(event)) });
-                }}
-                onIonBlur={() => onTouch("taxCnpj")}
-              />
-            </IonItem>
-            {renderFieldError(touched.taxCnpj, errors.taxCnpj)}
-
-            <IonItem className="app-form-item">
-              <IonLabel position="stacked">IE</IonLabel>
-              <IonInput
-                value={form.taxIe}
-                placeholder="Inscrição estadual"
-                onIonInput={(event: any) => {
-                  onTouch("taxIe");
-                  onChange({ ...form, taxIe: getInputValue(event) });
-                }}
-                onIonBlur={() => onTouch("taxIe")}
-              />
-            </IonItem>
-            {renderFieldError(touched.taxIe, errors.taxIe)}
-
-            <IonItem className="app-form-item">
-              <IonLabel position="stacked">Telefone para contato</IonLabel>
-              <IonInput
-                value={form.taxContactPhone}
-                placeholder="(11) 99999-9999"
-                onIonInput={(event: any) => {
-                  onTouch("taxContactPhone");
-                  onChange({
-                    ...form,
-                    taxContactPhone: maskPhone(getInputValue(event)),
-                  });
-                }}
-                onIonBlur={() => onTouch("taxContactPhone")}
-              />
-            </IonItem>
-            {renderFieldError(touched.taxContactPhone, errors.taxContactPhone)}
-
-            <IonItem className="app-form-item app-form-item--textarea">
-              <IonLabel position="stacked">Endereço completo</IonLabel>
-              <IonTextarea
-                value={form.taxAddress}
-                autoGrow
-                rows={3}
-                placeholder="Rua, número, bairro, cidade, estado e CEP"
-                onIonInput={(event: any) => {
-                  onTouch("taxAddress");
-                  onChange({ ...form, taxAddress: getInputValue(event) });
-                }}
-                onIonBlur={() => onTouch("taxAddress")}
-              />
-            </IonItem>
-            {renderFieldError(touched.taxAddress, errors.taxAddress)}
+            <div className={cnpjField.wrapClassName}>
+              <IonItem className="app-form-item">
+                <FormInputLabel name="CNPJ" />
+                <IonInput
+                  value={form.taxCnpj}
+                  placeholder="00.000.000/0000-00"
+                  aria-invalid={cnpjField.ariaInvalid}
+                  aria-describedby={cnpjField.ariaDescribedby}
+                  onIonInput={(event: any) => {
+                    onTouch("taxCnpj");
+                    onChange({ ...form, taxCnpj: maskCNPJ(getInputValue(event)) });
+                  }}
+                  onIonBlur={() => onTouch("taxCnpj")}
+                />
+              </IonItem>
+              {cnpjField.node}
+            </div>
           </>
         )}
       </div>
-    </IonCardContent>
-  </IonCard>
-);
+    </>
+  );
+};
 
-export default FiscalTab;
+export const FiscalComplementaryFields: React.FC<FiscalFieldsProps> = ({
+  form,
+  touched,
+  errors,
+  onTouch,
+  onChange,
+}) => {
+  const ieField = fieldError("taxIe", touched, errors);
+  const contactPhoneField = fieldError("taxContactPhone", touched, errors);
+  const addressField = fieldError("taxAddress", touched, errors);
+
+  if (form.taxPersonType !== "CNPJ") {
+    return (
+      <IonText color="medium" className="my-panel-fiscal-note">
+        Pessoa Física não possui dados fiscais complementares hoje.
+      </IonText>
+    );
+  }
+
+  return (
+    <div className="app-form-grid">
+      <div className={ieField.wrapClassName}>
+        <IonItem className="app-form-item">
+          <FormInputLabel name="Inscrição Estadual" />
+          <IonInput
+            value={form.taxIe}
+            placeholder="Inscrição estadual"
+            aria-invalid={ieField.ariaInvalid}
+            aria-describedby={ieField.ariaDescribedby}
+            onIonInput={(event: any) => {
+              onTouch("taxIe");
+              onChange({ ...form, taxIe: getInputValue(event) });
+            }}
+            onIonBlur={() => onTouch("taxIe")}
+          />
+        </IonItem>
+        {ieField.node}
+      </div>
+
+      <div className={contactPhoneField.wrapClassName}>
+        <IonItem className="app-form-item">
+          <FormInputLabel name="Telefone para contato" />
+          <IonInput
+            value={form.taxContactPhone}
+            placeholder="(11) 99999-9999"
+            aria-invalid={contactPhoneField.ariaInvalid}
+            aria-describedby={contactPhoneField.ariaDescribedby}
+            onIonInput={(event: any) => {
+              onTouch("taxContactPhone");
+              onChange({ ...form, taxContactPhone: maskPhone(getInputValue(event)) });
+            }}
+            onIonBlur={() => onTouch("taxContactPhone")}
+          />
+        </IonItem>
+        {contactPhoneField.node}
+      </div>
+
+      <div className={addressField.wrapClassName}>
+        <IonItem className="app-form-item app-form-item--textarea">
+          <FormInputLabel name="Endereço completo" />
+          <IonTextarea
+            value={form.taxAddress}
+            autoGrow
+            rows={3}
+            placeholder="Rua, número, bairro, cidade, estado e CEP"
+            aria-invalid={addressField.ariaInvalid}
+            aria-describedby={addressField.ariaDescribedby}
+            onIonInput={(event: any) => {
+              onTouch("taxAddress");
+              onChange({ ...form, taxAddress: getInputValue(event) });
+            }}
+            onIonBlur={() => onTouch("taxAddress")}
+          />
+        </IonItem>
+        {addressField.node}
+      </div>
+    </div>
+  );
+};

@@ -107,6 +107,7 @@ const App: FC = () => {
           <Route exact path="/menu/carros/motorista/:id/pendencias" component={DriverPendencies} />
           <Route exact path="/menu/relatorios" component={Reports} />
           <Route exact path="/documents" component={DocumentsPage} />
+          <Route exact path="/menu/configuracoes" component={MyPanelPage} />
           <Route exact path="/menu/meu-painel" component={MyPanelPage} />
           <Route exact path="/menu/meu-plano" component={MyPlanPage} />
           <Route exact path="/menu/admin/billing" component={AdminBillingPage} />

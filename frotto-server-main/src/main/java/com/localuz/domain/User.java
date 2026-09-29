@@ -127,6 +127,10 @@ public class User extends AbstractAuditingEntity<Long> {
     @Column(name = "image_url", length = 256)
     private String imageUrl;
 
+    @Size(max = 256)
+    @Column(name = "logo_url", length = 256)
+    private String logoUrl;
+
     @Size(max = 20)
     @Column(name = "activation_key", length = 20)
     @JsonIgnore
@@ -326,6 +330,14 @@ public class User extends AbstractAuditingEntity<Long> {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public String getLogoUrl() {
+        return logoUrl;
+    }
+
+    public void setLogoUrl(String logoUrl) {
+        this.logoUrl = logoUrl;
     }
 
     public boolean isActivated() {

@@ -2,109 +2,115 @@
   --padding-bottom: calc(100px + env(safe-area-inset-bottom));
 }
 
-.my-panel-card {
-  border: var(--app-border);
-  border-radius: calc(var(--app-radius) + 2px);
-  box-shadow: var(--app-shadow), var(--app-card-glow);
-  background: var(--app-card);
-  overflow: hidden;
-}
-
-.my-panel-card ion-card-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 18px;
-  color: var(--ion-text-color);
-}
-
-.my-panel-card ion-card-title ion-icon {
-  font-size: 20px;
-  color: var(--ion-color-primary);
-}
-
-.my-panel-card ion-card-subtitle {
-  color: var(--ion-color-medium);
-  line-height: 1.35;
-}
-
-.my-panel-item {
-  --background: var(--ion-item-background);
-  --border-color: var(--ion-border-color);
-  --border-radius: 12px;
-  --padding-start: 12px;
-  --inner-padding-end: 10px;
-  margin-top: 8px;
-  border: 1px solid var(--ion-border-color);
-}
-
-.my-panel-item::part(native) {
-  min-height: 58px;
-}
-
-.my-panel-item ion-label {
-  color: var(--ion-text-color);
-  font-weight: 600;
-}
-
-.my-panel-item ion-input,
-.my-panel-item ion-textarea {
-  --color: var(--ion-text-color);
-  --placeholder-color: var(--ion-color-medium);
-}
-
-.my-panel-field-error {
-  display: block;
-  font-size: 12px;
-  margin: 6px 8px 0;
-}
-
-.my-panel-empty-state {
-  margin: 0 0 14px;
-  padding: 14px;
-  border-radius: 12px;
-  border: 1px dashed var(--ion-border-color);
-  background: var(--app-card-strong);
-}
-
-.my-panel-empty-state h3 {
-  margin: 0 0 4px;
-  font-size: 15px;
-  color: var(--ion-text-color);
-}
-
-.my-panel-empty-state p {
-  margin: 0 0 10px;
-  color: var(--ion-color-medium);
-}
-
-.my-panel-inline-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 8px;
-}
-
 .my-panel-fiscal-note {
   display: block;
   margin: 4px 2px 10px;
   font-size: 13px;
 }
 
-.my-panel-item ion-thumbnail {
-  --size: 44px;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.my-panel-item ion-thumbnail img {
-  object-fit: cover;
-  width: 100%;
-  height: 100%;
-}
-
 .my-panel-skeleton-line {
   display: grid;
   gap: 8px;
   margin-bottom: 12px;
+}
+
+.app-section-subtitle--spaced {
+  margin-top: var(--frotto-space-6);
+}
+
+.app-avatar-block__avatar--square {
+  border-radius: var(--app-radius);
+  width: 82px;
+  height: 82px;
+  border: 2px solid rgba(var(--ion-color-primary-rgb), 0.22);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-avatar-block__avatar--square img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: var(--app-card-strong);
+}
+
+.settings-shell {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--frotto-space-6);
+}
+
+.settings-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--frotto-space-2);
+  position: sticky;
+  top: var(--frotto-space-4);
+  border: var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-card);
+  padding: var(--frotto-space-3);
+}
+
+.settings-rail__item {
+  display: flex;
+  align-items: center;
+  gap: var(--frotto-space-3);
+  padding: var(--frotto-space-3) var(--frotto-space-3);
+  border-radius: calc(var(--app-radius) - 4px);
+  border: none;
+  background: transparent;
+  color: var(--ion-text-color);
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-rail__item ion-icon {
+  font-size: 20px;
+  color: var(--ion-color-medium);
+}
+
+.settings-rail__item:hover {
+  background: var(--app-card-strong);
+}
+
+.settings-rail__item--active {
+  background: rgba(var(--ion-color-primary-rgb), 0.12);
+  color: var(--ion-color-primary);
+}
+
+.settings-rail__item--active ion-icon {
+  color: var(--ion-color-primary);
+}
+
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--frotto-space-4);
+  min-width: 0;
+}
+
+.settings-mobile-nav {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .settings-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-rail {
+    display: none;
+  }
+
+  .settings-mobile-nav {
+    display: block;
+  }
 }
 

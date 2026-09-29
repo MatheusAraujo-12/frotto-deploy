@@ -1,11 +1,11 @@
 import {
   IonButton,
   IonButtons,
-  IonCard,
   IonCardContent,
   IonContent,
   IonFooter,
   IonHeader,
+  IonIcon,
   IonLabel,
   IonMenuButton,
   IonPage,
@@ -18,11 +18,13 @@ import {
   useIonAlert,
   useIonToast,
 } from "@ionic/react";
+import { idCardOutline, shieldCheckmarkOutline } from "ionicons/icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import FrottoCard from "../../components/UI/FrottoCard";
+import ItemNotFound from "../../components/List/ItemNotFound";
 import { usePhotoGallery } from "../../services/hooks/usePhotoGallery";
 import profileService, { MeResponseDTO } from "../../services/profileService";
-import FiscalTab from "./FiscalTab";
-import PersonalTab from "./PersonalTab";
+import MeuCadastroTab from "./MeuCadastroTab";
 import SecurityTab from "./SecurityTab";
 import {
   EMPTY_FISCAL_FORM,
@@ -36,7 +38,6 @@ import {
   hasPersonalData,
   mapFiscalForm,
   mapPersonalForm,
-  PanelTab,
   PersonalForm,
   SecurityForm,
   serializeFiscalForm,
@@ -48,6 +49,8 @@ import {
   validateSecurity,
 } from "./profilePanelUtils";
 import "./MyPanelPage.css";
+
+type SettingsSection = "cadastro" | "seguranca";
 
 type AccountMetaForm = {
   firstName: string;
@@ -64,7 +67,7 @@ const EMPTY_ACCOUNT_META: AccountMetaForm = {
 };
 
 const renderSkeleton = () => (
-  <IonCard className="app-panel-card">
+  <FrottoCard>
     <IonCardContent>
       {Array.from({ length: 5 }).map((_, index) => (
         <div key={`my-panel-skeleton-${index}`} className="my-panel-skeleton-line">
@@ -73,7 +76,7 @@ const renderSkeleton = () => (
         </div>
       ))}
     </IonCardContent>
-  </IonCard>
+  </FrottoCard>
 );
 
 const touchAllPersonal: Record<keyof PersonalForm, boolean> = {
@@ -179,13 +182,18 @@ const MyPanelPage: React.FC = () => {
 
   const { pickImage } = usePhotoGallery();
 
-  const [activeTab, setActiveTab] = useState<PanelTab>("pessoal");
+  const [activeSection, setActiveSection] = useState<SettingsSection>("cadastro");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasLoadError, setHasLoadError] = useState(false);
+
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState("");
   const [avatarRemoved, setAvatarRemoved] = useState(false);
+
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState("");
+  const [logoRemoved, setLogoRemoved] = useState(false);
 
   const [personalForm, setPersonalForm] = useState<PersonalForm>(EMPTY_PERSONAL_FORM);
   const [fiscalForm, setFiscalForm] = useState<FiscalForm>(EMPTY_FISCAL_FORM);
@@ -227,6 +235,7 @@ const MyPanelPage: React.FC = () => {
     setFiscalForm(fiscal);
     setAccountMeta(mapAccountMeta(data));
     setSecurityForm(EMPTY_SECURITY_FORM);
+
     setAvatarFile(null);
     setAvatarPreviewUrl((previousPreviewUrl) => {
       if (previousPreviewUrl.startsWith("blob:")) {
@@ -235,6 +244,15 @@ const MyPanelPage: React.FC = () => {
       return resolveProfileImageUrl(data.imageUrl);
     });
     setAvatarRemoved(false);
+
+    setLogoFile(null);
+    setLogoPreviewUrl((previousPreviewUrl) => {
+      if (previousPreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(previousPreviewUrl);
+      }
+      return resolveProfileImageUrl(data.logoUrl);
+    });
+    setLogoRemoved(false);
 
     setInitialPersonalForm(personal);
     setInitialFiscalForm(fiscal);
@@ -267,7 +285,7 @@ const MyPanelPage: React.FC = () => {
       hydrateForms(data);
     } catch (error: any) {
       setHasLoadError(true);
-      showError(getErrorMessage(error, "Falha ao carregar o painel."));
+      showError(getErrorMessage(error, "Falha ao carregar as configurações."));
     } finally {
       setIsLoading(false);
     }
@@ -285,54 +303,71 @@ const MyPanelPage: React.FC = () => {
     };
   }, [avatarPreviewUrl]);
 
-  const savePersonal = async () => {
+  useEffect(() => {
+    return () => {
+      if (logoPreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(logoPreviewUrl);
+      }
+    };
+  }, [logoPreviewUrl]);
+
+  const saveCadastro = async () => {
     let imageUrl = toNullable(accountMeta.imageUrl);
     if (avatarRemoved) {
       const avatarData = await profileService.removeAvatar();
       imageUrl = avatarData.imageUrl ?? null;
     }
-
     if (avatarFile) {
       const avatarData = await profileService.uploadAvatar(avatarFile);
       imageUrl = avatarData.imageUrl ?? imageUrl;
     }
 
-    const fiscalSource = fiscalDirty ? initialFiscalForm : fiscalForm;
-    const derivedAccountMeta = deriveAccountMetaFromFiscal(fiscalSource, accountMeta);
+    if (logoRemoved) {
+      await profileService.removeLogo();
+    }
+    if (logoFile) {
+      await profileService.uploadLogo(logoFile);
+    }
 
-    const payload = {
-      firstName: toNullable(derivedAccountMeta.firstName),
-      lastName: toNullable(derivedAccountMeta.lastName),
-      imageUrl,
-      langKey: toNullable(derivedAccountMeta.langKey),
-      personalName: toNullable(personalForm.personalName),
-      personalCpf: toNullableDigits(personalForm.personalCpf),
-      personalBirthDate: personalForm.personalBirthDate || null,
-      personalEmail: toNullable(personalForm.personalEmail),
-      personalPhone: toNullableDigits(personalForm.personalPhone),
-    };
+    let lastResponse: MeResponseDTO | null = null;
 
-    const data = await profileService.updatePersonal(payload);
-    hydrateForms(data);
-    await showSuccess("Dados salvos com sucesso.");
-  };
+    if (personalDirty || avatarFile || avatarRemoved || logoFile || logoRemoved) {
+      const derivedAccountMeta = deriveAccountMetaFromFiscal(fiscalForm, accountMeta);
+      const payload = {
+        firstName: toNullable(derivedAccountMeta.firstName),
+        lastName: toNullable(derivedAccountMeta.lastName),
+        imageUrl,
+        langKey: toNullable(derivedAccountMeta.langKey),
+        personalName: toNullable(personalForm.personalName),
+        personalCpf: toNullableDigits(personalForm.personalCpf),
+        personalBirthDate: personalForm.personalBirthDate || null,
+        personalEmail: toNullable(personalForm.personalEmail),
+        personalPhone: toNullableDigits(personalForm.personalPhone),
+      };
+      lastResponse = await profileService.updatePersonal(payload);
+    }
 
-  const saveFiscal = async () => {
-    const data = await profileService.updateTaxData({
-      taxPersonType: fiscalForm.taxPersonType,
-      taxLandlordName: toNullable(fiscalForm.taxLandlordName),
-      taxCpf: toNullableDigits(fiscalForm.taxCpf),
-      taxEmail: toNullable(fiscalForm.taxEmail),
-      taxPhone: toNullableDigits(fiscalForm.taxPhone),
-      taxCompanyName: toNullable(fiscalForm.taxCompanyName),
-      taxCnpj: toNullableDigits(fiscalForm.taxCnpj),
-      taxIe: toNullable(fiscalForm.taxIe),
-      taxContactPhone: toNullableDigits(fiscalForm.taxContactPhone),
-      taxAddress: toNullable(fiscalForm.taxAddress),
-    });
+    if (fiscalDirty) {
+      lastResponse = await profileService.updateTaxData({
+        taxPersonType: fiscalForm.taxPersonType,
+        taxLandlordName: toNullable(fiscalForm.taxLandlordName),
+        taxCpf: toNullableDigits(fiscalForm.taxCpf),
+        taxEmail: toNullable(fiscalForm.taxEmail),
+        taxPhone: toNullableDigits(fiscalForm.taxPhone),
+        taxCompanyName: toNullable(fiscalForm.taxCompanyName),
+        taxCnpj: toNullableDigits(fiscalForm.taxCnpj),
+        taxIe: toNullable(fiscalForm.taxIe),
+        taxContactPhone: toNullableDigits(fiscalForm.taxContactPhone),
+        taxAddress: toNullable(fiscalForm.taxAddress),
+      });
+    }
 
-    hydrateForms(data);
-    await showSuccess("Dados fiscais salvos com sucesso.");
+    if (!lastResponse) {
+      lastResponse = await profileService.getMe();
+    }
+
+    hydrateForms(lastResponse);
+    await showSuccess("Cadastro salvo com sucesso.");
   };
 
   const saveSecurity = async () => {
@@ -390,43 +425,88 @@ const MyPanelPage: React.FC = () => {
     presentActionSheet({
       header: "Alterar foto",
       buttons: [
-        {
-          text: "Câmera",
-          handler: () => {
-            void pickAvatar(true);
-          },
-        },
-        {
-          text: "Galeria",
-          handler: () => {
-            void pickAvatar(false);
-          },
-        },
-        {
-          text: "Cancelar",
-          role: "cancel",
-        },
+        { text: "Câmera", handler: () => void pickAvatar(true) },
+        { text: "Galeria", handler: () => void pickAvatar(false) },
+        { text: "Cancelar", role: "cancel" },
+      ],
+    });
+  };
+
+  const handleLogoSelect = useCallback(
+    (file: File, previewUrl: string) => {
+      if (logoPreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(logoPreviewUrl);
+      }
+
+      setLogoFile(file);
+      setLogoPreviewUrl(previewUrl);
+      setLogoRemoved(false);
+    },
+    [logoPreviewUrl]
+  );
+
+  const handleRemoveLogo = useCallback(() => {
+    if (logoPreviewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(logoPreviewUrl);
+    }
+
+    setLogoFile(null);
+    setLogoPreviewUrl("");
+    setLogoRemoved(true);
+  }, [logoPreviewUrl]);
+
+  const pickLogo = useCallback(
+    async (preferCamera: boolean) => {
+      try {
+        const picked = await pickImage({ preferCamera, multiple: false });
+        if (!picked) {
+          return;
+        }
+
+        handleLogoSelect(picked.file, picked.previewUrl);
+      } catch (error: any) {
+        showError(getErrorMessage(error, "Falha ao selecionar a imagem."));
+      }
+    },
+    [pickImage, handleLogoSelect, showError]
+  );
+
+  const openLogoPicker = () => {
+    presentActionSheet({
+      header: "Alterar logomarca",
+      buttons: [
+        { text: "Câmera", handler: () => void pickLogo(true) },
+        { text: "Galeria", handler: () => void pickLogo(false) },
+        { text: "Cancelar", role: "cancel" },
       ],
     });
   };
 
   const onSave = async () => {
-    if (activeTab === "pessoal") setPersonalTouched({ ...touchAllPersonal });
-    if (activeTab === "fiscal") setFiscalTouched({ ...touchAllFiscal });
-    if (activeTab === "segurança") setSecurityTouched({ ...touchAllSecurity });
+    if (activeSection === "cadastro") {
+      setPersonalTouched({ ...touchAllPersonal });
+      setFiscalTouched({ ...touchAllFiscal });
 
-    const invalid =
-      (activeTab === "pessoal" && Object.keys(personalErrors).length > 0) ||
-      (activeTab === "fiscal" && Object.keys(fiscalErrors).length > 0) ||
-      (activeTab === "segurança" && Object.keys(securityErrors).length > 0);
+      const invalid = Object.keys(personalErrors).length > 0 || Object.keys(fiscalErrors).length > 0;
+      if (invalid) return;
 
-    if (invalid) return;
+      setIsSaving(true);
+      try {
+        await saveCadastro();
+      } catch (error: any) {
+        showError(getErrorMessage(error, "Falha ao salvar o cadastro."));
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+
+    setSecurityTouched({ ...touchAllSecurity });
+    if (Object.keys(securityErrors).length > 0) return;
 
     setIsSaving(true);
     try {
-      if (activeTab === "pessoal") await savePersonal();
-      if (activeTab === "fiscal") await saveFiscal();
-      if (activeTab === "segurança") await saveSecurity();
+      await saveSecurity();
     } catch (error: any) {
       showError(getErrorMessage(error, "Falha ao salvar os dados."));
     } finally {
@@ -435,26 +515,22 @@ const MyPanelPage: React.FC = () => {
   };
 
   const avatarDirty = Boolean(avatarFile) || avatarRemoved;
+  const logoDirty = Boolean(logoFile) || logoRemoved;
+
   const isDirty =
-    activeTab === "pessoal"
-      ? personalDirty || avatarDirty
-      : activeTab === "fiscal"
-      ? fiscalDirty
-      : securityDirty;
+    activeSection === "cadastro" ? personalDirty || fiscalDirty || avatarDirty || logoDirty : securityDirty;
 
   const isInvalid =
-    activeTab === "pessoal"
-      ? Object.keys(personalErrors).length > 0
-      : activeTab === "fiscal"
-      ? Object.keys(fiscalErrors).length > 0
+    activeSection === "cadastro"
+      ? Object.keys(personalErrors).length > 0 || Object.keys(fiscalErrors).length > 0
       : Object.keys(securityErrors).length > 0;
 
-  const saveLabel =
-    activeTab === "pessoal"
-      ? "Salvar Dados Pessoais"
-      : activeTab === "fiscal"
-      ? "Salvar Dados Fiscais"
-      : "Salvar Nova Senha";
+  const saveLabel = activeSection === "cadastro" ? "Salvar Alterações" : "Salvar Nova Senha";
+
+  const navItems: Array<{ id: SettingsSection; label: string; icon: string }> = [
+    { id: "cadastro", label: "Meu Cadastro", icon: idCardOutline },
+    { id: "seguranca", label: "Segurança", icon: shieldCheckmarkOutline },
+  ];
 
   return (
     <IonPage id="my-panel-page">
@@ -463,90 +539,95 @@ const MyPanelPage: React.FC = () => {
           <IonButtons slot="start">
             <IonMenuButton menu="main-menu" autoHide={false} />
           </IonButtons>
-          <IonTitle>Meu Painel</IonTitle>
+          <IonTitle>Configurações</IonTitle>
         </IonToolbar>
 
-        <IonToolbar className="app-subtoolbar">
+        <IonToolbar className="app-subtoolbar settings-mobile-nav">
           <IonSegment
-            value={activeTab}
+            value={activeSection}
             className="app-segment-shell"
             onIonChange={(event) =>
-              setActiveTab((event.detail.value as PanelTab) || "pessoal")
+              setActiveSection((event.detail.value as SettingsSection) || "cadastro")
             }
           >
-            <IonSegmentButton value="pessoal">
-              <IonLabel>Pessoal</IonLabel>
-            </IonSegmentButton>
-            <IonSegmentButton value="fiscal">
-              <IonLabel>Fiscal</IonLabel>
-            </IonSegmentButton>
-            <IonSegmentButton value="segurança">
-              <IonLabel>Segurança</IonLabel>
-            </IonSegmentButton>
+            {navItems.map((item) => (
+              <IonSegmentButton key={item.id} value={item.id}>
+                <IonLabel>{item.label}</IonLabel>
+              </IonSegmentButton>
+            ))}
           </IonSegment>
         </IonToolbar>
       </IonHeader>
 
       <IonContent fullscreen className="my-panel-content">
-        <div className="app-shell app-shell--compact">
-          {hasLoadError && (
-            <IonCard className="app-panel-card">
-              <IonCardContent>
-                <div className="app-empty-state">
-                  <strong>Não foi possível carregar todos os dados</strong>
-                  <span>Você pode tentar novamente agora ou continuar preenchendo o formulário.</span>
-                  <IonButton
-                    className="app-semantic-btn app-semantic--neutral"
-                    size="small"
-                    fill="outline"
-                    onClick={loadProfile}
-                  >
-                    Tentar novamente
-                  </IonButton>
-                </div>
-              </IonCardContent>
-            </IonCard>
-          )}
+        <div className="app-shell app-shell--compact settings-shell">
+          <nav className="settings-rail" aria-label="Seções de Configurações">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`settings-rail__item${activeSection === item.id ? " settings-rail__item--active" : ""}`}
+                onClick={() => setActiveSection(item.id)}
+                aria-current={activeSection === item.id ? "page" : undefined}
+              >
+                <IonIcon icon={item.icon} />
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </nav>
 
-          {isLoading && renderSkeleton()}
+          <div className="settings-content">
+            {hasLoadError && (
+              <FrottoCard>
+                <IonCardContent>
+                  <ItemNotFound
+                    title="Não foi possível carregar todos os dados"
+                    description="Você pode tentar novamente agora ou continuar preenchendo o formulário."
+                    actionLabel="Tentar novamente"
+                    onAction={loadProfile}
+                  />
+                </IonCardContent>
+              </FrottoCard>
+            )}
 
-          {!isLoading && activeTab === "pessoal" && (
-            <PersonalTab
-              form={personalForm}
-              touched={personalTouched}
-              errors={personalErrors}
-              hasData={hasPersonalData(personalForm)}
-              avatarPreviewUrl={avatarPreviewUrl}
-              canRemoveAvatar={Boolean(avatarPreviewUrl) || avatarRemoved}
-              onTouch={(field) => setPersonalTouched((prev) => ({ ...prev, [field]: true }))}
-              onChange={setPersonalForm}
-              onQuickSave={onSave}
-              onChangeAvatar={openAvatarPicker}
-              onRemoveAvatar={handleRemoveAvatar}
-            />
-          )}
+            {isLoading && renderSkeleton()}
 
-          {!isLoading && activeTab === "fiscal" && (
-            <FiscalTab
-              form={fiscalForm}
-              touched={fiscalTouched}
-              errors={fiscalErrors}
-              hasData={hasFiscalData(fiscalForm)}
-              onTouch={(field) => setFiscalTouched((prev) => ({ ...prev, [field]: true }))}
-              onChange={setFiscalForm}
-              onQuickSave={onSave}
-            />
-          )}
+            {!isLoading && activeSection === "cadastro" && (
+              <MeuCadastroTab
+                personalForm={personalForm}
+                personalTouched={personalTouched}
+                personalErrors={personalErrors}
+                hasPersonalData={hasPersonalData(personalForm)}
+                avatarPreviewUrl={avatarPreviewUrl}
+                canRemoveAvatar={Boolean(avatarPreviewUrl) || avatarRemoved}
+                onPersonalTouch={(field) => setPersonalTouched((prev) => ({ ...prev, [field]: true }))}
+                onPersonalChange={setPersonalForm}
+                onChangeAvatar={openAvatarPicker}
+                onRemoveAvatar={handleRemoveAvatar}
+                fiscalForm={fiscalForm}
+                fiscalTouched={fiscalTouched}
+                fiscalErrors={fiscalErrors}
+                hasFiscalData={hasFiscalData(fiscalForm)}
+                onFiscalTouch={(field) => setFiscalTouched((prev) => ({ ...prev, [field]: true }))}
+                onFiscalChange={setFiscalForm}
+                logoPreviewUrl={logoPreviewUrl}
+                canRemoveLogo={Boolean(logoPreviewUrl) || logoRemoved}
+                onChangeLogo={openLogoPicker}
+                onRemoveLogo={handleRemoveLogo}
+                onQuickSave={onSave}
+              />
+            )}
 
-          {!isLoading && activeTab === "segurança" && (
-            <SecurityTab
-              form={securityForm}
-              touched={securityTouched}
-              errors={securityErrors}
-              onTouch={(field) => setSecurityTouched((prev) => ({ ...prev, [field]: true }))}
-              onChange={setSecurityForm}
-            />
-          )}
+            {!isLoading && activeSection === "seguranca" && (
+              <SecurityTab
+                form={securityForm}
+                touched={securityTouched}
+                errors={securityErrors}
+                onTouch={(field) => setSecurityTouched((prev) => ({ ...prev, [field]: true }))}
+                onChange={setSecurityForm}
+              />
+            )}
+          </div>
         </div>
       </IonContent>
 

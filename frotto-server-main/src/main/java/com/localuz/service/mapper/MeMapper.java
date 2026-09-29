@@ -13,6 +13,7 @@ public class MeMapper {
         dto.setFirstName(user.getFirstName());
         dto.setLastName(user.getLastName());
         dto.setImageUrl(user.getImageUrl());
+        dto.setLogoUrl(user.getLogoUrl());
         dto.setLangKey(user.getLangKey());
         dto.setPersonalName(user.getPersonalName());
         dto.setPersonalCpf(user.getPersonalCpf());

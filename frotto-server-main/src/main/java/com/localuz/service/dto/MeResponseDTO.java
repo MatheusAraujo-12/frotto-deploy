@@ -11,6 +11,7 @@ public class MeResponseDTO implements Serializable {
     private String firstName;
     private String lastName;
     private String imageUrl;
+    private String logoUrl;
     private String langKey;
     private String personalName;
     private String personalCpf;
@@ -58,6 +59,14 @@ public class MeResponseDTO implements Serializable {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public String getLogoUrl() {
+        return logoUrl;
+    }
+
+    public void setLogoUrl(String logoUrl) {
+        this.logoUrl = logoUrl;
     }
 
     public String getLangKey() {

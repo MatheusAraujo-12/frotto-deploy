@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/me")
 public class MeResource {
 
     private static final String ENTITY_NAME = "me";
@@ -34,40 +34,55 @@ public class MeResource {
         this.meService = meService;
     }
 
-    @GetMapping("/me")
+    @GetMapping
     public ResponseEntity<MeResponseDTO> getMe() {
         return ResponseEntity.ok(meService.getMe(getCurrentUserLogin()));
     }
 
-    @PatchMapping("/me")
+    @PatchMapping
     public ResponseEntity<MeResponseDTO> updatePersonal(@Valid @RequestBody UpdatePersonalDTO updatePersonalDTO) {
         return ResponseEntity.ok(meService.updatePersonal(getCurrentUserLogin(), updatePersonalDTO));
     }
 
-    @PatchMapping("/me/tax-data")
+    @PatchMapping("/tax-data")
     public ResponseEntity<MeResponseDTO> updateTaxData(@Valid @RequestBody UpdateTaxDataDTO updateTaxDataDTO) {
         return ResponseEntity.ok(meService.updateTaxData(getCurrentUserLogin(), updateTaxDataDTO));
     }
 
-    @PostMapping("/me/change-password")
+    @PostMapping("/change-password")
     public ResponseEntity<Map<String, String>> changePassword(@Valid @RequestBody ChangePasswordDTO changePasswordDTO) {
         meService.changePassword(getCurrentUserLogin(), changePasswordDTO);
         return ResponseEntity.ok(Collections.singletonMap("message", "Senha alterada com sucesso"));
     }
 
-    @PostMapping(value = "/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<MeResponseDTO> uploadAvatar(@RequestParam("file") MultipartFile file) {
         return ResponseEntity.ok(meService.uploadAvatar(getCurrentUserLogin(), file));
     }
 
-    @PatchMapping(value = "/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PatchMapping(value = "/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<MeResponseDTO> patchAvatar(@RequestParam("file") MultipartFile file) {
         return ResponseEntity.ok(meService.uploadAvatar(getCurrentUserLogin(), file));
     }
 
-    @DeleteMapping("/me/avatar")
+    @DeleteMapping("/avatar")
     public ResponseEntity<MeResponseDTO> removeAvatar() {
         return ResponseEntity.ok(meService.removeAvatar(getCurrentUserLogin()));
+    }
+
+    @PostMapping(value = "/logo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<MeResponseDTO> uploadLogo(@RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(meService.uploadLogo(getCurrentUserLogin(), file));
+    }
+
+    @PatchMapping(value = "/logo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<MeResponseDTO> patchLogo(@RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(meService.uploadLogo(getCurrentUserLogin(), file));
+    }
+
+    @DeleteMapping("/logo")
+    public ResponseEntity<MeResponseDTO> removeLogo() {
+        return ResponseEntity.ok(meService.removeLogo(getCurrentUserLogin()));
     }
 
     private String getCurrentUserLogin() {
