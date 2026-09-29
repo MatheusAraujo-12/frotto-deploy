@@ -207,9 +207,9 @@ const Cars: React.FC = () => {
         extractListData<CarListItemData>(response?.data ?? [])
       );
 
-      // Veículos excluídos (soft delete, active === false) não devem entrar
+      // Veículos excluídos (deleted === true) não devem entrar
       // na conta nem como ativos nem como inativos.
-      const nonDeletedCars = allCars.filter((car) => car.active !== false);
+      const nonDeletedCars = allCars.filter((car) => !car.deleted);
       const active = nonDeletedCars.filter(
         (car) => (car.adminStatus ?? "ATIVO") === "ATIVO"
       ).length;
@@ -552,6 +552,7 @@ const Cars: React.FC = () => {
       </IonHeader>
 
       <IonContent>
+        <IonButton fill="clear" routerLink="/menu/veiculos-excluidos">Veículos excluídos</IonButton>
         <div className="app-shell app-shell--compact">
           <div className="cars-section-head">
             <div className="cars-page-head">

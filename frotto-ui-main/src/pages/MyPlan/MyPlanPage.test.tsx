@@ -839,6 +839,42 @@ describe("MyPlanPage - 5G.12 / 5G.12.1 plan change", () => {
     expect(planCardButton("Bronze", "Fazer downgrade")).toBeEnabled();
   });
 
+  it("não anuncia sucesso se o backend responde sucesso mas o downgrade permanece", async () => {
+    mockedBillingService.getMyBilling.mockResolvedValue(silverWithScheduledBronze);
+    mockedBillingService.undoDowngrade.mockResolvedValue(result({ status: "DOWNGRADE_UNDONE" }));
+    await renderLoadedPage();
+    fireEvent.click(screen.getByRole("button", { name: "Desfazer downgrade" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível confirmar o desfazimento");
+    expect(screen.queryByText(/Downgrade desfeito/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("scheduled-downgrade")).toBeInTheDocument();
+  });
+
+  it("distingue ciclo atual, cobrança fechada e projeção seguinte", async () => {
+    mockedBillingService.getMyBilling.mockResolvedValue({ ...silverBilling, planCode: "FROTTA", billableVehicleCount: 102,
+      currentMonthlyPrice: 256.9, projectedNextRenewalPrice: 258.9, nextRenewalPrice: 256.9,
+      nextRenewalAt: "2026-10-10T00:00:00Z", nextRenewalLockedAt: "2026-10-09T00:00:00Z", nextRenewalSyncedAt: "2026-10-09T00:01:00Z" });
+    await renderLoadedPage();
+    const renewal = screen.getByTestId("fleet-renewal");
+    expect(renewal).toHaveTextContent("Mensalidade do ciclo atual: R$ 256,90");
+    expect(renewal).toHaveTextContent("Próxima cobrança confirmada: R$ 256,90");
+    expect(renewal).toHaveTextContent("Projeção do ciclo seguinte: R$ 258,90");
+    expect(renewal).toHaveTextContent("102 veículos cadastrados");
+  });
+
+  it("aguarda o GET antes de anunciar sucesso", async () => {
+    mockedBillingService.getMyBilling.mockResolvedValue(silverWithScheduledBronze);
+    mockedBillingService.undoDowngrade.mockResolvedValue(result({ status: "DOWNGRADE_UNDONE" }));
+    await renderLoadedPage();
+    const refresh = deferred<BillingMeDTO>();
+    mockedBillingService.getMyBilling.mockReturnValue(refresh.promise);
+    fireEvent.click(screen.getByRole("button", { name: "Desfazer downgrade" }));
+    await waitFor(() => expect(mockedBillingService.getMyBilling).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText(/Downgrade desfeito/)).not.toBeInTheDocument();
+    refresh.resolve(silverBilling);
+    expect(await screen.findByText(/Downgrade desfeito/)).toBeInTheDocument();
+    expect(screen.queryByTestId("scheduled-downgrade")).not.toBeInTheDocument();
+  });
+
   it("falha ao desfazer mantém o downgrade agendado e mostra o erro", async () => {
     mockedBillingService.getMyBilling.mockResolvedValue(silverWithScheduledBronze);
     mockedBillingService.undoDowngrade.mockRejectedValue({ response: { status: 409, data: { message: "error.BILLING_DOWNGRADE_UNDO_REJECTED" } } });

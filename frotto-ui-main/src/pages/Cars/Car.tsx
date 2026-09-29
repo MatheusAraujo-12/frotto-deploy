@@ -16,6 +16,7 @@ import {
   useIonViewWillLeave,
 } from "@ionic/react";
 import { useCallback, useMemo, useState } from "react";
+import { Redirect } from "react-router-dom";
 import { RouteComponentProps } from "react-router";
 import CarBrandMark from "../../components/Car/CarBrandMark";
 import {
@@ -234,6 +235,8 @@ const Car: React.FC<CarDetail> = ({ match }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [car]
   );
+
+  if (car.deleted) return <Redirect to="/menu/veiculos-excluidos" />;
 
   return (
     <IonPage id="car-page">

@@ -11,6 +11,14 @@ export interface BillingMeDTO {
   subscriptionStatus: SubscriptionStatus | null;
   billingCycle: BillingCycle | null;
   subscriptionSource: SubscriptionSource | null;
+  billableVehicleCount?: number;
+  projectedNextRenewalPrice?: number | null;
+  nextRenewalPrice?: number | null;
+  nextRenewalVehicleCount?: number | null;
+  nextRenewalAt?: string | null;
+  nextRenewalLockedAt?: string | null;
+  nextRenewalSyncedAt?: string | null;
+  nextRenewalState?: string | null;
   activeVehicleCount: number;
   vehicleLimit: number | null;
   canAddVehicle: boolean;

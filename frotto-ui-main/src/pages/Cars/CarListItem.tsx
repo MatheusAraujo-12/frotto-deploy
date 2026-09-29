@@ -43,7 +43,7 @@ const ADMIN_STATUS_VARIANT: Record<CarAdminStatus, FrottoBadgeVariant> = {
 };
 
 const CarListItem: React.FC<CarListItemProps> = (car) => {
-  const { showErrorAlert } = useAlert();
+  const { showErrorAlert, showSuccessAlert } = useAlert();
   const normalizedCar = normalizeCarRecord(car);
   const carIdentity = resolveCarIdentity(normalizedCar);
   const adminStatus = (normalizedCar.adminStatus || "ATIVO") as CarAdminStatus;
@@ -74,6 +74,8 @@ const CarListItem: React.FC<CarListItemProps> = (car) => {
     try {
       await api.delete(endpoints.CAR({ pathVariables: { id } }));
       car.onDeleted?.(id);
+      const { fleetBillingFeedback } = await import("../../services/fleetBillingFeedback");
+      showSuccessAlert?.(await fleetBillingFeedback("deleted"));
     } catch (err) {
       showErrorAlert(TEXT.deleteFailed);
     }

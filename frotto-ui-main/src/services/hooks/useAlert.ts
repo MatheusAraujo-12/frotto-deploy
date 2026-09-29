@@ -22,5 +22,9 @@ export const useAlert = () => {
     [present]
   );
 
-  return { showErrorAlert };
+  const showSuccessAlert = useCallback((message: string) => {
+    present({ message, duration: 7000, position: "top", color: "success" });
+  }, [present]);
+
+  return { showErrorAlert, showSuccessAlert };
 };

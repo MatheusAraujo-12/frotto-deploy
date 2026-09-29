@@ -51,7 +51,7 @@ interface CarAddModalProps {
 
 const CarAdd: React.FC<CarAddModalProps> = ({ closeModal, initialValues }) => {
   const history = useIonRouter();
-  const { showErrorAlert } = useAlert();
+  const { showErrorAlert, showSuccessAlert } = useAlert();
   const [isLoading, setisLoading] = useState(false);
   const formInitial = initialCarValues(initialValues || {});
   const {
@@ -97,6 +97,10 @@ const CarAdd: React.FC<CarAddModalProps> = ({ closeModal, initialValues }) => {
         });
         responseCar = response.data;
       }
+      if (!payload.id) {
+        const { fleetBillingFeedback } = await import("../../../services/fleetBillingFeedback");
+        showSuccessAlert?.(await fleetBillingFeedback("added"));
+      }
       setisLoading(false);
       closeModal(responseCar);
     } catch (e) {
@@ -115,6 +119,8 @@ const CarAdd: React.FC<CarAddModalProps> = ({ closeModal, initialValues }) => {
       await api.delete(
         endpoints.CAR({ pathVariables: { id: formInitial.id } })
       );
+      const { fleetBillingFeedback } = await import("../../../services/fleetBillingFeedback");
+      showSuccessAlert?.(await fleetBillingFeedback("deleted"));
       history.push("/", "none", "replace");
       setisLoading(false);
     } catch (e) {
