@@ -61,6 +61,7 @@ public class ServiceResource {
         if (!existingMaintenanceOpt.isPresent()) {
             throw new BadRequestAlertException("Car not found for current user", ENTITY_NAME, "notcurrentuser");
         }
+        com.localuz.service.VehicleLifecycleService.requireOperational(existingMaintenanceOpt.get().getCar());
         service.setMaintenance(existingMaintenanceOpt.get());
 
         Service result = serviceRepository.save(service);
@@ -78,6 +79,7 @@ public class ServiceResource {
             throw new BadRequestAlertException("Maintenance-Car not found for current user", ENTITY_NAME, "notcurrentuser");
         }
 
+        com.localuz.service.VehicleLifecycleService.requireOperational(existingServiceOpt.get().getMaintenance().getCar());
         serviceRepository.deleteById(id);
         return ResponseEntity
             .noContent()
@@ -101,6 +103,7 @@ public class ServiceResource {
         if (!existingServiceOpt.isPresent()) {
             throw new BadRequestAlertException("Maintenance-Car not found for current user", ENTITY_NAME, "notcurrentuser");
         }
+        com.localuz.service.VehicleLifecycleService.requireOperational(existingServiceOpt.get().getMaintenance().getCar());
         service.setMaintenance(existingServiceOpt.get().getMaintenance());
 
         Service result = serviceRepository.save(service);

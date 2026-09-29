@@ -41,13 +41,18 @@ class CarResourceEnforcementTest {
         carRepository = Mockito.mock(CarRepository.class);
         userService = Mockito.mock(UserService.class);
         entitlementService = Mockito.mock(EntitlementService.class);
+        var users = Mockito.mock(com.localuz.repository.UserRepository.class);
+        when(users.findByIdForBillingCheckoutLock(Mockito.any())).thenAnswer(call -> Optional.of(currentUser));
+        var lifecycle = new com.localuz.service.VehicleLifecycleService(users, carRepository,
+            Mockito.mock(com.localuz.repository.SubscriptionRepository.class),
+            Mockito.mock(com.localuz.repository.SubscriptionPlanUpgradeRepository.class), entitlementService);
         carResource = new CarResource(
             carRepository,
             userService,
             Mockito.mock(DriverCarRepository.class),
             Mockito.mock(InspectionRepository.class),
             Mockito.mock(MaintenanceRepository.class),
-            entitlementService
+            entitlementService, lifecycle
         );
 
         currentUser = new User();
@@ -88,13 +93,11 @@ class CarResourceEnforcementTest {
     }
 
     @Test
-    void flagDisabledAllowsCreationRegardlessOfLimit() throws Exception {
+    void legacyFlagCannotBypassTheFleetLimit() throws Exception {
         setEnforcementFlag(false);
-
-        carResource.createCar(newCar());
-
-        Mockito.verifyNoInteractions(entitlementService);
-        Mockito.verify(carRepository).save(Mockito.any(Car.class));
+        mockSnapshotAtLimit(PlanCode.PLATINUM, 100);
+        assertThatThrownBy(() -> carResource.createCar(newCar())).isInstanceOf(VehicleLimitReachedException.class);
+        Mockito.verify(carRepository, Mockito.never()).save(Mockito.any(Car.class));
     }
 
     @Test
@@ -206,4 +209,25 @@ class CarResourceEnforcementTest {
 
         Mockito.verifyNoInteractions(entitlementService);
     }
+    @Test void deletedVehicleCannotBeRevivedOrEditedByPatch() {
+        Car existing = newCar(); existing.setId(7L); existing.setUser(currentUser); existing.setDeleted(true); existing.setActive(false);
+        when(carRepository.findByCurrentUserAndId(7L)).thenReturn(Optional.of(existing));
+        Car patch = new Car(); patch.setId(7L); patch.setActive(true); patch.setDeleted(false); patch.setName("Revive");
+        assertThatThrownBy(() -> carResource.partialUpdateCar(7L, patch))
+            .isInstanceOf(com.localuz.web.rest.errors.BadRequestAlertException.class);
+        org.assertj.core.api.Assertions.assertThat(existing.getDeleted()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(existing.getActive()).isFalse();
+        Mockito.verify(carRepository, Mockito.never()).save(Mockito.any());
+    }
+
+    @Test void deleteRecordsActorAndPreservesTheEntity() {
+        Car existing = newCar(); existing.setId(7L); existing.setUser(currentUser); existing.setActive(true);
+        when(carRepository.findByCurrentUserAndId(7L)).thenReturn(Optional.of(existing));
+        carResource.softDeleteCar(7L);
+        org.assertj.core.api.Assertions.assertThat(existing.getDeleted()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(existing.getDeletedAt()).isNotNull();
+        org.assertj.core.api.Assertions.assertThat(existing.getDeletedByUserId()).isEqualTo(currentUser.getId());
+        Mockito.verify(carRepository, Mockito.never()).deleteById(Mockito.any());
+    }
+
 }

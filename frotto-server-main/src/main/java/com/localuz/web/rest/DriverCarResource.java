@@ -102,6 +102,7 @@ public class DriverCarResource {
                 );
             }
         }
+        com.localuz.service.VehicleLifecycleService.requireOperational(existingCarOpt.get());
         driverCar.setCar(existingCarOpt.get());
 
         Driver updatedDriver = driverCar.getDriver();
@@ -141,6 +142,7 @@ public class DriverCarResource {
         if (!carBodyDamage.isPresent()) {
             throw new BadRequestAlertException("DriverCar not found for current user", ENTITY_NAME, "notcurrentuser");
         }
+        com.localuz.service.VehicleLifecycleService.requireOperational(carBodyDamage.get().getCar());
         driverCarRepository.deleteById(id);
         return ResponseEntity
             .noContent()
@@ -176,6 +178,7 @@ public class DriverCarResource {
         }
 
         DriverCar existingDriverCar = existingCarOpt.get();
+        com.localuz.service.VehicleLifecycleService.requireOperational(existingDriverCar.getCar());
 
         Driver updatedDriver = driverCar.getDriver();
         if (updatedDriver != null) {

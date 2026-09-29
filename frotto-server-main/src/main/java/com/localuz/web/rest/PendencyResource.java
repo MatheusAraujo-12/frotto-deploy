@@ -137,6 +137,7 @@ public class PendencyResource {
             throw new BadRequestAlertException("A new pendency cannot already have an ID", ENTITY_NAME, "idexists");
         }
         DriverCar pendencyCarDriver = getDriverCarOrThrow(carDriverId);
+        com.localuz.service.VehicleLifecycleService.requireOperational(pendencyCarDriver.getCar());
         initializePendencyForCreate(pendency);
         pendency.setDriverCar(pendencyCarDriver);
 
@@ -150,7 +151,7 @@ public class PendencyResource {
     @DeleteMapping("/pendencies/{id}")
     public ResponseEntity<Void> deletePendency(@PathVariable Long id) {
         log.debug("REST request to delete Pendency : {}", id);
-        getPendencyOrThrow(id);
+        com.localuz.service.VehicleLifecycleService.requireOperational(getPendencyOrThrow(id).getDriverCar().getCar());
         pendencyRepository.deleteById(id);
         return ResponseEntity
             .noContent()
@@ -171,6 +172,7 @@ public class PendencyResource {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
         Pendency existingPendency = getPendencyOrThrow(id);
+        com.localuz.service.VehicleLifecycleService.requireOperational(existingPendency.getDriverCar().getCar());
 
         applyEditableFields(existingPendency, pendency);
         recalculatePaymentFields(existingPendency);
@@ -189,6 +191,7 @@ public class PendencyResource {
     ) {
         log.debug("REST request to fully pay Pendency : {}", id);
         Pendency pendency = getPendencyOrThrow(id);
+        com.localuz.service.VehicleLifecycleService.requireOperational(pendency.getDriverCar().getCar());
         if (pendency.getStatus() == PendencyStatus.PAID) {
             throw new BadRequestAlertException("Pendency is already paid", ENTITY_NAME, "pendencyalreadypaid");
         }
@@ -212,6 +215,7 @@ public class PendencyResource {
             throw new BadRequestAlertException("Payment amount must be > 0", ENTITY_NAME, "invalidpaymentamount");
         }
         Pendency pendency = getPendencyOrThrow(id);
+        com.localuz.service.VehicleLifecycleService.requireOperational(pendency.getDriverCar().getCar());
         if (pendency.getStatus() == PendencyStatus.PAID) {
             throw new BadRequestAlertException("Pendency is already paid", ENTITY_NAME, "pendencyalreadypaid");
         }

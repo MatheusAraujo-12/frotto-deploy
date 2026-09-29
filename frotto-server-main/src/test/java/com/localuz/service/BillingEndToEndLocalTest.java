@@ -49,7 +49,7 @@ class BillingEndToEndLocalTest {
         MercadoPagoClient provider = mock(MercadoPagoClient.class);
         MercadoPagoWebhookEventRepository events = mock(MercadoPagoWebhookEventRepository.class);
         MercadoPagoProperties properties = new MercadoPagoProperties(); properties.setEnabled(true); properties.setAccessToken("fake-only"); properties.setBackUrl("https://local.test/menu/meu-plano");
-        when(users.findByIdForBillingCheckoutLock(7L)).thenReturn(Optional.of(user)); when(cars.countByUserIdAndActiveTrue(7L)).thenReturn(2L);
+        when(users.findByIdForBillingCheckoutLock(7L)).thenReturn(Optional.of(user)); when(cars.countBillableByUserId(7L)).thenReturn(2L);
         when(plans.findByCode(PlanCode.FREE)).thenReturn(Optional.of(free)); when(plans.findByCode(PlanCode.BRONZE)).thenReturn(Optional.of(bronze));
         when(pricing.resolvePlanForVehicleCount(2)).thenReturn(free); when(pricing.calculatePriceForPlan(PlanCode.BRONZE,2)).thenReturn(new PricingResult(PlanCode.BRONZE,"Bronze",2,new BigDecimal("29.90"),List.of()));
         when(checkouts.save(any())).thenAnswer(call->{BillingCheckout value=call.getArgument(0);if(value.getId()==null)value.setId(41L);checkoutState.set(value);return value;});

@@ -98,7 +98,7 @@ public class SubscriptionAdminService {
         grant.setStatus(SubscriptionStatus.ACTIVE);
         grant.setSource(SubscriptionSource.ADMIN_GRANT);
         grant.setContractedPrice(BigDecimal.ZERO.setScale(2));
-        grant.setContractedVehicleCount((int) carRepository.countByUserIdAndActiveTrue(targetUser.getId()));
+        grant.setContractedVehicleCount((int) carRepository.countBillableByUserId(targetUser.getId()));
         grant.setGrantedBy(grantedByAdmin);
         grant.setGrantedAt(Instant.now());
         grant.setGrantReason(request.getReason());

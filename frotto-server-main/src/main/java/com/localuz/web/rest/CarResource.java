@@ -17,9 +17,7 @@ import com.localuz.service.UserService;
 import com.localuz.service.dto.CarSearchDTO;
 import com.localuz.service.dto.CarDTO;
 import com.localuz.service.dto.CarFormDTO;
-import com.localuz.service.dto.EntitlementSnapshot;
 import com.localuz.web.rest.errors.BadRequestAlertException;
-import com.localuz.web.rest.errors.VehicleLimitReachedException;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -63,8 +61,8 @@ public class CarResource {
     @Value("${jhipster.clientApp.name}")
     private String applicationName;
 
-    // Billing Etapa 3 feature flag - see application.yml. Defaults false so behavior is
-    // unchanged for every existing deployment unless explicitly overridden (BILLING_ENFORCEMENT_ENABLED=true).
+    // Legacy configuration retained for compatibility. VehicleLifecycleService always enforces
+    // fleet limits in 5G.13; setting this flag false cannot bypass them.
     @Value("${billing.enforcement.enabled:false}")
     private boolean billingEnforcementEnabled;
 
@@ -75,6 +73,7 @@ public class CarResource {
 
     private final UserService userService;
     private final EntitlementService entitlementService;
+    private final com.localuz.service.VehicleLifecycleService lifecycle;
 
     public CarResource(
         CarRepository carRepository,
@@ -82,7 +81,8 @@ public class CarResource {
         DriverCarRepository driverCarRepository,
         InspectionRepository inspectionRepository,
         MaintenanceRepository maintenanceRepository,
-        EntitlementService entitlementService
+        EntitlementService entitlementService,
+        com.localuz.service.VehicleLifecycleService lifecycle
     ) {
         this.carRepository = carRepository;
         this.userService = userService;
@@ -90,12 +90,13 @@ public class CarResource {
         this.inspectionRepository = inspectionRepository;
         this.maintenanceRepository = maintenanceRepository;
         this.entitlementService = entitlementService;
+        this.lifecycle = lifecycle;
     }
 
     @GetMapping("/cars")
     public List<Car> getAllCarsByUser() {
         log.debug("REST request to get all Cars by current User");
-        return carRepository.findByCurrentUser();
+        return carRepository.findActiveByCurrentUser();
     }
 
     @GetMapping("/cars-drivers/active")
@@ -108,6 +109,27 @@ public class CarResource {
     public List<Car> getAllActiveCarsByUser() {
         log.debug("REST request to get all Active Cars by current User");
         return carRepository.findActiveByCurrentUser();
+    }
+
+    @GetMapping("/cars/deleted")
+    public List<Car> getDeletedCars() { return carRepository.findDeletedByCurrentUser(); }
+
+    public record RestoreRequest(@javax.validation.constraints.NotBlank @javax.validation.constraints.Size(max = 500) String reason) {}
+
+    @PostMapping("/admin/cars/{id}/restore")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public Car restoreCar(@PathVariable Long id, @Valid @RequestBody RestoreRequest request) {
+        return lifecycle.restore(id, userService.getUserWithAuthorities().orElseThrow(), request.reason());
+    }
+
+    @GetMapping("/admin/cars/deleted")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    public List<java.util.Map<String, Object>> adminDeletedCars() {
+        return carRepository.findDeletionAudit().stream().map(car -> {
+            java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+            row.put("car", car); row.put("userId", car.getUser().getId()); row.put("userLogin", car.getUser().getLogin());
+            return row;
+        }).toList();
     }
 
     @GetMapping("/cars/active/groups")
@@ -175,12 +197,18 @@ public class CarResource {
     @DeleteMapping("/cars/{id}")
     public ResponseEntity<Void> softDeleteCar(@PathVariable Long id) {
         log.debug("REST request to delete Car : {}", id);
+        User owner = userService.getUserWithAuthorities().orElseThrow();
+        lifecycle.lockMutation(owner, false);
         Optional<Car> existingCarOpt = carRepository.findByCurrentUserAndId(id);
         if (!existingCarOpt.isPresent()) {
             throw new BadRequestAlertException("Car not found for current user", ENTITY_NAME, "notcurrentuser");
         }
         Car existingCar = existingCarOpt.get();
+        if (Boolean.TRUE.equals(existingCar.getDeleted())) return ResponseEntity.noContent().build();
         existingCar.setActive(false);
+        existingCar.setDeleted(true);
+        existingCar.setDeletedAt(java.time.Instant.now());
+        existingCar.setDeletedByUserId(owner.getId());
         carRepository.save(existingCar);
         return ResponseEntity
             .noContent()
@@ -209,12 +237,14 @@ public class CarResource {
     }
 
     @GetMapping("/admin/cars")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public List<Car> getAllCars() {
         log.debug("REST request to get all Cars");
         return carRepository.findAll();
     }
 
     @GetMapping("admin/cars/user/{userId}")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public List<Car> getAllCarsByUserId(@PathVariable Long userId) {
         log.debug("REST request to get all Cars by User Id");
         return carRepository.findAllByUserId(userId);
@@ -229,7 +259,8 @@ public class CarResource {
         if (!currentUser.isPresent()) {
             throw new BadRequestAlertException("A new car cannot have an empty User", ENTITY_NAME, "emptyuser");
         }
-        enforceVehicleLimitIfEnabled(currentUser.get());
+        lifecycle.lockMutation(currentUser.get(), true);
+        lifecycle.validatePlate(currentUser.get(), car.getPlate(), null);
         applyCommissionDefaults(car);
         applyAdminStatusDefault(car);
         if (car.getCommissionType() == null) {
@@ -238,36 +269,14 @@ public class CarResource {
         validateCommission(car);
         car.setUser(currentUser.get());
         car.setActive(true);
+        car.setDeleted(false);
+        car.setDeletedAt(null); car.setDeletedByUserId(null);
+        car.setRestoredAt(null); car.setRestoredByUserId(null); car.setRestoreReason(null);
         Car result = carRepository.save(car);
         return ResponseEntity
             .created(new URI("/api/cars/" + result.getId()))
             .headers(HeaderUtil.createEntityCreationAlert(applicationName, false, ENTITY_NAME, result.getId().toString()))
             .body(result);
-    }
-
-    /**
-     * The single enforcement point for the Billing Etapa 3 vehicle limit: both createCar
-     * (JSON) and createCarMultipart funnel through createCarInternal, so gating it here covers
-     * every car-creation path with no other changes. Deliberately not called from
-     * partialUpdateCarInternal/softDeleteCar/any read path - edits, deletes, and reactivation
-     * are unaffected per the Etapa 3 spec ("não interferir em edição/exclusão/reativação").
-     *
-     * No-op entirely when the flag is off (the default everywhere until explicitly enabled),
-     * so this is a zero-behavior-change addition until then.
-     */
-    private void enforceVehicleLimitIfEnabled(User currentUser) {
-        if (!billingEnforcementEnabled) {
-            return;
-        }
-        EntitlementSnapshot snapshot = entitlementService.getSnapshot(currentUser);
-        if (!snapshot.isCanAddVehicle()) {
-            throw new VehicleLimitReachedException(
-                snapshot.getCurrentPlan().getCode(),
-                snapshot.getActiveVehicleCount(),
-                snapshot.getVehicleLimit(),
-                snapshot.getRequiredPlan().getCode()
-            );
-        }
     }
 
     private ResponseEntity<Car> partialUpdateCarInternal(Long id, Car car) {
@@ -278,11 +287,15 @@ public class CarResource {
         if (!Objects.equals(id, car.getId())) {
             throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
         }
+        User owner = userService.getUserWithAuthorities().orElseThrow();
+        lifecycle.lockOwner(owner);
         Optional<Car> existingCarOpt = carRepository.findByCurrentUserAndId(id);
         if (!existingCarOpt.isPresent()) {
             throw new BadRequestAlertException("Car not found for current user", ENTITY_NAME, "notcurrentuser");
         }
         Car existingCar = existingCarOpt.get();
+        com.localuz.service.VehicleLifecycleService.requireOperational(existingCar);
+        if (car.getPlate() != null) lifecycle.validatePlate(owner, car.getPlate(), id);
         applyPartialUpdates(existingCar, car);
         applyCommissionDefaults(existingCar);
         applyAdminStatusDefault(existingCar);
@@ -331,9 +344,6 @@ public class CarResource {
         }
         if (car.getGroup() != null) {
             existingCar.setGroup(car.getGroup());
-        }
-        if (car.getActive() != null) {
-            existingCar.setActive(car.getActive());
         }
         if (car.getAdminStatus() != null) {
             existingCar.setAdminStatus(car.getAdminStatus());

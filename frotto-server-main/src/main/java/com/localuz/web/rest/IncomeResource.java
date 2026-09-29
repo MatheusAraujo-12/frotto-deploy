@@ -76,6 +76,7 @@ public class IncomeResource {
             throw new BadRequestAlertException("Car not found for current user", ENTITY_NAME, "notcurrentuser");
         }
         Car incomeCar = existingCarOpt.get();
+        com.localuz.service.VehicleLifecycleService.requireOperational(incomeCar);
         income.setCar(incomeCar);
 
         Income result = incomeRepository.save(income);
@@ -93,6 +94,7 @@ public class IncomeResource {
             throw new BadRequestAlertException("Car-Income not found for current user", ENTITY_NAME, "notcurrentuser");
         }
 
+        com.localuz.service.VehicleLifecycleService.requireOperational(existingIncomeOpt.get().getCar());
         incomeRepository.deleteById(id);
         return ResponseEntity
             .noContent()
@@ -117,6 +119,7 @@ public class IncomeResource {
             throw new BadRequestAlertException("Car not found for current user", ENTITY_NAME, "notcurrentuser");
         }
         Car incomeCar = existingIncomeOpt.get().getCar();
+        com.localuz.service.VehicleLifecycleService.requireOperational(incomeCar);
         income.setCar(incomeCar);
 
         Income result = incomeRepository.save(income);

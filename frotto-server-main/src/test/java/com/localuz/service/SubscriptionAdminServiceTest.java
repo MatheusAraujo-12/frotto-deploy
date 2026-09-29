@@ -79,7 +79,7 @@ class SubscriptionAdminServiceTest {
     void grantsAPermanentPlanWithFullAuditTrail() {
         when(userRepository.findById(123L)).thenReturn(Optional.of(targetUser));
         when(planRepository.findByCode(PlanCode.GOLD)).thenReturn(Optional.of(plan(PlanCode.GOLD, true)));
-        when(carRepository.countByUserIdAndActiveTrue(123L)).thenReturn(4L);
+        when(carRepository.countBillableByUserId(123L)).thenReturn(4L);
 
         Subscription grant = subscriptionAdminService.grantPlan(request(123L, PlanCode.GOLD, null, "Parceiro comercial"), admin);
 
@@ -99,7 +99,7 @@ class SubscriptionAdminServiceTest {
     void grantsATemporaryPlanWithAFutureExpiry() {
         when(userRepository.findById(123L)).thenReturn(Optional.of(targetUser));
         when(planRepository.findByCode(PlanCode.GOLD)).thenReturn(Optional.of(plan(PlanCode.GOLD, true)));
-        when(carRepository.countByUserIdAndActiveTrue(123L)).thenReturn(0L);
+        when(carRepository.countBillableByUserId(123L)).thenReturn(0L);
 
         Instant future = Instant.now().plusSeconds(86_400);
         Subscription grant = subscriptionAdminService.grantPlan(request(123L, PlanCode.GOLD, future, "Trial"), admin);
@@ -117,7 +117,7 @@ class SubscriptionAdminServiceTest {
         when(planRepository.findByCode(PlanCode.PLATINUM)).thenReturn(Optional.of(plan(PlanCode.PLATINUM, true)));
         when(subscriptionRepository.findByUserIdAndSourceAndStatusIn(123L, SubscriptionSource.ADMIN_GRANT, OPEN_STATUSES))
             .thenReturn(List.of(previousGrant));
-        when(carRepository.countByUserIdAndActiveTrue(123L)).thenReturn(0L);
+        when(carRepository.countBillableByUserId(123L)).thenReturn(0L);
 
         subscriptionAdminService.grantPlan(request(123L, PlanCode.PLATINUM, null, null), admin);
 
@@ -145,7 +145,7 @@ class SubscriptionAdminServiceTest {
         when(planRepository.findByCode(PlanCode.PLATINUM)).thenReturn(Optional.of(plan(PlanCode.PLATINUM, true)));
         when(subscriptionRepository.findByUserIdAndSourceAndStatusIn(123L, SubscriptionSource.ADMIN_GRANT, OPEN_STATUSES))
             .thenReturn(List.of(grantA, grantB));
-        when(carRepository.countByUserIdAndActiveTrue(123L)).thenReturn(0L);
+        when(carRepository.countBillableByUserId(123L)).thenReturn(0L);
 
         subscriptionAdminService.grantPlan(request(123L, PlanCode.PLATINUM, null, null), admin);
 
@@ -161,7 +161,7 @@ class SubscriptionAdminServiceTest {
         // source=ADMIN_GRANT lookup is ever made.
         when(userRepository.findById(123L)).thenReturn(Optional.of(targetUser));
         when(planRepository.findByCode(PlanCode.FROTTA)).thenReturn(Optional.of(plan(PlanCode.FROTTA, true)));
-        when(carRepository.countByUserIdAndActiveTrue(123L)).thenReturn(0L);
+        when(carRepository.countBillableByUserId(123L)).thenReturn(0L);
 
         subscriptionAdminService.grantPlan(request(123L, PlanCode.FROTTA, null, "Cortesia temporária"), admin);
 

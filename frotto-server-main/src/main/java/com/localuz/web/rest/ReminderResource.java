@@ -77,6 +77,7 @@ public class ReminderResource {
             throw new BadRequestAlertException("Car not found for current user", ENTITY_NAME, "notcurrentuser");
         }
         Car reminderCar = existingCarOpt.get();
+        com.localuz.service.VehicleLifecycleService.requireOperational(reminderCar);
         reminder.setCar(reminderCar);
 
         Reminder result = reminderRepository.save(reminder);
@@ -94,6 +95,7 @@ public class ReminderResource {
             throw new BadRequestAlertException("Car-Reminder not found for current user", ENTITY_NAME, "notcurrentuser");
         }
 
+        com.localuz.service.VehicleLifecycleService.requireOperational(existingReminderOpt.get().getCar());
         reminderRepository.deleteById(id);
         return ResponseEntity
             .noContent()
@@ -118,6 +120,7 @@ public class ReminderResource {
             throw new BadRequestAlertException("Car not found for current user", ENTITY_NAME, "notcurrentuser");
         }
         Car reminderCar = existingReminderOpt.get().getCar();
+        com.localuz.service.VehicleLifecycleService.requireOperational(reminderCar);
         reminder.setCar(reminderCar);
 
         Reminder result = reminderRepository.save(reminder);
