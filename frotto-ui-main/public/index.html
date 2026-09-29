@@ -7,6 +7,21 @@
     <base href="/" />
 
     <meta name="color-scheme" content="light dark" />
+    <!-- Resolve before first paint while the application bundle loads.
+         Only the two critical canvas colors mirror tokens.css; component
+         palettes remain in theme CSS. See src/theme/DESIGN_SYSTEM.md. -->
+    <script>
+      (function () {
+        var saved;
+        try { saved = localStorage.getItem("app-theme"); } catch (_) {}
+        var theme = saved === "dark" || saved === "light" ? saved :
+          (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        var root = document.documentElement;
+        root.dataset.theme = theme;
+        root.style.colorScheme = theme;
+        root.style.backgroundColor = theme === "dark" ? "#0D1B2A" : "#F7F9FC";
+      })();
+    </script>
     <meta
       name="viewport"
       content="viewport-fit=cover, width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no"

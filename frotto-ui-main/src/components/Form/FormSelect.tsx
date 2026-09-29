@@ -47,6 +47,7 @@ const FormSelect: React.FC<FormSelectProps> = ({
           placeholder={label}
           aria-invalid={hasError ? "true" : undefined}
           aria-describedby={hasError ? errorId : undefined}
+          aria-required={required || undefined}
           onIonChange={(e) => {
             changeCallback(e.detail.value);
           }}

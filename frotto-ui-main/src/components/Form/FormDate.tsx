@@ -5,13 +5,13 @@ import {
   IonDatetimeButton,
   IonItem,
   IonModal,
-  IonText,
 } from "@ionic/react";
 import { useRef } from "react";
 import FormInputLabel from "./FormInputLabel";
 import { isValid, parseISO } from "date-fns";
 import styled from "styled-components";
 import { TEXT } from "../../constants/texts";
+import FormError from "./FormError";
 import FormItemWrapper, {
   getFormErrorId,
   getFormErrorMessage,
@@ -33,6 +33,7 @@ export interface DateProps {
   required?: boolean;
   initialValue?: string | string[] | null | undefined;
   min?: string;
+  /** Standalone error message for callers that don't wire react-hook-form's errorsObj/errorName. */
   error?: string;
   errorsObj?: Object;
   errorName?: string;
@@ -118,52 +119,46 @@ const FormDate: React.FC<DateProps> = ({
 
   return (
     <FormItemWrapper errorsObj={errorsObj} errorName={errorName}>
-      <div style={{ padding: "8px 0" }}>
-        <IonItem className="app-form-item">
-          <FormInputLabel name={label} required={required} />
-          <IonDatetimeButton
-            datetime={id}
-            slot="end"
-            aria-invalid={hasError ? "true" : undefined}
-            aria-describedby={hasError ? errorId : undefined}
-          />
-          <MyIonModal
-            ref={modalRef}
-            keepContentsMounted={true}
-            onWillPresent={() => {
-              pendingValueRef.current = safeInitialValue;
+      <IonItem className="app-form-item">
+        <FormInputLabel name={label} required={required} />
+        <IonDatetimeButton
+          datetime={id}
+          slot="end"
+          aria-invalid={hasError ? "true" : undefined}
+          aria-describedby={hasError ? errorId : undefined}
+          aria-required={required || undefined}
+        />
+        <MyIonModal
+          ref={modalRef}
+          keepContentsMounted={true}
+          onWillPresent={() => {
+            pendingValueRef.current = safeInitialValue;
+          }}
+        >
+          <IonDatetime
+            id={id}
+            ref={datetimeRef}
+            presentation={presentation}
+            value={safeInitialValue}
+            min={min}
+            onIonChange={(e) => {
+              pendingValueRef.current = e.detail.value;
             }}
           >
-            <IonDatetime
-              id={id}
-              ref={datetimeRef}
-              presentation={presentation}
-              value={safeInitialValue}
-              min={min}
-              onIonChange={(e) => {
-                pendingValueRef.current = e.detail.value;
-              }}
-            >
-              <IonButtons slot="buttons">
-                <IonButton color="medium" onClick={handleCancel}>
-                  {TEXT.cancel}
-                </IonButton>
-                <IonButton color="primary" onClick={handleConfirm}>
-                  {TEXT.confirm}
-                </IonButton>
-              </IonButtons>
-            </IonDatetime>
-          </MyIonModal>
-        </IonItem>
-
-        {!!error && (
-          <div style={{ padding: "6px 16px 0 16px" }}>
-            <IonText color="danger" id={errorId} style={{ fontSize: 12 }}>
-              {error}
-            </IonText>
-          </div>
-        )}
-      </div>
+            <IonButtons slot="buttons">
+              <IonButton color="medium" onClick={handleCancel}>
+                {TEXT.cancel}
+              </IonButton>
+              <IonButton color="primary" onClick={handleConfirm}>
+                {TEXT.confirm}
+              </IonButton>
+            </IonButtons>
+          </IonDatetime>
+        </MyIonModal>
+      </IonItem>
+      {/* Only for callers passing a standalone `error` string instead of errorsObj/errorName
+          (FormItemWrapper already renders the latter). */}
+      {error ? <FormError id={errorId} message={error} /> : <></>}
     </FormItemWrapper>
   );
 };

@@ -1,0 +1,443 @@
+/* ============================================ */
+/*             IONIC BASE VISUALS               */
+/* ============================================ */
+
+ion-toolbar,
+.app-toolbar-clean {
+  --background: var(--ion-toolbar-background);
+  --color: var(--frotto-toolbar-text);
+  --border-color: transparent;
+  background: var(--ion-toolbar-background);
+  border-bottom: 1px solid var(--ion-border-color);
+  overflow-x: clip;
+}
+
+ion-header,
+ion-header.header-md,
+ion-header.header-ios {
+  background: var(--ion-toolbar-background);
+}
+
+ion-toolbar::part(background),
+.app-toolbar-clean::part(background) {
+  background: var(--ion-toolbar-background);
+}
+
+body.dark ion-toolbar,
+body.dark .app-toolbar-clean {
+  --background: var(--ion-toolbar-background);
+  --color: var(--ion-text-color);
+}
+
+.app-toolbar-clean ion-title,
+ion-title {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.app-subtoolbar {
+  --background: var(--ion-background-color);
+  background: var(--ion-background-color);
+  background-image: var(--app-gradient);
+  border-bottom: 1px solid var(--ion-border-color);
+  padding: 8px 18px 10px;
+}
+
+.app-subtoolbar::part(background) {
+  background: var(--ion-background-color);
+  background-image: var(--app-gradient);
+}
+
+ion-card,
+ion-card[class],
+.app-card,
+.app-panel-card {
+  --background: var(--app-card);
+  /* Non-interactive IonCard has no native part to paint its surface. */
+  background: var(--background, var(--frotto-surface));
+  border: 0;
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow);
+  overflow: hidden;
+  isolation: isolate;
+  background-clip: padding-box;
+}
+
+ion-card::part(native),
+.app-card::part(native),
+.app-panel-card::part(native) {
+  border-radius: inherit;
+  overflow: hidden;
+  border: var(--app-border);
+  background: var(--background, var(--app-card));
+  box-sizing: border-box;
+  max-width: 100%;
+  background-clip: padding-box;
+}
+
+ion-card:hover,
+.app-card:hover,
+.app-panel-card:hover {
+  box-shadow: var(--app-shadow-hover);
+}
+
+ion-item,
+ion-item[class] {
+  --color: var(--ion-text-color);
+  --background: var(--ion-item-background);
+  --border-color: var(--ion-border-color);
+  color: var(--ion-text-color);
+  background: transparent;
+  border-radius: var(--app-radius-sm);
+  overflow: hidden;
+  isolation: isolate;
+  background-clip: padding-box;
+}
+
+ion-item::part(native) {
+  border-radius: inherit;
+  overflow: hidden;
+  background: var(--background, var(--ion-item-background));
+  box-sizing: border-box;
+  max-width: 100%;
+  background-clip: padding-box;
+}
+
+ion-label:not(.ion-color),
+ion-text:not(.ion-color),
+ion-note:not(.ion-color),
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+ion-card-title,
+.app-panel-title,
+.app-section-title {
+  color: var(--ion-text-color);
+}
+
+ion-card-subtitle,
+.app-panel-subtitle,
+.app-section-subtitle,
+.app-card-content p,
+ion-note:not(.ion-color) {
+  color: var(--ion-color-medium);
+}
+
+ion-input,
+ion-textarea,
+ion-select {
+  --color: var(--ion-text-color);
+  --placeholder-color: var(--ion-color-medium);
+}
+
+ion-searchbar {
+  --background: var(--app-card-strong);
+  --color: var(--ion-text-color);
+  --placeholder-color: var(--ion-color-medium);
+  --icon-color: var(--ion-color-primary);
+  border: 1px solid var(--ion-border-color);
+  border-radius: 14px;
+  margin: 12px auto;
+  max-width: 720px;
+  width: 100%;
+  inline-size: min(720px, calc(100% - 24px));
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --height: 44px;
+  --padding-start: 14px;
+  --padding-end: 14px;
+  display: block;
+  box-sizing: border-box;
+  min-width: 0;
+  transition: box-shadow 0.15s ease, transform 0.12s ease,
+    border-color 0.12s ease;
+}
+
+ion-toolbar ion-searchbar {
+  margin: 8px 12px;
+  max-width: none;
+  width: calc(100% - 24px);
+  inline-size: calc(100% - 24px);
+  min-width: 0;
+}
+
+.app-subtoolbar ion-searchbar {
+  margin: 0 auto;
+  width: 100%;
+  max-width: 940px;
+}
+
+ion-searchbar::part(container) {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.app-toolbar-search {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 8px 12px 10px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.app-toolbar-search ion-searchbar {
+  width: 100%;
+  max-width: 100%;
+  inline-size: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+ion-searchbar:focus-within {
+  border-color: var(--ion-color-tertiary);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08),
+    0 0 0 2px rgba(var(--ion-color-tertiary-rgb), 0.18);
+  transform: translateY(-1px);
+}
+
+ion-progress-bar {
+  --background: var(--ion-border-color);
+  --progress-background: linear-gradient(
+    90deg,
+    var(--ion-color-primary) 0%,
+    var(--ion-color-tertiary) 60%,
+    var(--ion-color-secondary) 100%
+  );
+}
+
+ion-button {
+  --border-radius: var(--app-button-radius);
+  --box-shadow: none;
+  --border-width: 1px;
+  --border-style: solid;
+  --border-color: rgba(
+    var(--ion-color-base-rgb, var(--ion-color-primary-rgb)),
+    0.22
+  );
+  text-transform: none;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  max-width: 100%;
+  --white-space: normal;
+  --ripple-color: rgba(var(--ion-color-base-rgb, var(--ion-color-primary-rgb)), 0.18);
+  transition: filter 0.14s ease, opacity 0.14s ease, transform 0.1s ease;
+}
+
+ion-button::part(native) {
+  border-radius: var(--app-button-radius);
+  box-shadow: none;
+  outline: none;
+}
+
+ion-button:hover:not(.button-disabled):not([disabled]) {
+  filter: brightness(1.04);
+}
+
+ion-button:active:not(.button-disabled):not([disabled]) {
+  filter: brightness(0.96);
+  transform: scale(0.985);
+}
+
+ion-button:focus-visible::part(native),
+ion-button.ion-focused::part(native) {
+  box-shadow: var(--frotto-focus-ring);
+}
+
+ion-button[disabled],
+ion-button.button-disabled {
+  cursor: not-allowed;
+  filter: saturate(0.72);
+  opacity: 0.54;
+}
+
+ion-button:not([fill="clear"]):not([fill="outline"]) {
+  --background: var(--ion-color-base, var(--ion-color-primary));
+  --color: var(--ion-color-contrast, var(--ion-color-primary-contrast));
+}
+
+ion-button[fill="outline"] {
+  --background: transparent;
+  --border-color: var(--ion-color-base, var(--ion-color-primary));
+  --color: var(--ion-color-base, var(--ion-color-primary));
+}
+
+ion-button[fill="clear"] {
+  --background: rgba(
+    var(--ion-color-base-rgb, var(--ion-color-primary-rgb)),
+    0.08
+  );
+  --border-color: rgba(
+    var(--ion-color-base-rgb, var(--ion-color-primary-rgb)),
+    0.18
+  );
+  --color: var(--ion-color-base, var(--ion-color-primary));
+}
+
+ion-button.button-has-icon-only {
+  --background: transparent;
+  --border-width: 0;
+  --border-color: transparent;
+}
+
+ion-list {
+  background: transparent;
+  padding: 4px 12px 12px;
+}
+
+/* ============================================ */
+/*              DARK MODE FIXES                 */
+/* ============================================ */
+
+body.dark ion-toolbar,
+body.dark .app-toolbar-clean {
+  --background: var(--ion-toolbar-background);
+  --color: var(--ion-text-color);
+  border-bottom: 1px solid var(--ion-border-color);
+}
+
+body.dark .app-subtoolbar {
+  --background: var(--ion-background-color);
+  background: var(--ion-background-color);
+  background-image: var(--app-gradient);
+}
+
+body.dark ion-card,
+body.dark ion-card[class],
+body.dark .app-card,
+body.dark .app-panel-card {
+  --background: var(--app-card);
+  background: var(--background, var(--frotto-surface));
+  border: 0;
+  box-shadow: var(--app-shadow);
+}
+
+body.dark ion-card::part(native),
+body.dark .app-card::part(native),
+body.dark .app-panel-card::part(native) {
+  border: var(--app-border);
+  background: var(--background, var(--app-card));
+}
+
+body.dark ion-item,
+body.dark ion-item[class] {
+  --color: var(--ion-text-color);
+  --background: var(--ion-item-background);
+  --border-color: var(--ion-border-color);
+  color: var(--ion-text-color);
+  background: transparent;
+}
+
+body.dark ion-item::part(native) {
+  background: var(--background, var(--ion-item-background));
+}
+
+:where(body.dark ion-label:not(.ion-color),
+body.dark ion-text:not(.ion-color),
+body.dark ion-note:not(.ion-color),
+body.dark p,
+body.dark h1,
+body.dark h2,
+body.dark h3,
+body.dark h4,
+body.dark h5,
+body.dark h6,
+body.dark ion-card-title,
+body.dark .app-panel-title,
+body.dark .app-section-title,
+body.dark .app-avatar-block__content h2,
+body.dark .my-panel-registration-card h3,
+body.dark .my-panel-registration-card p,
+body.dark .my-panel-form-grid ion-label:not(.ion-color),
+body.dark .my-panel-input-item ion-label:not(.ion-color),
+body.dark .my-panel-empty strong,
+body.dark .app-empty-state strong) {
+  color: var(--ion-text-color);
+}
+
+:where(body.dark ion-card-subtitle,
+body.dark .app-panel-subtitle,
+body.dark .app-section-subtitle,
+body.dark .app-card-content p,
+body.dark ion-note:not(.ion-color),
+body.dark .app-empty-state span,
+body.dark .my-panel-empty span,
+body.dark .app-avatar-block__content p) {
+  color: var(--ion-color-medium);
+}
+
+:where(body.dark ion-input,
+body.dark ion-textarea,
+body.dark ion-select,
+body.dark .app-form-item ion-input,
+body.dark .app-form-item ion-textarea,
+body.dark .app-form-item ion-select) {
+  --color: var(--ion-text-color);
+  --placeholder-color: var(--ion-color-medium);
+  color: var(--ion-text-color);
+}
+
+body.dark ion-searchbar {
+  --background: var(--app-card-strong);
+  --color: var(--ion-text-color);
+  --placeholder-color: var(--ion-color-medium);
+  --icon-color: var(--ion-color-medium);
+  border: 1px solid var(--ion-border-color);
+  box-shadow: none;
+}
+
+body.dark ion-searchbar:focus-within {
+  border-color: rgba(175, 179, 183, 0.26);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+}
+
+body.dark ion-progress-bar {
+  --background: rgba(255, 255, 255, 0.12);
+}
+
+/* Overlay surfaces use a separate semantic level, in both Ionic modes. */
+ion-modal {
+  --ion-background-color: var(--frotto-surface-modal);
+  --background: var(--frotto-surface-modal);
+}
+
+ion-modal::part(backdrop) {
+  background: var(--frotto-modal-backdrop);
+  opacity: 1;
+}
+
+ion-alert,
+ion-popover,
+ion-action-sheet {
+  --background: var(--frotto-surface-elevated);
+}
+
+/* Accessible primary text on light surfaces; solid buttons keep brand blue. */
+ion-button:not(.ion-color):not(.app-semantic-btn)[fill="clear"],
+ion-button:not(.ion-color):not(.app-semantic-btn)[fill="outline"],
+ion-button.ion-color-primary[fill="clear"],
+ion-button.ion-color-primary[fill="outline"] {
+  /* Ionic marks --ion-color-base important; configure its source token. */
+  --ion-color-primary: var(--frotto-primary-text);
+  --color: var(--frotto-primary-text);
+}
+
+ion-button:not(.ion-color):not(.app-semantic-btn):not([fill="clear"]):not([fill="outline"]),
+ion-button.ion-color-primary:not([fill="clear"]):not([fill="outline"]) {
+  /* Paint the native part: Ionic's colored-button hover overlay otherwise
+     uses the contrast color instead of --background-hover. */
+  --background-hover-opacity: 0;
+  --color-hover: var(--frotto-primary-hover-contrast);
+}
+
+@media (any-hover: hover) {
+  ion-button:not(.ion-color):not(.app-semantic-btn):not([fill="clear"]):not([fill="outline"]):not([disabled]):not(.button-disabled):hover::part(native),
+  ion-button.ion-color-primary:not([fill="clear"]):not([fill="outline"]):not([disabled]):not(.button-disabled):hover::part(native) {
+    background: var(--frotto-primary-hover);
+    color: var(--frotto-primary-hover-contrast);
+  }
+}

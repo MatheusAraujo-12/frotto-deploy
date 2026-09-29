@@ -17,6 +17,8 @@ import "@ionic/react/css/display.css";
 /* VariÃ¡veis de tema */
 import "./theme/variables.css";
 import "./theme/global.css";
+import "./theme/ionic-overrides.css";
+import "./theme/legacy.css";
 
 import { useEffect } from "react";
 import type { FC } from "react";
@@ -72,8 +74,6 @@ const AppSetup: FC = () => {
         return Promise.reject(error);
       }
     );
-
-    import("./services/theme").then((mod) => mod.initTheme());
 
     return () => {
       api.interceptors.response.eject(interceptorId);

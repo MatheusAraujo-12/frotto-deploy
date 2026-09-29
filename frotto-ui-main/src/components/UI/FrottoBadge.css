@@ -1,0 +1,48 @@
+.frotto-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: var(--frotto-radius-full);
+  font-size: var(--frotto-font-size-xs);
+  font-weight: var(--frotto-font-weight-medium);
+  line-height: var(--frotto-line-height-tight);
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.frotto-badge--success {
+  background: var(--frotto-success-soft);
+  color: var(--frotto-success);
+  border-color: rgba(var(--frotto-success-rgb), 0.28);
+}
+
+.frotto-badge--warning {
+  background: var(--frotto-warning-soft);
+  color: var(--frotto-warning);
+  border-color: rgba(var(--frotto-warning-rgb), 0.28);
+}
+
+.frotto-badge--danger {
+  background: var(--frotto-danger-soft);
+  color: var(--frotto-danger);
+  border-color: rgba(var(--frotto-danger-rgb), 0.28);
+}
+
+.frotto-badge--info {
+  background: var(--frotto-info-soft);
+  color: var(--frotto-info);
+  border-color: rgba(var(--frotto-info-rgb), 0.28);
+}
+
+.frotto-badge--neutral {
+  background: rgba(var(--frotto-text-muted-rgb), 0.14);
+  color: var(--frotto-text-muted);
+  border-color: rgba(var(--frotto-text-muted-rgb), 0.22);
+}
+
+.frotto-badge--dark {
+  background: rgba(var(--frotto-text-primary-rgb), 0.1);
+  color: var(--frotto-text-primary);
+  border-color: rgba(var(--frotto-text-primary-rgb), 0.2);
+}

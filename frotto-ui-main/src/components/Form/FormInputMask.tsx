@@ -44,6 +44,7 @@ const FormInputMask: React.FC<FormInputMaskProps> = ({
           class="ion-text-end"
           aria-invalid={hasError ? "true" : undefined}
           aria-describedby={hasError ? errorId : undefined}
+          aria-required={required || undefined}
           onIonChange={(e) => {
             const changedValue = e.detail.value;
             if (changedValue && changedValue !== "") {

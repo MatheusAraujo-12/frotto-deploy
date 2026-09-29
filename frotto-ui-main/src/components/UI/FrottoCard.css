@@ -1,0 +1,15 @@
+/* Base surface (background/border/radius/shadow/hover/margin) is already
+   provided app-wide by the `ion-card[class]`/`.app-panel-card` rule in
+   ionic-overrides.css + legacy.css — FrottoCard intentionally keeps emitting
+   the `app-panel-card` class so it stays pixel-identical to every existing
+   card and doesn't fork the surface into a second definition. Only the
+   interactive affordance below is new. */
+
+.frotto-card--interactive {
+  cursor: pointer;
+}
+
+.frotto-card--interactive:focus-visible {
+  outline: none;
+  box-shadow: var(--frotto-focus-ring);
+}

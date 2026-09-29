@@ -37,6 +37,7 @@ const FormInput: React.FC<FormInputProps> = ({
           class="ion-text-end"
           aria-invalid={hasError ? "true" : undefined}
           aria-describedby={hasError ? errorId : undefined}
+          aria-required={required || undefined}
           onIonChange={(e) => {
             changeCallback(e.detail.value ?? "");
           }}

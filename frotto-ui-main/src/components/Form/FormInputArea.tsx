@@ -41,6 +41,7 @@ const FormInputArea: React.FC<FormInputAreaProps> = ({
           maxlength={maxlength}
           aria-invalid={hasError ? "true" : undefined}
           aria-describedby={hasError ? errorId : undefined}
+          aria-required={required || undefined}
           onIonChange={(e) => {
             changeCallback(e.detail.value ?? "");
           }}

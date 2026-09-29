@@ -1,0 +1,1367 @@
+/* Existing component/page CSS, moved without layout redesign.
+   Keep after ionic-overrides.css and before page imports. Migrate by owner.
+   car-card/cars-dashboard families removed in Design System Cleanup Round 1
+   (2026-09) after confirming zero JSX/CSS consumers across the app. */
+
+/* ============================================ */
+/*             APP DESIGN SYSTEM BASE           */
+/* ============================================ */
+
+.app-shell {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 16px 18px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+}
+
+.app-shell--compact {
+  max-width: 940px;
+}
+
+.app-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.app-section-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.app-section-subtitle {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.app-panel-card {
+  margin: 0;
+  overflow: hidden;
+}
+
+.app-panel-card--soft {
+  --background: var(--app-card-strong);
+  background: transparent;
+}
+
+.app-panel-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.app-panel-header__content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.app-panel-title {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.app-panel-subtitle {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.app-soft-icon {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(var(--ion-color-primary-rgb), 0.24);
+  background: rgba(var(--ion-color-primary-rgb), 0.12);
+  color: var(--ion-color-primary);
+  font-size: 20px;
+}
+
+.app-soft-icon--success {
+  border-color: rgba(var(--ion-color-success-rgb), 0.24);
+  background: rgba(var(--ion-color-success-rgb), 0.12);
+  color: var(--ion-color-success);
+}
+
+.app-soft-icon--warning {
+  border-color: rgba(var(--ion-color-warning-rgb), 0.24);
+  background: rgba(var(--ion-color-warning-rgb), 0.14);
+  color: var(--ion-color-warning);
+}
+
+.app-soft-icon--danger {
+  border-color: rgba(var(--ion-color-danger-rgb), 0.24);
+  background: rgba(var(--ion-color-danger-rgb), 0.12);
+  color: var(--ion-color-danger);
+}
+
+.app-soft-icon--info {
+  border-color: rgba(var(--frotto-info-rgb), 0.24);
+  background: rgba(var(--frotto-info-rgb), 0.12);
+  color: var(--frotto-info);
+}
+
+.app-soft-icon--neutral {
+  border-color: rgba(var(--frotto-text-muted-rgb), 0.24);
+  background: rgba(var(--frotto-text-muted-rgb), 0.12);
+  color: var(--frotto-text-muted);
+}
+
+.app-soft-box {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(var(--ion-color-primary-rgb), 0.16);
+  background: rgba(var(--ion-color-primary-rgb), 0.05);
+}
+
+.app-soft-box--neutral {
+  border-color: var(--ion-border-color);
+  background: var(--app-card-strong);
+}
+
+.app-soft-box--success {
+  border-color: rgba(var(--ion-color-success-rgb), 0.22);
+  background: rgba(var(--ion-color-success-rgb), 0.1);
+}
+
+.app-soft-box--warning {
+  border-color: rgba(var(--ion-color-warning-rgb), 0.24);
+  background: rgba(var(--ion-color-warning-rgb), 0.1);
+}
+
+.app-soft-box--danger {
+  border-color: rgba(var(--ion-color-danger-rgb), 0.22);
+  background: rgba(var(--ion-color-danger-rgb), 0.1);
+}
+
+.app-soft-box--info {
+  border-color: rgba(var(--frotto-info-rgb), 0.22);
+  background: rgba(var(--frotto-info-rgb), 0.1);
+}
+
+/* Categoria financeira (receita/despesa, pago/em aberto), conceitualmente
+   separada de success/danger — ver DESIGN_SYSTEM.md seção 16. Usar só para
+   valores monetários, nunca para status operacional/erro. */
+.app-text-financial-positive {
+  color: var(--frotto-financial-positive);
+}
+
+.app-text-financial-negative {
+  color: var(--frotto-financial-negative);
+}
+
+.app-form-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.app-form-grid--tight {
+  gap: 8px;
+}
+
+.app-form-field {
+  min-width: 0;
+}
+
+.app-form-item {
+  --background: var(--frotto-surface-secondary);
+  --border-color: transparent;
+  --inner-border-width: 0;
+  --highlight-color-focused: var(--frotto-focus-color);
+  --padding-start: var(--frotto-space-3);
+  --inner-padding-end: 10px;
+  border: 1px solid var(--frotto-border-strong);
+  border-radius: var(--frotto-radius-lg);
+  overflow: hidden;
+}
+
+.app-form-item::part(native) {
+  background: var(--frotto-surface-secondary);
+  border-radius: var(--frotto-radius-lg);
+  padding-left: var(--frotto-space-3);
+  padding-right: 10px;
+  min-height: 62px;
+}
+
+.app-form-item.ion-focused,
+.app-form-item:focus-within {
+  border-color: var(--frotto-focus-color);
+  box-shadow: var(--frotto-focus-ring);
+}
+
+.app-form-field--invalid .app-form-item {
+  border-color: var(--frotto-danger);
+  box-shadow: 0 0 0 1px rgba(var(--frotto-danger-rgb), 0.18);
+}
+
+.app-form-field--invalid .app-form-item::part(native) {
+  background: var(--frotto-danger-soft);
+}
+
+.app-form-field--invalid .app-form-item.ion-focused,
+.app-form-field--invalid .app-form-item:focus-within {
+  border-color: var(--frotto-danger);
+  box-shadow: 0 0 0 3px var(--frotto-danger);
+}
+
+.app-form-item ion-label {
+  font-weight: var(--frotto-font-weight-medium);
+  color: var(--ion-text-color);
+  opacity: 0.88;
+}
+
+.app-form-field--invalid .app-form-item ion-label {
+  color: var(--frotto-danger);
+  opacity: 1;
+}
+
+.app-form-item ion-input,
+.app-form-item ion-textarea,
+.app-form-item ion-select {
+  --color: var(--ion-text-color);
+  --placeholder-color: var(--ion-color-medium);
+  font-size: 0.95rem;
+}
+
+.app-form-error {
+  --ion-color-danger: var(--frotto-danger);
+  color: var(--frotto-danger);
+  display: block;
+  margin: -4px 4px 4px 12px;
+  font-size: 0.82rem;
+  line-height: 1.25;
+}
+
+.app-segment-shell {
+  --background: var(--app-card-strong);
+  padding: 4px;
+  border: var(--app-border);
+  border-radius: 14px;
+}
+
+.app-segment-shell ion-segment-button {
+  min-height: 38px;
+  --border-radius: 10px;
+  --indicator-color: rgba(var(--ion-color-primary-rgb), 0.14);
+  --color: var(--ion-color-medium);
+  --color-checked: var(--ion-color-primary);
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-transform: none;
+}
+
+.app-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.app-actions-row--end {
+  justify-content: flex-end;
+}
+
+.app-actions-row--between {
+  justify-content: space-between;
+}
+
+.app-primary-btn {
+  --background: var(--ion-color-primary);
+  --color: var(--ion-color-primary-contrast);
+  --border-color: rgba(var(--ion-color-primary-rgb), 0.22);
+  --border-radius: var(--app-button-radius);
+  font-weight: 700;
+}
+
+.app-outline-btn {
+  --background: transparent;
+  --color: var(--ion-color-primary);
+  --border-color: rgba(var(--ion-color-primary-rgb), 0.24);
+  --border-radius: var(--app-button-radius);
+  font-weight: 700;
+}
+
+.app-danger-btn {
+  --background: rgba(var(--ion-color-danger-rgb), 0.1);
+  --color: var(--ion-color-danger);
+  --border-color: rgba(var(--ion-color-danger-rgb), 0.22);
+  --border-radius: var(--app-button-radius);
+  font-weight: 700;
+}
+
+.app-semantic-btn,
+.app-semantic-icon {
+  --app-semantic-color: var(--app-action-neutral);
+  --app-semantic-color-rgb: var(--app-action-neutral-rgb);
+  --app-semantic-contrast: var(--app-action-neutral-contrast);
+  --app-semantic-soft: var(--app-action-neutral-soft);
+  --app-semantic-border: var(--app-action-neutral-border);
+}
+
+.app-semantic--edit {
+  --app-semantic-color: var(--app-action-edit);
+  --app-semantic-color-rgb: var(--app-action-edit-rgb);
+  --app-semantic-contrast: var(--app-action-edit-contrast);
+  --app-semantic-soft: var(--app-action-edit-soft);
+  --app-semantic-border: var(--app-action-edit-border);
+}
+
+.app-semantic--success {
+  --app-semantic-color: var(--app-action-success);
+  --app-semantic-color-rgb: var(--app-action-success-rgb);
+  --app-semantic-contrast: var(--app-action-success-contrast);
+  --app-semantic-soft: var(--app-action-success-soft);
+  --app-semantic-border: var(--app-action-success-border);
+}
+
+.app-semantic--danger {
+  --app-semantic-color: var(--app-action-danger);
+  --app-semantic-color-rgb: var(--app-action-danger-rgb);
+  --app-semantic-contrast: var(--app-action-danger-contrast);
+  --app-semantic-soft: var(--app-action-danger-soft);
+  --app-semantic-border: var(--app-action-danger-border);
+}
+
+.app-semantic--warning {
+  --app-semantic-color: var(--app-action-warning);
+  --app-semantic-color-rgb: var(--app-action-warning-rgb);
+  --app-semantic-contrast: var(--app-action-warning-contrast);
+  --app-semantic-soft: var(--app-action-warning-soft);
+  --app-semantic-border: var(--app-action-warning-border);
+}
+
+.app-semantic--neutral {
+  --app-semantic-color: var(--app-action-neutral);
+  --app-semantic-color-rgb: var(--app-action-neutral-rgb);
+  --app-semantic-contrast: var(--app-action-neutral-contrast);
+  --app-semantic-soft: var(--app-action-neutral-soft);
+  --app-semantic-border: var(--app-action-neutral-border);
+}
+
+ion-button.app-semantic-btn {
+  --ion-color-base: var(--app-semantic-color);
+  --ion-color-base-rgb: var(--app-semantic-color-rgb);
+  --ion-color-contrast: var(--app-semantic-contrast);
+  font-weight: 700;
+}
+
+ion-button.app-semantic-btn[fill="outline"],
+ion-button.app-semantic-btn[fill="clear"] {
+  --background: var(--app-semantic-soft);
+  --color: var(--app-semantic-color);
+  --border-color: var(--app-semantic-border);
+}
+
+ion-button.app-semantic-btn:not([fill="outline"]):not([fill="clear"]) {
+  --background: var(--app-semantic-color);
+  --color: var(--app-semantic-contrast);
+  --border-color: rgba(var(--app-semantic-color-rgb), 0.22);
+}
+
+.app-semantic-icon {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  padding: 8px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--app-semantic-border);
+  background: var(--app-semantic-soft);
+  color: var(--app-semantic-color);
+  font-size: 18px;
+  transition: transform 0.14s ease, border-color 0.14s ease,
+    background-color 0.14s ease, color 0.14s ease;
+}
+
+.app-semantic-icon:hover {
+  transform: translateY(-1px);
+}
+
+.app-footer-bar {
+  border-top: 1px solid var(--ion-border-color);
+  box-shadow: none;
+}
+
+.app-footer-bar ion-toolbar {
+  --background: var(--ion-background-color);
+  --border-color: transparent;
+}
+
+.app-footer-bar__inner {
+  width: 100%;
+  max-width: 940px;
+  margin: 0 auto;
+  padding: 10px 16px calc(8px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+
+.app-footer-bar__inner ion-button {
+  margin: 0;
+}
+
+.app-avatar-block {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.app-avatar-block__avatar {
+  width: 82px;
+  height: 82px;
+  border: 2px solid rgba(var(--ion-color-primary-rgb), 0.22);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.1);
+}
+
+.app-avatar-block__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.app-avatar-block__placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(var(--ion-color-primary-rgb), 0.12);
+  color: var(--ion-color-primary);
+  font-size: 46px;
+}
+
+.app-avatar-block__content h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.app-avatar-block__content p {
+  margin: 4px 0 0;
+  font-size: 0.86rem;
+}
+
+/* ============================================ */
+/*                  MENU                        */
+/* ============================================ */
+
+.app-menu {
+  --width: 320px;
+  box-shadow: 8px 0 18px rgba(0, 0, 0, 0.12);
+}
+
+.menu-toolbar {
+  --background: transparent;
+  --border-color: transparent;
+  color: var(--ion-text-color);
+}
+
+.menu-content {
+  --background: transparent;
+}
+
+.menu-inner {
+  padding: 10px 12px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.menu-item {
+  --background: var(--ion-item-background);
+  --border-radius: 12px;
+  --color: var(--ion-text-color);
+  --padding-start: 12px;
+  --inner-padding-end: 12px;
+  border: 1px solid var(--ion-border-color);
+  margin: 2px 6px;
+  font-weight: 600;
+  line-height: 1.35;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.menu-item:hover {
+  --background: rgba(var(--ion-color-primary-rgb), 0.08);
+}
+
+.menu-item::part(native) {
+  min-height: 52px;
+  align-items: center;
+  padding-inline: 12px;
+  overflow: hidden;
+}
+
+.menu-item ion-icon {
+  flex-shrink: 0;
+  margin-inline-end: 10px;
+}
+
+.menu-item__label {
+  margin: 0;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.menu-item__label--admin {
+  font-size: 0.9rem;
+}
+
+.menu-section-title {
+  margin: 4px 10px 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+}
+
+.menu-item--nested {
+  margin-left: 14px;
+}
+
+.menu-theme-toggle {
+  line-height: 1.35;
+}
+
+.menu-theme-toggle::part(native) {
+  padding-inline: 12px;
+  min-height: 52px;
+}
+
+.menu-theme-toggle ion-label {
+  margin: 0;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+/* ============================================ */
+/*             LEGACY COMPATIBILITY             */
+/* ============================================ */
+
+#my-panel-page .my-panel-content {
+  --padding-bottom: calc(92px + env(safe-area-inset-bottom));
+}
+
+.my-panel-avatar-card {
+  margin-bottom: 14px;
+}
+
+.my-panel-avatar-wrap,
+.my-panel-avatar-block {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.my-panel-avatar {
+  width: 82px;
+  height: 82px;
+  border: 2px solid rgba(var(--ion-color-primary-rgb), 0.22);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.1);
+}
+
+.my-panel-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.my-panel-avatar__placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(var(--ion-color-primary-rgb), 0.12);
+  color: var(--ion-color-primary);
+  font-size: 46px;
+}
+
+.my-panel-avatar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.my-panel-avatar-btn-text {
+  margin-left: 8px;
+}
+
+/* ============================================ */
+/*          LEGACY PAGE / MODAL SYSTEM          */
+/* ============================================ */
+
+ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar) {
+  --background: var(--ion-background-color);
+  border-bottom: 1px solid var(--ion-border-color);
+}
+
+ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar)::part(background) {
+  background: var(--ion-background-color);
+  background-image: var(--app-gradient);
+}
+
+.app-form-item--textarea::part(native) {
+  align-items: flex-start;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.app-form-item--textarea ion-label {
+  margin-top: 2px;
+}
+
+.app-form-item--textarea ion-textarea {
+  margin-top: 10px;
+}
+
+.app-form-item--button {
+  cursor: pointer;
+}
+
+.app-form-item--button ion-button {
+  margin: 0;
+}
+
+.app-form-select-value {
+  min-height: 28px;
+  font-weight: 700;
+  text-transform: none;
+}
+
+.app-form-item--toggle ion-toggle {
+  padding-inline-start: 8px;
+}
+
+.app-form-delete-btn {
+  --ion-color-danger: var(--frotto-danger);
+  --ion-color-danger-rgb: var(--frotto-danger-rgb);
+  --ion-color-danger-contrast: var(--frotto-status-contrast);
+  --background: var(--frotto-danger-soft);
+  --color: var(--frotto-danger);
+  margin: var(--frotto-space-5) 0 0;
+}
+
+.app-form-section-title {
+  --background: transparent;
+  border: 0;
+  margin-top: 4px;
+}
+
+.app-form-section-title::part(native) {
+  background: transparent;
+  border: 0;
+  padding-inline: 4px;
+  min-height: 0;
+}
+
+.app-form-section-title h1 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.app-picker-modal__content {
+  --padding-top: 8px;
+  --padding-bottom: 12px;
+}
+
+.app-picker-modal__content ion-list {
+  padding: 8px 12px 12px;
+}
+
+.app-picker-modal__item {
+  margin: 0 0 8px;
+}
+
+.app-picker-modal__item:last-child {
+  margin-bottom: 0;
+}
+
+.app-item-not-found {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: var(--frotto-space-4);
+  text-align: center;
+  opacity: 0.88;
+}
+
+.app-item-not-found__icon {
+  font-size: 34px;
+  color: var(--frotto-text-muted);
+}
+
+.app-item-not-found__text {
+  font-weight: var(--frotto-font-weight-bold);
+  color: var(--frotto-text-primary);
+}
+
+.app-item-not-found__title {
+  font-weight: var(--frotto-font-weight-bold);
+  color: var(--frotto-text-primary);
+  font-size: var(--frotto-font-size-md);
+}
+
+.app-item-not-found__description {
+  max-width: 360px;
+  color: var(--frotto-text-muted);
+  font-size: var(--frotto-font-size-sm);
+  line-height: var(--frotto-line-height-normal);
+}
+
+.app-item-not-found__action {
+  margin-top: var(--frotto-space-2);
+}
+
+.app-inline-alert {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--ion-border-color);
+  background: var(--app-card-strong);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.app-inline-alert--danger {
+  border-color: rgba(var(--ion-color-danger-rgb), 0.2);
+  background: rgba(var(--ion-color-danger-rgb), 0.08);
+  color: var(--ion-color-danger);
+}
+
+.app-inline-alert--warning {
+  border-color: rgba(var(--ion-color-warning-rgb), 0.22);
+  background: rgba(var(--ion-color-warning-rgb), 0.1);
+  color: #a16207;
+}
+
+.app-form-page__body {
+  width: 100%;
+  max-width: 940px;
+  margin: 0 auto;
+  padding: 16px 18px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+}
+
+.app-form-page__panel {
+  padding: 16px;
+  border-radius: var(--app-radius);
+  border: var(--app-border);
+  background: var(--app-card);
+  box-shadow: var(--app-shadow), var(--app-card-glow);
+}
+
+.app-form-page__title {
+  margin: 0 0 14px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ion-text-color);
+}
+
+.app-selected-car {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 16px;
+  border: var(--app-border);
+  background: linear-gradient(
+    135deg,
+    rgba(var(--ion-color-primary-rgb), 0.08) 0%,
+    rgba(var(--ion-color-primary-rgb), 0.02) 100%
+  );
+}
+
+.app-selected-car__title {
+  display: block;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ion-text-color);
+}
+
+.app-selected-car__meta {
+  margin-top: 4px;
+  font-size: 0.84rem;
+  color: var(--ion-color-medium);
+}
+
+.app-help-card {
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(var(--ion-color-primary-rgb), 0.14);
+  background: rgba(var(--ion-color-primary-rgb), 0.06);
+}
+
+.app-help-card__title {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.app-help-card__list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--ion-color-medium);
+  display: grid;
+  gap: 4px;
+}
+
+.car-selector {
+  display: grid;
+  gap: 12px;
+}
+
+.car-selector__feedback {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--ion-color-medium);
+}
+
+.car-selector__feedback--error {
+  color: var(--ion-color-danger);
+}
+
+.car-selector__item {
+  margin-bottom: 8px;
+}
+
+.car-selector__item:last-child {
+  margin-bottom: 0;
+}
+
+.car-selector__title {
+  font-weight: 700;
+  color: var(--ion-text-color);
+}
+
+.car-selector__meta {
+  font-size: 0.78rem;
+  color: var(--ion-color-medium);
+}
+
+/* ============================================ */
+/*                  MENU                        */
+/* ============================================ */
+
+.menu-hero {
+  padding: 18px 6px 14px;
+  text-align: center;
+}
+
+.menu-hero__avatar-skeleton {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  margin: 0 auto;
+}
+
+.menu-hero__name-skeleton {
+  width: 74%;
+  max-width: 220px;
+  height: 18px;
+  margin: 12px auto 0;
+  border-radius: 8px;
+}
+
+.menu-hero__avatar {
+  width: 92px;
+  height: 92px;
+  margin: 0 auto;
+  background: var(--ion-color-step-150, var(--ion-color-light));
+  color: var(--ion-color-step-750, var(--ion-color-medium-shade));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(var(--ion-color-primary-rgb), 0.18);
+  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.14);
+}
+
+.menu-hero__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.menu-hero__initials {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.menu-hero__name {
+  margin-top: 12px;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ion-text-color);
+  word-break: break-word;
+}
+
+.menu-hero__divider {
+  border-top: 1px solid var(--ion-border-color);
+  margin: 0 0 8px;
+}
+
+.menu-footer {
+  margin-top: auto;
+  display: grid;
+  gap: 10px;
+  padding: 6px;
+}
+
+.menu-theme-toggle {
+  --background: var(--app-card-strong);
+  border: var(--app-border);
+  border-radius: 12px;
+}
+
+.menu-theme-toggle::part(native) {
+  border-radius: 12px;
+}
+
+/* ============================================ */
+/*               VEHICLE BRAND MARK             */
+/* ============================================ */
+
+.vehicle-brand-mark {
+  --brand-mark-size: 52px;
+  width: var(--brand-mark-size);
+  height: var(--brand-mark-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid rgba(var(--ion-color-medium-rgb), 0.14);
+  background: linear-gradient(
+    180deg,
+    rgba(var(--ion-color-medium-rgb), 0.12) 0%,
+    rgba(var(--ion-color-medium-rgb), 0.05) 100%
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.vehicle-brand-mark--sm {
+  --brand-mark-size: 44px;
+  border-radius: 14px;
+}
+
+.vehicle-brand-mark--lg {
+  --brand-mark-size: 64px;
+  border-radius: 18px;
+}
+
+.vehicle-brand-mark__img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.vehicle-brand-mark__icon {
+  font-size: calc(var(--brand-mark-size) * 0.48);
+  color: var(--ion-color-medium);
+}
+
+/* ============================================ */
+/*                CARS / LISTS                  */
+/* ============================================ */
+
+#cars-page .cars-shell {
+  gap: 20px;
+}
+
+.action-picker-popover::part(content) {
+  width: min(340px, calc(100vw - 24px));
+  border-radius: 18px;
+  border: var(--app-border);
+  background: var(--app-card);
+  box-shadow: var(--app-shadow-hover);
+}
+
+.action-picker-content {
+  --background: transparent;
+}
+
+.action-picker-content ion-list {
+  padding: 8px;
+}
+
+.action-picker-content ion-item {
+  margin: 0 0 8px;
+}
+
+.action-picker-content ion-item:last-child {
+  margin-bottom: 0;
+}
+
+.cars-action-picker__icon {
+  margin-top: 2px;
+}
+
+.cars-action-picker__title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.cars-action-picker__description {
+  margin: 4px 0 0;
+  color: var(--ion-color-medium);
+  line-height: 1.4;
+}
+
+.app-nested-list {
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 14px;
+  border: var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-card);
+  box-shadow: var(--app-shadow);
+  display: grid;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.app-nested-list > .app-item-not-found {
+  padding: 6px 4px 2px;
+}
+
+.app-nested-list > ion-list-header.app-nested-list__summary,
+.app-nested-list > ion-item.app-nested-list__title {
+  margin: 0;
+  padding: 0 2px 12px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--ion-border-color);
+  min-height: 0;
+}
+
+#drivers-page .app-nested-list > ion-item.app-nested-list__title,
+#driver-pendencies-page .app-nested-list > ion-item.app-nested-list__title,
+#driver-pendencies-page .app-nested-list > ion-list-header.app-nested-list__summary {
+  margin: 0;
+  border: 0;
+}
+
+.app-nested-list > ion-item.app-nested-list__title::part(native) {
+  background: transparent;
+  border: 0;
+  padding: 0 2px 12px;
+  min-height: 0;
+}
+
+#drivers-page .app-nested-list > ion-item.app-nested-list__title::part(native) {
+  background: transparent;
+  border: 0;
+  padding: 0 2px 12px;
+}
+
+.app-nested-list__summary ion-label,
+.app-nested-list__title ion-label {
+  margin: 0;
+}
+
+.app-nested-list__title h1 {
+  margin: 0;
+  font-size: 0.96rem;
+  font-weight: 700;
+}
+
+.app-nested-list__summary ion-label p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.app-nested-list__summary ion-label p + p {
+  margin-top: 4px;
+}
+
+.app-nested-list__item {
+  margin: 0;
+  --padding-start: 0;
+  --inner-padding-end: 0;
+  --inner-border-width: 0;
+  --background: transparent;
+  border: 0;
+  border-radius: 14px;
+  box-shadow: none;
+}
+
+#drivers-page .app-nested-list > ion-item.app-nested-list__item,
+#driver-pendencies-page .app-nested-list > ion-item.app-nested-list__item {
+  margin: 0;
+  border: 0;
+  box-shadow: none;
+}
+
+.app-nested-list__item::part(native) {
+  padding: 14px 16px;
+  min-height: 0;
+  align-items: flex-start;
+  background: var(--app-card-strong);
+  border: 0;
+  border-radius: 14px;
+  max-width: 100%;
+}
+
+#drivers-page .app-nested-list > ion-item.app-nested-list__item::part(native),
+#driver-pendencies-page .app-nested-list > ion-item.app-nested-list__item::part(native) {
+  padding: 14px 16px;
+  background: var(--app-card-strong);
+  border: 0;
+}
+
+.app-nested-list__lead {
+  align-self: flex-start;
+}
+
+#driver-pendencies-page .app-nested-list__meta {
+  display: grid !important;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  justify-items: end;
+  align-self: flex-start !important;
+  text-align: end !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  padding-inline-start: 16px;
+}
+
+#driver-pendencies-page .app-nested-list__item::part(native) {
+  flex-wrap: wrap;
+  gap: 12px;
+  overflow: hidden;
+}
+
+#driver-pendencies-page .app-nested-list__lead,
+#driver-pendencies-page .app-nested-list__meta,
+#driver-pendencies-page .app-nested-list__summary ion-label {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#driver-pendencies-page .app-nested-list__lead h2,
+#driver-pendencies-page .app-nested-list__lead p,
+#driver-pendencies-page .app-nested-list__meta p {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+#driver-pendencies-page .app-nested-list__meta p:first-child {
+  color: var(--ion-text-color);
+  font-weight: 700;
+}
+
+.app-nested-list__actions {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(var(--ion-color-medium-rgb), 0.14);
+}
+
+#driver-pendencies-page ion-list-header {
+  padding-inline: 6px;
+  margin-bottom: 8px;
+}
+
+#driver-pendencies-page ion-list-header ion-label p {
+  margin: 3px 0;
+}
+
+#car-page .car-page__card {
+  margin: 0;
+}
+
+#car-page .car-page__eyebrow {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+}
+
+#car-page .car-page__list {
+  padding: 10px 14px 8px;
+}
+
+#car-page .car-page__list ion-item {
+  margin: 0;
+}
+
+#car-page .car-page__actions {
+  padding: 0 14px 16px;
+}
+
+#car-page .car-page__actions ion-button {
+  margin: 0;
+}
+
+#car-page .car-page__note {
+  display: block;
+  margin-top: 6px;
+  color: var(--ion-color-medium);
+  line-height: 1.45;
+}
+
+#car-add-page form,
+#car-body-damage-add-page form,
+#car-expense-add-page form,
+#car-income-add-page form,
+#car-inspection-add-page form,
+#car-maintenance-add-page form,
+#car-reminder-add-page form,
+#driver-pendency-add-page form,
+#expense-add-page form {
+  width: min(100%, 940px);
+  margin: 0 auto;
+  padding: 16px 18px 24px;
+  display: grid;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+#services-add-page ion-list {
+  width: min(100%, 940px);
+  margin: 0 auto;
+  padding: 16px 18px 24px;
+}
+
+#car-inspection-add-page form > ion-list,
+#car-maintenance-add-page ion-list,
+#services-add-page ion-list {
+  margin: 0;
+  border: var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-card);
+  box-shadow: var(--app-shadow), var(--app-card-glow);
+}
+
+#car-inspection-add-page ion-list-header,
+#car-maintenance-add-page ion-list-header {
+  padding-inline: 14px;
+  padding-top: 12px;
+}
+
+#car-inspection-add-page ion-list-header h1,
+#car-maintenance-add-page ion-list-header h2,
+#services-add-page ion-list-header h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+/* ============================================ */
+/*                RESPONSIVE                    */
+/* ============================================ */
+
+@media (max-width: 720px) {
+  .app-shell {
+    padding: 12px 12px 20px;
+  }
+
+  .app-form-page__body {
+    padding: 12px 12px 20px;
+  }
+
+  .app-toolbar-search {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .app-footer-bar__inner {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  ion-searchbar {
+    width: 100%;
+    inline-size: min(100%, calc(100% - 16px));
+    max-width: none;
+  }
+
+  #driver-pendencies-page .app-nested-list__meta {
+    width: 100%;
+    justify-items: start;
+    text-align: left !important;
+    padding-inline-start: 0;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(var(--ion-color-medium-rgb), 0.14);
+  }
+
+  #driver-pendencies-page .app-nested-list__actions {
+    justify-content: flex-start;
+  }
+
+  #driver-pendencies-page .app-nested-list__meta .app-nested-list__actions {
+    border-top: 0;
+    margin-top: 2px;
+    padding-top: 8px;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-subtoolbar {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  ion-toolbar ion-searchbar {
+    margin: 6px 8px;
+    width: calc(100% - 16px);
+    inline-size: calc(100% - 16px);
+  }
+
+  .app-toolbar-search {
+    padding: 6px 8px 8px;
+  }
+
+  .app-selected-car {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  #car-page .car-page__actions ion-button {
+    flex: 1 1 100%;
+  }
+}

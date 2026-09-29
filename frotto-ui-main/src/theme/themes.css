@@ -1,0 +1,113 @@
+/* One semantic definition per theme. System preference is resolved by theme.ts
+   and the pre-paint bootstrap, never by a second CSS media-query palette. */
+:root,
+body.light {
+  color-scheme: light;
+  --frotto-primary: var(--frotto-blue);
+  --frotto-primary-rgb: var(--frotto-blue-rgb);
+  --frotto-primary-hover: var(--frotto-blue-dark);
+  --frotto-primary-soft: rgba(var(--frotto-blue-rgb), 0.1);
+  /* White on brand blue is only ~3.8:1. Use deep navy for solid button labels,
+     and the darker accessible blue for small text on light surfaces. */
+  --frotto-primary-contrast: var(--frotto-ink);
+  --frotto-primary-contrast-rgb: var(--frotto-ink-rgb);
+  --frotto-primary-text: var(--frotto-blue-dark);
+  --frotto-primary-hover-contrast: var(--frotto-white);
+  --frotto-background: var(--frotto-cloud);
+  --frotto-background-rgb: var(--frotto-cloud-rgb);
+  --frotto-surface: var(--frotto-white);
+  --frotto-surface-secondary: var(--frotto-cloud);
+  --frotto-surface-modal: var(--frotto-white);
+  --frotto-surface-elevated: var(--frotto-white);
+  --frotto-text-primary: var(--frotto-navy);
+  --frotto-text-primary-rgb: var(--frotto-navy-rgb);
+  --frotto-text-secondary: var(--frotto-slate-600);
+  --frotto-text-muted: var(--frotto-slate);
+  --frotto-text-muted-rgb: var(--frotto-slate-rgb);
+  --frotto-border: var(--frotto-ice);
+  --frotto-border-strong: var(--frotto-slate);
+  --frotto-toolbar: var(--frotto-navy);
+  --frotto-toolbar-text: var(--frotto-cloud);
+  --frotto-success: var(--frotto-green-700);
+  --frotto-success-rgb: var(--frotto-green-700-rgb);
+  --frotto-success-soft: rgba(var(--frotto-success-rgb), 0.1);
+  --frotto-warning: var(--frotto-amber-700);
+  --frotto-warning-rgb: var(--frotto-amber-700-rgb);
+  --frotto-warning-soft: rgba(var(--frotto-warning-rgb), 0.1);
+  --frotto-danger: var(--frotto-red-700);
+  --frotto-danger-rgb: var(--frotto-red-700-rgb);
+  --frotto-danger-soft: rgba(var(--frotto-danger-rgb), 0.1);
+  /* Categoria financeira, conceitualmente separada de success/danger (mesmos
+     primitivos hoje, mas sem var() um para o outro — ver DESIGN_SYSTEM.md
+     seção 16). Não usar para erro/estado de UI, nem success/danger para
+     receita/despesa. */
+  --frotto-financial-positive: var(--frotto-green-700);
+  --frotto-financial-positive-rgb: var(--frotto-green-700-rgb);
+  --frotto-financial-positive-soft: rgba(var(--frotto-financial-positive-rgb), 0.1);
+  --frotto-financial-negative: var(--frotto-red-700);
+  --frotto-financial-negative-rgb: var(--frotto-red-700-rgb);
+  --frotto-financial-negative-soft: rgba(var(--frotto-financial-negative-rgb), 0.1);
+  --frotto-status-contrast: var(--frotto-white);
+  --frotto-info: var(--frotto-blue-dark);
+  --frotto-info-rgb: var(--frotto-blue-dark-rgb);
+  --frotto-info-soft: rgba(var(--frotto-info-rgb), 0.1);
+  --frotto-shadow-sm: 0 1px 3px rgba(var(--frotto-navy-rgb), 0.06);
+  --frotto-shadow-md: 0 4px 12px rgba(var(--frotto-navy-rgb), 0.08);
+  --frotto-shadow-lg: 0 8px 24px rgba(var(--frotto-navy-rgb), 0.12);
+  --frotto-modal-backdrop: rgba(var(--frotto-navy-rgb), 0.4);
+  --frotto-focus-color: var(--frotto-blue-dark);
+  --frotto-focus-ring: 0 0 0 3px var(--frotto-focus-color);
+}
+
+:root[data-theme="dark"],
+body.dark {
+  color-scheme: dark;
+  --frotto-primary: var(--frotto-blue);
+  --frotto-primary-rgb: var(--frotto-blue-rgb);
+  --frotto-primary-hover: var(--frotto-blue-light);
+  --frotto-primary-soft: rgba(var(--frotto-blue-rgb), 0.16);
+  --frotto-primary-contrast: var(--frotto-ink);
+  --frotto-primary-contrast-rgb: var(--frotto-ink-rgb);
+  --frotto-primary-text: var(--frotto-blue-light);
+  --frotto-primary-hover-contrast: var(--frotto-navy);
+  --frotto-background: var(--frotto-navy);
+  --frotto-background-rgb: var(--frotto-navy-rgb);
+  --frotto-surface: var(--frotto-surface-dark);
+  --frotto-surface-secondary: var(--frotto-dark-800);
+  --frotto-surface-modal: var(--frotto-dark-800);
+  --frotto-surface-elevated: var(--frotto-dark-700);
+  --frotto-text-primary: var(--frotto-cloud);
+  --frotto-text-primary-rgb: var(--frotto-cloud-rgb);
+  --frotto-text-secondary: var(--frotto-slate-200);
+  --frotto-text-muted: var(--frotto-slate-400);
+  --frotto-text-muted-rgb: 148, 163, 184;
+  --frotto-border: var(--frotto-dark-600);
+  --frotto-border-strong: var(--frotto-slate-400);
+  --frotto-toolbar: var(--frotto-navy);
+  --frotto-toolbar-text: var(--frotto-cloud);
+  --frotto-success: var(--frotto-green-300);
+  --frotto-success-rgb: var(--frotto-green-300-rgb);
+  --frotto-success-soft: rgba(var(--frotto-success-rgb), 0.12);
+  --frotto-warning: var(--frotto-amber-300);
+  --frotto-warning-rgb: var(--frotto-amber-300-rgb);
+  --frotto-warning-soft: rgba(var(--frotto-warning-rgb), 0.12);
+  --frotto-danger: var(--frotto-red-300);
+  --frotto-danger-rgb: var(--frotto-red-300-rgb);
+  --frotto-danger-soft: rgba(var(--frotto-danger-rgb), 0.12);
+  --frotto-financial-positive: var(--frotto-green-300);
+  --frotto-financial-positive-rgb: var(--frotto-green-300-rgb);
+  --frotto-financial-positive-soft: rgba(var(--frotto-financial-positive-rgb), 0.12);
+  --frotto-financial-negative: var(--frotto-red-300);
+  --frotto-financial-negative-rgb: var(--frotto-red-300-rgb);
+  --frotto-financial-negative-soft: rgba(var(--frotto-financial-negative-rgb), 0.12);
+  --frotto-status-contrast: var(--frotto-navy);
+  --frotto-info: var(--frotto-blue-light);
+  --frotto-info-rgb: 56, 169, 232;
+  --frotto-info-soft: rgba(var(--frotto-info-rgb), 0.12);
+  --frotto-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.16);
+  --frotto-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.2);
+  --frotto-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.28);
+  --frotto-modal-backdrop: rgba(var(--frotto-navy-rgb), 0.72);
+  --frotto-focus-color: var(--frotto-blue-light);
+  --frotto-focus-ring: 0 0 0 3px var(--frotto-focus-color);
+}

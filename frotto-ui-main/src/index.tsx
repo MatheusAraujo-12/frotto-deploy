@@ -7,6 +7,11 @@ import { Provider } from "react-redux";
 import store from "./redux/store";
 import { defineCustomElements } from '@ionic/pwa-elements/loader';
 
+import { initTheme } from "./services/theme";
+
+// Apply body compatibility classes before React mounts any Ionic component.
+initTheme();
+
 const container = document.getElementById("root");
 const root = createRoot(container!);
 root.render(

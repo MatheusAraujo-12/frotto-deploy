@@ -18,7 +18,13 @@ const FormInputLabel: React.FC<InputLabelProps> = ({
           <strong>{header}</strong>
         </h2>
       )}
-      {name} {required && <IonText color="danger"> *</IonText>}
+      {name}{" "}
+      {required && (
+        <IonText color="danger" aria-hidden="true">
+          {" "}
+          *
+        </IonText>
+      )}
     </IonLabel>
   );
 };

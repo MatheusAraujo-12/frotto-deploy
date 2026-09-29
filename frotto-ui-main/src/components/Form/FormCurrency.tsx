@@ -49,6 +49,7 @@ const FormCurrency: React.FC<FormCurrencyProps> = ({
           placeholder={TEXT.zeroMoney}
           aria-invalid={hasError ? "true" : undefined}
           aria-describedby={hasError ? errorId : undefined}
+          aria-required={required || undefined}
           onKeyDown={(e) => {
             e.preventDefault();
             changeCallback(

@@ -123,8 +123,8 @@ const CarSelector: React.FC<Props> = ({ cars = [], onSelect }) => {
 
   if (loading) {
     return (
-      <div className="car-selector__feedback">
-        <IonSpinner />
+      <div className="car-selector__feedback" role="status">
+        <IonSpinner aria-hidden="true" />
         <p>Carregando veículos...</p>
       </div>
     );

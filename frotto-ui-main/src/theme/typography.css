@@ -1,0 +1,14 @@
+/* Inter 4.1, self-hosted; see assets/fonts/OFL.txt. Ionic consumes this family
+   through --ion-font-family, including its Shadow DOM controls. Existing font
+   sizes, line heights and layout remain page-owned during this migration. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../assets/fonts/InterVariable.woff2") format("woff2");
+}
+
+:root {
+  --ion-font-family: var(--frotto-font-family);
+}
