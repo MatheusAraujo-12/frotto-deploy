@@ -57,6 +57,15 @@ public class Subscription implements Serializable {
     @Column(name = "id")
     private Long id;
 
+    @javax.persistence.Version
+    @Column(name = "row_version", nullable = false)
+    private Long rowVersion;
+
+    @Column(name = "plan_change_provider_confirmed")
+    private Boolean planChangeProviderConfirmed;
+    public Boolean getPlanChangeProviderConfirmed() { return planChangeProviderConfirmed; }
+    public void setPlanChangeProviderConfirmed(Boolean value) { planChangeProviderConfirmed = value; }
+
     @ManyToOne
     @JoinColumn(name = "jhi_user_id", nullable = false)
     private User user;
@@ -157,6 +166,18 @@ public class Subscription implements Serializable {
     @Column(name = "plan_change_requested_at")
     private Instant planChangeRequestedAt;
 
+    @Column(name = "plan_change_token", length = 36)
+    private String planChangeToken;
+
+    @Column(name = "plan_change_operation_until")
+    private Instant planChangeOperationUntil;
+
+    public Instant getPlanChangeOperationUntil() { return planChangeOperationUntil; }
+    public void setPlanChangeOperationUntil(Instant value) { planChangeOperationUntil = value; }
+
+    public String getPlanChangeToken() { return planChangeToken; }
+    public void setPlanChangeToken(String token) { this.planChangeToken = token; }
+
     public Plan getPendingPlan() { return pendingPlan; }
     public void setPendingPlan(Plan pendingPlan) { this.pendingPlan = pendingPlan; }
     public BigDecimal getPendingContractedPrice() { return pendingContractedPrice; }
@@ -167,6 +188,52 @@ public class Subscription implements Serializable {
     public void setPlanChangeEffectiveAt(Instant planChangeEffectiveAt) { this.planChangeEffectiveAt = planChangeEffectiveAt; }
     public Instant getPlanChangeRequestedAt() { return planChangeRequestedAt; }
     public void setPlanChangeRequestedAt(Instant planChangeRequestedAt) { this.planChangeRequestedAt = planChangeRequestedAt; }
+
+    @Column(name = "next_renewal_price", precision = 21, scale = 2)
+    private BigDecimal nextRenewalPrice;
+    public BigDecimal getNextRenewalPrice() { return nextRenewalPrice; }
+    public void setNextRenewalPrice(BigDecimal value) { nextRenewalPrice = value; }
+
+    @Column(name = "next_renewal_vehicle_count")
+    private Integer nextRenewalVehicleCount;
+    public Integer getNextRenewalVehicleCount() { return nextRenewalVehicleCount; }
+    public void setNextRenewalVehicleCount(Integer value) { nextRenewalVehicleCount = value; }
+
+    @Column(name = "next_renewal_at")
+    private Instant nextRenewalAt;
+    public Instant getNextRenewalAt() { return nextRenewalAt; }
+    public void setNextRenewalAt(Instant value) { nextRenewalAt = value; }
+
+    @Column(name = "next_renewal_locked_at")
+    private Instant nextRenewalLockedAt;
+    public Instant getNextRenewalLockedAt() { return nextRenewalLockedAt; }
+    public void setNextRenewalLockedAt(Instant value) { nextRenewalLockedAt = value; }
+
+    @Column(name = "next_renewal_synced_at")
+    private Instant nextRenewalSyncedAt;
+    public Instant getNextRenewalSyncedAt() { return nextRenewalSyncedAt; }
+    public void setNextRenewalSyncedAt(Instant value) { nextRenewalSyncedAt = value; }
+
+    @Column(name = "next_renewal_applied_at")
+    private Instant nextRenewalAppliedAt;
+    public Instant getNextRenewalAppliedAt() { return nextRenewalAppliedAt; }
+    public void setNextRenewalAppliedAt(Instant value) { nextRenewalAppliedAt = value; }
+
+    @Column(name = "next_renewal_token", length = 36)
+    private String nextRenewalToken;
+    public String getNextRenewalToken() { return nextRenewalToken; }
+    public void setNextRenewalToken(String value) { nextRenewalToken = value; }
+
+    @Column(name = "next_renewal_state", length = 36)
+    private String nextRenewalState;
+    public String getNextRenewalState() { return nextRenewalState; }
+    public void setNextRenewalState(String value) { nextRenewalState = value; }
+
+    @ManyToOne
+    @JoinColumn(name = "next_renewal_plan_id")
+    private Plan nextRenewalPlan;
+    public Plan getNextRenewalPlan() { return nextRenewalPlan; }
+    public void setNextRenewalPlan(Plan value) { nextRenewalPlan = value; }
 
     @PrePersist
     public void prePersist() {

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <changeSet id="20260929010000-1" author="codex">
+        <addColumn tableName="car">
+            <column name="row_version" type="bigint" defaultValueNumeric="0"><constraints nullable="false"/></column>
+            <column name="deleted" type="boolean" defaultValueBoolean="false"><constraints nullable="false"/></column>
+            <column name="deleted_at" type="datetime(6)"/>
+            <column name="deleted_by_user_id" type="bigint"/>
+            <column name="restored_at" type="datetime(6)"/>
+            <column name="restored_by_user_id" type="bigint"/>
+            <column name="restore_reason" type="varchar(500)"/>
+        </addColumn>
+        <!-- Historical DELETE wrote only active=false. Do not invent historical actor/date. -->
+        <update tableName="car"><column name="deleted" valueBoolean="true"/><where>active = false</where></update>
+        <createIndex tableName="car" indexName="idx_car_user_deleted"><column name="user_id"/><column name="deleted"/></createIndex>
+        <addForeignKeyConstraint baseTableName="car" baseColumnNames="deleted_by_user_id" referencedTableName="jhi_user" referencedColumnNames="id" constraintName="fk_car_deleted_by"/>
+        <addForeignKeyConstraint baseTableName="car" baseColumnNames="restored_by_user_id" referencedTableName="jhi_user" referencedColumnNames="id" constraintName="fk_car_restored_by"/>
+    </changeSet>
+</databaseChangeLog>

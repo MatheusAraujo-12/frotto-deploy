@@ -67,7 +67,7 @@ class GrandfatheringServiceTest {
 
     @Test
     void previewNeverWritesAnything() {
-        when(carRepository.countByUserIdAndActiveTrue(77L)).thenReturn(10L);
+        when(carRepository.countBillableByUserId(77L)).thenReturn(10L);
         when(subscriptionService.getCurrentSubscription(user)).thenReturn(Optional.empty());
         when(pricingService.resolvePlanForVehicleCount(10)).thenReturn(plan(PlanCode.SILVER));
 
@@ -80,7 +80,7 @@ class GrandfatheringServiceTest {
 
     @Test
     void applyCreatesAGrandfatheredSubscriptionMatchingActualVehicleCount() {
-        when(carRepository.countByUserIdAndActiveTrue(77L)).thenReturn(10L);
+        when(carRepository.countBillableByUserId(77L)).thenReturn(10L);
         when(subscriptionService.getCurrentSubscription(user)).thenReturn(Optional.empty());
         when(pricingService.resolvePlanForVehicleCount(10)).thenReturn(plan(PlanCode.SILVER));
         when(planRepository.findByCode(PlanCode.SILVER)).thenReturn(Optional.of(plan(PlanCode.SILVER)));
@@ -102,7 +102,7 @@ class GrandfatheringServiceTest {
     @Test
     void applyIsIdempotentWhenAUserAlreadyHasACurrentSubscription() {
         Subscription existing = new Subscription();
-        when(carRepository.countByUserIdAndActiveTrue(77L)).thenReturn(10L);
+        when(carRepository.countBillableByUserId(77L)).thenReturn(10L);
         when(subscriptionService.getCurrentSubscription(user)).thenReturn(Optional.of(existing));
         when(pricingService.resolvePlanForVehicleCount(10)).thenReturn(plan(PlanCode.SILVER));
 
@@ -115,7 +115,7 @@ class GrandfatheringServiceTest {
 
     @Test
     void applySkipsUsersWhoseActualFleetAlreadyFitsFree() {
-        when(carRepository.countByUserIdAndActiveTrue(77L)).thenReturn(1L);
+        when(carRepository.countBillableByUserId(77L)).thenReturn(1L);
         when(subscriptionService.getCurrentSubscription(user)).thenReturn(Optional.empty());
         when(pricingService.resolvePlanForVehicleCount(1)).thenReturn(plan(PlanCode.FREE));
 
@@ -127,7 +127,7 @@ class GrandfatheringServiceTest {
 
     @Test
     void applyingTwiceInARowOnlyCreatesOneSubscription() {
-        when(carRepository.countByUserIdAndActiveTrue(77L)).thenReturn(20L);
+        when(carRepository.countBillableByUserId(77L)).thenReturn(20L);
         when(pricingService.resolvePlanForVehicleCount(20)).thenReturn(plan(PlanCode.GOLD));
         when(planRepository.findByCode(PlanCode.GOLD)).thenReturn(Optional.of(plan(PlanCode.GOLD)));
 
@@ -147,7 +147,7 @@ class GrandfatheringServiceTest {
     @Test
     void tenCarLegacyUserIsGrandfatheredIntoSilverWithContractedPriceZero() {
         // Etapa 3 worked example: legacy user with 10 cars -> SILVER, not billed.
-        when(carRepository.countByUserIdAndActiveTrue(77L)).thenReturn(10L);
+        when(carRepository.countBillableByUserId(77L)).thenReturn(10L);
         when(subscriptionService.getCurrentSubscription(user)).thenReturn(Optional.empty());
         when(pricingService.resolvePlanForVehicleCount(10)).thenReturn(plan(PlanCode.SILVER));
         when(planRepository.findByCode(PlanCode.SILVER)).thenReturn(Optional.of(plan(PlanCode.SILVER)));

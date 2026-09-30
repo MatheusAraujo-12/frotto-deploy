@@ -105,6 +105,7 @@ public class SubscriptionPlanUpgradeSteps {
     @Transactional
     public Opened openOrReuse(Long userId, Quote quote) {
         Subscription subscription = planChangeSteps.lockAndValidateForChange(userId);
+        planChangeSteps.assertFleetCount(userId, quote.vehicleCount());
         if (!Objects.equals(subscription.getId(), quote.subscriptionId())
             || !Objects.equals(subscription.getPlan().getId(), quote.fromPlanId())
             || subscription.getContractedPrice() == null || subscription.getContractedPrice().compareTo(quote.fromPrice()) != 0) {

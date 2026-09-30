@@ -62,7 +62,7 @@ class EntitlementServiceTest {
     @Test
     void canAddVehicleIsTrueWhenBelowLimit() {
         when(subscriptionService.getEffectivePlan(user)).thenReturn(planWithLimit(PlanCode.FREE, 2));
-        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(1L);
+        when(carRepository.countBillableByUserId(7L)).thenReturn(1L);
 
         assertThat(entitlementService.canAddVehicle(user)).isTrue();
         assertThat(entitlementService.needsUpgrade(user)).isFalse();
@@ -71,7 +71,7 @@ class EntitlementServiceTest {
     @Test
     void canAddVehicleIsFalseWhenAtLimit() {
         when(subscriptionService.getEffectivePlan(user)).thenReturn(planWithLimit(PlanCode.FREE, 2));
-        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(2L);
+        when(carRepository.countBillableByUserId(7L)).thenReturn(2L);
 
         assertThat(entitlementService.canAddVehicle(user)).isFalse();
         assertThat(entitlementService.needsUpgrade(user)).isTrue();
@@ -80,22 +80,22 @@ class EntitlementServiceTest {
     @Test
     void canAddVehicleIsFalseWhenAboveLimit() {
         when(subscriptionService.getEffectivePlan(user)).thenReturn(planWithLimit(PlanCode.FREE, 2));
-        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(3L);
+        when(carRepository.countBillableByUserId(7L)).thenReturn(3L);
 
         assertThat(entitlementService.canAddVehicle(user)).isFalse();
     }
 
     @Test
     void activeVehicleCountOnlyCountsActiveTrueCars() {
-        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(4L);
+        when(carRepository.countBillableByUserId(7L)).thenReturn(4L);
 
         assertThat(entitlementService.getActiveVehicleCount(user)).isEqualTo(4L);
-        Mockito.verify(carRepository).countByUserIdAndActiveTrue(7L);
+        Mockito.verify(carRepository).countBillableByUserId(7L);
     }
 
     @Test
     void requiredPlanComesFromPricingServiceBasedOnActualVehicleCount() {
-        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(6L);
+        when(carRepository.countBillableByUserId(7L)).thenReturn(6L);
         when(pricingService.resolvePlanForVehicleCount(6)).thenReturn(planWithLimit(PlanCode.SILVER, 15));
 
         assertThat(entitlementService.getRequiredPlan(user).getCode()).isEqualTo(PlanCode.SILVER);
@@ -106,7 +106,7 @@ class EntitlementServiceTest {
         // Contracted BRONZE (max 5) but already has 6 cars from before Billing existed.
         Subscription bronzeSubscription = subscriptionWith(PlanCode.BRONZE, 5, SubscriptionStatus.ACTIVE);
         when(subscriptionService.getCurrentSubscription(user)).thenReturn(Optional.of(bronzeSubscription));
-        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(6L);
+        when(carRepository.countBillableByUserId(7L)).thenReturn(6L);
         when(pricingService.resolvePlanForVehicleCount(6)).thenReturn(planWithLimit(PlanCode.SILVER, 15));
 
         EntitlementSnapshot snapshot = entitlementService.getSnapshot(user);
@@ -121,7 +121,7 @@ class EntitlementServiceTest {
     void snapshotFallsBackToFreeWhenNoCurrentSubscriptionExists() {
         when(subscriptionService.getCurrentSubscription(user)).thenReturn(Optional.empty());
         when(subscriptionService.getFreePlan()).thenReturn(planWithLimit(PlanCode.FREE, 2));
-        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(0L);
+        when(carRepository.countBillableByUserId(7L)).thenReturn(0L);
         when(pricingService.resolvePlanForVehicleCount(0)).thenReturn(planWithLimit(PlanCode.FREE, 2));
 
         EntitlementSnapshot snapshot = entitlementService.getSnapshot(user);
@@ -136,13 +136,13 @@ class EntitlementServiceTest {
     void snapshotDoesNotQuerySubscriptionMoreThanOnce() {
         when(subscriptionService.getCurrentSubscription(user)).thenReturn(Optional.empty());
         when(subscriptionService.getFreePlan()).thenReturn(planWithLimit(PlanCode.FREE, 2));
-        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(2L);
+        when(carRepository.countBillableByUserId(7L)).thenReturn(2L);
         when(pricingService.resolvePlanForVehicleCount(2)).thenReturn(planWithLimit(PlanCode.FREE, 2));
 
         entitlementService.getSnapshot(user);
 
         Mockito.verify(subscriptionService, Mockito.times(1)).getCurrentSubscription(user);
-        Mockito.verify(carRepository, Mockito.times(1)).countByUserIdAndActiveTrue(7L);
+        Mockito.verify(carRepository, Mockito.times(1)).countBillableByUserId(7L);
     }
 
     @Test
@@ -153,7 +153,7 @@ class EntitlementServiceTest {
         platinumSubscription.setCurrentPeriodStart(Instant.parse("2026-08-01T00:00:00Z"));
         platinumSubscription.setCurrentPeriodEnd(Instant.parse("2026-09-01T00:00:00Z"));
         when(subscriptionService.getCurrentSubscription(user)).thenReturn(Optional.of(platinumSubscription));
-        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(50L);
+        when(carRepository.countBillableByUserId(7L)).thenReturn(50L);
         when(pricingService.resolvePlanForVehicleCount(50)).thenReturn(planWithLimit(PlanCode.PLATINUM, 100));
 
         EntitlementSnapshot snapshot = entitlementService.getSnapshot(user);
@@ -167,7 +167,7 @@ class EntitlementServiceTest {
     void snapshotTreatsPastDueSubscriptionAsCurrent() {
         Subscription pastDueSubscription = subscriptionWith(PlanCode.BRONZE, 5, SubscriptionStatus.PAST_DUE);
         when(subscriptionService.getCurrentSubscription(user)).thenReturn(Optional.of(pastDueSubscription));
-        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(4L);
+        when(carRepository.countBillableByUserId(7L)).thenReturn(4L);
         when(pricingService.resolvePlanForVehicleCount(4)).thenReturn(planWithLimit(PlanCode.BRONZE, 5));
 
         EntitlementSnapshot snapshot = entitlementService.getSnapshot(user);
@@ -182,7 +182,7 @@ class EntitlementServiceTest {
         // CANCELED-only history looks identical to "no subscription" from here - documents that.
         when(subscriptionService.getCurrentSubscription(user)).thenReturn(Optional.empty());
         when(subscriptionService.getFreePlan()).thenReturn(planWithLimit(PlanCode.FREE, 2));
-        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(1L);
+        when(carRepository.countBillableByUserId(7L)).thenReturn(1L);
         when(pricingService.resolvePlanForVehicleCount(1)).thenReturn(planWithLimit(PlanCode.FREE, 2));
 
         EntitlementSnapshot snapshot = entitlementService.getSnapshot(user);
@@ -196,7 +196,7 @@ class EntitlementServiceTest {
         // Etapa 3 scenario: "FROTTA ilimitado" - an ADMIN_GRANT of FROTTA has maxVehicles=null,
         // same unbounded contract as any other source of FROTTA (see nullLimitMeansUnbounded).
         when(subscriptionService.getEffectivePlan(user)).thenReturn(planWithLimit(PlanCode.FROTTA, null));
-        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(10_000L);
+        when(carRepository.countBillableByUserId(7L)).thenReturn(10_000L);
 
         assertThat(entitlementService.canAddVehicle(user)).isTrue();
     }
@@ -206,10 +206,10 @@ class EntitlementServiceTest {
         // Etapa 3 scenario: "grant GOLD limitando 30".
         when(subscriptionService.getEffectivePlan(user)).thenReturn(planWithLimit(PlanCode.GOLD, 30));
 
-        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(29L);
+        when(carRepository.countBillableByUserId(7L)).thenReturn(29L);
         assertThat(entitlementService.canAddVehicle(user)).isTrue();
 
-        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(30L);
+        when(carRepository.countBillableByUserId(7L)).thenReturn(30L);
         assertThat(entitlementService.canAddVehicle(user)).isFalse();
     }
 
@@ -218,7 +218,7 @@ class EntitlementServiceTest {
         // Etapa 3 scenario: "grandfathered SILVER crescendo até 15" - a legacy user with 10
         // cars, grandfathered into SILVER (max 15), can keep adding up to the 15th.
         when(subscriptionService.getEffectivePlan(user)).thenReturn(planWithLimit(PlanCode.SILVER, 15));
-        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(14L);
+        when(carRepository.countBillableByUserId(7L)).thenReturn(14L);
 
         assertThat(entitlementService.canAddVehicle(user)).isTrue();
     }
@@ -231,7 +231,7 @@ class EntitlementServiceTest {
         // canAddVehicle is what actually blocks the 16th, and is what the frontend should use
         // to know an upgrade is needed before the user can grow further.
         when(subscriptionService.getEffectivePlan(user)).thenReturn(planWithLimit(PlanCode.SILVER, 15));
-        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(15L);
+        when(carRepository.countBillableByUserId(7L)).thenReturn(15L);
         when(pricingService.resolvePlanForVehicleCount(15)).thenReturn(planWithLimit(PlanCode.SILVER, 15));
 
         assertThat(entitlementService.canAddVehicle(user)).isFalse();
@@ -258,10 +258,10 @@ class EntitlementServiceTest {
         when(subscriptionService.getCurrentSubscription(user)).thenReturn(Optional.of(goldWithPendingBronze));
         when(pricingService.resolvePlanForVehicleCount(Mockito.anyInt())).thenReturn(planWithLimit(PlanCode.GOLD, 30));
 
-        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(5L);
+        when(carRepository.countBillableByUserId(7L)).thenReturn(5L);
         assertThat(entitlementService.getSnapshot(user).isCanAddVehicle()).isFalse();
 
-        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(4L);
+        when(carRepository.countBillableByUserId(7L)).thenReturn(4L);
         assertThat(entitlementService.getSnapshot(user).isCanAddVehicle()).isTrue();
         // The CURRENT plan's own (higher) limit is still reported - only the "can add" verdict narrows.
         assertThat(entitlementService.getSnapshot(user).getVehicleLimit()).isEqualTo(5);
@@ -272,7 +272,7 @@ class EntitlementServiceTest {
         Subscription gold = subscriptionWith(PlanCode.GOLD, 30, SubscriptionStatus.ACTIVE);
         when(subscriptionService.getCurrentSubscription(user)).thenReturn(Optional.of(gold));
         when(pricingService.resolvePlanForVehicleCount(Mockito.anyInt())).thenReturn(planWithLimit(PlanCode.GOLD, 30));
-        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(29L);
+        when(carRepository.countBillableByUserId(7L)).thenReturn(29L);
 
         EntitlementSnapshot snapshot = entitlementService.getSnapshot(user);
 
@@ -288,7 +288,7 @@ class EntitlementServiceTest {
         platinumWithPendingFrotta.setPendingPlan(planWithLimit(PlanCode.FROTTA, null));
         when(subscriptionService.getCurrentSubscription(user)).thenReturn(Optional.of(platinumWithPendingFrotta));
         when(pricingService.resolvePlanForVehicleCount(Mockito.anyInt())).thenReturn(planWithLimit(PlanCode.PLATINUM, 100));
-        when(carRepository.countByUserIdAndActiveTrue(7L)).thenReturn(50L);
+        when(carRepository.countBillableByUserId(7L)).thenReturn(50L);
 
         assertThat(entitlementService.getSnapshot(user).getVehicleLimit()).isEqualTo(100);
     }

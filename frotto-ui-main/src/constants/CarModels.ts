@@ -28,6 +28,12 @@ export interface CarModel extends CommissionConfig {
   group?: string;
   initialValue?: number;
   active?: boolean;
+  deleted?: boolean;
+  deletedAt?: string;
+  deletedByUserId?: number;
+  restoredAt?: string;
+  restoredByUserId?: number;
+  restoreReason?: string;
   driverName?:string;
   adminStatus?: CarAdminStatus;
   createdDate?: string;

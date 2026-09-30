@@ -134,6 +134,8 @@ const MyPlanPage: React.FC = () => {
       ]);
       if (sessionId !== loadId.current) return;
       setBilling(me); setPaymentState(payment); applyUpgradeStatus(upgrade ?? null); setRefreshError(""); setUpgradeStatusError("");
+      if (me.pendingPlanCode) setUndoNotice("");
+      return me;
     } catch (requestError) {
       if (sessionId === loadId.current) setRefreshError(isUnauthorizedError(requestError) ? planChangeErrorMessage(requestError) : REFRESH_ERROR);
     }
@@ -294,8 +296,13 @@ const MyPlanPage: React.FC = () => {
     try {
       const result = await billingService.undoDowngrade();
       if (sessionId !== loadId.current) return;
+      const refreshed = await refreshAfterChange(sessionId);
+      if (sessionId !== loadId.current) return;
+      if (!refreshed || refreshed.pendingPlanCode != null || result.status !== "DOWNGRADE_UNDONE") {
+        setUndoError("Não foi possível confirmar o desfazimento do downgrade. Atualize os dados e tente novamente.");
+        return;
+      }
       setUndoNotice(`Downgrade desfeito. Você continua no plano ${friendlyPlan(result.currentPlan)}${result.nextRenewalPrice != null ? ` e a próxima renovação volta para ${money(result.nextRenewalPrice)}/mês` : ""}.`);
-      await refreshAfterChange(sessionId);
     } catch (requestError) {
       if (sessionId !== loadId.current) return;
       setUndoError(planChangeErrorMessage(requestError));
@@ -357,7 +364,17 @@ const MyPlanPage: React.FC = () => {
               <div className="my-plan-actions"><IonButton size="small" fill="outline" disabled={undoLoading || upgradeOpen} onClick={() => void undoDowngrade()}>{undoLoading ? <><IonSpinner name="crescent" /> Desfazendo...</> : "Desfazer downgrade"}</IonButton></div>
             </div>}
             {undoError && <p className="my-plan-preview-error" role="alert">{undoError}</p>}
-            {undoNotice && <div className="my-plan-alert my-plan-alert--success" role="status">{undoNotice}</div>}
+            {(billing.planCode === "PLATINUM" || billing.planCode === "FROTTA") && billing.projectedNextRenewalPrice != null && (
+              <div className="my-plan-alert" data-testid="fleet-renewal">
+                <p>{billing.billableVehicleCount ?? billing.activeVehicleCount} veículos cadastrados</p>
+                <p>Mensalidade do ciclo atual: {money(billing.currentMonthlyPrice)}</p>
+                <p>{billing.nextRenewalLockedAt ? (billing.nextRenewalSyncedAt ? "Próxima cobrança confirmada" : "Próxima cobrança fechada, aguardando confirmação") : "Próxima cobrança estimada"}: {money(billing.nextRenewalPrice ?? billing.projectedNextRenewalPrice)}</p>
+                <p>Próxima renovação: {formatDate(billing.nextRenewalAt ?? billing.currentPeriodEnd ?? "")}</p>
+                {billing.nextRenewalLockedAt && billing.nextRenewalPrice !== billing.projectedNextRenewalPrice && <p>Projeção do ciclo seguinte: {money(billing.projectedNextRenewalPrice)}</p>}
+                <p>O valor da próxima mensalidade é calculado de acordo com a quantidade de veículos cadastrados e pode mudar até o fechamento da renovação.</p>
+              </div>
+            )}
+            {undoNotice && !billing.pendingPlanCode && <div className="my-plan-alert my-plan-alert--success" role="status">{undoNotice}</div>}
             {changePlanBlockedByCancellation && <div className="my-plan-alert" role="status">Sua assinatura já está programada para encerrar em {endDate || "breve"}.</div>}
             {cancelable && !confirmed && <>
               <IonButton fill="outline" disabled={cancelLoading} onClick={() => { if (pending) void cancelSubscription(); else { setCancelError(""); setCancelModalOpen(true); } }}>{cancelLoading ? <><IonSpinner name="crescent" /> Cancelando...</> : pending ? "Tentar novamente" : "Cancelar assinatura"}</IonButton>

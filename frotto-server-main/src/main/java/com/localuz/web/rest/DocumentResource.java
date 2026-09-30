@@ -104,6 +104,7 @@ public class DocumentResource {
 
         Driver driver = getCurrentDriverOrThrow(payload.getDriverId());
         Car car = resolveCurrentCar(payload.getCarId());
+        com.localuz.service.VehicleLifecycleService.requireOperational(car);
         validateTypeBinding(payload.getType(), driver.getId(), car == null ? null : car.getId());
 
         DriverDocument document = new DriverDocument();
@@ -159,6 +160,7 @@ public class DocumentResource {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteDocument(@PathVariable Long id) {
         DriverDocument document = getDocumentOrThrow(id);
+        com.localuz.service.VehicleLifecycleService.requireOperational(document.getCar());
         deleteStoredFiles(readAttachments(document.getAttachmentsJson()));
         deleteStoredFiles(Collections.singletonList(document.getPdfUrl()));
         documentRepository.delete(document);
@@ -171,6 +173,7 @@ public class DocumentResource {
     @PatchMapping("/{id}")
     public ResponseEntity<DocumentDTO> updateDocumentDraft(@PathVariable Long id, @RequestBody DocumentSaveDTO payload) {
         DriverDocument document = getDocumentOrThrow(id);
+        com.localuz.service.VehicleLifecycleService.requireOperational(document.getCar());
         if (document.getStatus() != DocumentStatus.DRAFT) {
             throw new BadRequestAlertException("Only DRAFT documents can be edited", ENTITY_NAME, "documentnotdraft");
         }
@@ -182,7 +185,9 @@ public class DocumentResource {
             document.setDriver(getCurrentDriverOrThrow(payload.getDriverId()));
         }
         if (payload.getCarId() != null) {
-            document.setCar(resolveCurrentCar(payload.getCarId()));
+            Car replacement = resolveCurrentCar(payload.getCarId());
+            com.localuz.service.VehicleLifecycleService.requireOperational(replacement);
+            document.setCar(replacement);
         }
         validateTypeBinding(
             document.getType(),
@@ -210,6 +215,7 @@ public class DocumentResource {
     @PostMapping("/{id}/finalize")
     public ResponseEntity<DocumentDTO> finalizeDocument(@PathVariable Long id) {
         DriverDocument document = getDocumentOrThrow(id);
+        com.localuz.service.VehicleLifecycleService.requireOperational(document.getCar());
         DocumentStatus previousStatus = document.getStatus();
         document.setStatus(DocumentStatus.FINAL);
         DriverDocument result = documentRepository.save(document);
@@ -227,6 +233,7 @@ public class DocumentResource {
         @RequestBody(required = false) DocumentGeneratePdfDTO payload
     ) {
         DriverDocument document = getDocumentOrThrow(id);
+        com.localuz.service.VehicleLifecycleService.requireOperational(document.getCar());
         if (payload != null && payload.getPdfUrl() != null) {
             document.setPdfUrl(normalizeText(payload.getPdfUrl()));
             document = documentRepository.save(document);
@@ -237,6 +244,7 @@ public class DocumentResource {
     @PostMapping("/{id}/mark-sent")
     public ResponseEntity<DocumentDTO> markDocumentAsSent(@PathVariable Long id) {
         DriverDocument document = getDocumentOrThrow(id);
+        com.localuz.service.VehicleLifecycleService.requireOperational(document.getCar());
         document.setStatus(DocumentStatus.SENT);
         DriverDocument result = documentRepository.save(document);
         return ResponseEntity.ok(toDto(result, true));
@@ -245,6 +253,7 @@ public class DocumentResource {
     @PostMapping(value = "/{id}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<DocumentDTO> uploadDocumentAttachments(@PathVariable Long id, @RequestParam("file") MultipartFile[] files) {
         DriverDocument document = getDocumentOrThrow(id);
+        com.localuz.service.VehicleLifecycleService.requireOperational(document.getCar());
         List<String> attachments = new ArrayList<>(readAttachments(document.getAttachmentsJson()));
         if (files != null) {
             for (MultipartFile file : files) {

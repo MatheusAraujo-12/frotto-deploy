@@ -469,4 +469,36 @@ class BillingResourceTest {
         assertThat(mapper.readTree(body).path("message").asText()).isEqualTo("error.BILLING_PLAN_UPGRADE_IN_PROGRESS");
     }
 
+    @Test
+    void billingMeSeparatesPaidCycleFrozenRenewalAndFollowingProjection() {
+        when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));
+        Subscription paid = subscription(PlanCode.PLATINUM, false, null);
+        paid.getPlan().setMaxVehicles(100);
+        paid.setContractedPrice(new BigDecimal("82.40"));
+        paid.setNextRenewalPrice(new BigDecimal("84.90")); paid.setNextRenewalVehicleCount(32);
+        paid.setNextRenewalLockedAt(Instant.parse("2026-09-29T12:00:00Z"));
+        paid.setNextRenewalAt(Instant.parse("2026-09-30T12:00:00Z")); paid.setNextRenewalState("SYNCED");
+        when(entitlementService.getSnapshot(currentUser)).thenReturn(new EntitlementSnapshot(paid, paid.getPlan(), paid.getPlan(), 33L, 100, true, false));
+        when(pricingService.calculatePriceForPlan(PlanCode.PLATINUM, 33))
+            .thenReturn(new PricingResult(PlanCode.PLATINUM, "Platinum", 33, new BigDecimal("87.40"), List.of()));
+        BillingMeDTO dto = billingResource.getMyBilling();
+        assertThat(dto.getBillableVehicleCount()).isEqualTo(33);
+        assertThat(dto.getCurrentMonthlyPrice()).isEqualByComparingTo("82.40");
+        assertThat(dto.getNextRenewalPrice()).isEqualByComparingTo("84.90");
+        assertThat(dto.getProjectedNextRenewalPrice()).isEqualByComparingTo("87.40");
+        Mockito.verifyNoInteractions(billingCheckoutService);
+    }
+
+    @Test
+    void billingMeAfterPersistedUndoHasNoPendingFields() {
+        when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));
+        Subscription paid = subscription(PlanCode.SILVER, false, null);
+        when(entitlementService.getSnapshot(currentUser)).thenReturn(new EntitlementSnapshot(paid, paid.getPlan(), paid.getPlan(), 8L, 15, true, false));
+        when(pricingService.calculatePriceForPlan(PlanCode.SILVER, 8))
+            .thenReturn(new PricingResult(PlanCode.SILVER, "Silver", 8, new BigDecimal("44.90"), List.of()));
+        BillingMeDTO dto = billingResource.getMyBilling();
+        assertThat(dto.getPendingPlanCode()).isNull(); assertThat(dto.getPendingPlanName()).isNull();
+        assertThat(dto.getPendingPlanPrice()).isNull(); assertThat(dto.getPlanChangeEffectiveAt()).isNull();
+    }
+
 }

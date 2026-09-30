@@ -84,6 +84,7 @@ public class CarExpenseResource {
             throw new BadRequestAlertException("Car not found for current user", ENTITY_NAME, "notcurrentuser");
         }
         Car carExpenseCar = existingCarOpt.get();
+        com.localuz.service.VehicleLifecycleService.requireOperational(carExpenseCar);
         carExpense.setCar(carExpenseCar);
 
         CarExpense result = carExpenseRepository.save(carExpense);
@@ -101,6 +102,7 @@ public class CarExpenseResource {
             throw new BadRequestAlertException("Car-CarExpense not found for current user", ENTITY_NAME, "notcurrentuser");
         }
 
+        com.localuz.service.VehicleLifecycleService.requireOperational(existingCarExpenseOpt.get().getCar());
         carExpenseRepository.deleteById(id);
         return ResponseEntity
             .noContent()
@@ -125,6 +127,7 @@ public class CarExpenseResource {
             throw new BadRequestAlertException("Car not found for current user", ENTITY_NAME, "notcurrentuser");
         }
         Car carExpenseCar = existingCarExpenseOpt.get().getCar();
+        com.localuz.service.VehicleLifecycleService.requireOperational(carExpenseCar);
         carExpense.setCar(carExpenseCar);
 
         CarExpense result = carExpenseRepository.save(carExpense);

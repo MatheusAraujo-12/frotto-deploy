@@ -179,8 +179,10 @@ public class MercadoPagoFinancialIngestion {
             if (!settled(invoice.getStatus())) mapper.unsettledInvoice(charge.getStatus()).ifPresent(invoice::setStatus);
         }
         invoice.setLastReconciledAt(Instant.now());
+        FleetRenewalEvidence.expectedMoney(subscription, invoice);
         invoices.saveAndFlush(invoice);
         upsertAttempt(invoice, charge, payment, chargeMoneyMatches);
+        FleetRenewalEvidence.apply(subscription, invoice, attempts.findByBillingInvoiceIdOrderByIdAsc(invoice.getId()));
         invoices.saveAndFlush(invoice);
         return true;
     }
@@ -227,8 +229,10 @@ public class MercadoPagoFinancialIngestion {
             if (invoice.getProviderCreatedAt() == null) invoice.setProviderCreatedAt(payment.getDateCreated());
         }
         invoice.setLastReconciledAt(Instant.now());
+        FleetRenewalEvidence.expectedMoney(subscription, invoice);
         invoices.saveAndFlush(invoice);
         upsertAttemptFromPayment(invoice, existingAttempt, payment, mappedStatus.get(), paymentCurrency, chargeMoneyMatches);
+        FleetRenewalEvidence.apply(subscription, invoice, attempts.findByBillingInvoiceIdOrderByIdAsc(invoice.getId()));
         invoices.saveAndFlush(invoice);
         return true;
     }

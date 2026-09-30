@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+    <changeSet id="20260929000000-1" author="codex">
+        <addColumn tableName="subscription">
+            <column name="plan_change_token" type="varchar(36)"/>
+            <column name="plan_change_operation_until" type="${datetimeType}"/>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

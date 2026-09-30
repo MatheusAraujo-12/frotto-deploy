@@ -13,10 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
  * Server-side source of truth for "how many vehicles can this user have". SubscriptionService
  * applies financial coverage to PAYMENT_PROVIDER and source precedence to every read path.
  *
- * Vehicle counting uses Car.active = true (the existing soft-delete flag), matching
- * CarRepository#findActiveByCurrentUser; CarAdminStatus sub-states (A_VENDA, MANUTENCAO,
- * BLOQUEADO, ...) are not additionally excluded, since there is no existing precedent for
- * treating them differently for fleet-size purposes.
+ * Billable vehicles are all account vehicles with deleted=false, independently of the
+ * legacy active flag and every operational CarAdminStatus.
  *
  * currentPlan (what the user is contracted for) and requiredPlan (what their actual vehicle
  * count would map to) are deliberately kept separate - see getSnapshot/getRequiredPlan. A
@@ -42,7 +40,7 @@ public class EntitlementService {
     }
 
     public long getActiveVehicleCount(User user) {
-        return carRepository.countByUserIdAndActiveTrue(user.getId());
+        return carRepository.countBillableByUserId(user.getId());
     }
 
     /** Null means unbounded (e.g. FROTTA has no max_vehicles). */

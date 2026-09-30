@@ -20,6 +20,26 @@ import javax.validation.constraints.*;
 })
 public class BillingInvoice implements Serializable {
 
+    @javax.persistence.Column(name = "fleet_vehicle_count")
+    private Integer fleetVehicleCount;
+    public Integer getFleetVehicleCount() { return fleetVehicleCount; }
+    public void setFleetVehicleCount(Integer value) { fleetVehicleCount = value; }
+
+    @javax.persistence.Column(name = "fleet_snapshot_token", length = 36)
+    private String fleetSnapshotToken;
+    public String getFleetSnapshotToken() { return fleetSnapshotToken; }
+    public void setFleetSnapshotToken(String value) { fleetSnapshotToken = value; }
+
+    @javax.persistence.Column(name = "fleet_locked_at")
+    private java.time.Instant fleetLockedAt;
+    public java.time.Instant getFleetLockedAt() { return fleetLockedAt; }
+    public void setFleetLockedAt(java.time.Instant value) { fleetLockedAt = value; }
+
+    @javax.persistence.Column(name = "fleet_synced_at")
+    private java.time.Instant fleetSyncedAt;
+    public java.time.Instant getFleetSyncedAt() { return fleetSyncedAt; }
+    public void setFleetSyncedAt(java.time.Instant value) { fleetSyncedAt = value; }
+
     private static final long serialVersionUID = 1L;
 
     @Id

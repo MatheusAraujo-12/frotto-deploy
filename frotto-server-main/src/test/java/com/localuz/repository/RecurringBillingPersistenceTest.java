@@ -70,7 +70,7 @@ class RecurringBillingPersistenceTest {
             Liquibase liquibase = new Liquibase("config/liquibase/master.xml", new ClassLoaderResourceAccessor(),
                 DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(connection)));
             // Install the preceding schema first, then keep a real legacy subscription across the new migration.
-            liquibase.getDatabaseChangeLog().getChangeSets().removeIf(change -> (change.getId().startsWith("20260911000000-") || change.getId().startsWith("20260914000000-") || change.getId().startsWith("20260915010000-")));
+            liquibase.getDatabaseChangeLog().getChangeSets().removeIf(change -> (change.getId().startsWith("20260929") || change.getId().startsWith("20260911000000-") || change.getId().startsWith("20260914000000-") || change.getId().startsWith("20260915010000-")));
             liquibase.update(new Contexts("test"));
             try (java.sql.ResultSet tables = connection.getMetaData().getTables(connection.getCatalog(), null, "billing_invoice", null)) {
                 assertThat(tables.next()).isFalse();
@@ -82,6 +82,7 @@ class RecurringBillingPersistenceTest {
                 "contracted_vehicle_count,source,created_at,updated_at) VALUES " +
                 "(90001,90001,(SELECT id FROM plan WHERE code='BRONZE'),'MONTHLY','ACTIVE'," +
                 "'2026-09-01 12:00:00',false,100.00,1,'PAYMENT_PROVIDER',NOW(6),NOW(6))");
+            connection.createStatement().executeUpdate("INSERT INTO car (id,user_id,plate,active) VALUES (90001,90001,'OLD-0001',false),(90002,90001,'OLD-0002',true)");
             connection.commit();
             try (var columns = connection.getMetaData().getColumns(connection.getCatalog(), null, "subscription", "last_financial_reconciliation_at")) {
                 assertThat(columns.next()).isFalse();
@@ -89,6 +90,13 @@ class RecurringBillingPersistenceTest {
             liquibase = new Liquibase("config/liquibase/master.xml", new ClassLoaderResourceAccessor(),
                 DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(connection)));
             liquibase.update(new Contexts("test"));
+            try (var rows = connection.createStatement().executeQuery("SELECT deleted,deleted_at,deleted_by_user_id FROM car WHERE id=90001")) {
+                assertThat(rows.next()).isTrue(); assertThat(rows.getBoolean(1)).isTrue();
+                assertThat(rows.getTimestamp(2)).isNull(); assertThat(rows.getObject(3)).isNull();
+            }
+            try (var rows = connection.createStatement().executeQuery("SELECT deleted FROM car WHERE id=90002")) {
+                assertThat(rows.next()).isTrue(); assertThat(rows.getBoolean(1)).isFalse();
+            }
             try (var columns = connection.getMetaData().getColumns(connection.getCatalog(), null, "subscription", "last_financial_reconciliation_at")) {
                 assertThat(columns.next()).isTrue();
                 assertThat(columns.getInt("NULLABLE")).isEqualTo(java.sql.DatabaseMetaData.columnNullable);
@@ -737,7 +745,7 @@ class RecurringBillingPersistenceTest {
             var upgradeRepo = repos.getRepository(SubscriptionPlanUpgradeRepository.class);
             var transactions = new org.springframework.transaction.annotation.AnnotationTransactionAttributeSource();
             var stepsProxy = new org.springframework.aop.framework.ProxyFactory(
-                new com.localuz.service.SubscriptionPlanChangeSteps(users, subscriptionRepo, guard, financialCoverage, upgradeRepo));
+                new com.localuz.service.SubscriptionPlanChangeSteps(users, subscriptionRepo, guard, financialCoverage, upgradeRepo, cars));
             stepsProxy.setProxyTargetClass(true);
             stepsProxy.addAdvice(new org.springframework.transaction.interceptor.TransactionInterceptor(manager, transactions));
             var steps = (com.localuz.service.SubscriptionPlanChangeSteps) stepsProxy.getProxy();
@@ -1026,9 +1034,43 @@ class RecurringBillingPersistenceTest {
             connection.createStatement().executeUpdate("UPDATE subscription SET external_provider=NULL,external_subscription_id=NULL,last_financial_reconciliation_at=NULL," +
                 "contracted_vehicle_count=1,source='PAYMENT_PROVIDER',status='ACTIVE',canceled_at=NULL,cancel_at_period_end=false," +
                 "plan_id=(SELECT id FROM plan WHERE code='BRONZE'),contracted_price=100.00," +
-                "pending_plan_id=NULL,pending_contracted_price=NULL,pending_contracted_vehicle_count=NULL,plan_change_effective_at=NULL,plan_change_requested_at=NULL " +
+                "pending_plan_id=NULL,pending_contracted_price=NULL,pending_contracted_vehicle_count=NULL,plan_change_effective_at=NULL,plan_change_requested_at=NULL," +
+                "plan_change_token=NULL,plan_change_operation_until=NULL,plan_change_provider_confirmed=NULL,next_renewal_price=NULL,next_renewal_vehicle_count=NULL," +
+                "next_renewal_at=NULL,next_renewal_locked_at=NULL,next_renewal_synced_at=NULL,next_renewal_applied_at=NULL,next_renewal_token=NULL,next_renewal_state=NULL,next_renewal_plan_id=NULL " +
                 "WHERE id=90001");
         }
+    }
+
+    @Test void billableCountIgnoresOperationalStatusesAndLegacyActive() {
+        var cars = new JpaRepositoryFactory(em).getRepository(CarRepository.class);
+        long baseline = cars.countBillableByUserId(90001L);
+        for (CarAdminStatus status : CarAdminStatus.values()) {
+            Car car = new Car(); car.setUser(subscription.getUser()); car.setAdminStatus(status);
+            car.setActive(false); car.setDeleted(false); em.persist(car);
+        }
+        Car deleted = new Car(); deleted.setUser(subscription.getUser()); deleted.setActive(true); deleted.setDeleted(true); em.persist(deleted);
+        em.flush(); em.clear();
+        assertThat(cars.countBillableByUserId(90001L)).isEqualTo(baseline + CarAdminStatus.values().length);
+    }
+
+    @Test void undoAfterMysqlTimestampRoundTripUsesStableTokenAndVerifiesPersistedClear() {
+        subscription.setPendingPlan(subscription.getPlan()); subscription.setPendingContractedPrice(new BigDecimal("15.90"));
+        subscription.setPendingContractedVehicleCount(1); subscription.setPlanChangeEffectiveAt(OCTOBER);
+        subscription.setPlanChangeRequestedAt(Instant.parse("2026-09-29T10:15:20.123456789Z"));
+        String token = java.util.UUID.randomUUID().toString(); subscription.setPlanChangeToken(token);
+        Long planId = subscription.getPlan().getId(); em.flush(); em.clear();
+        var repos = new JpaRepositoryFactory(em);
+        var steps = new com.localuz.service.SubscriptionPlanChangeSteps(repos.getRepository(UserRepository.class),
+            repos.getRepository(SubscriptionRepository.class), org.mockito.Mockito.mock(com.localuz.service.RecurringSubscriptionGuardService.class),
+            org.mockito.Mockito.mock(com.localuz.service.SubscriptionFinancialCoverageService.class),
+            repos.getRepository(SubscriptionPlanUpgradeRepository.class), repos.getRepository(CarRepository.class));
+        steps.clearUndoneDowngrade(90001L, 90001L, planId, token);
+        em.flush(); em.clear();
+        Subscription stored = em.find(Subscription.class, 90001L);
+        assertThat(stored.getPendingPlan()).isNull(); assertThat(stored.getPendingContractedPrice()).isNull();
+        assertThat(stored.getPendingContractedVehicleCount()).isNull(); assertThat(stored.getPlanChangeRequestedAt()).isNull();
+        assertThat(stored.getPlanChangeEffectiveAt()).isNull(); assertThat(stored.getPlanChangeToken()).isNull();
+        assertThat(repos.getRepository(SubscriptionRepository.class).isDowngradeCleared(90001L)).isTrue();
     }
 
     private BillingInvoice newInvoice(Instant start, Instant end, String externalId) {

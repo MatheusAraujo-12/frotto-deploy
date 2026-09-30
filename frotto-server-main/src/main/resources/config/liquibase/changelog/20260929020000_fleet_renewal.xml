@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <changeSet id="20260929020000-1" author="codex">
+        <addColumn tableName="subscription">
+            <column name="row_version" type="bigint" defaultValueNumeric="0"><constraints nullable="false"/></column>
+            <column name="plan_change_provider_confirmed" type="boolean"/>
+            <column name="next_renewal_price" type="decimal(21,2)"/>
+            <column name="next_renewal_vehicle_count" type="int"/>
+            <column name="next_renewal_at" type="datetime(6)"/>
+            <column name="next_renewal_locked_at" type="datetime(6)"/>
+            <column name="next_renewal_synced_at" type="datetime(6)"/>
+            <column name="next_renewal_applied_at" type="datetime(6)"/>
+            <column name="next_renewal_token" type="varchar(36)"/>
+            <column name="next_renewal_state" type="varchar(36)"/>
+            <column name="next_renewal_plan_id" type="bigint"/>
+        </addColumn>
+        <addColumn tableName="billing_invoice">
+            <column name="fleet_vehicle_count" type="int"/>
+            <column name="fleet_snapshot_token" type="varchar(36)"/>
+            <column name="fleet_locked_at" type="datetime(6)"/>
+            <column name="fleet_synced_at" type="datetime(6)"/>
+        </addColumn>
+        <addForeignKeyConstraint baseTableName="subscription" baseColumnNames="next_renewal_plan_id" referencedTableName="plan" referencedColumnNames="id" constraintName="fk_subscription_renewal_plan"/>
+    </changeSet>
+</databaseChangeLog>

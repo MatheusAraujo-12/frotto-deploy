@@ -58,7 +58,7 @@ public class BillingCheckoutService {
         User lockedUser=users.findByIdForBillingCheckoutLock(user.getId()).orElseThrow(()->new IllegalArgumentException("Authenticated user is required"));
         if(repository.existsByUserIdAndStatusIn(lockedUser.getId(),BLOCKING_STATUSES))throw new BillingCheckoutInProgressException();
         recurringSubscriptionGuard.assertNoBlockingRemoteRecurrence(lockedUser.getId());
-        int vehicleCount = Math.toIntExact(cars.countByUserIdAndActiveTrue(user.getId()));
+        int vehicleCount = Math.toIntExact(cars.countBillableByUserId(user.getId()));
         BillingCheckout checkout = createIntent(lockedUser, requestedPlan, vehicleCount);
         String payerEmail = resolvePayerEmail(email);
         MercadoPagoPreapprovalRequest request = new MercadoPagoPreapprovalRequest(

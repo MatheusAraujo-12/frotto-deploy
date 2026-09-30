@@ -280,6 +280,7 @@ const AdminBillingPage: React.FC = () => {
       </IonHeader>
 
       <IonContent fullscreen>
+        <IonButton routerLink="/menu/admin/veiculos-excluidos">Veículos excluídos e restauração</IonButton>
         <div className="app-shell app-shell--compact admin-billing-shell">
           <FrottoCard>
             <IonCardContent>

@@ -57,19 +57,22 @@ public class InspectionResource {
     private final ExpenseRepository expenseRepository;
 
     private final CarService carService;
+    private final com.localuz.repository.CarBodyDamageRepository damageRepository;
 
     public InspectionResource(
         InspectionRepository inspectionRepository,
         CarRepository carRepository,
         TireRepository tireRepository,
         ExpenseRepository expenseRepository,
-        CarService carService
+        CarService carService,
+        com.localuz.repository.CarBodyDamageRepository damageRepository
     ) {
         this.inspectionRepository = inspectionRepository;
         this.carRepository = carRepository;
         this.tireRepository = tireRepository;
         this.expenseRepository = expenseRepository;
         this.carService = carService;
+        this.damageRepository = damageRepository;
     }
 
     @GetMapping("/car/{carId}")
@@ -101,6 +104,8 @@ public class InspectionResource {
             throw new BadRequestAlertException("Car not found for current user", ENTITY_NAME, "notcurrentuser");
         }
         Car inspectionCar = existingCarOpt.get();
+        com.localuz.service.VehicleLifecycleService.requireOperational(inspectionCar);
+        validateChildren(inspection, inspectionCar, null);
         carService.updateCarOdometerByDate(inspection.getDate(), inspection.getOdometer(), inspectionCar);
         inspection.setCar(inspectionCar);
         Inspection result = inspectionRepository.save(inspection);
@@ -118,6 +123,7 @@ public class InspectionResource {
             throw new BadRequestAlertException("Car-Inspection not found for current user", ENTITY_NAME, "notcurrentuser");
         }
 
+        com.localuz.service.VehicleLifecycleService.requireOperational(existingInspectionOpt.get().getCar());
         inspectionRepository.deleteById(id);
         return ResponseEntity
             .noContent()
@@ -145,6 +151,8 @@ public class InspectionResource {
         Inspection existingInspection = existingInspectionOpt.get();
 
         Car inspectionCar = existingInspection.getCar();
+        com.localuz.service.VehicleLifecycleService.requireOperational(inspectionCar);
+        validateChildren(inspection, inspectionCar, existingInspection);
         carService.updateCarOdometerByDate(inspection.getDate(), inspection.getOdometer(), inspectionCar);
         inspection.setCar(inspectionCar);
         ArrayList<Tire> tires = new ArrayList<Tire>(
@@ -181,4 +189,31 @@ public class InspectionResource {
             .headers(HeaderUtil.createEntityUpdateAlert(applicationName, false, ENTITY_NAME, inspection.getId().toString()))
             .body(result);
     }
+    /** Nested IDs must never move or mutate another vehicle's historical records. */
+    private void validateChildren(Inspection incoming, Car car, Inspection existing) {
+        var allowedExpenses = existing == null ? java.util.Set.<Long>of() : existing.getExpenses().stream()
+            .map(Expense::getId).collect(Collectors.toSet());
+        for (Expense expense : incoming.getExpenses()) {
+            if (expense.getId() != null && !allowedExpenses.contains(expense.getId())) throw invalidChild();
+            expense.setInspection(incoming);
+        }
+        List<Tire> incomingTires = Arrays.asList(incoming.getLeftFront(), incoming.getRightFront(), incoming.getLeftBack(), incoming.getRightBack(), incoming.getSpare());
+        var allowedTires = existing == null ? java.util.Set.<Long>of() : Arrays.asList(existing.getLeftFront(), existing.getRightFront(), existing.getLeftBack(), existing.getRightBack(), existing.getSpare())
+            .stream().filter(Objects::nonNull).map(Tire::getId).collect(Collectors.toSet());
+        for (Tire tire : incomingTires) if (tire != null && tire.getId() != null && !allowedTires.contains(tire.getId())) throw invalidChild();
+        var damages = new java.util.HashSet<CarBodyDamage>();
+        for (CarBodyDamage damage : incoming.getCarBodyDamages()) {
+            if (damage.getId() == null) throw invalidChild();
+            CarBodyDamage stored = damageRepository.findByCurrentUserAndCarBdId(damage.getId()).orElseThrow(this::invalidChild);
+            if (stored.getCar() == null || !Objects.equals(stored.getCar().getId(), car.getId())) throw invalidChild();
+            // This endpoint associates existing damage only; edits use the scoped damage endpoint.
+            damages.add(stored);
+        }
+        incoming.setCarBodyDamages(damages);
+    }
+
+    private BadRequestAlertException invalidChild() {
+        return new BadRequestAlertException("Registro histórico não pertence a esta inspeção/veículo.", ENTITY_NAME, "invalidchildreference");
+    }
+
 }

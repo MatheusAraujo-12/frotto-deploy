@@ -33,7 +33,7 @@ class FinancialEntitlementTest {
         candidates.add(f.subscription);
         when(subscriptions.findByUserIdOrderByStartDateDesc(42L)).thenReturn(candidates);
         when(plans.findByCode(PlanCode.FREE)).thenReturn(Optional.of(free));
-        when(cars.countByUserIdAndActiveTrue(42L)).thenReturn(2L);
+        when(cars.countBillableByUserId(42L)).thenReturn(2L);
         when(pricing.resolvePlanForVehicleCount(2)).thenReturn(free);
     }
 

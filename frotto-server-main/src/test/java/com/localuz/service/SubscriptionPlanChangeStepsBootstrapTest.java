@@ -25,6 +25,7 @@ class SubscriptionPlanChangeStepsBootstrapTest {
 
     @Configuration
     static class CollaboratorBeans {
+        @Bean com.localuz.repository.CarRepository cars() { return mock(com.localuz.repository.CarRepository.class); }
         @Bean
         UserRepository userRepository() {
             return mock(UserRepository.class);

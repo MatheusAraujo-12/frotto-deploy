@@ -112,10 +112,16 @@ public class SubscriptionPlanChangeService {
         // between "is this allowed" and "record that it's happening".
         Subscription subscription = steps.markPlanChangeIntent(userId, targetPlan, target.price(), target.vehicleCount());
         PlanCode currentPlanCode = subscription.getPlan().getCode();
-        String idempotencyKey = "change-plan-" + subscription.getExternalSubscriptionId() + "-" + targetPlanCode;
-        applyDowngradeAmount(subscription, target.price(), idempotencyKey);
-        return new PlanChangeResultDTO(currentPlanCode, targetPlanCode, PlanChangeType.DOWNGRADE, PlanChangeStatus.DOWNGRADE_SCHEDULED,
-            subscription.getPlanChangeEffectiveAt(), target.price(), null, target.price(), null);
+        String operationToken = subscription.getPlanChangeToken();
+        String idempotencyKey = "change-plan-" + subscription.getId() + "-" + operationToken;
+        try {
+            applyDowngradeAmount(subscription, target.price(), idempotencyKey);
+            steps.confirmScheduledDowngrade(subscription.getId(), subscription.getPlanChangeToken());
+            return new PlanChangeResultDTO(currentPlanCode, targetPlanCode, PlanChangeType.DOWNGRADE, PlanChangeStatus.DOWNGRADE_SCHEDULED,
+                subscription.getPlanChangeEffectiveAt(), target.price(), null, target.price(), null);
+        } finally {
+            steps.releasePlanChangeOperation(subscription.getId(), operationToken);
+        }
     }
 
     /**
@@ -157,26 +163,45 @@ public class SubscriptionPlanChangeService {
         BigDecimal scheduledPrice = subscription.getPendingContractedPrice();
         Plan scheduledPlan = subscription.getPendingPlan();
         PlanCode currentPlanCode = subscription.getPlan().getCode();
-        Instant requestedAt = subscription.getPlanChangeRequestedAt();
-        String idempotencyKey = "undo-downgrade-" + subscription.getId() + "-" + (requestedAt == null ? "0" : requestedAt.toEpochMilli());
-        boolean ambiguous = false;
+        if (scheduledPlan == null) {
+            if (confirm(externalId, restoredPrice, null) != Confirmation.CONFIRMED_NEW) throw new BillingDowngradeUndoRejectedException();
+            steps.confirmAlreadyUndone(userId, subscription.getId(), subscription.getPlan().getId(), restoredPrice);
+            return new PlanChangeResultDTO(currentPlanCode, currentPlanCode, PlanChangeType.DOWNGRADE,
+                PlanChangeStatus.DOWNGRADE_UNDONE, null, restoredPrice, null, restoredPrice, null);
+        }
+        String token = subscription.getPlanChangeToken();
+        String idempotencyKey = "undo-downgrade-" + subscription.getId() + "-" + token;
         try {
-            client.updatePreapprovalAmount(externalId, restoredPrice, CURRENCY, idempotencyKey);
-        } catch (MercadoPagoException failure) {
-            if (!failure.isAmbiguous()) {
-                log.warn("Downgrade undo rejected by provider subscriptionId={} category={} httpStatus={}",
-                    subscription.getId(), failure.getCategory(), failure.getHttpStatus());
-                throw new BillingDowngradeUndoRejectedException();
+            boolean ambiguous = false;
+            Confirmation initial = confirm(externalId, restoredPrice, scheduledPrice);
+            if (initial != Confirmation.CONFIRMED_NEW) {
+                try {
+                    client.updatePreapprovalAmount(externalId, restoredPrice, CURRENCY, idempotencyKey);
+                } catch (MercadoPagoException failure) {
+                    if (!failure.isAmbiguous()) {
+                        if (initial == Confirmation.CONFIRMED_OLD) steps.confirmScheduledDowngrade(subscription.getId(), token);
+                        log.warn("Downgrade undo rejected by provider subscriptionId={} category={} httpStatus={}",
+                            subscription.getId(), failure.getCategory(), failure.getHttpStatus());
+                        throw new BillingDowngradeUndoRejectedException();
+                    }
+                    ambiguous = true;
+                }
+                Confirmation afterPut = confirm(externalId, restoredPrice, scheduledPrice);
+                if (afterPut != Confirmation.CONFIRMED_NEW) {
+                    if (afterPut == Confirmation.CONFIRMED_OLD) steps.confirmScheduledDowngrade(subscription.getId(), token);
+                    log.warn("Downgrade undo not confirmed subscriptionId={} ambiguousPut={}", subscription.getId(), ambiguous);
+                    throw new BillingDowngradeUndoRejectedException();
+                }
             }
-            ambiguous = true;
+            Subscription cleared = steps.clearUndoneDowngrade(userId, subscription.getId(), scheduledPlan.getId(), token);
+            if (!SubscriptionPlanChangeSteps.isPendingCleared(cleared)) {
+                throw new com.localuz.web.rest.errors.BillingDowngradeUndoConflictException();
+            }
+            return new PlanChangeResultDTO(currentPlanCode, scheduledPlan.getCode(), PlanChangeType.DOWNGRADE,
+                PlanChangeStatus.DOWNGRADE_UNDONE, null, restoredPrice, null, restoredPrice, null);
+        } finally {
+            steps.releasePlanChangeOperation(subscription.getId(), token);
         }
-        if (confirm(externalId, restoredPrice, scheduledPrice) != Confirmation.CONFIRMED_NEW) {
-            log.warn("Downgrade undo not confirmed subscriptionId={} ambiguousPut={}", subscription.getId(), ambiguous);
-            throw new BillingDowngradeUndoRejectedException();
-        }
-        steps.clearUndoneDowngrade(userId, subscription.getId(), scheduledPlan.getId(), requestedAt);
-        return new PlanChangeResultDTO(currentPlanCode, scheduledPlan.getCode(), PlanChangeType.DOWNGRADE,
-            PlanChangeStatus.DOWNGRADE_UNDONE, null, restoredPrice, null, restoredPrice, null);
     }
 
     /** 5G.12.1: the caller's latest prorated upgrade, reconciled server-side with the provider first. */
@@ -198,7 +223,7 @@ public class SubscriptionPlanChangeService {
 
     /** Price always from PricingService for the vehicle count the backend itself counted - never from the client. */
     private Target price(Long userId, Plan targetPlan) {
-        int vehicleCount = Math.toIntExact(carRepository.countByUserIdAndActiveTrue(userId));
+        int vehicleCount = Math.toIntExact(carRepository.countBillableByUserId(userId));
         if (targetPlan.getMaxVehicles() != null && vehicleCount > targetPlan.getMaxVehicles()) {
             throw new BadRequestAlertException("Vehicle count exceeds the target plan limit", ENTITY_NAME, "fleetincompatible");
         }
@@ -240,7 +265,7 @@ public class SubscriptionPlanChangeService {
             client.updatePreapprovalAmount(externalId, newPrice, CURRENCY, idempotencyKey);
         } catch (MercadoPagoException failure) {
             if (!failure.isAmbiguous()) {
-                steps.rollbackPendingChange(subscription.getId());
+                steps.rollbackPendingChange(subscription.getUser().getId(), subscription.getId(), subscription.getPlanChangeToken());
                 throw new BillingPlanChangeProviderRejectedException();
             }
             ambiguous = true;
@@ -250,7 +275,7 @@ public class SubscriptionPlanChangeService {
             return;
         }
         if (confirmation == Confirmation.CONFIRMED_OLD) {
-            steps.rollbackPendingChange(subscription.getId());
+            steps.rollbackPendingChange(subscription.getUser().getId(), subscription.getId(), subscription.getPlanChangeToken());
             throw new BillingPlanChangeProviderRejectedException();
         }
         // INDETERMINATE: fail closed - never claim success, but never guess a rollback either
@@ -268,6 +293,7 @@ public class SubscriptionPlanChangeService {
                 confirmFailure.getCategory(), confirmFailure.getHttpStatus());
             return Confirmation.INDETERMINATE;
         }
+        if (current == null || !externalId.equals(current.getId())) return Confirmation.INDETERMINATE;
         if (matches(current, expectedNew)) return Confirmation.CONFIRMED_NEW;
         if (expectedOld != null && matches(current, expectedOld)) return Confirmation.CONFIRMED_OLD;
         return Confirmation.INDETERMINATE;

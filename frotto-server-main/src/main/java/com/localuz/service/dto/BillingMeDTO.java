@@ -131,6 +131,31 @@ public class BillingMeDTO {
         );
     }
 
+    /** Compatibility alias activeVehicleCount remains for old clients. */
+    public long getBillableVehicleCount() { return activeVehicleCount; }
+
+    private BigDecimal projectedNextRenewalPrice;
+    public BigDecimal getProjectedNextRenewalPrice() { return projectedNextRenewalPrice; }
+    public void setProjectedNextRenewalPrice(BigDecimal value) { projectedNextRenewalPrice = value; }
+    private BigDecimal nextRenewalPrice;
+    public BigDecimal getNextRenewalPrice() { return nextRenewalPrice; }
+    public void setNextRenewalPrice(BigDecimal value) { nextRenewalPrice = value; }
+    private Integer nextRenewalVehicleCount;
+    public Integer getNextRenewalVehicleCount() { return nextRenewalVehicleCount; }
+    public void setNextRenewalVehicleCount(Integer value) { nextRenewalVehicleCount = value; }
+    private Instant nextRenewalAt;
+    public Instant getNextRenewalAt() { return nextRenewalAt; }
+    public void setNextRenewalAt(Instant value) { nextRenewalAt = value; }
+    private Instant nextRenewalLockedAt;
+    public Instant getNextRenewalLockedAt() { return nextRenewalLockedAt; }
+    public void setNextRenewalLockedAt(Instant value) { nextRenewalLockedAt = value; }
+    private Instant nextRenewalSyncedAt;
+    public Instant getNextRenewalSyncedAt() { return nextRenewalSyncedAt; }
+    public void setNextRenewalSyncedAt(Instant value) { nextRenewalSyncedAt = value; }
+    private String nextRenewalState;
+    public String getNextRenewalState() { return nextRenewalState; }
+    public void setNextRenewalState(String value) { nextRenewalState = value; }
+
     public PlanCode getPlanCode() {
         return planCode;
     }

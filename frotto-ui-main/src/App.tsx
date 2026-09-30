@@ -38,6 +38,7 @@ import Menu from "./components/Menu/Menu";
 import BodyDamages from "./pages/BodyDamage/BodyDamages";
 import Car from "./pages/Cars/Car";
 import Cars from "./pages/Cars/Cars";
+import DeletedCars, { AdminDeletedCars } from "./pages/Cars/DeletedCars";
 import CarExpenses from "./pages/CarExpense/CarExpenses";
 import DocumentsPage from "./pages/Documents/DocumentsPage";
 import Drivers from "./pages/Driver/Drivers";
@@ -96,6 +97,8 @@ const App: FC = () => {
           <Route exact path="/" component={Login} />
           <Route exact path="/cadastro" component={Register} />
           <Route exact path="/menu/carros" component={Cars} />
+          <Route exact path="/menu/veiculos-excluidos" component={DeletedCars} />
+          <Route exact path="/menu/admin/veiculos-excluidos" component={AdminDeletedCars} />
           <Route exact path="/menu/carros/:id" component={Car} />
           <Route exact path="/menu/carros/:id/danos" component={BodyDamages} />
           <Route exact path="/menu/carros/:id/motoristas" component={Drivers} />

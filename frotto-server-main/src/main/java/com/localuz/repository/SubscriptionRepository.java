@@ -9,6 +9,16 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 /** Spring Data JPA repository for the Subscription entity. */
 public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
+    @org.springframework.data.jpa.repository.Lock(javax.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select s from Subscription s where s.id = :id")
+    Optional<Subscription> findByIdForUpdate(@org.springframework.data.repository.query.Param("id") Long id);
+
+    @org.springframework.data.jpa.repository.Query("select (count(s) = 1) from Subscription s where s.id = :id and s.pendingPlan is null and s.pendingContractedPrice is null and s.pendingContractedVehicleCount is null and s.planChangeEffectiveAt is null and s.planChangeRequestedAt is null and s.planChangeToken is null")
+    boolean isDowngradeCleared(@org.springframework.data.repository.query.Param("id") Long id);
+
+    @org.springframework.data.jpa.repository.Query("select s from Subscription s join fetch s.user where s.source = com.localuz.domain.enumeration.SubscriptionSource.PAYMENT_PROVIDER and s.status = com.localuz.domain.enumeration.SubscriptionStatus.ACTIVE and s.cancelAtPeriodEnd = false and s.canceledAt is null and s.id > :afterId order by s.id")
+    List<Subscription> findFleetRenewalCandidates(@org.springframework.data.repository.query.Param("afterId") Long afterId, org.springframework.data.domain.Pageable pageable);
+
     interface FinancialCandidate {
         Long getId();
         String getExternalSubscriptionId();

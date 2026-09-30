@@ -153,6 +153,8 @@ const PLAN_CHANGE_ERROR_MESSAGES: Record<string, string> = {
   BILLING_PLAN_CHANGE_PERIOD_UNCONFIRMED: "Não foi possível confirmar o ciclo atual da sua assinatura para calcular o valor proporcional. Nenhuma alteração foi feita. Tente novamente mais tarde.",
   BILLING_PLAN_UPGRADE_CHECKOUT_UNAVAILABLE: "Não foi possível gerar o pagamento do upgrade no Mercado Pago. Nada foi cobrado e seu plano atual continua o mesmo.",
   BILLING_DOWNGRADE_UNDO_REJECTED: "O Mercado Pago não confirmou a restauração do valor da assinatura. O downgrade continua agendado.",
+  BILLING_DOWNGRADE_UNDO_CONFLICT: "Não foi possível concluir o desfazimento porque o estado da assinatura mudou durante a operação. Atualize os dados e tente novamente.",
+  BILLING_RENEWAL_LOCKED: "A próxima renovação já está fechada. Aguarde a confirmação da cobrança para mudar o plano.",
   nopendingdowngrade: "Não há downgrade agendado para desfazer.",
 };
 

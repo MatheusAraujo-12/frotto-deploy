@@ -84,7 +84,7 @@ public class GrandfatheringService {
     }
 
     private GrandfatherPreviewDTO computePreview(User user) {
-        long activeVehicleCount = carRepository.countByUserIdAndActiveTrue(user.getId());
+        long activeVehicleCount = carRepository.countBillableByUserId(user.getId());
         boolean hasCurrentSubscription = subscriptionService.getCurrentSubscription(user).isPresent();
         Plan requiredPlan = pricingService.resolvePlanForVehicleCount(toIntVehicleCount(activeVehicleCount));
         boolean wouldCreate = !hasCurrentSubscription && requiredPlan.getCode() != PlanCode.FREE;

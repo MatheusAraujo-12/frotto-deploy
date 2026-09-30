@@ -91,6 +91,7 @@ public class CarBodyDamageResource {
         if (!existingCarOpt.isPresent()) {
             throw new BadRequestAlertException("Car not found for current user", ENTITY_NAME, "notcurrentuser");
         }
+        com.localuz.service.VehicleLifecycleService.requireOperational(existingCarOpt.get());
         carBodyDamage.setCar(existingCarOpt.get());
         String filePath = "";
         if (hasMultipartFile(bodyDamageDto.getFile())) {
@@ -121,6 +122,7 @@ public class CarBodyDamageResource {
         if (!carBodyDamage.isPresent()) {
             throw new BadRequestAlertException("Car Body Damage not found for current user", ENTITY_NAME, "notcurrentuser");
         }
+        com.localuz.service.VehicleLifecycleService.requireOperational(carBodyDamage.get().getCar());
         String imagePath = carBodyDamage.get().getImagePath();
         String imagePath2 = carBodyDamage.get().getImagePath2();
         carBodyDamageRepository.deleteById(id);
@@ -154,6 +156,7 @@ public class CarBodyDamageResource {
         }
 
         CarBodyDamage existingCarBodyDamage = carBodyDamageOpt.get();
+        com.localuz.service.VehicleLifecycleService.requireOperational(existingCarBodyDamage.getCar());
         if (carBodyDamage.getDate() != null) {
             existingCarBodyDamage.setDate(carBodyDamage.getDate());
         }

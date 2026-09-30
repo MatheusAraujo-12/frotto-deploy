@@ -147,6 +147,9 @@ const endpoints = {
   ADMIN_BILLING_GRANDFATHER_APPLY: apiEndpoint("/admin/billing/grandfather/{userId}"),
 
   CARS: apiEndpoint("/cars"),
+  CARS_DELETED: apiEndpoint("/cars/deleted"),
+  ADMIN_CARS_DELETED: apiEndpoint("/admin/cars/deleted"),
+  ADMIN_CAR_RESTORE: apiEndpoint("/admin/cars/{id}/restore"),
   CARS_ACTIVE: apiEndpoint("/cars-drivers/active"),
   CARS_ACTIVE_GROUPS: apiEndpoint("/cars/active/groups"),
   CARS_SEARCH: apiEndpoint("/cars/search"),

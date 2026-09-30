@@ -201,7 +201,9 @@ class BillingMeDTOTest {
             "requiredPlanName", "currentMonthlyPrice", "currentPeriodStart", "currentPeriodEnd",
             "grantExpiresAt", "cancelAtPeriodEnd", "cancellationState",
             // 5G.12: additive - only non-null while a downgrade is scheduled (see BillingMeDTOTest below).
-            "pendingPlanCode", "pendingPlanName", "pendingPlanPrice", "planChangeEffectiveAt"
+            "pendingPlanCode", "pendingPlanName", "pendingPlanPrice", "planChangeEffectiveAt",
+            "billableVehicleCount", "projectedNextRenewalPrice", "nextRenewalPrice", "nextRenewalVehicleCount",
+            "nextRenewalAt", "nextRenewalLockedAt", "nextRenewalSyncedAt", "nextRenewalState"
         );
         assertThat(json.get("cancellationState").asText()).isEqualTo("CONFIRMED");
         assertThat(json.toString()).doesNotContain("private-provider-id", "canceledAt", "idempotencyKey", "webhook");
