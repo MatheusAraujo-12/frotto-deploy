@@ -66,6 +66,7 @@
     <include file="config/liquibase/changelog/20260929000000_plan_change_token.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260929010000_vehicle_deletion.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20260929020000_fleet_renewal.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20261001000000_webhook_processing_status.xml" relativeToChangelogFile="false"/>
     <!-- jhipster-needle-liquibase-add-changelog - JHipster will add liquibase changelogs here -->
     <include file="config/liquibase/changelog/20220930140417_added_entity_constraints_Car.xml" relativeToChangelogFile="false"/>
     <!-- jhipster-needle-liquibase-add-constraints-changelog - JHipster will add liquibase constraints changelogs here -->

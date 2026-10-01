@@ -6,7 +6,12 @@ import com.localuz.service.dto.MercadoPagoAuthorizedPayment;
 
 /** Provider boundary. Implement HTTP calls only in the activation stage. */
 public interface MercadoPagoClient {
-    com.localuz.service.dto.MercadoPagoAuthorizedPaymentPage searchAuthorizedPayments(String preapprovalId, int offset, int limit);
+    /**
+     * GET /authorized_payments/search?preapproval_id=... using the provider's default paging. Deliberately takes
+     * no offset/limit: Mercado Pago rejects an explicit limit with HTTP 400 "Invalid value for limit" (staging,
+     * 2026-10-01) while the bare search returns 200 with paging metadata. Returns the first page only.
+     */
+    com.localuz.service.dto.MercadoPagoAuthorizedPaymentPage searchAuthorizedPayments(String preapprovalId);
     MercadoPagoPreapproval createPreapproval(MercadoPagoPreapprovalRequest request, String idempotencyKey);
     MercadoPagoPreapproval getPreapproval(String providerSubscriptionId);
     MercadoPagoPreapproval cancelPreapproval(String providerSubscriptionId, String idempotencyKey);

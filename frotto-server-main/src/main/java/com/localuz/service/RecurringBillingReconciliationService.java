@@ -47,31 +47,27 @@ public class RecurringBillingReconciliationService {
         String failureCategory = null;
         Integer failureHttpStatus = null;
         String providerErrorCode = null;
+        String providerDiagnostics = null;
         try {
             if (!budget.available()) return new RecurringReconciliationResult(candidate.id(), DISCOVERY_INCOMPLETE, 0, 0, 0, 0);
             Instant now = clock.instant().truncatedTo(ChronoUnit.MICROS);
             if (!reservations.reserve(candidate, now, now.minus(config.getMinIntervalMinutes(), ChronoUnit.MINUTES))) {
                 return new RecurringReconciliationResult(candidate.id(), SKIP_ALREADY_RESERVED, 0, 0, 0, 0);
             }
-            int offset = 0;
-            boolean complete = false;
-            for (int pageNumber = 0; pageNumber < config.getMaxPages(); pageNumber++) {
-                budget.beforeHttp();
-                int requestedLimit = Math.min(config.getPageSize(), config.getMaxDiscoveredItems() - ids.size());
-                MercadoPagoAuthorizedPaymentPage page = client.searchAuthorizedPayments(candidate.externalSubscriptionId(), offset, requestedLimit);
-                if (!validPage(page, offset, requestedLimit)) {
-                    return new RecurringReconciliationResult(candidate.id(), INVALID_RESPONSE, ids.size(), 0, 0, budget.used() - initialCalls);
-                }
-                int previousSize = ids.size();
-                ids.addAll(page.ids());
-                long next = (long) offset + page.limit();
-                if (next >= page.total()) { complete = true; break; }
-                if (ids.size() == previousSize || next > Integer.MAX_VALUE) {
-                    return new RecurringReconciliationResult(candidate.id(), INVALID_RESPONSE, ids.size(), 0, 0, budget.used() - initialCalls);
-                }
-                offset = (int) next;
-                if (ids.size() >= config.getMaxDiscoveredItems()) break;
+            // One discovery request with the provider's default paging (see MercadoPagoClient#searchAuthorizedPayments:
+            // an explicit offset/limit is rejected with HTTP 400). Known limitation: if paging.total ever exceeds the
+            // default first page, the remaining charges are not discovered here - the run is reported as
+            // DISCOVERY_INCOMPLETE (never COMPLETE) and nothing is guessed. pageSize/maxPages no longer apply.
+            budget.beforeHttp();
+            MercadoPagoAuthorizedPaymentPage page = client.searchAuthorizedPayments(candidate.externalSubscriptionId());
+            if (!validPage(page)) {
+                return new RecurringReconciliationResult(candidate.id(), INVALID_RESPONSE, 0, 0, 0, budget.used() - initialCalls);
             }
+            for (String id : page.ids()) {
+                if (ids.size() >= config.getMaxDiscoveredItems()) break;
+                ids.add(id);
+            }
+            boolean complete = page.ids().size() >= page.total() && ids.size() == new TreeSet<>(page.ids()).size();
             if (!complete) outcome = DISCOVERY_INCOMPLETE;
             for (String id : ids) {
                 var snapshot = ingestion.fetch("subscription_authorized_payment", id, candidate.externalSubscriptionId(), budget::beforeHttp);
@@ -91,18 +87,21 @@ public class RecurringBillingReconciliationService {
             failureCategory = failure.getCategory().name();
             failureHttpStatus = failure.getHttpStatus();
             providerErrorCode = failure.getSafeProviderErrorCode();
+            providerDiagnostics = failure.diagnostics();
         } catch (org.springframework.dao.DataAccessException failure) {
             outcome = PERSISTENCE_FAILURE;
         } catch (RuntimeException failure) {
             outcome = OPERATIONAL_FAILURE;
         }
         return new RecurringReconciliationResult(candidate.id(), outcome, ids.size(), ingested, skipped, budget.used() - initialCalls,
-            failureCategory, failureHttpStatus, providerErrorCode);
+            failureCategory, failureHttpStatus, providerErrorCode, providerDiagnostics);
     }
 
-    private boolean validPage(MercadoPagoAuthorizedPaymentPage page, int offset, int requestedLimit) {
-        return page != null && page.offset() == offset && page.limit() > 0 && page.limit() <= requestedLimit && page.total() >= 0
-            && page.ids().size() == Math.min(page.limit(), Math.max(0, (long) page.total() - offset))
+    /** First (default) page only: offset 0, results consistent with the reported limit/total, safe ids. */
+    private boolean validPage(MercadoPagoAuthorizedPaymentPage page) {
+        return page != null && page.offset() == 0 && page.limit() >= 0 && page.total() >= 0
+            && page.ids().size() == Math.min(page.limit(), page.total())
+            && !(page.ids().isEmpty() && page.total() > 0)
             && page.ids().stream().allMatch(id -> id != null && id.matches("[A-Za-z0-9_-]+"));
     }
 }

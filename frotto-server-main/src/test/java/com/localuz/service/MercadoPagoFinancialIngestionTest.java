@@ -283,7 +283,8 @@ class MercadoPagoFinancialIngestionTest {
         when(validator.isValid(any(), any(), any())).thenReturn(true);
         com.localuz.config.MercadoPagoProperties properties = new com.localuz.config.MercadoPagoProperties();
         properties.setEnabled(true);
-        com.localuz.web.rest.MercadoPagoWebhookResource resource = new com.localuz.web.rest.MercadoPagoWebhookResource(properties, validator, processor);
+        com.localuz.web.rest.MercadoPagoWebhookResource resource = new com.localuz.web.rest.MercadoPagoWebhookResource(properties, validator,
+            new MercadoPagoWebhookDeliveryService(new MercadoPagoWebhookEventService(events), processor));
         com.fasterxml.jackson.databind.ObjectMapper json = org.springframework.http.converter.json.Jackson2ObjectMapperBuilder.json().build();
         MercadoPagoWebhookPayload payload = json.readValue(
             "{\"type\":\"payment\",\"data\":{\"id\":\"pay-1\"},\"status\":\"approved\",\"transaction_amount\":999,\"currency_id\":\"USD\"}", MercadoPagoWebhookPayload.class);
@@ -291,7 +292,9 @@ class MercadoPagoFinancialIngestionTest {
         assertThat(attempt().getStatus()).isEqualTo(PaymentAttemptStatus.REJECTED);
         assertThat(attempt().getAmount()).isEqualByComparingTo("15.90");
         assertThat(invoice().getStatus()).isNotEqualTo(BillingInvoiceStatus.PAID);
-        verify(events).saveAndFlush(any());
+        org.mockito.ArgumentCaptor<com.localuz.domain.MercadoPagoWebhookEvent> saved = org.mockito.ArgumentCaptor.forClass(com.localuz.domain.MercadoPagoWebhookEvent.class);
+        verify(events, atLeastOnce()).saveAndFlush(saved.capture());
+        assertThat(saved.getValue().getProcessingStatus()).isEqualTo(com.localuz.domain.enumeration.MercadoPagoWebhookProcessingStatus.PROCESSED);
     }
 
     @Test void preapprovalAuthorizedCreatesNoFinancialEvidence() {
@@ -310,7 +313,12 @@ class MercadoPagoFinancialIngestionTest {
         MercadoPagoWebhookProcessor processor = new MercadoPagoWebhookProcessor(client, mock(BillingCheckoutRepository.class), subscriptions, events, service);
         doThrow(new DataIntegrityViolationException("unexpected")).when(attempts).saveAndFlush(any());
         assertThatThrownBy(() -> processor.process("req", "payment", "pay-1")).isInstanceOf(DataIntegrityViolationException.class);
-        verify(events, never()).saveAndFlush(any());
+        // E2: the RECEIVED row may be written (and is rolled back with the transaction), but no attempt is ever
+        // recorded as concluded when financial persistence fails.
+        org.mockito.ArgumentCaptor<com.localuz.domain.MercadoPagoWebhookEvent> saved = org.mockito.ArgumentCaptor.forClass(com.localuz.domain.MercadoPagoWebhookEvent.class);
+        verify(events, atMost(1)).saveAndFlush(saved.capture());
+        assertThat(saved.getAllValues()).allSatisfy(event -> assertThat(event.getProcessingStatus())
+            .isEqualTo(com.localuz.domain.enumeration.MercadoPagoWebhookProcessingStatus.RECEIVED));
     }
 
     @Test void paymentCompetencyIsDerivedFromSubscriptionSequenceAndStartDate() {

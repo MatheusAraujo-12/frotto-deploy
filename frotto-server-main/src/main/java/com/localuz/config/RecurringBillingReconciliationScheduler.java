@@ -60,9 +60,11 @@ public class RecurringBillingReconciliationScheduler {
                     // providerErrorCode is Mercado Pago's own short error/cause code (e.g. "bad_request"), already
                     // filtered to a safe enum-like shape by MercadoPagoException.getSafeProviderErrorCode(); it is
                     // null whenever the provider code did not match that shape, so nothing unsanitized is ever logged.
-                    LOG.info("Recurring financial reconciliation subscriptionId={} outcome={} discovered={} ingested={} skipped={} httpCalls={} failureCategory={} failureHttpStatus={} providerErrorCode={}",
+                    // providerDiagnostics is MercadoPagoException#diagnostics(): operation, x-request-id, error/first
+                    // cause code and message, each individually whitelisted there (no PII, tokens or line breaks).
+                    LOG.info("Recurring financial reconciliation subscriptionId={} outcome={} discovered={} ingested={} skipped={} httpCalls={} failureCategory={} failureHttpStatus={} providerErrorCode={} providerDiagnostics=[{}]",
                         result.subscriptionId(), result.outcome(), result.discovered(), result.ingested(), result.skipped(), result.httpCalls(),
-                        result.failureCategory(), result.failureHttpStatus(), result.providerErrorCode());
+                        result.failureCategory(), result.failureHttpStatus(), result.providerErrorCode(), result.providerDiagnostics());
                 } catch (RuntimeException failure) {
                     // Never log exception messages or bodies that may contain provider data/secrets.
                     LOG.warn("Recurring financial reconciliation subscriptionId={} outcome=OPERATIONAL_FAILURE", candidate.id());

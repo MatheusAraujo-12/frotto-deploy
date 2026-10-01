@@ -2,6 +2,7 @@ package com.localuz.web.rest;
 
 import com.localuz.config.MercadoPagoProperties;
 import com.localuz.service.MercadoPagoException;
+import com.localuz.service.MercadoPagoWebhookDeliveryService;
 import com.localuz.service.MercadoPagoWebhookProcessor;
 import com.localuz.service.MercadoPagoWebhookSignatureValidator;
 import com.localuz.service.dto.MercadoPagoWebhookPayload;
@@ -16,8 +17,8 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/webhooks")
 public class MercadoPagoWebhookResource {
     private static final Logger LOG=LoggerFactory.getLogger(MercadoPagoWebhookResource.class);
-    private final MercadoPagoProperties properties; private final MercadoPagoWebhookSignatureValidator validator; private final MercadoPagoWebhookProcessor processor;
-    public MercadoPagoWebhookResource(MercadoPagoProperties properties,MercadoPagoWebhookSignatureValidator validator,MercadoPagoWebhookProcessor processor){this.properties=properties;this.validator=validator;this.processor=processor;}
+    private final MercadoPagoProperties properties; private final MercadoPagoWebhookSignatureValidator validator; private final MercadoPagoWebhookDeliveryService deliveries;
+    public MercadoPagoWebhookResource(MercadoPagoProperties properties,MercadoPagoWebhookSignatureValidator validator,MercadoPagoWebhookDeliveryService deliveries){this.properties=properties;this.validator=validator;this.deliveries=deliveries;}
 
     @PostMapping("/mercadopago")
     public ResponseEntity<Void> receive(@RequestHeader(value="x-signature",required=false)String signature,@RequestHeader(value="x-request-id",required=false)String requestId,@RequestParam(value="data.id",required=false)String dataId,@RequestBody(required=false)MercadoPagoWebhookPayload payload){
@@ -32,12 +33,19 @@ public class MercadoPagoWebhookResource {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
         try {
-            MercadoPagoWebhookProcessor.Result result=processor.process(requestId,payload.getType(),dataId);
+            MercadoPagoWebhookProcessor.Result result=deliveries.deliver(requestId,payload.getType(),dataId);
+            if(result==MercadoPagoWebhookProcessor.Result.RETRY){
+                // E2: a transient condition (e.g. the local subscription is not written yet). The delivery is stored as
+                // RETRYABLE, never as concluded; 503 - the same answer already used for provider failures - makes
+                // Mercado Pago deliver it again, and that redelivery re-processes the same row.
+                LOG.info("Mercado Pago webhook handled requestId={} dataId={} processorResult={} willRetry=true",requestId,dataId,result);
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+            }
             LOG.info("Mercado Pago webhook handled requestId={} dataId={} processorResult={}",requestId,dataId,result);
             return ResponseEntity.ok().build();
         }
         catch(DataIntegrityViolationException duplicate){
-            if (!isDeliveryDuplicate(duplicate)) {
+            if (!MercadoPagoWebhookDeliveryService.isDeliveryDuplicate(duplicate)) {
                 LOG.warn("Mercado Pago webhook persistence failure requestId={} dataId={}", requestId, dataId);
                 return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
             }
@@ -48,19 +56,5 @@ public class MercadoPagoWebhookResource {
             LOG.warn("Mercado Pago webhook provider failure requestId={} dataId={}",requestId,dataId);
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
         }
-    }
-
-    private boolean isDeliveryDuplicate(Throwable error) {
-        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
-            if (cause instanceof org.hibernate.exception.ConstraintViolationException) {
-                org.hibernate.exception.ConstraintViolationException violation =
-                    (org.hibernate.exception.ConstraintViolationException) cause;
-                String constraint = violation.getConstraintName();
-                return ("ux_mp_webhook_delivery".equals(constraint)
-                    || "mercadopago_webhook_event.ux_mp_webhook_delivery".equals(constraint))
-                    && violation.getErrorCode() == 1062;
-            }
-        }
-        return false;
     }
 }
