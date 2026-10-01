@@ -124,10 +124,15 @@ public class SubscriptionService {
         if (evaluation.reason() != FinancialCoverageEvaluation.Reason.NO_INVOICE) {
             return false;
         }
-        if (subscription.getStatus() == SubscriptionStatus.ACTIVE) {
+        // A confirmed cancellation keeps status ACTIVE until the paid period ends (see
+        // MercadoPagoWebhookProcessor#reconcile) and nothing flips it afterwards, so a scheduled
+        // cancellation is bounded by currentPeriodEnd exactly like CANCELED - never by status alone.
+        boolean cancellationScheduled = Boolean.TRUE.equals(subscription.getCancelAtPeriodEnd());
+        if (subscription.getStatus() == SubscriptionStatus.ACTIVE && !cancellationScheduled) {
             return true;
         }
-        if (subscription.getStatus() == SubscriptionStatus.CANCELED || subscription.getStatus() == SubscriptionStatus.PAUSED) {
+        if (subscription.getStatus() == SubscriptionStatus.ACTIVE || subscription.getStatus() == SubscriptionStatus.CANCELED
+            || subscription.getStatus() == SubscriptionStatus.PAUSED) {
             Instant periodEnd = subscription.getCurrentPeriodEnd();
             return periodEnd != null && periodEnd.isAfter(now);
         }

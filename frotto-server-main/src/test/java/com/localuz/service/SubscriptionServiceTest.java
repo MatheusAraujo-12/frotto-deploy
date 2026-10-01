@@ -14,7 +14,9 @@ import com.localuz.domain.enumeration.SubscriptionSource;
 import com.localuz.domain.enumeration.SubscriptionStatus;
 import com.localuz.repository.PlanRepository;
 import com.localuz.repository.SubscriptionRepository;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -427,5 +429,63 @@ class SubscriptionServiceTest {
         when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L))).thenReturn(List.of(expired));
 
         assertThat(subscriptionService.getCurrentSubscription(user)).isEmpty();
+    }
+
+    // --- E3: a confirmed cancellation keeps status ACTIVE with cancelAtPeriodEnd=true until the
+    // paid period ends. With no invoice evidence, that period end - not the status - bounds access.
+
+    private static final Instant NOW = Instant.parse("2026-10-01T12:00:00Z");
+
+    private SubscriptionService serviceAt(Instant now) {
+        return new SubscriptionService(subscriptionRepository, planRepository, financialCoverage, Clock.fixed(now, ZoneOffset.UTC));
+    }
+
+    private Subscription activeProviderWithoutInvoices(boolean cancelAtPeriodEnd, Instant currentPeriodEnd) {
+        Subscription active = subscription(plan(2L, PlanCode.BRONZE), SubscriptionSource.PAYMENT_PROVIDER, null);
+        active.setCancelAtPeriodEnd(cancelAtPeriodEnd);
+        active.setCurrentPeriodEnd(currentPeriodEnd);
+        when(financialCoverage.evaluate(Mockito.eq(active), Mockito.eq(NOW)))
+            .thenReturn(notCoveredWithReason(com.localuz.service.dto.FinancialCoverageEvaluation.Reason.NO_INVOICE));
+        when(subscriptionRepository.findByUserIdOrderByStartDateDesc(eq(42L))).thenReturn(List.of(active));
+        return active;
+    }
+
+    @Test
+    void activeScheduledForCancellationWithNoInvoiceKeepsAccessUntilPeriodEnd() {
+        Subscription active = activeProviderWithoutInvoices(true, NOW.plusSeconds(3600));
+
+        assertThat(serviceAt(NOW).getCurrentSubscription(user)).contains(active);
+    }
+
+    @Test
+    void activeScheduledForCancellationWithNoInvoiceAndPastPeriodEndIsNotEntitled() {
+        activeProviderWithoutInvoices(true, NOW.minusSeconds(1));
+
+        assertThat(serviceAt(NOW).getCurrentSubscription(user)).isEmpty();
+    }
+
+    @Test
+    void activeScheduledForCancellationWithNoInvoiceAndPeriodEndExactlyNowIsNotEntitled() {
+        activeProviderWithoutInvoices(true, NOW);
+
+        assertThat(serviceAt(NOW).getCurrentSubscription(user)).isEmpty();
+    }
+
+    @Test
+    void activeScheduledForCancellationWithNoInvoiceAndMissingPeriodEndFailsClosed() {
+        activeProviderWithoutInvoices(true, null);
+
+        assertThat(serviceAt(NOW).getCurrentSubscription(user)).isEmpty();
+    }
+
+    @Test
+    void activeNotScheduledForCancellationWithNoInvoiceKeepsPreviousBehavior() {
+        // Unchanged 5G.10 rule: an authoritative ACTIVE row without cancellation grants access
+        // regardless of currentPeriodEnd (past or missing), exactly as before E3.
+        Subscription pastPeriod = activeProviderWithoutInvoices(false, NOW.minusSeconds(3600));
+        assertThat(serviceAt(NOW).getCurrentSubscription(user)).contains(pastPeriod);
+
+        Subscription noPeriod = activeProviderWithoutInvoices(false, null);
+        assertThat(serviceAt(NOW).getCurrentSubscription(user)).contains(noPeriod);
     }
 }
