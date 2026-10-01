@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <!--
+        E2: a webhook delivery records how its processing ended, so a transient outcome (RETRYABLE) is
+        re-processed when Mercado Pago delivers it again instead of being deduplicated forever.
+
+        Legacy backfill (rows written before this changeset): the old code stored a row only AFTER
+        processing finished - for an ingested event and for an ignored one alike - and never stored the
+        outcome. The real result is therefore unknown and is NOT invented: every legacy row becomes
+        PROCESSED (terminal, which is exactly how the old dedupe already treated any stored row - a repeat
+        delivery was answered DUPLICATE) with processing_result='legacy_unclassified', one attempt and
+        last_processing_at = processed_at. No legacy row is reclassified as RETRYABLE and none is deleted.
+
+        processed_at becomes nullable: from now on it is stamped only when a delivery reaches a terminal
+        status (RECEIVED/RETRYABLE rows have not been processed to completion yet).
+    -->
+    <changeSet id="20261001000000-1" author="claude">
+        <addColumn tableName="mercadopago_webhook_event">
+            <column name="processing_status" type="varchar(16)"/>
+            <column name="processing_result" type="varchar(64)"/>
+            <column name="processing_attempts" type="int" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_processing_at" type="datetime(6)"/>
+        </addColumn>
+        <update tableName="mercadopago_webhook_event">
+            <column name="processing_status" value="PROCESSED"/>
+            <column name="processing_result" value="legacy_unclassified"/>
+            <column name="processing_attempts" valueNumeric="1"/>
+            <column name="last_processing_at" valueComputed="processed_at"/>
+            <where>processing_status IS NULL</where>
+        </update>
+        <addNotNullConstraint tableName="mercadopago_webhook_event" columnName="processing_status" columnDataType="varchar(16)"/>
+        <dropNotNullConstraint tableName="mercadopago_webhook_event" columnName="processed_at" columnDataType="datetime(6)"/>
+    </changeSet>
+</databaseChangeLog>

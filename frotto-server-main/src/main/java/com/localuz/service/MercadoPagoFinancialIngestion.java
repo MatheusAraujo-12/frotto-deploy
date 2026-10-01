@@ -53,28 +53,77 @@ public class MercadoPagoFinancialIngestion {
      */
     public record PaymentSnapshot(MercadoPagoPayment payment, MercadoPagoPreapproval preapproval) {}
 
+    /**
+     * Every reason an authoritative observation is not ingested (E2). retryable=true only where the code
+     * shows the SAME resource can become ingestible later without anyone fixing data: the local
+     * Subscription is not written yet (the preapproval webhook/checkout reconciliation that creates it may
+     * still be in flight) or the provider snapshot is still incomplete (money/currency/status not usable
+     * yet). Identity, ownership and correlation conflicts are final: a later read of the same ids cannot
+     * fix them, and retrying would only repeat the same refusal.
+     */
+    public enum IgnoreReason {
+        UNSUPPORTED_TYPE("unsupported_type", false),
+        PAYMENT_ID_MISMATCH("payment_id_mismatch", false),
+        CHARGE_ID_MISMATCH("charge_id_mismatch", false),
+        RECONCILIATION_OWNER_MISMATCH("reconciliation_owner_mismatch", false),
+        CORRELATION_MISMATCH("correlation_mismatch", false),
+        PREAPPROVAL_MISMATCH("preapproval_mismatch", false),
+        PAYMENT_MISSING_SUBSCRIPTION_ID("payment_missing_subscription_id", false),
+        SUBSCRIPTION_NOT_FOUND("subscription_not_found", true),
+        NO_MATCHING_SUBSCRIPTION("no_matching_subscription", false),
+        RECONCILIATION_SUBSCRIPTION_MISMATCH("reconciliation_subscription_mismatch", false),
+        INCOMPLETE_CHARGE_MONEY("incomplete_charge_money", true),
+        INVOICE_OWNER_MISMATCH("invoice_owner_mismatch", false),
+        UNKNOWN_CHARGE_STATUS("unknown_charge_status", true),
+        INCOMPLETE_OR_UNKNOWN_PAYMENT("incomplete_or_unknown_payment", true);
+
+        private final String code;
+        private final boolean retryable;
+        IgnoreReason(String code, boolean retryable) { this.code = code; this.retryable = retryable; }
+        public String code() { return code; }
+        public boolean isRetryable() { return retryable; }
+    }
+
+    /** Outcome of one webhook-driven ingestion: ignoredReason == null means the observation was ingested. */
+    public record IngestionResult(IgnoreReason ignoredReason) {
+        public static final IngestionResult INGESTED = new IngestionResult(null);
+        public boolean ingested() { return ignoredReason == null; }
+    }
+
+    private record Fetched<T>(T value, IgnoreReason reason) {}
+
     @Transactional
     public boolean ingest(String type, String resourceId) {
+        return ingestForWebhook(type, resourceId).ingested();
+    }
+
+    /** Same as ingest(...), but tells the webhook WHY nothing was ingested so it can decide final vs retryable. */
+    @Transactional
+    public IngestionResult ingestForWebhook(String type, String resourceId) {
         if ("payment".equals(type)) {
             MercadoPagoPayment payment = client.getPayment(resourceId);
-            if (payment == null || !resourceId.equals(payment.getId())) return ignored("payment_id_mismatch");
-            PaymentSnapshot snapshot = fetchPaymentSnapshot(payment, () -> {});
-            return snapshot != null && persistFromPayment(snapshot, null);
+            if (payment == null || !resourceId.equals(payment.getId())) return result(ignored(IgnoreReason.PAYMENT_ID_MISMATCH));
+            Fetched<PaymentSnapshot> snapshot = fetchPaymentSnapshotResult(payment, () -> {});
+            return result(snapshot.value() == null ? snapshot.reason() : persistFromPayment(snapshot.value(), null));
         }
-        FinancialSnapshot snapshot = fetch(type, resourceId, null, () -> {});
-        return snapshot != null && persist(snapshot, null);
+        Fetched<FinancialSnapshot> snapshot = fetchResult(type, resourceId, null, () -> {});
+        return result(snapshot.value() == null ? snapshot.reason() : persist(snapshot.value(), null));
+    }
+
+    private static IngestionResult result(IgnoreReason reason) {
+        return reason == null ? IngestionResult.INGESTED : new IngestionResult(reason);
     }
 
     /** Reconciliation calls this bean through its transactional proxy AFTER all HTTP has completed. */
     @Transactional
     public boolean ingestSnapshot(FinancialSnapshot snapshot, Long expectedSubscriptionId) {
-        return persist(snapshot, expectedSubscriptionId);
+        return persist(snapshot, expectedSubscriptionId) == null;
     }
 
     /** Reconciliation calls this bean through its transactional proxy AFTER all HTTP has completed. */
     @Transactional
     public boolean ingestPaymentSnapshot(PaymentSnapshot snapshot, Long expectedSubscriptionId) {
-        return persistFromPayment(snapshot, expectedSubscriptionId);
+        return persistFromPayment(snapshot, expectedSubscriptionId) == null;
     }
 
     /** Charge-anchored path: only ever reachable for the "subscription_authorized_payment" event
@@ -83,17 +132,21 @@ public class MercadoPagoFinancialIngestion {
      * never used as a silent fallback for the "payment" event type, which is handled entirely by
      * fetchPaymentSnapshot/persistFromPayment instead (see ingest(...) above). */
     public FinancialSnapshot fetch(String type, String resourceId, String expectedPreapprovalId, Runnable beforeHttp) {
-        if (!"subscription_authorized_payment".equals(type)) return ignoredSnapshot("unsupported_type");
+        return fetchResult(type, resourceId, expectedPreapprovalId, beforeHttp).value();
+    }
+
+    private Fetched<FinancialSnapshot> fetchResult(String type, String resourceId, String expectedPreapprovalId, Runnable beforeHttp) {
+        if (!"subscription_authorized_payment".equals(type)) return ignoredFetch(IgnoreReason.UNSUPPORTED_TYPE);
         beforeHttp.run(); MercadoPagoAuthorizedPayment charge = client.getAuthorizedPayment(resourceId);
-        if (charge == null || !resourceId.equals(charge.getId())) return ignoredSnapshot("charge_id_mismatch");
+        if (charge == null || !resourceId.equals(charge.getId())) return ignoredFetch(IgnoreReason.CHARGE_ID_MISMATCH);
         if (expectedPreapprovalId != null && !expectedPreapprovalId.equals(charge.getPreapprovalId())) {
-            return ignoredSnapshot("reconciliation_owner_mismatch");
+            return ignoredFetch(IgnoreReason.RECONCILIATION_OWNER_MISMATCH);
         }
         MercadoPagoPayment payment = null;
         if (charge.getPaymentId() != null) { beforeHttp.run(); payment = client.getPayment(charge.getPaymentId()); }
         if (charge.getId() == null || charge.getPreapprovalId() == null
             || (payment != null && !Objects.equals(charge.getPaymentId(), payment.getId()))) {
-            return ignoredSnapshot("correlation_mismatch");
+            return ignoredFetch(IgnoreReason.CORRELATION_MISMATCH);
         }
         validateRefundSnapshot(payment);
         beforeHttp.run(); MercadoPagoPreapproval preapproval = client.getPreapproval(charge.getPreapprovalId());
@@ -101,9 +154,9 @@ public class MercadoPagoFinancialIngestion {
             || conflictingReference(charge.getExternalReference(), preapproval.getExternalReference())
             || (payment != null && (conflictingReference(payment.getExternalReference(), preapproval.getExternalReference())
                 || conflictingReference(payment.getExternalReference(), charge.getExternalReference())))) {
-            return ignoredSnapshot("preapproval_mismatch");
+            return ignoredFetch(IgnoreReason.PREAPPROVAL_MISMATCH);
         }
-        return new FinancialSnapshot(charge, payment, preapproval);
+        return new Fetched<>(new FinancialSnapshot(charge, payment, preapproval), null);
     }
 
     /**
@@ -114,50 +167,56 @@ public class MercadoPagoFinancialIngestion {
      * subscription_id is re-confirmed against a fresh GET /preapproval, never trusted on its own.
      */
     public PaymentSnapshot fetchPaymentSnapshot(MercadoPagoPayment payment, Runnable beforeHttp) {
+        return fetchPaymentSnapshotResult(payment, beforeHttp).value();
+    }
+
+    private Fetched<PaymentSnapshot> fetchPaymentSnapshotResult(MercadoPagoPayment payment, Runnable beforeHttp) {
         String subscriptionId = payment.getSubscriptionId();
-        if (subscriptionId == null || subscriptionId.isBlank()) return ignoredPaymentSnapshot("payment_missing_subscription_id");
+        if (subscriptionId == null || subscriptionId.isBlank()) return ignoredFetch(IgnoreReason.PAYMENT_MISSING_SUBSCRIPTION_ID);
         beforeHttp.run();
         MercadoPagoPreapproval preapproval = client.getPreapproval(subscriptionId);
         if (preapproval == null || !subscriptionId.equals(preapproval.getId())
             || conflictingReference(payment.getExternalReference(), preapproval.getExternalReference())) {
-            return ignoredPaymentSnapshot("preapproval_mismatch");
+            return ignoredFetch(IgnoreReason.PREAPPROVAL_MISMATCH);
         }
-        return new PaymentSnapshot(payment, preapproval);
+        return new Fetched<>(new PaymentSnapshot(payment, preapproval), null);
     }
 
-    private PaymentSnapshot ignoredPaymentSnapshot(String reason) {
-        ignored(reason);
+    private <T> Fetched<T> ignoredFetch(IgnoreReason reason) {
+        return new Fetched<>(null, ignored(reason));
+    }
+
+    /** Lock the provider's Subscription row, or explain why there is none to ingest into (null = locked and owned). */
+    private IgnoreReason subscriptionMismatch(Subscription subscription, MercadoPagoPreapproval preapproval) {
+        if (subscription == null) return IgnoreReason.SUBSCRIPTION_NOT_FOUND;
+        if (subscription.getSource() != SubscriptionSource.PAYMENT_PROVIDER || !PROVIDER.equals(subscription.getExternalProvider())
+            || !preapproval.getId().equals(subscription.getExternalSubscriptionId())) return IgnoreReason.NO_MATCHING_SUBSCRIPTION;
         return null;
     }
 
-    private FinancialSnapshot ignoredSnapshot(String reason) {
-        ignored(reason);
-        return null;
-    }
-
-    private boolean persist(FinancialSnapshot snapshot, Long expectedSubscriptionId) {
+    /** Returns null when ingested, otherwise the reason it was not. */
+    private IgnoreReason persist(FinancialSnapshot snapshot, Long expectedSubscriptionId) {
         MercadoPagoAuthorizedPayment charge = snapshot.charge();
         MercadoPagoPayment payment = snapshot.payment();
         MercadoPagoPreapproval preapproval = snapshot.preapproval();
         validateRefundSnapshot(payment);
         // Lock the existing parent before ANY financial read/write. The lock also serializes first inserts.
         Subscription subscription = subscriptions.findForFinancialIngestion(PROVIDER, preapproval.getId()).orElse(null);
-        if (subscription == null || subscription.getSource() != SubscriptionSource.PAYMENT_PROVIDER
-            || !PROVIDER.equals(subscription.getExternalProvider())
-            || !preapproval.getId().equals(subscription.getExternalSubscriptionId())) return ignored("no_matching_subscription");
+        IgnoreReason ownership = subscriptionMismatch(subscription, preapproval);
+        if (ownership != null) return ignored(ownership);
 
         if (expectedSubscriptionId != null && !expectedSubscriptionId.equals(subscription.getId())) {
-            return ignored("reconciliation_subscription_mismatch");
+            return ignored(IgnoreReason.RECONCILIATION_SUBSCRIPTION_MISMATCH);
         }
         String chargeCurrency = currency(charge.getCurrencyId());
-        if (!validAmount(charge.getTransactionAmount()) || chargeCurrency == null) return ignored("incomplete_charge_money");
+        if (!validAmount(charge.getTransactionAmount()) || chargeCurrency == null) return ignored(IgnoreReason.INCOMPLETE_CHARGE_MONEY);
         BillingInvoice invoice = invoices.findByProviderAndExternalAuthorizedPaymentId(PROVIDER, charge.getId()).orElse(null);
         if (invoice != null && !Objects.equals(invoice.getSubscription().getId(), subscription.getId())) {
-            return ignored("invoice_owner_mismatch");
+            return ignored(IgnoreReason.INVOICE_OWNER_MISMATCH);
         }
         boolean freshInvoice = invoice == null;
         if (freshInvoice) {
-            if (mapper.unsettledInvoice(charge.getStatus()).isEmpty()) return ignored("unknown_charge_status");
+            if (mapper.unsettledInvoice(charge.getStatus()).isEmpty()) return ignored(IgnoreReason.UNKNOWN_CHARGE_STATUS);
             invoice = new BillingInvoice();
             invoice.setSubscription(subscription);
             invoice.setProvider(PROVIDER);
@@ -184,7 +243,7 @@ public class MercadoPagoFinancialIngestion {
         upsertAttempt(invoice, charge, payment, chargeMoneyMatches);
         FleetRenewalEvidence.apply(subscription, invoice, attempts.findByBillingInvoiceIdOrderByIdAsc(invoice.getId()));
         invoices.saveAndFlush(invoice);
-        return true;
+        return null;
     }
 
     /**
@@ -194,28 +253,28 @@ public class MercadoPagoFinancialIngestion {
      * from subscription_sequence.number (MercadoPagoPaymentInvoiceTemporalEnricher) instead of an
      * external_authorized_payment_id, since no AuthorizedPayment charge exists for this flow.
      */
-    private boolean persistFromPayment(PaymentSnapshot snapshot, Long expectedSubscriptionId) {
+    /** Returns null when ingested, otherwise the reason it was not. */
+    private IgnoreReason persistFromPayment(PaymentSnapshot snapshot, Long expectedSubscriptionId) {
         MercadoPagoPayment payment = snapshot.payment();
         MercadoPagoPreapproval preapproval = snapshot.preapproval();
         validateRefundSnapshot(payment);
         // Lock the existing parent before ANY financial read/write. The lock also serializes first inserts.
         Subscription subscription = subscriptions.findForFinancialIngestion(PROVIDER, preapproval.getId()).orElse(null);
-        if (subscription == null || subscription.getSource() != SubscriptionSource.PAYMENT_PROVIDER
-            || !PROVIDER.equals(subscription.getExternalProvider())
-            || !preapproval.getId().equals(subscription.getExternalSubscriptionId())) return ignored("no_matching_subscription");
+        IgnoreReason ownership = subscriptionMismatch(subscription, preapproval);
+        if (ownership != null) return ignored(ownership);
 
         if (expectedSubscriptionId != null && !expectedSubscriptionId.equals(subscription.getId())) {
-            return ignored("reconciliation_subscription_mismatch");
+            return ignored(IgnoreReason.RECONCILIATION_SUBSCRIPTION_MISMATCH);
         }
         String paymentCurrency = currency(payment.getCurrencyId());
         Optional<PaymentAttemptStatus> mappedStatus = mapper.payment(payment.getStatus());
         if (!validAmount(payment.getTransactionAmount()) || paymentCurrency == null || mappedStatus.isEmpty()) {
-            return ignored("incomplete_or_unknown_payment");
+            return ignored(IgnoreReason.INCOMPLETE_OR_UNKNOWN_PAYMENT);
         }
         PaymentAttempt existingAttempt = attempts.findByProviderAndExternalPaymentId(PROVIDER, payment.getId()).orElse(null);
         BillingInvoice invoice = existingAttempt != null ? existingAttempt.getBillingInvoice()
             : findOrCreateInvoiceForPayment(subscription, payment, preapproval, paymentCurrency, mappedStatus.get());
-        if (!Objects.equals(invoice.getSubscription().getId(), subscription.getId())) return ignored("invoice_owner_mismatch");
+        if (!Objects.equals(invoice.getSubscription().getId(), subscription.getId())) return ignored(IgnoreReason.INVOICE_OWNER_MISMATCH);
         boolean freshInvoice = invoice.getId() == null;
         boolean chargeMoneyMatches = freshInvoice || moneyMatches(invoice, payment.getTransactionAmount(), paymentCurrency);
         if (!chargeMoneyMatches) LOG.warn("Mercado Pago financial inconsistency reason=charge_money_mismatch invoiceId={}", invoice.getId());
@@ -234,7 +293,7 @@ public class MercadoPagoFinancialIngestion {
         upsertAttemptFromPayment(invoice, existingAttempt, payment, mappedStatus.get(), paymentCurrency, chargeMoneyMatches);
         FleetRenewalEvidence.apply(subscription, invoice, attempts.findByBillingInvoiceIdOrderByIdAsc(invoice.getId()));
         invoices.saveAndFlush(invoice);
-        return true;
+        return null;
     }
 
     /**
@@ -274,7 +333,7 @@ public class MercadoPagoFinancialIngestion {
         if (!firstPayment && BillingPaymentEvidence.reversed(existing) && status == PaymentAttemptStatus.APPROVED
             && payment.getRefundedAmount() == null) {
             // An incomplete approval cannot erase an already confirmed reversal.
-            ignored("incomplete_approval_after_reversal");
+            LOG.warn("Mercado Pago financial observation ignored reason={}", "incomplete_approval_after_reversal");
             return;
         }
         PaymentAttempt attempt = existing == null ? newAttempt(invoice) : existing;
@@ -337,7 +396,7 @@ public class MercadoPagoFinancialIngestion {
         String paymentCurrency = currency(payment.getCurrencyId());
         Optional<PaymentAttemptStatus> status = mapper.payment(payment.getStatus());
         if (!validAmount(payment.getTransactionAmount()) || paymentCurrency == null || status.isEmpty()) {
-            ignored("incomplete_or_unknown_payment");
+            LOG.warn("Mercado Pago financial observation ignored reason={}", IgnoreReason.INCOMPLETE_OR_UNKNOWN_PAYMENT.code());
             return;
         }
         boolean firstPayment = attempt == null || attempt.getExternalPaymentId() == null;
@@ -345,7 +404,7 @@ public class MercadoPagoFinancialIngestion {
         if (!firstPayment && BillingPaymentEvidence.reversed(attempt) && status.get() == PaymentAttemptStatus.APPROVED
             && payment.getRefundedAmount() == null) {
             // An incomplete approval cannot erase an already confirmed reversal.
-            ignored("incomplete_approval_after_reversal");
+            LOG.warn("Mercado Pago financial observation ignored reason={}", "incomplete_approval_after_reversal");
             return;
         }
         if (attempt == null) {
@@ -441,8 +500,8 @@ public class MercadoPagoFinancialIngestion {
         return value != null && value.matches("[A-Za-z0-9_-]{1," + length + "}") ? value : null;
     }
 
-    private boolean ignored(String reason) {
-        LOG.warn("Mercado Pago financial observation ignored reason={}", reason);
-        return false;
+    private IgnoreReason ignored(IgnoreReason reason) {
+        LOG.warn("Mercado Pago financial observation ignored reason={} retryable={}", reason.code(), reason.isRetryable());
+        return reason;
     }
 }

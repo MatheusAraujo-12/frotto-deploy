@@ -394,6 +394,148 @@ class RecurringBillingLifecycleTest {
         assertThat(f.history).isEmpty();
     }
 
+    // --- E2: webhook deliveries keep a processing status. A transient outcome stays RETRYABLE and is re-processed
+    // on the same row; terminal outcomes are never re-processed. Real delivery service, processor, ingestion and
+    // coverage; the webhook table is an in-memory stand-in honouring the (request_id, event_type, resource_id) key. ---
+
+    private final List<MercadoPagoWebhookEvent> deliveries = new ArrayList<>();
+    private MercadoPagoWebhookDeliveryService webhook() {
+        MercadoPagoWebhookEventRepository events = mock(MercadoPagoWebhookEventRepository.class);
+        java.util.function.Function<org.mockito.invocation.InvocationOnMock, Optional<MercadoPagoWebhookEvent>> find = c -> deliveries.stream()
+            .filter(e -> e.getRequestId().equals(c.getArgument(0)) && e.getEventType().equals(c.getArgument(1)) && e.getResourceId().equals(c.getArgument(2)))
+            .findFirst();
+        when(events.existsByRequestIdAndEventTypeAndResourceId(anyString(), anyString(), anyString())).thenAnswer(c -> find.apply(c).isPresent());
+        when(events.findForProcessing(anyString(), anyString(), anyString())).thenAnswer(find::apply);
+        when(events.saveAndFlush(any())).thenAnswer(c -> {
+            MercadoPagoWebhookEvent e = c.getArgument(0);
+            if (deliveries.stream().noneMatch(d -> d == e)) deliveries.add(e);
+            return e;
+        });
+        return new MercadoPagoWebhookDeliveryService(new MercadoPagoWebhookEventService(events),
+            new MercadoPagoWebhookProcessor(client, mock(BillingCheckoutRepository.class), subscriptions, events, ingestion));
+    }
+
+    /** A renewal Payment (no AuthorizedPayment charge) correlated by transaction_data.subscription_id; sequence 2 = NOV..DEC. */
+    private void renewalPayment(String id, String status, BigDecimal amount, Instant updated) {
+        when(client.getPayment(id)).thenReturn(new MercadoPagoPayment(id, status, "accredited", amount, "BRL", NOV,
+            status.equals("approved") ? NOV : null, updated, "ref", null, "pre-1", 2));
+    }
+
+    private MercadoPagoWebhookEvent delivery(String requestId) {
+        return deliveries.stream().filter(e -> e.getRequestId().equals(requestId)).findFirst().orElseThrow();
+    }
+
+    @Test void e2TransientSubscriptionNotWrittenYetIsRetryableAndTheSameDeliveryLaterIngestsOnce() {
+        var webhook = webhook();
+        renewalPayment("pay-r1", "approved", new BigDecimal("29.90"), NOV);
+        // E2-1: the payment webhook arrives before the preapproval webhook wrote the local Subscription.
+        when(subscriptions.findForFinancialIngestion("MERCADO_PAGO", "pre-1")).thenReturn(Optional.empty());
+        assertThat(webhook.deliver("req-1", "payment", "pay-r1")).isEqualTo(MercadoPagoWebhookProcessor.Result.RETRY);
+        assertThat(delivery("req-1").getProcessingStatus()).isEqualTo(MercadoPagoWebhookProcessingStatus.RETRYABLE);
+        assertThat(delivery("req-1").getProcessingResult()).isEqualTo("subscription_not_found");
+        assertThat(delivery("req-1").getProcessedAt()).isNull();
+        assertThat(f.history).isEmpty(); assertThat(f.payments).isEmpty();
+        assertThat(f.service.evaluate(f.subscription).covered()).isFalse();
+
+        // E2-2: Mercado Pago redelivers the SAME request; the subscription now exists.
+        when(subscriptions.findForFinancialIngestion("MERCADO_PAGO", "pre-1")).thenReturn(Optional.of(f.subscription));
+        assertThat(webhook.deliver("req-1", "payment", "pay-r1")).isEqualTo(MercadoPagoWebhookProcessor.Result.PROCESSED);
+        assertThat(deliveries).hasSize(1);
+        assertThat(delivery("req-1").getProcessingStatus()).isEqualTo(MercadoPagoWebhookProcessingStatus.PROCESSED);
+        assertThat(delivery("req-1").getProcessingResult()).isEqualTo("ingested");
+        assertThat(delivery("req-1").getProcessingAttempts()).isEqualTo(2);
+        assertThat(delivery("req-1").getProcessedAt()).isNotNull();
+        assertThat(f.history).singleElement().satisfies(i -> assertThat(i.getStatus()).isEqualTo(BillingInvoiceStatus.PAID));
+        assertThat(f.payments).hasSize(1);
+        assertThat(f.service.evaluate(f.subscription).reason()).isEqualTo(PAID);
+
+        // E2-4: a further redelivery of the processed event has no effect at all.
+        assertThat(webhook.deliver("req-1", "payment", "pay-r1")).isEqualTo(MercadoPagoWebhookProcessor.Result.DUPLICATE);
+        assertThat(delivery("req-1").getProcessingAttempts()).isEqualTo(2);
+        assertThat(f.history).hasSize(1); assertThat(f.payments).hasSize(1);
+        verify(client, times(2)).getPayment("pay-r1");
+    }
+
+    @Test void e2IncompleteProviderSnapshotIsRetryableUntilItBecomesUsable() {
+        var webhook = webhook();
+        renewalPayment("pay-r2", "approved", null, NOV);
+        assertThat(webhook.deliver("req-2", "payment", "pay-r2")).isEqualTo(MercadoPagoWebhookProcessor.Result.RETRY);
+        assertThat(delivery("req-2").getProcessingResult()).isEqualTo("incomplete_or_unknown_payment");
+        assertThat(f.history).isEmpty();
+        renewalPayment("pay-r2", "approved", new BigDecimal("29.90"), NOV.plusSeconds(5));
+        assertThat(webhook.deliver("req-2", "payment", "pay-r2")).isEqualTo(MercadoPagoWebhookProcessor.Result.PROCESSED);
+        assertThat(f.history).singleElement().satisfies(i -> assertThat(i.getStatus()).isEqualTo(BillingInvoiceStatus.PAID));
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"pending", "authorized", "rejected", "cancelled"})
+    void e2NonApprovedPaymentIsProcessedWithoutCoverage(String status) {
+        var webhook = webhook();
+        renewalPayment("pay-s", status, new BigDecimal("29.90"), NOV);
+        assertThat(webhook.deliver("req-s", "payment", "pay-s")).isEqualTo(MercadoPagoWebhookProcessor.Result.PROCESSED);
+        assertThat(f.history).allSatisfy(i -> assertThat(i.getStatus()).isNotEqualTo(BillingInvoiceStatus.PAID));
+        assertThat(f.service.evaluate(f.subscription).covered()).isFalse();
+    }
+
+    @Test void e2PermanentlyIrrelevantPaymentIsIgnoredFinalAndNeverReprocessed() {
+        var webhook = webhook();
+        // E2-3: a payment that belongs to no subscription (e.g. an unrelated one-off charge on the same account).
+        when(client.getPayment("pay-x")).thenReturn(new MercadoPagoPayment("pay-x", "approved", "accredited",
+            new BigDecimal("29.90"), "BRL", NOV, NOV, NOV, "other", null));
+        assertThat(webhook.deliver("req-x", "payment", "pay-x")).isEqualTo(MercadoPagoWebhookProcessor.Result.IGNORED);
+        assertThat(delivery("req-x").getProcessingStatus()).isEqualTo(MercadoPagoWebhookProcessingStatus.IGNORED_FINAL);
+        assertThat(delivery("req-x").getProcessingResult()).isEqualTo("payment_missing_subscription_id");
+        assertThat(webhook.deliver("req-x", "payment", "pay-x")).isEqualTo(MercadoPagoWebhookProcessor.Result.DUPLICATE);
+        verify(client, times(1)).getPayment("pay-x");
+        assertThat(f.history).isEmpty();
+    }
+
+    @Test void e2TwoRequestIdsForTheSamePaymentProduceOneFinancialEffect() {
+        var webhook = webhook();
+        renewalPayment("pay-r5", "approved", new BigDecimal("29.90"), NOV);
+        // E2-5: Mercado Pago may notify the same payment twice with different request ids.
+        assertThat(webhook.deliver("req-a", "payment", "pay-r5")).isEqualTo(MercadoPagoWebhookProcessor.Result.PROCESSED);
+        assertThat(webhook.deliver("req-b", "payment", "pay-r5")).isEqualTo(MercadoPagoWebhookProcessor.Result.PROCESSED);
+        assertThat(deliveries).hasSize(2);
+        assertThat(f.history).hasSize(1); assertThat(f.payments).hasSize(1);
+        assertThat(f.payments.get(0).getExternalPaymentId()).isEqualTo("pay-r5");
+        assertThat(f.service.evaluate(f.subscription).reason()).isEqualTo(PAID);
+    }
+
+    @ParameterizedTest @ValueSource(ints = {500, 503, 429})
+    void e2ProviderFailureIsRetryableWithoutInventingFinancialState(int status) {
+        var webhook = webhook();
+        // E2-6 / E2-7: the authoritative GET fails; nothing financial may be written.
+        when(client.getPayment("pay-r6")).thenThrow(new MercadoPagoException("provider failure", false, status, null, null,
+            status == 429 ? 30 : null));
+        assertThatThrownBy(() -> webhook.deliver("req-6", "payment", "pay-r6")).isInstanceOf(MercadoPagoException.class);
+        assertThat(delivery("req-6").getProcessingStatus()).isEqualTo(MercadoPagoWebhookProcessingStatus.RETRYABLE);
+        assertThat(delivery("req-6").getProcessingResult()).isEqualTo(status == 429 ? "provider_http_429" : "provider_http_5xx");
+        assertThat(delivery("req-6").getProcessingAttempts()).isEqualTo(1);
+        assertThat(f.history).isEmpty(); assertThat(f.payments).isEmpty();
+        // The provider recovers; the redelivery re-processes the same row.
+        reset(client);
+        when(client.getPreapproval("pre-1")).thenReturn(new MercadoPagoPreapproval("pre-1", "authorized", "ref", null, OCT, DEC, NOV, 1, "months"));
+        renewalPayment("pay-r6", "approved", new BigDecimal("29.90"), NOV);
+        assertThat(webhook.deliver("req-6", "payment", "pay-r6")).isEqualTo(MercadoPagoWebhookProcessor.Result.PROCESSED);
+        assertThat(delivery("req-6").getProcessingAttempts()).isEqualTo(2);
+        assertThat(f.history).hasSize(1); assertThat(f.payments).hasSize(1);
+    }
+
+    @Test void e2PaymentAlreadyIngestedByReconciliationStaysIdempotentWhenItsWebhookArrives() {
+        // E2-10: M2 reconciliation discovered and ingested the charge first (attempt keyed by external_payment_id).
+        assertThat(run().outcome()).isEqualTo(COMPLETE);
+        assertThat(f.history).hasSize(1); assertThat(f.payments).hasSize(1);
+        // Later the late "payment" webhook for the very same payment id arrives.
+        when(client.getPayment("pay-charge-1")).thenReturn(new MercadoPagoPayment("pay-charge-1", "approved", "accredited",
+            new BigDecimal("29.90"), "BRL", NOV, NOV, NOV, "ref", null, "pre-1", 2));
+        assertThat(webhook().deliver("req-late", "payment", "pay-charge-1")).isEqualTo(MercadoPagoWebhookProcessor.Result.PROCESSED);
+        assertThat(f.history).hasSize(1); assertThat(f.payments).hasSize(1);
+        assertThat(f.service.evaluate(f.subscription).reason()).isEqualTo(PAID);
+        // And the reconciliation running again afterwards still changes nothing.
+        run();
+        assertThat(f.history).hasSize(1); assertThat(f.payments).hasSize(1);
+    }
+
     private void reverse(String paymentId, String status, String gross, String refund, Instant updated) {
         when(client.getPayment(paymentId)).thenReturn(new MercadoPagoPayment(paymentId, status,
             status.equals("approved") && refund != null && new BigDecimal(refund).signum() > 0 ? "partially_refunded" : "accredited",

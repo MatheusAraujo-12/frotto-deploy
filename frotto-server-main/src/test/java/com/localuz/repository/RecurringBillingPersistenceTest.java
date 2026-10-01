@@ -70,7 +70,7 @@ class RecurringBillingPersistenceTest {
             Liquibase liquibase = new Liquibase("config/liquibase/master.xml", new ClassLoaderResourceAccessor(),
                 DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(connection)));
             // Install the preceding schema first, then keep a real legacy subscription across the new migration.
-            liquibase.getDatabaseChangeLog().getChangeSets().removeIf(change -> (change.getId().startsWith("20260929") || change.getId().startsWith("20260911000000-") || change.getId().startsWith("20260914000000-") || change.getId().startsWith("20260915010000-")));
+            liquibase.getDatabaseChangeLog().getChangeSets().removeIf(change -> (change.getId().startsWith("20260929") || change.getId().startsWith("20261001000000-") || change.getId().startsWith("20260911000000-") || change.getId().startsWith("20260914000000-") || change.getId().startsWith("20260915010000-")));
             liquibase.update(new Contexts("test"));
             try (java.sql.ResultSet tables = connection.getMetaData().getTables(connection.getCatalog(), null, "billing_invoice", null)) {
                 assertThat(tables.next()).isFalse();
@@ -83,13 +83,27 @@ class RecurringBillingPersistenceTest {
                 "(90001,90001,(SELECT id FROM plan WHERE code='BRONZE'),'MONTHLY','ACTIVE'," +
                 "'2026-09-01 12:00:00',false,100.00,1,'PAYMENT_PROVIDER',NOW(6),NOW(6))");
             connection.createStatement().executeUpdate("INSERT INTO car (id,user_id,plate,active) VALUES (90001,90001,'OLD-0001',false),(90002,90001,'OLD-0002',true)");
+            // E2-9: deliveries stored by the pre-E2 code (one row per finished delivery, outcome never recorded).
+            connection.createStatement().executeUpdate("INSERT INTO mercadopago_webhook_event (request_id,event_type,resource_id,received_at,processed_at) VALUES " +
+                "('legacy-1','payment','pay-legacy','2026-09-20 10:00:00.000001','2026-09-20 10:00:01.000002')," +
+                "('legacy-2','subscription_preapproval','pre-legacy','2026-09-21 11:00:00','2026-09-21 11:00:03')");
             connection.commit();
+            try (var columns = connection.getMetaData().getColumns(connection.getCatalog(), null, "mercadopago_webhook_event", "processing_status")) {
+                assertThat(columns.next()).as("processing_status must not exist before the E2 changeset").isFalse();
+            }
             try (var columns = connection.getMetaData().getColumns(connection.getCatalog(), null, "subscription", "last_financial_reconciliation_at")) {
                 assertThat(columns.next()).isFalse();
             }
             liquibase = new Liquibase("config/liquibase/master.xml", new ClassLoaderResourceAccessor(),
                 DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(connection)));
             liquibase.update(new Contexts("test"));
+            // E2-9: a second run of the full changelog applies nothing new and leaves the data untouched.
+            int changeSetsAfterUpgrade = countRows(connection, "SELECT COUNT(*) FROM DATABASECHANGELOG");
+            String legacySnapshot = legacyWebhookSnapshot(connection);
+            new Liquibase("config/liquibase/master.xml", new ClassLoaderResourceAccessor(),
+                DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(connection))).update(new Contexts("test"));
+            assertThat(countRows(connection, "SELECT COUNT(*) FROM DATABASECHANGELOG")).isEqualTo(changeSetsAfterUpgrade);
+            assertThat(legacyWebhookSnapshot(connection)).isEqualTo(legacySnapshot);
             try (var rows = connection.createStatement().executeQuery("SELECT deleted,deleted_at,deleted_by_user_id FROM car WHERE id=90001")) {
                 assertThat(rows.next()).isTrue(); assertThat(rows.getBoolean(1)).isTrue();
                 assertThat(rows.getTimestamp(2)).isNull(); assertThat(rows.getObject(3)).isNull();
@@ -133,6 +147,21 @@ class RecurringBillingPersistenceTest {
         bean.setJpaProperties(properties);
         bean.afterPropertiesSet();
         factory = bean.getObject();
+    }
+
+    private static int countRows(Connection connection, String sql) throws java.sql.SQLException {
+        try (var rows = connection.createStatement().executeQuery(sql)) { rows.next(); return rows.getInt(1); }
+    }
+
+    private static String legacyWebhookSnapshot(Connection connection) throws java.sql.SQLException {
+        StringBuilder snapshot = new StringBuilder();
+        try (var rows = connection.createStatement().executeQuery("SELECT request_id,event_type,resource_id,received_at,processed_at," +
+            "processing_status,processing_result,processing_attempts,last_processing_at FROM mercadopago_webhook_event " +
+            "WHERE request_id LIKE 'legacy-%' ORDER BY request_id")) {
+            int columns = rows.getMetaData().getColumnCount();
+            while (rows.next()) { for (int i = 1; i <= columns; i++) snapshot.append(rows.getString(i)).append('|'); snapshot.append(';'); }
+        }
+        return snapshot.toString();
     }
 
     @AfterAll
@@ -1070,6 +1099,138 @@ class RecurringBillingPersistenceTest {
         assertThat(stored.getPendingContractedVehicleCount()).isNull(); assertThat(stored.getPlanChangeRequestedAt()).isNull();
         assertThat(stored.getPlanChangeEffectiveAt()).isNull(); assertThat(stored.getPlanChangeToken()).isNull();
         assertThat(repos.getRepository(SubscriptionRepository.class).isDowngradeCleared(90001L)).isTrue();
+    }
+
+    // --- E2: webhook processing status on real MySQL + production Liquibase. ---
+
+    /** E2-9: legacy deliveries survive the migration with the documented conservative backfill - nothing invented. */
+    @Test void legacyWebhookDeliveriesSurviveTheProcessingStatusMigration() throws Exception {
+        try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD);
+             var rows = connection.createStatement().executeQuery("SELECT request_id,processing_status,processing_result,processing_attempts," +
+                 "last_processing_at,processed_at,received_at FROM mercadopago_webhook_event WHERE request_id LIKE 'legacy-%' ORDER BY request_id")) {
+            int count = 0;
+            while (rows.next()) {
+                count++;
+                assertThat(rows.getString("processing_status")).as("legacy rows stay terminal, exactly like the old dedupe").isEqualTo("PROCESSED");
+                assertThat(rows.getString("processing_result")).isEqualTo("legacy_unclassified");
+                assertThat(rows.getInt("processing_attempts")).isEqualTo(1);
+                assertThat(rows.getTimestamp("last_processing_at").toInstant()).isEqualTo(rows.getTimestamp("processed_at").toInstant());
+                assertThat(rows.getTimestamp("received_at")).isNotNull();
+            }
+            assertThat(count).as("no legacy delivery is lost").isEqualTo(2);
+        }
+        try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD);
+             var columns = connection.createStatement().executeQuery("SELECT COLUMN_NAME,IS_NULLABLE,DATA_TYPE FROM information_schema.COLUMNS " +
+                 "WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='mercadopago_webhook_event' ORDER BY COLUMN_NAME")) {
+            java.util.Map<String, String> nullable = new java.util.HashMap<>();
+            while (columns.next()) nullable.put(columns.getString(1), columns.getString(2));
+            assertThat(nullable).containsEntry("processing_status", "NO").containsEntry("processing_attempts", "NO")
+                .containsEntry("processing_result", "YES").containsEntry("last_processing_at", "YES").containsEntry("processed_at", "YES");
+        }
+        try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD);
+             var index = connection.createStatement().executeQuery("SELECT COLUMN_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() " +
+                 "AND TABLE_NAME='mercadopago_webhook_event' AND INDEX_NAME='ux_mp_webhook_delivery' AND NON_UNIQUE=0 ORDER BY SEQ_IN_INDEX")) {
+            java.util.List<String> columns = new java.util.ArrayList<>();
+            while (index.next()) columns.add(index.getString(1));
+            assertThat(columns).as("the delivery unique key is preserved").containsExactly("request_id", "event_type", "resource_id");
+        }
+    }
+
+    /** Real transactional wiring: REQUIRES_NEW bookkeeping, row-locked processing, real repositories. */
+    private com.localuz.service.MercadoPagoWebhookDeliveryService realDelivery(com.localuz.service.MercadoPagoFinancialIngestion ingestion) {
+        var manager = new org.springframework.orm.jpa.JpaTransactionManager(factory);
+        var shared = org.springframework.orm.jpa.SharedEntityManagerCreator.createSharedEntityManager(factory);
+        var repos = new JpaRepositoryFactory(shared);
+        var events = repos.getRepository(MercadoPagoWebhookEventRepository.class);
+        var transactions = new org.springframework.transaction.annotation.AnnotationTransactionAttributeSource();
+        var eventProxy = new org.springframework.aop.framework.ProxyFactory(new com.localuz.service.MercadoPagoWebhookEventService(events));
+        eventProxy.setProxyTargetClass(true);
+        eventProxy.addAdvice(new org.springframework.transaction.interceptor.TransactionInterceptor(manager, transactions));
+        var processorProxy = new org.springframework.aop.framework.ProxyFactory(new com.localuz.service.MercadoPagoWebhookProcessor(
+            org.mockito.Mockito.mock(com.localuz.service.MercadoPagoClient.class), repos.getRepository(BillingCheckoutRepository.class),
+            repos.getRepository(SubscriptionRepository.class), events, ingestion));
+        processorProxy.setProxyTargetClass(true);
+        processorProxy.addAdvice(new org.springframework.transaction.interceptor.TransactionInterceptor(manager, transactions));
+        return new com.localuz.service.MercadoPagoWebhookDeliveryService(
+            (com.localuz.service.MercadoPagoWebhookEventService) eventProxy.getProxy(),
+            (com.localuz.service.MercadoPagoWebhookProcessor) processorProxy.getProxy());
+    }
+
+    private static String[] webhookRow(String requestId) throws Exception {
+        try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD);
+             var rows = connection.createStatement().executeQuery("SELECT processing_status,processing_result,processing_attempts,processed_at," +
+                 "(SELECT COUNT(*) FROM mercadopago_webhook_event WHERE request_id='" + requestId + "') FROM mercadopago_webhook_event WHERE request_id='" + requestId + "'")) {
+            assertThat(rows.next()).isTrue();
+            return new String[] {rows.getString(1), rows.getString(2), rows.getString(3), rows.getString(4), rows.getString(5)};
+        }
+    }
+
+    private static void deleteWebhookRows(String prefix) throws Exception {
+        try (var connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)) {
+            connection.createStatement().executeUpdate("DELETE FROM mercadopago_webhook_event WHERE request_id LIKE '" + prefix + "%'");
+        }
+    }
+
+    /** E2-8: two simultaneous deliveries of the SAME event - one row, one processing, one effect, deterministic answers. */
+    @Test void concurrentDeliveriesOfTheSameEventProcessExactlyOnce() throws Exception {
+        var ingestion = org.mockito.Mockito.mock(com.localuz.service.MercadoPagoFinancialIngestion.class);
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        org.mockito.Mockito.when(ingestion.ingestForWebhook("payment", "pay-e2-concurrent")).thenAnswer(call -> {
+            calls.incrementAndGet();
+            Thread.sleep(400); // hold the delivery row lock long enough for the other delivery to arrive and wait on it
+            return com.localuz.service.MercadoPagoFinancialIngestion.IngestionResult.INGESTED;
+        });
+        var delivery = realDelivery(ingestion);
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            var start = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.Callable<Object> attempt = () -> { start.await(); return delivery.deliver("e2-concurrent", "payment", "pay-e2-concurrent"); };
+            var a = pool.submit(attempt);
+            var b = pool.submit(attempt);
+            start.countDown();
+            var results = java.util.List.of(a.get(30, java.util.concurrent.TimeUnit.SECONDS), b.get(30, java.util.concurrent.TimeUnit.SECONDS));
+            assertThat(results).containsExactlyInAnyOrder(com.localuz.service.MercadoPagoWebhookProcessor.Result.PROCESSED,
+                com.localuz.service.MercadoPagoWebhookProcessor.Result.DUPLICATE);
+            assertThat(calls.get()).as("the financial effect runs exactly once").isEqualTo(1);
+            String[] row = webhookRow("e2-concurrent");
+            assertThat(row[0]).isEqualTo("PROCESSED"); assertThat(row[1]).isEqualTo("ingested"); assertThat(row[2]).isEqualTo("1");
+            assertThat(row[3]).isNotNull(); assertThat(row[4]).as("a single delivery row").isEqualTo("1");
+        } finally {
+            pool.shutdownNow();
+            deleteWebhookRows("e2-concurrent");
+        }
+    }
+
+    /** E2-6 on real MySQL: a failed attempt is rolled back yet recorded RETRYABLE on the same row (no self-deadlock), then retried. */
+    @Test void failedDeliveryIsRecordedRetryableAndTheRedeliveryCompletesTheSameRow() throws Exception {
+        var ingestion = org.mockito.Mockito.mock(com.localuz.service.MercadoPagoFinancialIngestion.class);
+        org.mockito.Mockito.when(ingestion.ingestForWebhook("payment", "pay-e2-retry"))
+            .thenThrow(new com.localuz.service.MercadoPagoException("provider down", false, 503, null, null))
+            .thenReturn(new com.localuz.service.MercadoPagoFinancialIngestion.IngestionResult(
+                com.localuz.service.MercadoPagoFinancialIngestion.IgnoreReason.SUBSCRIPTION_NOT_FOUND))
+            .thenReturn(com.localuz.service.MercadoPagoFinancialIngestion.IngestionResult.INGESTED);
+        var delivery = realDelivery(ingestion);
+        try {
+            assertThatThrownBy(() -> delivery.deliver("e2-retry", "payment", "pay-e2-retry"))
+                .isInstanceOf(com.localuz.service.MercadoPagoException.class);
+            String[] failed = webhookRow("e2-retry");
+            assertThat(failed[0]).isEqualTo("RETRYABLE"); assertThat(failed[1]).isEqualTo("provider_http_5xx");
+            assertThat(failed[2]).isEqualTo("1"); assertThat(failed[3]).isNull();
+
+            assertThat(delivery.deliver("e2-retry", "payment", "pay-e2-retry")).isEqualTo(com.localuz.service.MercadoPagoWebhookProcessor.Result.RETRY);
+            String[] transientRow = webhookRow("e2-retry");
+            assertThat(transientRow[0]).isEqualTo("RETRYABLE"); assertThat(transientRow[1]).isEqualTo("subscription_not_found");
+            assertThat(transientRow[2]).isEqualTo("2"); assertThat(transientRow[3]).isNull();
+
+            assertThat(delivery.deliver("e2-retry", "payment", "pay-e2-retry")).isEqualTo(com.localuz.service.MercadoPagoWebhookProcessor.Result.PROCESSED);
+            assertThat(delivery.deliver("e2-retry", "payment", "pay-e2-retry")).isEqualTo(com.localuz.service.MercadoPagoWebhookProcessor.Result.DUPLICATE);
+            String[] done = webhookRow("e2-retry");
+            assertThat(done[0]).isEqualTo("PROCESSED"); assertThat(done[1]).isEqualTo("ingested");
+            assertThat(done[2]).isEqualTo("3"); assertThat(done[3]).isNotNull(); assertThat(done[4]).isEqualTo("1");
+            org.mockito.Mockito.verify(ingestion, org.mockito.Mockito.times(3)).ingestForWebhook("payment", "pay-e2-retry");
+        } finally {
+            deleteWebhookRows("e2-retry");
+        }
     }
 
     private BillingInvoice newInvoice(Instant start, Instant end, String externalId) {
