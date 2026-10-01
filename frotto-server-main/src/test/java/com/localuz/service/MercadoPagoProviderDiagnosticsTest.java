@@ -45,7 +45,7 @@ class MercadoPagoProviderDiagnosticsTest {
     private MercadoPagoException searchFails(int status, String body) {
         when(response.statusCode()).thenReturn(status);
         when(response.body()).thenReturn(body);
-        return catchThrowableOfType(() -> client.searchAuthorizedPayments("pre-1", 0, 20), MercadoPagoException.class);
+        return catchThrowableOfType(() -> client.searchAuthorizedPayments("pre-1"), MercadoPagoException.class);
     }
 
     private static void assertNoSecretOrPii(MercadoPagoException failure) {
@@ -66,6 +66,19 @@ class MercadoPagoProviderDiagnosticsTest {
         assertThat(failure.getSafeProviderMessage()).isEqualTo("Invalid preapproval_id");
         assertThat(failure.diagnostics()).isEqualTo(
             "operation=authorized_payments.search httpStatus=400 providerError=\"Bad Request\" providerMessage=\"Invalid preapproval_id\"");
+        assertNoSecretOrPii(failure);
+    }
+
+    // M2-12: the exact staging failure that motivated M2 stays fully diagnosable after the paging fix.
+    @Test
+    void stagingInvalidLimitFailureIsStillDiagnosedSafely() {
+        headers(Map.of("x-request-id", List.of("6f1c2a7e-0b9d-4c55-9f0e-1a2b3c4d5e6f")));
+        MercadoPagoException failure = searchFails(400,
+            "{\"message\":\"Invalid value for limit\",\"error\":\"bad_request\",\"status\":400,\"cause\":[]}");
+
+        assertThat(failure.getSafeProviderErrorCode()).isEqualTo("bad_request");
+        assertThat(failure.diagnostics()).isEqualTo("operation=authorized_payments.search httpStatus=400 providerError=\"bad_request\" "
+            + "providerRequestId=6f1c2a7e-0b9d-4c55-9f0e-1a2b3c4d5e6f providerMessage=\"Invalid value for limit\"");
         assertNoSecretOrPii(failure);
     }
 

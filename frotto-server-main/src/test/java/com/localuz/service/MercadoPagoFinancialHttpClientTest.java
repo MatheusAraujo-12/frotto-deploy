@@ -30,15 +30,36 @@ class MercadoPagoFinancialHttpClientTest {
         when(response.statusCode()).thenReturn(200);
     }
 
-    @Test void discoveryUsesOnlyConfirmedParametersAndReturnsOnlyIds() throws Exception {
-        when(response.body()).thenReturn("{\"paging\":{\"offset\":2,\"limit\":2,\"total\":4},\"results\":[{\"id\":12},{\"id\":11,\"status\":\"approved\"}]}");
-        var page = client.searchAuthorizedPayments("pre-1", 2, 2);
+    // M2-1: staging evidence - an explicit limit=20 was rejected with HTTP 400 "Invalid value for limit" while the bare
+    // search returned 200 with paging metadata. The discovery request must never carry offset/limit again.
+    @Test void discoveryUsesProviderDefaultPagingWithoutOffsetOrLimit() throws Exception {
+        when(response.body()).thenReturn("{\"paging\":{\"offset\":0,\"limit\":30,\"total\":2},\"results\":[{\"id\":12},{\"id\":11,\"status\":\"approved\"}]}");
+        var page = client.searchAuthorizedPayments("pre-1");
         assertThat(page.ids()).containsExactly("12", "11");
+        assertThat(page.total()).isEqualTo(2);
         ArgumentCaptor<HttpRequest> request = ArgumentCaptor.forClass(HttpRequest.class);
         verify(http).send(request.capture(), any(HttpResponse.BodyHandler.class));
-        assertThat(request.getValue().uri().toString()).isEqualTo(
-            "https://api.mercadopago.com/authorized_payments/search?preapproval_id=pre-1&offset=2&limit=2");
+        String uri = request.getValue().uri().toString();
+        assertThat(uri).isEqualTo("https://api.mercadopago.com/authorized_payments/search?preapproval_id=pre-1");
+        assertThat(uri).contains("preapproval_id=pre-1").doesNotContain("limit=").doesNotContain("offset=");
         assertThat(request.getValue().method()).isEqualTo("GET");
+        assertThat(request.getValue().headers().firstValue("Authorization")).contains("Bearer test-secret");
+    }
+
+    @Test void discoveryAcceptsTheStagingShapeWithOnlyTotalInPaging() {
+        // Probe evidence reported total=1 / results=1; offset/limit are optional in the response, never required.
+        when(response.body()).thenReturn("{\"paging\":{\"total\":1},\"results\":[{\"id\":\"7001\"}]}");
+        var page = client.searchAuthorizedPayments("pre-1");
+        assertThat(page.ids()).containsExactly("7001");
+        assertThat(page.offset()).isZero();
+        assertThat(page.total()).isEqualTo(1);
+    }
+
+    @Test void discoveryReportsTheProviderTotalWhenItExceedsTheDefaultPage() {
+        when(response.body()).thenReturn("{\"paging\":{\"offset\":0,\"limit\":2,\"total\":5},\"results\":[{\"id\":1},{\"id\":2}]}");
+        var page = client.searchAuthorizedPayments("pre-1");
+        assertThat(page.ids()).hasSize(2);
+        assertThat(page.total()).isEqualTo(5);
     }
 
     @ParameterizedTest @ValueSource(strings = {
@@ -46,12 +67,20 @@ class MercadoPagoFinancialHttpClientTest {
         "{\"paging\":{\"offset\":0,\"limit\":0,\"total\":0},\"results\":[]}",
         "{\"paging\":{\"offset\":1,\"limit\":2,\"total\":0},\"results\":[]}",
         "{\"paging\":{\"offset\":0,\"limit\":2,\"total\":2},\"results\":[]}",
+        "{\"paging\":{\"total\":2},\"results\":[]}",
+        "{\"paging\":{\"total\":1},\"results\":[{\"id\":1},{\"id\":2}]}",
+        "{\"paging\":{\"offset\":\"0\",\"total\":1},\"results\":[{\"id\":1}]}",
         "{\"paging\":{\"offset\":0,\"limit\":2,\"total\":1},\"results\":[{}]}",
         "{\"paging\":{\"offset\":0,\"limit\":2,\"total\":1},\"results\":[{\"id\":\"../secret\"}]}"
     })
     void discoveryRejectsInvalidOrInconsistentPages(String body) {
         when(response.body()).thenReturn(body);
-        assertThatThrownBy(() -> client.searchAuthorizedPayments("pre-1", 0, 2)).isInstanceOf(MercadoPagoException.class);
+        assertThatThrownBy(() -> client.searchAuthorizedPayments("pre-1")).isInstanceOf(MercadoPagoException.class);
+    }
+
+    @Test void discoveryRejectsAnUnsafePreapprovalIdBeforeAnyHttp() throws Exception {
+        assertThatThrownBy(() -> client.searchAuthorizedPayments("pre-1&limit=20")).isInstanceOf(IllegalArgumentException.class);
+        verify(http, never()).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
     }
 
     @Test void parsesMinimalPaymentAndUsesFixedGetEndpoint() throws Exception {
@@ -192,7 +221,7 @@ class MercadoPagoFinancialHttpClientTest {
     void discoveryHttpErrorsCarryTheCorrectSafeCategory(int status) throws Exception {
         when(response.statusCode()).thenReturn(status);
         when(response.body()).thenReturn("provider-secret-body");
-        assertThatThrownBy(() -> client.searchAuthorizedPayments("pre-1", 0, 20))
+        assertThatThrownBy(() -> client.searchAuthorizedPayments("pre-1"))
             .isInstanceOfSatisfying(MercadoPagoException.class, error -> {
                 assertThat(error.getHttpStatus()).isEqualTo(status);
                 assertThat(error.getMessage()).doesNotContain("provider-secret-body");
@@ -201,7 +230,7 @@ class MercadoPagoFinancialHttpClientTest {
 
     @Test void discoveryTimeoutIsCategorizedAsTimeoutNotNetworkError() throws Exception {
         when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenThrow(new HttpTimeoutException("timed out"));
-        assertThatThrownBy(() -> client.searchAuthorizedPayments("pre-1", 0, 20))
+        assertThatThrownBy(() -> client.searchAuthorizedPayments("pre-1"))
             .isInstanceOfSatisfying(MercadoPagoException.class, error -> {
                 assertThat(error.getCategory()).isEqualTo(MercadoPagoException.Category.TIMEOUT);
                 assertThat(error.getHttpStatus()).isNull();
@@ -210,7 +239,7 @@ class MercadoPagoFinancialHttpClientTest {
 
     @Test void discoveryNetworkFailureIsCategorizedAsNetworkErrorNotTimeout() throws Exception {
         when(http.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenThrow(new java.io.IOException("connection reset"));
-        assertThatThrownBy(() -> client.searchAuthorizedPayments("pre-1", 0, 20))
+        assertThatThrownBy(() -> client.searchAuthorizedPayments("pre-1"))
             .isInstanceOfSatisfying(MercadoPagoException.class, error -> {
                 assertThat(error.getCategory()).isEqualTo(MercadoPagoException.Category.NETWORK_ERROR);
                 assertThat(error.getMessage()).doesNotContain("connection reset");
@@ -219,7 +248,7 @@ class MercadoPagoFinancialHttpClientTest {
 
     @Test void discoveryMalformedJsonIsCategorizedAsParsingErrorNotNetworkError() throws Exception {
         when(response.body()).thenReturn("not-json-at-all-{{{");
-        assertThatThrownBy(() -> client.searchAuthorizedPayments("pre-1", 0, 20))
+        assertThatThrownBy(() -> client.searchAuthorizedPayments("pre-1"))
             .isInstanceOfSatisfying(MercadoPagoException.class, error -> assertThat(error.getCategory()).isEqualTo(MercadoPagoException.Category.PARSING_ERROR));
     }
 

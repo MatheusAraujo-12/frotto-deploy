@@ -31,13 +31,13 @@ class RecurringBillingReconciliationServiceTest {
     }
 
     @Test void emptyDiscoveryReservesBeforeHttpAndDoesNotWriteFinancialData() {
-        when(client.searchAuthorizedPayments("pre-1", 0, 20)).thenReturn(page(0,20,0));
+        when(client.searchAuthorizedPayments("pre-1")).thenReturn(page(0,20,0));
         var result = service.reconcile(candidate, new RecurringReconciliationBudget(10));
         assertThat(result.outcome()).isEqualTo(COMPLETE);
         assertThat(result.discovered()).isZero();
         var order = inOrder(reservations, client);
         order.verify(reservations).reserve(candidate, now, now.minusSeconds(3600));
-        order.verify(client).searchAuthorizedPayments("pre-1",0,20);
+        order.verify(client).searchAuthorizedPayments("pre-1");
         verifyNoInteractions(ingestion);
     }
 
@@ -52,29 +52,41 @@ class RecurringBillingReconciliationServiceTest {
         verifyNoInteractions(client, reservations, ingestion);
     }
 
-    @Test void pagesAreBoundedDeduplicatedAndProcessedInLocalOrder() {
-        config.setPageSize(2);
-        when(client.searchAuthorizedPayments("pre-1",0,2)).thenReturn(page(0,2,4,"b","a"));
-        when(client.searchAuthorizedPayments("pre-1",2,2)).thenReturn(page(2,2,4,"c","a"));
+    @Test void defaultPageIsDeduplicatedAndProcessedInLocalOrderWithASingleSearch() {
+        when(client.searchAuthorizedPayments("pre-1")).thenReturn(page(0,30,3,"b","c","a"));
         var result = service.reconcile(candidate,new RecurringReconciliationBudget(20));
         assertThat(result.discovered()).isEqualTo(3);
+        verify(client, times(1)).searchAuthorizedPayments(anyString());
         var order = inOrder(ingestion);
         for (String id : List.of("a","b","c")) order.verify(ingestion).fetch(eq("subscription_authorized_payment"),eq(id),eq("pre-1"),any());
     }
 
-    @ParameterizedTest @ValueSource(strings={"pages","items","http"})
+    @Test void totalBeyondTheDefaultPageIsReportedIncompleteWithoutPagingLoops() {
+        // Known limitation: only the provider's default first page is read; the rest is never guessed.
+        when(client.searchAuthorizedPayments("pre-1")).thenReturn(page(0,2,5,"a","b"));
+        var result = service.reconcile(candidate,new RecurringReconciliationBudget(20));
+        assertThat(result.outcome()).isEqualTo(DISCOVERY_INCOMPLETE);
+        assertThat(result.discovered()).isEqualTo(2);
+        verify(client, times(1)).searchAuthorizedPayments(anyString());
+        verify(ingestion, times(2)).fetch(eq("subscription_authorized_payment"),anyString(),eq("pre-1"),any());
+    }
+
+    @ParameterizedTest @ValueSource(strings={"items","http"})
     void exhaustedBudgetIsExplicitlyIncomplete(String limit) {
-        config.setPageSize(1);
-        if (limit.equals("pages")) config.setMaxPages(1);
         if (limit.equals("items")) config.setMaxDiscoveredItems(1);
-        when(client.searchAuthorizedPayments("pre-1",0,1)).thenReturn(page(0,1,2,"a"));
+        when(client.searchAuthorizedPayments("pre-1")).thenReturn(page(0,30,2,"a","b"));
+        // Like the real ingestion, every detail fetch spends the HTTP budget before any request.
+        when(ingestion.fetch(anyString(), anyString(), anyString(), any())).thenAnswer(call -> {
+            ((Runnable) call.getArgument(3)).run();
+            return null;
+        });
         var result = service.reconcile(candidate,new RecurringReconciliationBudget(limit.equals("http") ? 1 : 10));
         assertThat(result.outcome()).isEqualTo(DISCOVERY_INCOMPLETE);
     }
 
     @ParameterizedTest @ValueSource(ints={404,429,500})
     void providerErrorIsOperationalAndReservationRemains(int status) {
-        when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt()))
+        when(client.searchAuthorizedPayments(anyString()))
             .thenThrow(new MercadoPagoException("secret body must not be logged",true,status,null,null));
         var budget=new RecurringReconciliationBudget(10);
         var result = service.reconcile(candidate,budget);
@@ -89,7 +101,7 @@ class RecurringBillingReconciliationServiceTest {
     }
 
     @Test void timeoutAndNetworkFailuresCarryASafeCategoryWithoutAnHttpStatus() {
-        when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt()))
+        when(client.searchAuthorizedPayments(anyString()))
             .thenThrow(new MercadoPagoException("timeout", true, new java.net.http.HttpTimeoutException("t")));
         var result = service.reconcile(candidate, new RecurringReconciliationBudget(10));
         assertThat(result.outcome()).isEqualTo(PROVIDER_FAILURE);
@@ -98,7 +110,7 @@ class RecurringBillingReconciliationServiceTest {
     }
 
     @Test void successfulOutcomesNeverCarryAFailureCategory() {
-        when(client.searchAuthorizedPayments("pre-1", 0, 20)).thenReturn(page(0,20,0));
+        when(client.searchAuthorizedPayments("pre-1")).thenReturn(page(0,20,0));
         var result = service.reconcile(candidate, new RecurringReconciliationBudget(10));
         assertThat(result.outcome()).isEqualTo(COMPLETE);
         assertThat(result.failureCategory()).isNull();
@@ -107,7 +119,7 @@ class RecurringBillingReconciliationServiceTest {
     }
 
     @Test void safeStructuredProviderCodeReachesTheResult() {
-        when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt()))
+        when(client.searchAuthorizedPayments(anyString()))
             .thenThrow(new MercadoPagoException("secret body must not be logged",false,400,"bad_request, PA400","payer invalid"));
         var result = service.reconcile(candidate,new RecurringReconciliationBudget(10));
         assertThat(result.outcome()).isEqualTo(PROVIDER_FAILURE);
@@ -115,7 +127,7 @@ class RecurringBillingReconciliationServiceTest {
     }
 
     @Test void unsafeShapedProviderCodeIsWithheldFromTheResult() {
-        when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt()))
+        when(client.searchAuthorizedPayments(anyString()))
             .thenThrow(new MercadoPagoException("secret body must not be logged",false,400,
                 "invalid parameter: payer_email=someone@example.com","payer invalid"));
         var result = service.reconcile(candidate,new RecurringReconciliationBudget(10));
@@ -124,7 +136,7 @@ class RecurringBillingReconciliationServiceTest {
     }
 
     @Test void missingProviderCodeLeavesResultFieldNull() {
-        when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt()))
+        when(client.searchAuthorizedPayments(anyString()))
             .thenThrow(new MercadoPagoException("secret body must not be logged",false,400,null,null));
         var result = service.reconcile(candidate,new RecurringReconciliationBudget(10));
         assertThat(result.outcome()).isEqualTo(PROVIDER_FAILURE);
@@ -132,7 +144,7 @@ class RecurringBillingReconciliationServiceTest {
     }
 
     @Test void safeProviderDiagnosticsReachTheResultEvenWhenTheLegacyCodeIsWithheld() {
-        when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt()))
+        when(client.searchAuthorizedPayments(anyString()))
             .thenThrow(new MercadoPagoException("secret body must not be logged",false,400,"Bad Request, invalid_preapproval",
                 "Invalid preapproval_id; payer someone@example.com",null,
                 new MercadoPagoException.ProviderDiagnostics("authorized_payments.search","abc-123","Bad Request","invalid_preapproval","Invalid preapproval_id")));
@@ -145,13 +157,13 @@ class RecurringBillingReconciliationServiceTest {
     }
 
     @Test void nonHttpFailuresCarryNoProviderDiagnostics() {
-        when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt()))
+        when(client.searchAuthorizedPayments(anyString()))
             .thenThrow(new MercadoPagoException("timeout", true, new java.net.http.HttpTimeoutException("t")));
         assertThat(service.reconcile(candidate,new RecurringReconciliationBudget(10)).providerDiagnostics()).isNull();
     }
 
     @Test void rateLimitPropagatesRetryAfterSecondsToTheBudget() {
-        when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt()))
+        when(client.searchAuthorizedPayments(anyString()))
             .thenThrow(new MercadoPagoException("secret body must not be logged",true,429,null,null,120));
         var budget=new RecurringReconciliationBudget(10);
         assertThat(service.reconcile(candidate,budget).outcome()).isEqualTo(RATE_LIMITED);
@@ -159,7 +171,7 @@ class RecurringBillingReconciliationServiceTest {
     }
 
     @Test void rateLimitWithoutRetryAfterLeavesBudgetRetryAfterNull() {
-        when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt()))
+        when(client.searchAuthorizedPayments(anyString()))
             .thenThrow(new MercadoPagoException("secret body must not be logged",true,429,null,null));
         var budget=new RecurringReconciliationBudget(10);
         assertThat(service.reconcile(candidate,budget).outcome()).isEqualTo(RATE_LIMITED);
@@ -167,21 +179,19 @@ class RecurringBillingReconciliationServiceTest {
     }
 
     @Test void timeoutLeavesFinancialStateUntouched() {
-        when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt())).thenThrow(new MercadoPagoException("timeout",true));
+        when(client.searchAuthorizedPayments(anyString())).thenThrow(new MercadoPagoException("timeout",true));
         assertThat(service.reconcile(candidate,new RecurringReconciliationBudget(10)).outcome()).isEqualTo(PROVIDER_FAILURE);
         verifyNoInteractions(ingestion);
     }
 
-    @ParameterizedTest @ValueSource(strings={"offset","zero_limit","short_page","no_progress"})
+    @ParameterizedTest @ValueSource(strings={"offset","zero_limit","short_page","empty_with_total","unsafe_id"})
     void invalidPagingDoesNotPretendCompletion(String invalid) {
-        config.setPageSize(1);
         switch(invalid) {
-            case "offset": when(client.searchAuthorizedPayments("pre-1",0,1)).thenReturn(page(1,1,1,"a")); break;
-            case "zero_limit": when(client.searchAuthorizedPayments("pre-1",0,1)).thenReturn(page(0,0,1)); break;
-            case "short_page": when(client.searchAuthorizedPayments("pre-1",0,1)).thenReturn(page(0,1,2)); break;
-            default:
-                when(client.searchAuthorizedPayments("pre-1",0,1)).thenReturn(page(0,1,3,"a"));
-                when(client.searchAuthorizedPayments("pre-1",1,1)).thenReturn(page(1,1,3,"a"));
+            case "offset": when(client.searchAuthorizedPayments("pre-1")).thenReturn(page(1,1,1,"a")); break;
+            case "zero_limit": when(client.searchAuthorizedPayments("pre-1")).thenReturn(page(0,0,1)); break;
+            case "short_page": when(client.searchAuthorizedPayments("pre-1")).thenReturn(page(0,2,3,"a")); break;
+            case "empty_with_total": when(client.searchAuthorizedPayments("pre-1")).thenReturn(page(0,30,1)); break;
+            default: when(client.searchAuthorizedPayments("pre-1")).thenReturn(page(0,30,1,"a/../b"));
         }
         assertThat(service.reconcile(candidate,new RecurringReconciliationBudget(10)).outcome()).isEqualTo(INVALID_RESPONSE);
         verifyNoInteractions(ingestion);

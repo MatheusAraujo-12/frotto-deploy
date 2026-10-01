@@ -107,25 +107,39 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
         return java.util.Optional.of(confirmed);
     }
 
-    @Override public com.localuz.service.dto.MercadoPagoAuthorizedPaymentPage searchAuthorizedPayments(String preapprovalId, int offset, int limit) {
+    /**
+     * Default provider paging only: no offset/limit query parameters are ever sent (an explicit limit=20 was
+     * rejected by Mercado Pago with HTTP 400 "Invalid value for limit"; the bare search returned 200). paging.total
+     * is required; paging.offset/limit are optional, but when present they must describe the first page and agree
+     * with the results actually returned - anything else is an untrusted response.
+     */
+    @Override public com.localuz.service.dto.MercadoPagoAuthorizedPaymentPage searchAuthorizedPayments(String preapprovalId) {
         resource(PREAPPROVAL, preapprovalId);
-        if (offset < 0 || limit < 1 || limit > 100) throw new IllegalArgumentException("Invalid discovery bounds");
-        JsonNode node = getJson(URI.create(AUTHORIZED_PAYMENTS + "/search?preapproval_id=" + preapprovalId
-            + "&offset=" + offset + "&limit=" + limit));
+        JsonNode node = getJson(URI.create(AUTHORIZED_PAYMENTS + "/search?preapproval_id=" + preapprovalId));
         JsonNode paging = node.path("paging"), results = node.path("results");
-        for (String field : List.of("offset", "limit", "total")) {
-            if (!paging.path(field).isIntegralNumber() || !paging.path(field).canConvertToInt()) throw invalidFinancialResponse();
+        if (!paging.path("total").isIntegralNumber() || !paging.path("total").canConvertToInt() || !results.isArray()) {
+            throw invalidFinancialResponse();
         }
-        int returnedOffset = paging.path("offset").asInt(), returnedLimit = paging.path("limit").asInt(), total = paging.path("total").asInt();
-        if (returnedOffset != offset || returnedLimit < 1 || returnedLimit > limit || total < 0 || !results.isArray()
-            || results.size() != Math.min(returnedLimit, Math.max(0, (long) total - offset))) throw invalidFinancialResponse();
+        int total = paging.path("total").asInt();
+        Integer returnedOffset = optionalInt(paging, "offset"), returnedLimit = optionalInt(paging, "limit");
+        int limit = returnedLimit != null ? returnedLimit : results.size();
+        if (total < 0 || (returnedOffset != null && returnedOffset != 0) || (returnedLimit != null && returnedLimit < 1)
+            || results.size() != Math.min(limit, total) || (results.isEmpty() && total > 0)) throw invalidFinancialResponse();
         List<String> ids = new ArrayList<>();
         for (JsonNode result : results) {
             String id = text(result, "id");
             if (id == null || !id.matches("[A-Za-z0-9_-]+")) throw invalidFinancialResponse();
             ids.add(id);
         }
-        return new com.localuz.service.dto.MercadoPagoAuthorizedPaymentPage(returnedOffset, returnedLimit, total, ids);
+        return new com.localuz.service.dto.MercadoPagoAuthorizedPaymentPage(0, limit, total, ids);
+    }
+
+    /** Absent/null is fine; a present value must be an int, otherwise the whole response is untrusted. */
+    private Integer optionalInt(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        if (value == null || value.isNull()) return null;
+        if (!value.isIntegralNumber() || !value.canConvertToInt()) throw invalidFinancialResponse();
+        return value.asInt();
     }
 
     private MercadoPagoAuthorizedPayment authorizedPayment(JsonNode node) {

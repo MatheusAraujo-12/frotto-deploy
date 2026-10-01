@@ -979,8 +979,7 @@ class RecurringBillingPersistenceTest {
             var ingestion = org.mockito.Mockito.mock(com.localuz.service.MercadoPagoFinancialIngestion.class);
             var config = new com.localuz.config.RecurringBillingReconciliationProperties();
             var candidate = new com.localuz.service.RecurringBillingReservationService.Candidate(90001L, "reserve-pre");
-            org.mockito.Mockito.when(client.searchAuthorizedPayments(org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt())).thenAnswer(call -> {
+            org.mockito.Mockito.when(client.searchAuthorizedPayments(org.mockito.ArgumentMatchers.anyString())).thenAnswer(call -> {
                     assertThat(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
                     // A new service/connection already sees the committed reservation before HTTP completes.
                     assertThat(reservationService().reserve(candidate, NOVEMBER, NOVEMBER.minusSeconds(3600))).isFalse();

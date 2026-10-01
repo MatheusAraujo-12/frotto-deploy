@@ -326,6 +326,74 @@ class RecurringBillingLifecycleTest {
         assertThat(f.service.evaluate(f.subscription).covered()).isFalse();
     }
 
+    // --- M2: discovery now uses the provider's default paging (single search, no offset/limit). The rest of the
+    // pipeline - authoritative GETs, ingestion, money/status rules, idempotency - must behave exactly as before. ---
+
+    @Test void m2ApprovedChargeFromDefaultPageIsIngestedAsPaid() {
+        assertThat(run().outcome()).isEqualTo(COMPLETE);
+        verify(client, times(1)).searchAuthorizedPayments("pre-1");
+        assertThat(f.history).singleElement().satisfies(i -> assertThat(i.getStatus()).isEqualTo(BillingInvoiceStatus.PAID));
+        assertThat(f.service.evaluate(f.subscription).reason()).isEqualTo(PAID);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"pending", "authorized", "in_process", "rejected", "cancelled"})
+    void m2NonApprovedPaymentNeverBecomesPaidNorGrantsCoverage(String status) {
+        snapshot("charge-1", NOV, status, NOV);
+        run();
+        assertThat(f.history).allSatisfy(i -> assertThat(i.getStatus()).isNotEqualTo(BillingInvoiceStatus.PAID));
+        assertThat(f.payments).allSatisfy(a -> assertThat(a.getStatus()).isNotEqualTo(PaymentAttemptStatus.APPROVED));
+        assertThat(f.service.evaluate(f.subscription).covered()).isFalse();
+    }
+
+    @Test void m2SamePaymentDiscoveredAgainIsIdempotent() {
+        run(); run(); run();
+        assertThat(f.history).hasSize(1);
+        assertThat(f.payments).hasSize(1);
+        assertThat(f.service.evaluate(f.subscription).reason()).isEqualTo(PAID);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"amount", "currency"})
+    void m2DivergentPaymentMoneyFailsClosed(String divergence) {
+        when(client.getPayment("pay-charge-1")).thenReturn(new MercadoPagoPayment("pay-charge-1", "approved", "accredited",
+            new BigDecimal(divergence.equals("amount") ? "19.90" : "29.90"), divergence.equals("currency") ? "USD" : "BRL",
+            NOV, NOV, NOV, "ref", null));
+        run();
+        assertThat(f.history).allSatisfy(i -> assertThat(i.getStatus()).isNotEqualTo(BillingInvoiceStatus.PAID));
+        assertThat(f.service.evaluate(f.subscription).covered()).isFalse();
+    }
+
+    @Test void m2ChargeOwnedByAnotherPreapprovalIsNotIngested() {
+        discover("foreign");
+        when(client.getAuthorizedPayment("foreign")).thenReturn(new MercadoPagoAuthorizedPayment("foreign", "processed",
+            "other-pre", "approved", "pay-foreign", new BigDecimal("29.90"), "BRL", NOV, NOV, NOV, "ref"));
+        assertThat(run().outcome()).isEqualTo(CORRELATION_MISMATCH);
+        assertThat(f.history).isEmpty(); assertThat(f.payments).isEmpty();
+    }
+
+    @ParameterizedTest @ValueSource(ints = {429, 500, 503})
+    void m2ProviderThrottlingOrOutageWritesNothingAndKeepsBackoff(int status) {
+        when(client.searchAuthorizedPayments("pre-1")).thenThrow(new MercadoPagoException("provider failure", false, status, null, null,
+            status == 429 ? 60 : null));
+        var budget = new RecurringReconciliationBudget(100);
+        var result = reconciliation.reconcile(candidate, budget);
+        assertThat(result.outcome()).isEqualTo(status == 429 ? RATE_LIMITED : PROVIDER_FAILURE);
+        assertThat(budget.rateLimited()).isEqualTo(status == 429);
+        if (status == 429) assertThat(budget.retryAfterSeconds()).isEqualTo(60);
+        assertThat(f.history).isEmpty(); assertThat(f.payments).isEmpty();
+        verify(client, never()).getAuthorizedPayment(anyString());
+    }
+
+    @Test void m2RateLimitOpensTheCircuitBreakerThroughTheScheduler() {
+        config.setEnabled(true);
+        MercadoPagoProperties provider = new MercadoPagoProperties();
+        provider.setEnabled(true); provider.setAccessToken("fake-test-token");
+        when(client.searchAuthorizedPayments("pre-1")).thenThrow(new MercadoPagoException("rate limited", false, 429, null, null, 60));
+        var breaker = new RecurringReconciliationCircuitBreaker(f.clock);
+        new RecurringBillingReconciliationScheduler(config, provider, reservations, reconciliation, breaker, f.clock).reconcileSubscriptions();
+        assertThat(breaker.isOpen()).isTrue();
+        assertThat(f.history).isEmpty();
+    }
+
     private void reverse(String paymentId, String status, String gross, String refund, Instant updated) {
         when(client.getPayment(paymentId)).thenReturn(new MercadoPagoPayment(paymentId, status,
             status.equals("approved") && refund != null && new BigDecimal(refund).signum() > 0 ? "partially_refunded" : "accredited",
@@ -335,8 +403,7 @@ class RecurringBillingLifecycleTest {
     private RecurringReconciliationResult run() { return reconciliation.reconcile(candidate, new RecurringReconciliationBudget(100)); }
 
     private void discover(String... ids) {
-        when(client.searchAuthorizedPayments(eq("pre-1"), eq(0), anyInt())).thenAnswer(c ->
-            new MercadoPagoAuthorizedPaymentPage(0, c.getArgument(2), ids.length, List.of(ids)));
+        when(client.searchAuthorizedPayments("pre-1")).thenReturn(new MercadoPagoAuthorizedPaymentPage(0, 30, ids.length, List.of(ids)));
     }
 
     private void snapshot(String id, Instant debit, String status, Instant updated) {
