@@ -26,6 +26,7 @@ import {
 import {
   add,
   alertCircleOutline,
+  checkmark,
   clipboardOutline,
   closeCircleOutline,
   constructOutline,
@@ -269,7 +270,8 @@ const DocumentsPage: React.FC = () => {
   useEffect(() => {
     const query = filterDriverQuery.trim();
     setFilterDriverOptions([]);
-    if (!query) {
+    // Entidade selecionada: o texto veio da seleção, não de uma nova busca.
+    if (!query || filterDriver) {
       return;
     }
 
@@ -291,12 +293,13 @@ const DocumentsPage: React.FC = () => {
       isActive = false;
       clearTimeout(handle);
     };
-  }, [filterDriverQuery]);
+  }, [filterDriverQuery, filterDriver]);
 
   useEffect(() => {
     const query = filterCarQuery.trim();
     setFilterCarOptions([]);
-    if (!query) {
+    // Entidade selecionada: o texto veio da seleção, não de uma nova busca.
+    if (!query || filterCar) {
       return;
     }
 
@@ -318,12 +321,13 @@ const DocumentsPage: React.FC = () => {
       isActive = false;
       clearTimeout(handle);
     };
-  }, [filterCarQuery]);
+  }, [filterCarQuery, filterCar]);
 
   useEffect(() => {
     const query = wizardDriverQuery.trim();
     setWizardDriverOptions([]);
-    if (!query) {
+    // Entidade selecionada: o texto veio da seleção, não de uma nova busca.
+    if (!query || wizardDriver) {
       return;
     }
 
@@ -345,12 +349,13 @@ const DocumentsPage: React.FC = () => {
       isActive = false;
       clearTimeout(handle);
     };
-  }, [wizardDriverQuery]);
+  }, [wizardDriverQuery, wizardDriver]);
 
   useEffect(() => {
     const query = wizardCarQuery.trim();
     setWizardCarOptions([]);
-    if (!query) {
+    // Entidade selecionada: o texto veio da seleção, não de uma nova busca.
+    if (!query || wizardCar) {
       return;
     }
 
@@ -372,7 +377,7 @@ const DocumentsPage: React.FC = () => {
       isActive = false;
       clearTimeout(handle);
     };
-  }, [wizardCarQuery]);
+  }, [wizardCarQuery, wizardCar]);
 
   const resetFilters = () => {
     setFilterType("");
@@ -848,13 +853,13 @@ const DocumentsPage: React.FC = () => {
     if (wizardType !== "ENTREGA_DEVOLUCAO_CHECKLIST") {
       return [];
     }
-    return hydrateChecklistEmergencyContacts(wizardPayload?.emergencyContacts);
+    return hydrateChecklistEmergencyContactsForEditor(wizardPayload?.emergencyContacts);
   }, [wizardPayload?.emergencyContacts, wizardType]);
 
   const applyChecklistEmergencyContacts = useCallback((contacts: ChecklistEmergencyContact[]) => {
     setWizardPayload((prev) => ({
       ...prev,
-      emergencyContacts: hydrateChecklistEmergencyContacts(contacts),
+      emergencyContacts: hydrateChecklistEmergencyContactsForEditor(contacts),
     }));
   }, []);
 
@@ -1467,31 +1472,37 @@ const DocumentsPage: React.FC = () => {
     if (wizardType === "MULTA") {
       return (
         <>
-          <TextField label="Data/Hora" value={wizardPayload.dataHora} onChange={(v) => setPayload("dataHora", v)} />
-          <TextField label="Local" value={wizardPayload.local} onChange={(v) => setPayload("local", v)} />
-          <TextField label="AIT" value={wizardPayload.ait} onChange={(v) => setPayload("ait", v)} />
-          <TextField label="Órgão" value={wizardPayload.orgao} onChange={(v) => setPayload("orgao", v)} />
-          <TextField
-            label="Enquadramento"
-            value={wizardPayload.enquadramento}
-            onChange={(v) => setPayload("enquadramento", v)}
-          />
-          <DecimalField label="Valor" value={wizardPayload.valor} onChange={(v) => setPayload("valor", v)} />
-          <TextField label="Vencimento" value={wizardPayload.vencimento} onChange={(v) => setPayload("vencimento", v)} />
-          <SelectField
-            label="Responsável pelo pagamento"
-            value={wizardPayload.responsavelPagamento || ""}
-            options={[
-              { value: "MOTORISTA", label: "Motorista" },
-              { value: "EMPRESA", label: "Empresa" },
-            ]}
-            onChange={(v) => setPayload("responsavelPagamento", v)}
-          />
-          <AreaField
-            label="Observações"
-            value={wizardPayload.observacoes}
-            onChange={(v) => setPayload("observacoes", v)}
-          />
+          <FormGroup title="Infração" columns>
+            <TextField label="Data/Hora" value={wizardPayload.dataHora} onChange={(v) => setPayload("dataHora", v)} />
+            <TextField label="Local" value={wizardPayload.local} onChange={(v) => setPayload("local", v)} />
+            <TextField label="AIT" value={wizardPayload.ait} onChange={(v) => setPayload("ait", v)} />
+            <TextField label="Órgão" value={wizardPayload.orgao} onChange={(v) => setPayload("orgao", v)} />
+            <TextField
+              label="Enquadramento"
+              value={wizardPayload.enquadramento}
+              onChange={(v) => setPayload("enquadramento", v)}
+            />
+          </FormGroup>
+          <FormGroup title="Valor e pagamento" columns>
+            <DecimalField label="Valor" value={wizardPayload.valor} onChange={(v) => setPayload("valor", v)} />
+            <TextField label="Vencimento" value={wizardPayload.vencimento} onChange={(v) => setPayload("vencimento", v)} />
+            <SelectField
+              label="Responsável pelo pagamento"
+              value={wizardPayload.responsavelPagamento || ""}
+              options={[
+                { value: "MOTORISTA", label: "Motorista" },
+                { value: "EMPRESA", label: "Empresa" },
+              ]}
+              onChange={(v) => setPayload("responsavelPagamento", v)}
+            />
+          </FormGroup>
+          <FormGroup title="Observações">
+            <AreaField
+              label="Observações"
+              value={wizardPayload.observacoes}
+              onChange={(v) => setPayload("observacoes", v)}
+            />
+          </FormGroup>
         </>
       );
     }
@@ -1499,33 +1510,39 @@ const DocumentsPage: React.FC = () => {
     if (wizardType === "MANUTENCAO_COMPARTILHADA") {
       return (
         <>
-          <TextField label="Data" value={wizardPayload.data} onChange={(v) => setPayload("data", v)} />
-          <TextField label="Descrição" value={wizardPayload.descricao} onChange={(v) => setPayload("descricao", v)} />
-          <TextField label="Oficina" value={wizardPayload.oficina} onChange={(v) => setPayload("oficina", v)} />
-          <DecimalField
-            label="Valor total"
-            value={wizardPayload.valorTotal}
-            onChange={(v) => setPayload("valorTotal", v)}
-          />
-          <SelectField
-            label="Forma de divisão"
-            value={wizardPayload.formaDivisao || ""}
-            options={[
-              { value: "PERCENTUAL", label: "Percentual" },
-              { value: "VALOR", label: "Valor" },
-            ]}
-            onChange={(v) => setPayload("formaDivisao", v)}
-          />
-          <DecimalField
-            label="Parte motorista (valor)"
-            value={wizardPayload.parteMotoristaValor}
-            onChange={(v) => setPayload("parteMotoristaValor", v)}
-          />
-          <AreaField
-            label="Observações"
-            value={wizardPayload.observacoes}
-            onChange={(v) => setPayload("observacoes", v)}
-          />
+          <FormGroup title="Serviço" columns>
+            <TextField label="Data" value={wizardPayload.data} onChange={(v) => setPayload("data", v)} />
+            <TextField label="Descrição" value={wizardPayload.descricao} onChange={(v) => setPayload("descricao", v)} />
+            <TextField label="Oficina" value={wizardPayload.oficina} onChange={(v) => setPayload("oficina", v)} />
+          </FormGroup>
+          <FormGroup title="Valores e divisão" columns>
+            <DecimalField
+              label="Valor total"
+              value={wizardPayload.valorTotal}
+              onChange={(v) => setPayload("valorTotal", v)}
+            />
+            <SelectField
+              label="Forma de divisão"
+              value={wizardPayload.formaDivisao || ""}
+              options={[
+                { value: "PERCENTUAL", label: "Percentual" },
+                { value: "VALOR", label: "Valor" },
+              ]}
+              onChange={(v) => setPayload("formaDivisao", v)}
+            />
+            <DecimalField
+              label="Parte motorista (valor)"
+              value={wizardPayload.parteMotoristaValor}
+              onChange={(v) => setPayload("parteMotoristaValor", v)}
+            />
+          </FormGroup>
+          <FormGroup title="Observações">
+            <AreaField
+              label="Observações"
+              value={wizardPayload.observacoes}
+              onChange={(v) => setPayload("observacoes", v)}
+            />
+          </FormGroup>
         </>
       );
     }
@@ -1533,27 +1550,35 @@ const DocumentsPage: React.FC = () => {
     if (wizardType === "RECIBO_ALUGUEL") {
       return (
         <>
-          <TextField label="Período início" value={wizardPayload.periodoInicio} onChange={(v) => setPayload("periodoInicio", v)} />
-          <TextField label="Período fim" value={wizardPayload.periodoFim} onChange={(v) => setPayload("periodoFim", v)} />
-          <DecimalField
-            label="Valor aluguel"
-            value={wizardPayload.valorAluguel}
-            onChange={(v) => setPayload("valorAluguel", v)}
-          />
-          <DecimalField label="Descontos" value={wizardPayload.descontos} onChange={(v) => setPayload("descontos", v)} />
-          <DecimalField
-            label="Acréscimos"
-            value={wizardPayload.acrescimos}
-            onChange={(v) => setPayload("acrescimos", v)}
-          />
-          <DecimalField label="Valor final" value={wizardPayload.valorFinal} onChange={(v) => setPayload("valorFinal", v)} />
-          <TextField label="Forma de pagamento" value={wizardPayload.formaPagamento} onChange={(v) => setPayload("formaPagamento", v)} />
-          <TextField label="Data do pagamento" value={wizardPayload.dataPagamento} onChange={(v) => setPayload("dataPagamento", v)} />
-          <AreaField
-            label="Observações"
-            value={wizardPayload.observacoes}
-            onChange={(v) => setPayload("observacoes", v)}
-          />
+          <FormGroup title="Período" columns>
+            <TextField label="Período início" value={wizardPayload.periodoInicio} onChange={(v) => setPayload("periodoInicio", v)} />
+            <TextField label="Período fim" value={wizardPayload.periodoFim} onChange={(v) => setPayload("periodoFim", v)} />
+          </FormGroup>
+          <FormGroup title="Valores" columns>
+            <DecimalField
+              label="Valor aluguel"
+              value={wizardPayload.valorAluguel}
+              onChange={(v) => setPayload("valorAluguel", v)}
+            />
+            <DecimalField label="Descontos" value={wizardPayload.descontos} onChange={(v) => setPayload("descontos", v)} />
+            <DecimalField
+              label="Acréscimos"
+              value={wizardPayload.acrescimos}
+              onChange={(v) => setPayload("acrescimos", v)}
+            />
+            <DecimalField label="Valor final" value={wizardPayload.valorFinal} onChange={(v) => setPayload("valorFinal", v)} />
+          </FormGroup>
+          <FormGroup title="Pagamento" columns>
+            <TextField label="Forma de pagamento" value={wizardPayload.formaPagamento} onChange={(v) => setPayload("formaPagamento", v)} />
+            <TextField label="Data do pagamento" value={wizardPayload.dataPagamento} onChange={(v) => setPayload("dataPagamento", v)} />
+          </FormGroup>
+          <FormGroup title="Observações">
+            <AreaField
+              label="Observações"
+              value={wizardPayload.observacoes}
+              onChange={(v) => setPayload("observacoes", v)}
+            />
+          </FormGroup>
         </>
       );
     }
@@ -1574,11 +1599,14 @@ const DocumentsPage: React.FC = () => {
           {!isDebtItemTypesLoading && !debtItemTypeOptions.length && (
             <p className="documents-warning">Nenhum tipo ativo encontrado. Cadastre em Tipos de Dívida.</p>
           )}
-          <AreaField
-            label="Origem da dívida (descrição geral)"
-            value={wizardPayload.origemDaDivida}
-            onChange={(v) => setPayload("origemDaDivida", v)}
-          />
+          <FormGroup title="Origem da dívida">
+            <AreaField
+              label="Origem da dívida (descrição geral)"
+              value={wizardPayload.origemDaDivida}
+              onChange={(v) => setPayload("origemDaDivida", v)}
+            />
+          </FormGroup>
+          <FormGroup title="Itens da dívida">
           <div className="documents-debt-items">
             {confissaoItems.map((item, index) => (
               <div key={`confissao-item-${index}`} className="documents-debt-item-card">
@@ -1621,73 +1649,85 @@ const DocumentsPage: React.FC = () => {
                 </div>
               </div>
             ))}
-            <IonButton fill="outline" onClick={addConfissaoItem} disabled={isDebtItemTypesLoading}>
-              <IonIcon icon={add} slot="start" />
-              Adicionar item
-            </IonButton>
-            <IonButton
-              fill="outline"
-              onClick={() => void createDebtItemTypeInline()}
-              disabled={isDebtItemTypesLoading || isActionLoading}
-            >
-              <IonIcon icon={add} slot="start" />
-              Criar tipo
-            </IonButton>
-            <IonButton
-              fill="outline"
-              onClick={() => void importDriverPendenciesToConfissao(wizardDriver, true)}
-              disabled={!wizardDriver?.id || isDebtItemTypesLoading || isConfissaoPendenciesLoading}
-            >
-              <IonIcon icon={refreshOutline} slot="start" />
-              Atualizar pendências
-            </IonButton>
+            <div className="documents-inline-actions">
+              <IonButton fill="outline" className="app-outline-btn" onClick={addConfissaoItem} disabled={isDebtItemTypesLoading}>
+                <IonIcon icon={add} slot="start" />
+                Adicionar item
+              </IonButton>
+              <IonButton
+                fill="outline"
+                className="app-outline-btn"
+                onClick={() => void createDebtItemTypeInline()}
+                disabled={isDebtItemTypesLoading || isActionLoading}
+              >
+                <IonIcon icon={add} slot="start" />
+                Criar tipo
+              </IonButton>
+              <IonButton
+                fill="outline"
+                className="app-outline-btn"
+                onClick={() => void importDriverPendenciesToConfissao(wizardDriver, true)}
+                disabled={!wizardDriver?.id || isDebtItemTypesLoading || isConfissaoPendenciesLoading}
+              >
+                <IonIcon icon={refreshOutline} slot="start" />
+                Atualizar pendências
+              </IonButton>
+            </div>
           </div>
-          <DecimalField
-            label="Valor total (soma automática)"
-            value={wizardPayload.valorTotal}
-            onChange={() => undefined}
-          />
-          <SelectField
-            label="Forma de pagamento"
-            value={wizardPayload.formaPagamento || ""}
-            options={[
-              { value: "A_VISTA", label: "À vista" },
-              { value: "PARCELADO", label: "Parcelado" },
-            ]}
-            onChange={(v) => setPayload("formaPagamento", v)}
-          />
-          <IntegerField label="Parcelas (qtd)" value={wizardPayload.parcelasQtd} onChange={(v) => setPayload("parcelasQtd", v)} />
-          <DecimalField label="Valor parcela" value={wizardPayload.valorParcela} onChange={(v) => setPayload("valorParcela", v)} />
-          <TextField label="Vencimento inicial" value={wizardPayload.vencimentoInicial} onChange={(v) => setPayload("vencimentoInicial", v)} />
-          <TextField label="Testemunha 1 nome" value={wizardPayload.testemunha1Nome} onChange={(v) => setPayload("testemunha1Nome", v)} />
-          <TextField label="Testemunha 1 CPF" value={wizardPayload.testemunha1Cpf} onChange={(v) => setPayload("testemunha1Cpf", v)} />
-          <TextField label="Testemunha 2 nome" value={wizardPayload.testemunha2Nome} onChange={(v) => setPayload("testemunha2Nome", v)} />
-          <TextField label="Testemunha 2 CPF" value={wizardPayload.testemunha2Cpf} onChange={(v) => setPayload("testemunha2Cpf", v)} />
-          <AreaField
-            label="Observações"
-            value={wizardPayload.observacoes}
-            onChange={(v) => setPayload("observacoes", v)}
-          />
+          </FormGroup>
+          <FormGroup title="Pagamento" columns>
+            <DecimalField
+              label="Valor total (soma automática)"
+              value={wizardPayload.valorTotal}
+              onChange={() => undefined}
+            />
+            <SelectField
+              label="Forma de pagamento"
+              value={wizardPayload.formaPagamento || ""}
+              options={[
+                { value: "A_VISTA", label: "À vista" },
+                { value: "PARCELADO", label: "Parcelado" },
+              ]}
+              onChange={(v) => setPayload("formaPagamento", v)}
+            />
+            <IntegerField label="Parcelas (qtd)" value={wizardPayload.parcelasQtd} onChange={(v) => setPayload("parcelasQtd", v)} />
+            <DecimalField label="Valor parcela" value={wizardPayload.valorParcela} onChange={(v) => setPayload("valorParcela", v)} />
+            <TextField label="Vencimento inicial" value={wizardPayload.vencimentoInicial} onChange={(v) => setPayload("vencimentoInicial", v)} />
+          </FormGroup>
+          <FormGroup title="Testemunhas" columns>
+            <TextField label="Testemunha 1 nome" value={wizardPayload.testemunha1Nome} onChange={(v) => setPayload("testemunha1Nome", v)} />
+            <TextField label="Testemunha 1 CPF" value={wizardPayload.testemunha1Cpf} onChange={(v) => setPayload("testemunha1Cpf", v)} />
+            <TextField label="Testemunha 2 nome" value={wizardPayload.testemunha2Nome} onChange={(v) => setPayload("testemunha2Nome", v)} />
+            <TextField label="Testemunha 2 CPF" value={wizardPayload.testemunha2Cpf} onChange={(v) => setPayload("testemunha2Cpf", v)} />
+          </FormGroup>
+          <FormGroup title="Observações">
+            <AreaField
+              label="Observações"
+              value={wizardPayload.observacoes}
+              onChange={(v) => setPayload("observacoes", v)}
+            />
+          </FormGroup>
         </>
       );
     }
 
     return (
       <>
-        <SelectField
-          label="Tipo"
-          value={wizardPayload.tipo || ""}
-          options={[
-            { value: "ENTREGA", label: "Entrega" },
-            { value: "DEVOLUCAO", label: "Devolução" },
-          ]}
-          onChange={(v) => setPayload("tipo", v)}
-        />
-        <TextField label="Data/Hora" value={wizardPayload.dataHora} onChange={(v) => setPayload("dataHora", v)} />
-        <TextField label="KM" value={wizardPayload.km} onChange={(v) => setPayload("km", v)} />
-        <TextField label="Combustível" value={wizardPayload.combustivel} onChange={(v) => setPayload("combustivel", v)} />
-        <div className="documents-checklist">
-          <p className="documents-checklist-title">Checklist do veículo</p>
+        <FormGroup title="Entrega ou devolução" columns>
+          <SelectField
+            label="Tipo"
+            value={wizardPayload.tipo || ""}
+            options={[
+              { value: "ENTREGA", label: "Entrega" },
+              { value: "DEVOLUCAO", label: "Devolução" },
+            ]}
+            onChange={(v) => setPayload("tipo", v)}
+          />
+          <TextField label="Data/Hora" value={wizardPayload.dataHora} onChange={(v) => setPayload("dataHora", v)} />
+          <TextField label="KM" value={wizardPayload.km} onChange={(v) => setPayload("km", v)} />
+          <TextField label="Combustível" value={wizardPayload.combustivel} onChange={(v) => setPayload("combustivel", v)} />
+        </FormGroup>
+        <FormGroup title="Checklist do veículo">
           <div className="documents-checklist-builder">
             {checklistItems.map((item) => (
               <div key={item.key} className="documents-checklist-row">
@@ -1741,9 +1781,8 @@ const DocumentsPage: React.FC = () => {
               </IonButton>
             </IonItem>
           </div>
-        </div>
-        <div className="documents-checklist-section">
-          <p className="documents-checklist-title">Contatos de emergência</p>
+        </FormGroup>
+        <FormGroup title="Contatos de emergência">
           {checklistEmergencyContacts.map((contact, index) => (
             <div key={`checklist-contact-${index}`} className="documents-checklist-contact-card">
               <IonItem>
@@ -1785,14 +1824,15 @@ const DocumentsPage: React.FC = () => {
               )}
             </div>
           ))}
-          <IonButton fill="outline" onClick={addChecklistEmergencyContact}>
-            <IonIcon icon={add} slot="start" />
-            Adicionar contato
-          </IonButton>
-        </div>
+          <div className="documents-inline-actions">
+            <IonButton fill="outline" className="app-outline-btn" onClick={addChecklistEmergencyContact}>
+              <IonIcon icon={add} slot="start" />
+              Adicionar contato
+            </IonButton>
+          </div>
+        </FormGroup>
 
-        <div className="documents-checklist-section">
-          <p className="documents-checklist-title">Fotos do checklist</p>
+        <FormGroup title="Fotos do checklist">
           <IonItem lines="none">
             <IonLabel position="stacked">Adicionar fotos</IonLabel>
             <input
@@ -1878,10 +1918,9 @@ const DocumentsPage: React.FC = () => {
               ))}
             </div>
           )}
-        </div>
+        </FormGroup>
 
-        <div className="documents-checklist-section">
-          <p className="documents-checklist-title">Vistoria dos pneus</p>
+        <FormGroup title="Vistoria dos pneus">
           {checklistTires.source === "LAST_INSPECTION" && (
             <p className="documents-warning">Dados sugeridos a partir da última inspeção do carro.</p>
           )}
@@ -1918,12 +1957,14 @@ const DocumentsPage: React.FC = () => {
               ))}
             </div>
           )}
-        </div>
-        <AreaField
-          label="Avarias"
-          value={wizardPayload.avariasTexto}
-          onChange={(v) => setPayload("avariasTexto", v)}
-        />
+        </FormGroup>
+        <FormGroup title="Avarias">
+          <AreaField
+            label="Avarias"
+            value={wizardPayload.avariasTexto}
+            onChange={(v) => setPayload("avariasTexto", v)}
+          />
+        </FormGroup>
       </>
     );
   };
@@ -2159,6 +2200,7 @@ const DocumentsPage: React.FC = () => {
       </IonContent>
 
       <IonModal
+        className="documents-modal"
         isOpen={isViewModalOpen}
         onDidDismiss={() => {
           setIsViewModalOpen(false);
@@ -2169,7 +2211,7 @@ const DocumentsPage: React.FC = () => {
           <IonToolbar className="app-toolbar-clean">
             <IonTitle>Documento #{viewDocument?.id}</IonTitle>
             <IonButtons slot="end">
-              <IonButton aria-label="Fechar" onClick={() => setIsViewModalOpen(false)}>
+              <IonButton fill="clear" className="app-cancel-btn" aria-label="Fechar" onClick={() => setIsViewModalOpen(false)}>
                 <IonIcon icon={closeCircleOutline} slot="icon-only" />
               </IonButton>
             </IonButtons>
@@ -2190,39 +2232,44 @@ const DocumentsPage: React.FC = () => {
             </FrottoCard>
           </div>
         </IonContent>
-        <IonFooter>
+        <IonFooter className="app-footer-bar">
           <IonToolbar>
             <div className="app-actions-row app-actions-row--end documents-modal-actions">
+              <IonButton fill="clear" className="app-danger-btn" onClick={() => void deleteDocument(viewDocument?.id)}>
+                <IonIcon icon={trashOutline} slot="start" />
+                Excluir
+              </IonButton>
               {(viewDocument?.status !== "DRAFT" || !!viewDocument?.pdfUrl) && (
                 <IonButton className="app-primary-btn" onClick={() => void openPdf(viewDocument?.id)}>
                   Abrir PDF
                 </IonButton>
               )}
-              <IonButton fill="clear" className="app-danger-btn" onClick={() => void deleteDocument(viewDocument?.id)}>
-                Excluir
-              </IonButton>
             </div>
           </IonToolbar>
         </IonFooter>
       </IonModal>
 
-      <IonModal isOpen={isWizardOpen} onDidDismiss={closeWizard}>
+      <IonModal className="documents-modal documents-modal--wizard" isOpen={isWizardOpen} onDidDismiss={closeWizard}>
         <IonHeader className="ion-no-border">
           <IonToolbar className="app-toolbar-clean">
-            <IonTitle>{savedDocument?.id ? "Editar Documento" : "Novo Documento"} - Passo {wizardStep}/3</IonTitle>
+            <IonTitle>{savedDocument?.id ? "Editar Documento" : "Novo Documento"}</IonTitle>
             <IonButtons slot="end">
-              <IonButton aria-label="Fechar" onClick={closeWizard}>
+              <IonButton fill="clear" className="app-cancel-btn" aria-label="Fechar" onClick={closeWizard}>
                 <IonIcon icon={closeCircleOutline} slot="icon-only" />
               </IonButton>
             </IonButtons>
+          </IonToolbar>
+          <IonToolbar className="documents-stepper-toolbar">
+            <WizardStepper current={wizardStep} />
           </IonToolbar>
         </IonHeader>
         <IonContent>
           <div className="app-shell app-shell--compact documents-shell">
             {wizardStep === 1 && (
               <FrottoCard>
-                <IonCardContent>
-                  <h3>Passo 1 - Motorista/Carro</h3>
+                <IonCardContent className="documents-step-body">
+                  <WizardStepHead step={1} />
+                  <div className="documents-form-group__fields documents-form-group__fields--grid">
                   <Autocomplete
                     label="Motorista"
                     value={wizardDriverQuery}
@@ -2281,14 +2328,15 @@ const DocumentsPage: React.FC = () => {
                       });
                     }}
                   />
+                  </div>
                 </IonCardContent>
               </FrottoCard>
             )}
 
             {wizardStep === 2 && (
               <FrottoCard>
-                <IonCardContent>
-                  <h3>Passo 2 - Tipo</h3>
+                <IonCardContent className="documents-step-body">
+                  <WizardStepHead step={2} />
                   <SelectField
                     label="Tipo"
                     value={wizardType}
@@ -2304,12 +2352,13 @@ const DocumentsPage: React.FC = () => {
 
             {wizardStep === 3 && (
               <FrottoCard>
-                <IonCardContent>
-                  <h3>Passo 3 - Formulário</h3>
+                <IonCardContent className="documents-step-body">
+                  <WizardStepHead step={3} typeLabel={wizardType ? resolveTypeLabel(wizardType) : undefined} />
                   {renderTypeFields()}
 
                   {showAttachmentInput && (
-                    <IonItem lines="none">
+                    <FormGroup title="Anexos">
+                    <IonItem lines="none" className="documents-attachments-item">
                       <IonLabel position="stacked">
                         {wizardType === "ENTREGA_DEVOLUCAO_CHECKLIST"
                           ? "Anexos gerais (opcional)"
@@ -2330,66 +2379,130 @@ const DocumentsPage: React.FC = () => {
                         }}
                       />
                     </IonItem>
+                    </FormGroup>
                   )}
                 </IonCardContent>
               </FrottoCard>
             )}
           </div>
         </IonContent>
-        <IonFooter>
+        <IonFooter className="app-footer-bar">
           <IonToolbar>
-            <div className="documents-step-footer">
-              <IonButton
-                fill="clear"
-                className="app-outline-btn"
-                disabled={wizardStep === 1}
-                onClick={() => setWizardStep((prev) => (prev === 1 ? 1 : ((prev - 1) as 1 | 2 | 3)))}
-              >
-                Voltar
-              </IonButton>
-              <IonButton
-                className="app-primary-btn"
-                disabled={wizardStep === 3}
-                onClick={() => setWizardStep((prev) => (prev === 3 ? 3 : ((prev + 1) as 1 | 2 | 3)))}
-              >
-                Próximo
-              </IonButton>
-            </div>
-          </IonToolbar>
-          {wizardStep === 3 && (
-            <IonToolbar>
-              <div className="documents-editor-actions">
+            {/* Hierarquia: Voltar (neutro) · Excluir (destrutivo) · Salvar rascunho (secundário) · Próximo/Gerar PDF (primário). */}
+            <div
+              className={`documents-wizard-footer documents-wizard-footer--step-${wizardStep}${
+                wizardStep === 3 && savedDocument?.id ? " documents-wizard-footer--with-delete" : ""
+              }`}
+            >
+              {wizardStep > 1 && (
+                <IonButton
+                  fill="outline"
+                  className="app-neutral-btn documents-wizard-footer__back"
+                  onClick={() => setWizardStep((prev) => (prev === 1 ? 1 : ((prev - 1) as 1 | 2 | 3)))}
+                >
+                  Voltar
+                </IonButton>
+              )}
+              {wizardStep === 3 && !!savedDocument?.id && (
                 <IonButton
                   fill="clear"
-                  className="app-outline-btn"
-                  onClick={() => void saveDraft()}
+                  className="app-danger-btn documents-wizard-footer__delete"
+                  aria-label="Excluir documento"
                   disabled={isActionLoading}
-                >
-                  Salvar rascunho
-                </IonButton>
-                <IonButton
-                  className="app-primary-btn documents-generate-button"
-                  onClick={() => void generateWizardPdf()}
-                  disabled={isActionLoading}
-                >
-                  Gerar PDF
-                </IonButton>
-                <IonButton
-                  fill="clear"
-                  className="app-danger-btn"
-                  disabled={!savedDocument?.id || isActionLoading}
                   onClick={() => void deleteWizardDocument()}
                 >
-                  Excluir
+                  <IonIcon icon={trashOutline} slot="start" />
+                  <span className="documents-wizard-footer__delete-label">Excluir</span>
                 </IonButton>
-              </div>
-            </IonToolbar>
-          )}
+              )}
+              <span className="documents-wizard-footer__spacer" aria-hidden="true" />
+              {wizardStep < 3 ? (
+                <IonButton
+                  className="app-primary-btn documents-wizard-footer__primary"
+                  onClick={() => setWizardStep((prev) => (prev === 3 ? 3 : ((prev + 1) as 1 | 2 | 3)))}
+                >
+                  Próximo
+                </IonButton>
+              ) : (
+                <>
+                  <IonButton
+                    fill="outline"
+                    className="app-outline-btn documents-wizard-footer__draft"
+                    onClick={() => void saveDraft()}
+                    disabled={isActionLoading}
+                  >
+                    Salvar rascunho
+                  </IonButton>
+                  <IonButton
+                    className="app-primary-btn documents-wizard-footer__primary"
+                    onClick={() => void generateWizardPdf()}
+                    disabled={isActionLoading}
+                  >
+                    Gerar PDF
+                  </IonButton>
+                </>
+              )}
+            </div>
+          </IonToolbar>
         </IonFooter>
       </IonModal>
     </IonPage>
   );
 };
+
+// ---- Apresentação do wizard (sem estado/lógica: só hierarquia visual) ----
+
+export const WIZARD_STEPS: ReadonlyArray<{ step: 1 | 2 | 3; title: string; description: string }> = [
+  { step: 1, title: "Motorista e carro", description: "Para quem é o documento." },
+  { step: 2, title: "Tipo de documento", description: "Qual documento será gerado." },
+  { step: 3, title: "Preenchimento", description: "Dados que vão no documento." },
+];
+
+/** Indicador de etapas: atual, concluídas e próximas. Não navega (a navegação continua no rodapé). */
+export const WizardStepper: React.FC<{ current: 1 | 2 | 3 }> = ({ current }) => (
+  <ol className="documents-stepper" aria-label="Etapas do documento">
+    {WIZARD_STEPS.map(({ step, title }) => {
+      const state = step < current ? "done" : step === current ? "current" : "upcoming";
+      return (
+        <li
+          key={step}
+          className={`documents-stepper__item documents-stepper__item--${state}`}
+          aria-current={state === "current" ? "step" : undefined}
+        >
+          <span className="documents-stepper__index" aria-hidden="true">
+            {state === "done" ? <IonIcon icon={checkmark} /> : step}
+          </span>
+          <span className="documents-stepper__label">{title}</span>
+        </li>
+      );
+    })}
+  </ol>
+);
+
+export const WizardStepHead: React.FC<{ step: 1 | 2 | 3; typeLabel?: string }> = ({ step, typeLabel }) => {
+  const meta = WIZARD_STEPS[step - 1];
+  return (
+    <div className="documents-step-head">
+      <p className="documents-step-head__eyebrow">Passo {step} de 3</p>
+      <h3 className="documents-step-head__title">{step === 3 && typeLabel ? typeLabel : meta.title}</h3>
+      <p className="documents-step-head__description">{meta.description}</p>
+    </div>
+  );
+};
+
+/** Grupo lógico de campos. `columns` usa grid responsivo só para campos curtos. */
+const FormGroup: React.FC<{ title: string; columns?: boolean; children: React.ReactNode }> = ({
+  title,
+  columns,
+  children,
+}) => (
+  <section className="documents-form-group" aria-label={title}>
+    <h4 className="documents-form-group__title">{title}</h4>
+    <div className={`documents-form-group__fields${columns ? " documents-form-group__fields--grid" : ""}`}>
+      {children}
+    </div>
+  </section>
+);
 
 type FieldProps = {
   label: string;
@@ -2486,7 +2599,13 @@ const Autocomplete = <T,>({
     <div className="app-form-field">
       <IonItem className="app-form-item">
         <FormInputLabel name={label} />
-        <IonInput value={value} onIonChange={(event) => onChange(event.detail.value || "")} />
+        {/* ionInput = digitação do usuário. Não usar ionChange: no Ionic 6 ele também
+            dispara quando o código define `value` após selecionar uma entidade, e o
+            onChange (que invalida a seleção) apagava o motorista/carro escolhido. */}
+        <IonInput
+          value={value}
+          onIonInput={(event) => onChange(`${(event.target as HTMLIonInputElement | null)?.value ?? ""}`)}
+        />
         {value ? (
           <IonButton fill="clear" slot="end" onClick={onClear}>
             Limpar
@@ -2711,6 +2830,23 @@ function serializeChecklistEmergencyContacts(source: any): ChecklistEmergencyCon
   return source
     .map((item) => normalizeChecklistContact(item))
     .filter((item) => Boolean(item.nome || item.telefone));
+}
+
+// Estado do editor: mantém linhas vazias (ex.: recém-adicionadas por "Adicionar contato")
+// e não apara o nome a cada tecla (senão o espaço entre nome e sobrenome some ao digitar).
+// O payload enviado à API continua passando por serializeChecklistEmergencyContacts,
+// que apara e descarta contatos vazios — o formato salvo não muda.
+function hydrateChecklistEmergencyContactsForEditor(source: any): ChecklistEmergencyContact[] {
+  const contacts: ChecklistEmergencyContact[] = Array.isArray(source)
+    ? source.map((item) => ({
+        ...normalizeChecklistContact(item),
+        nome: `${item?.nome ?? item?.name ?? ""}`,
+      }))
+    : [];
+  while (contacts.length < MIN_EMERGENCY_CONTACTS) {
+    contacts.push({ nome: "", telefone: "" });
+  }
+  return contacts;
 }
 
 function hydrateChecklistEmergencyContacts(source: any): ChecklistEmergencyContact[] {
