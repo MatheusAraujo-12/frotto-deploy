@@ -271,7 +271,7 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
           <IonButtons slot="start">
             <IonButton
               fill="clear"
-              className="app-outline-btn"
+              className="app-cancel-btn"
               onClick={handleClose}
               disabled={isLoading}
             >

@@ -146,7 +146,7 @@ const FormDate: React.FC<DateProps> = ({
             }}
           >
             <IonButtons slot="buttons">
-              <IonButton color="medium" onClick={handleCancel}>
+              <IonButton className="app-cancel-btn" onClick={handleCancel}>
                 {TEXT.cancel}
               </IonButton>
               <IonButton color="primary" onClick={handleConfirm}>

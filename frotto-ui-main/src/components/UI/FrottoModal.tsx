@@ -18,6 +18,12 @@ export interface FrottoModalProps {
   onCancel: () => void;
   cancelLabel?: string;
   cancelDisabled?: boolean;
+  /**
+   * "danger": Cancelar em vermelho (.app-cancel-btn), regra de UX de
+   * Cancelar/Fechar. "default" mantém o visual anterior — opt-in explícito
+   * porque há consumidores (Billing) que não devem mudar nesta etapa.
+   */
+  cancelVariant?: "default" | "danger";
   primaryLabel: string;
   onPrimaryAction: () => void;
   primaryDisabled?: boolean;
@@ -38,6 +44,7 @@ const FrottoModal: React.FC<FrottoModalProps> = ({
   onCancel,
   cancelLabel = TEXT.cancel,
   cancelDisabled = false,
+  cancelVariant = "default",
   primaryLabel,
   onPrimaryAction,
   primaryDisabled = false,
@@ -51,7 +58,7 @@ const FrottoModal: React.FC<FrottoModalProps> = ({
           <IonButtons slot="start">
             <IonButton
               fill="clear"
-              className="app-outline-btn"
+              className={cancelVariant === "danger" ? "app-cancel-btn" : "app-outline-btn"}
               disabled={cancelDisabled}
               onClick={onCancel}
             >

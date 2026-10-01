@@ -133,7 +133,7 @@ const ServiceAddModal: React.FC<ServiceAddModalProps> = ({
           <IonButtons slot="start">
             <IonButton
               fill="clear"
-              className="app-outline-btn"
+              className="app-cancel-btn"
               onClick={() => closeModal()}
             >
               {TEXT.cancel}

@@ -302,6 +302,46 @@
   font-weight: 700;
 }
 
+/* Excluir com fill="clear": ion-button[fill="clear"] (ionic-overrides) tem
+   especificidade maior que a classe e pintava Excluir de azul. Mesmo padrão
+   de seletor de .app-semantic-btn. */
+ion-button.app-danger-btn[fill="clear"],
+ion-button.app-danger-btn[fill="outline"] {
+  --background: var(--frotto-danger-soft);
+  --background-hover: rgba(var(--frotto-danger-rgb), 0.16);
+  --color: var(--frotto-danger);
+  --border-color: rgba(var(--frotto-danger-rgb), 0.22);
+}
+
+/* Cancelar/Fechar: abandona o fluxo sem destruir dados. Só texto em danger
+   (sem fundo) — mais fraco que Excluir (.app-danger-btn, com fundo) e sem
+   competir com a ação primária. Não usar financial-negative em botões. */
+ion-button.app-cancel-btn,
+ion-button.app-cancel-btn[fill="clear"],
+ion-button.app-cancel-btn[fill="outline"] {
+  --background: transparent;
+  --background-hover: var(--frotto-danger-soft);
+  --background-activated: var(--frotto-danger-soft);
+  --background-focused: var(--frotto-danger-soft);
+  --color: var(--frotto-danger);
+  --border-color: transparent;
+  --border-radius: var(--app-button-radius);
+  --ripple-color: rgba(var(--frotto-danger-rgb), 0.18);
+  font-weight: 700;
+}
+
+/* Voltar e navegação secundária: neutro, nunca vermelho. */
+ion-button.app-neutral-btn,
+ion-button.app-neutral-btn[fill="outline"] {
+  --background: transparent;
+  --color: var(--frotto-text-secondary);
+  --border-color: var(--frotto-border-strong);
+  --border-style: solid;
+  --border-width: 1px;
+  --border-radius: var(--app-button-radius);
+  font-weight: 700;
+}
+
 .app-semantic-btn,
 .app-semantic-icon {
   --app-semantic-color: var(--app-action-neutral);

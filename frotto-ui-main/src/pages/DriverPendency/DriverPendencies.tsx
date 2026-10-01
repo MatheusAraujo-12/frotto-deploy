@@ -729,7 +729,7 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
           <IonToolbar className="app-toolbar-clean">
             <IonTitle>Resumo das pendências</IonTitle>
             <IonButtons slot="end">
-              <IonButton fill="clear" color="medium" aria-label="Fechar resumo das pendências" onClick={closeSummaryModal}>
+              <IonButton fill="clear" className="app-cancel-btn" aria-label="Fechar resumo das pendências" onClick={closeSummaryModal}>
                 <IonIcon slot="icon-only" icon={closeOutline} />
               </IonButton>
             </IonButtons>

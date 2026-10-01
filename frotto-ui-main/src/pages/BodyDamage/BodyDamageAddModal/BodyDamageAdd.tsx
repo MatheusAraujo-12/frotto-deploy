@@ -180,7 +180,7 @@ const BodyDamageAdd: React.FC<CarDamageAddModalProps> = ({
           <IonButtons slot="start">
             <IonButton
               fill="clear"
-              className="app-outline-btn"
+              className="app-cancel-btn"
               onClick={() => closeModal()}
               disabled={isLoading}
             >

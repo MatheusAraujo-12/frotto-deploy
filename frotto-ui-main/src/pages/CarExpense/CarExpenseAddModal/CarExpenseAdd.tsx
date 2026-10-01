@@ -203,7 +203,7 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
           <IonButtons slot="start">
             <IonButton
               fill="clear"
-              className="app-outline-btn"
+              className="app-cancel-btn"
               onClick={() => handleClose()}
               disabled={isLoading}
             >

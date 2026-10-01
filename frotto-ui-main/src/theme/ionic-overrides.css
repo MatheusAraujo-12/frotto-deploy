@@ -234,11 +234,14 @@ ion-button::part(native) {
   outline: none;
 }
 
-ion-button:hover:not(.button-disabled):not([disabled]) {
+/* Ionic serializa disabled="false" como atributo; só a classe real
+   .button-disabled indica botão desabilitado. Seletores por [disabled]
+   deixavam botões habilitados com aparência de desabilitados. */
+ion-button:hover:not(.button-disabled) {
   filter: brightness(1.04);
 }
 
-ion-button:active:not(.button-disabled):not([disabled]) {
+ion-button:active:not(.button-disabled) {
   filter: brightness(0.96);
   transform: scale(0.985);
 }
@@ -248,7 +251,6 @@ ion-button.ion-focused::part(native) {
   box-shadow: var(--frotto-focus-ring);
 }
 
-ion-button[disabled],
 ion-button.button-disabled {
   cursor: not-allowed;
   filter: saturate(0.72);
@@ -416,9 +418,10 @@ ion-action-sheet {
   --background: var(--frotto-surface-elevated);
 }
 
-/* Accessible primary text on light surfaces; solid buttons keep brand blue. */
-ion-button:not(.ion-color):not(.app-semantic-btn)[fill="clear"],
-ion-button:not(.ion-color):not(.app-semantic-btn)[fill="outline"],
+/* Accessible primary text on light surfaces; solid buttons keep brand blue.
+   Botões com semântica própria (Cancelar/Fechar, Excluir, Voltar) ficam de fora. */
+ion-button:not(.ion-color):not(.app-semantic-btn):not(.app-cancel-btn):not(.app-danger-btn):not(.app-neutral-btn)[fill="clear"],
+ion-button:not(.ion-color):not(.app-semantic-btn):not(.app-cancel-btn):not(.app-danger-btn):not(.app-neutral-btn)[fill="outline"],
 ion-button.ion-color-primary[fill="clear"],
 ion-button.ion-color-primary[fill="outline"] {
   /* Ionic marks --ion-color-base important; configure its source token. */
@@ -435,8 +438,8 @@ ion-button.ion-color-primary:not([fill="clear"]):not([fill="outline"]) {
 }
 
 @media (any-hover: hover) {
-  ion-button:not(.ion-color):not(.app-semantic-btn):not([fill="clear"]):not([fill="outline"]):not([disabled]):not(.button-disabled):hover::part(native),
-  ion-button.ion-color-primary:not([fill="clear"]):not([fill="outline"]):not([disabled]):not(.button-disabled):hover::part(native) {
+  ion-button:not(.ion-color):not(.app-semantic-btn):not([fill="clear"]):not([fill="outline"]):not(.button-disabled):hover::part(native),
+  ion-button.ion-color-primary:not([fill="clear"]):not([fill="outline"]):not(.button-disabled):hover::part(native) {
     background: var(--frotto-primary-hover);
     color: var(--frotto-primary-hover-contrast);
   }

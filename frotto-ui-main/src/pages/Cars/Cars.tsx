@@ -431,7 +431,7 @@ const Cars: React.FC = () => {
         <IonHeader className="ion-no-border">
           <IonToolbar className="app-toolbar-clean">
             <IonButtons slot="start">
-              <IonButton onClick={handleCloseActionSelectorModal}>
+              <IonButton fill="clear" className="app-cancel-btn" onClick={handleCloseActionSelectorModal}>
                 {TEXT.cancel}
               </IonButton>
             </IonButtons>

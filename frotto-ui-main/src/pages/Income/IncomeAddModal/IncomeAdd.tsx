@@ -175,7 +175,7 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
           <IonButtons slot="start">
             <IonButton
               fill="clear"
-              className="app-outline-btn"
+              className="app-cancel-btn"
               onClick={handleClose}
               disabled={isLoading}
             >

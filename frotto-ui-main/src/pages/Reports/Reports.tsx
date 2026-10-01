@@ -379,6 +379,7 @@ const Reports: React.FC<IncomeDetail> = () => {
                           <IonButton
                             fill="clear"
                             size="small"
+                            className="app-cancel-btn"
                             onClick={() => setShowCarSelector(false)}
                           >
                             {TEXT.cancel}

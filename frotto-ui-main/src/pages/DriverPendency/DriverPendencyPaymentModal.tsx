@@ -103,6 +103,7 @@ const DriverPendencyPaymentModal: React.FC<DriverPendencyPaymentModalProps> = ({
       pageId="driver-pendency-payment-page"
       title={TEXT.settleDebt}
       onCancel={closeModal}
+      cancelVariant="danger"
       cancelDisabled={isLoading}
       primaryLabel={TEXT.confirm}
       onPrimaryAction={() => void handleSubmit()}
