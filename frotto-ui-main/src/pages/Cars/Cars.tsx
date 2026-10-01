@@ -19,7 +19,7 @@ import {
   useIonViewWillEnter,
   useIonViewWillLeave,
 } from "@ionic/react";
-import { add } from "ionicons/icons";
+import { add, archiveOutline } from "ionicons/icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import api from "../../services/axios/axios";
@@ -552,20 +552,29 @@ const Cars: React.FC = () => {
       </IonHeader>
 
       <IonContent>
-        <IonButton fill="clear" routerLink="/menu/veiculos-excluidos">Veículos excluídos</IonButton>
         <div className="app-shell app-shell--compact">
           <div className="cars-section-head">
             <div className="cars-page-head">
               <p className="cars-page-head__desc">
                 Gerencie os veículos da sua frota.
               </p>
-              <IonButton
-                className="cars-page-head__cta"
-                onClick={handleOpenAddCarModal}
-              >
-                <IonIcon slot="start" icon={add} />
-                Novo veículo
-              </IonButton>
+              <div className="cars-page-head__actions">
+                <IonButton
+                  fill="outline"
+                  className="app-neutral-btn cars-page-head__secondary"
+                  routerLink="/menu/veiculos-excluidos"
+                >
+                  <IonIcon slot="start" icon={archiveOutline} />
+                  Veículos excluídos
+                </IonButton>
+                <IonButton
+                  className="cars-page-head__cta"
+                  onClick={handleOpenAddCarModal}
+                >
+                  <IonIcon slot="start" icon={add} />
+                  Novo veículo
+                </IonButton>
+              </div>
             </div>
 
             <div className="cars-status-summary">

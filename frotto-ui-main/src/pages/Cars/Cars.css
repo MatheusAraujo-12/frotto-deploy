@@ -45,6 +45,15 @@ body.dark #cars-page ion-searchbar:focus-within {
   color: var(--frotto-text-secondary);
 }
 
+.cars-page-head__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.cars-page-head__secondary,
 .cars-page-head__cta {
   margin: 0;
   flex-shrink: 0;
@@ -103,6 +112,13 @@ body.dark #cars-page ion-searchbar:focus-within {
     align-items: stretch;
   }
 
+  .cars-page-head__actions {
+    flex-direction: column;
+    align-items: stretch;
+    margin-left: 0;
+  }
+
+  .cars-page-head__secondary,
   .cars-page-head__cta {
     width: 100%;
   }
