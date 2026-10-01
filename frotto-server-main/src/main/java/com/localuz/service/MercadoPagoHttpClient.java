@@ -254,9 +254,9 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
                 .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body))).build();
             HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                MercadoPagoException failure = providerError(response);
+                MercadoPagoException failure = providerError(response, "POST", PREFERENCES);
                 if (response.statusCode() >= 500 || response.statusCode() == 408) {
-                    throw new MercadoPagoException(failure.getMessage(), true, failure.getHttpStatus(), failure.getProviderCode(), failure.getProviderMessage());
+                    throw failure.asAmbiguous();
                 }
                 throw failure;
             }
@@ -321,11 +321,11 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
             builder.method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(json));
             HttpResponse<String> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                MercadoPagoException failure = providerError(response);
+                MercadoPagoException failure = providerError(response, method, uri);
                 // A failed cancellation PUT may have been applied before a timeout/5xx response.
                 // Keep the existing classification for creation and read-only requests.
                 if ("PUT".equals(method) && (response.statusCode() >= 500 || response.statusCode() == 408)) {
-                    throw new MercadoPagoException(failure.getMessage(), true, failure.getHttpStatus(), failure.getProviderCode(), failure.getProviderMessage());
+                    throw failure.asAmbiguous();
                 }
                 throw failure;
             }
@@ -352,7 +352,7 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
             HttpRequest request = HttpRequest.newBuilder(uri).timeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
                 .header("Authorization", "Bearer " + properties.getAccessToken()).header("Content-Type", "application/json").GET().build();
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) throw providerError(response);
+            if (response.statusCode() < 200 || response.statusCode() >= 300) throw providerError(response, "GET", uri);
             return mapper.readTree(response.body());
         } catch (MercadoPagoException exception) { throw exception;
         } catch (InterruptedException exception) { Thread.currentThread().interrupt(); throw new MercadoPagoException("Mercado Pago request interrupted", false, exception);
@@ -374,13 +374,44 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
         return value.isIntegralNumber() && value.canConvertToInt() && value.intValue() > 0 ? value.intValue() : null;
     }
 
-    private MercadoPagoException providerError(HttpResponse<String> response) {
+    private MercadoPagoException providerError(HttpResponse<String> response, String method, URI uri) {
         ProviderError details = providerError(response.body());
         String message = "Mercado Pago request failed with status " + response.statusCode();
         if (details.code != null) message += " [code=" + details.code + "]";
         if (details.message != null) message += ": " + details.message;
         Integer retryAfterSeconds = response.statusCode() == 429 ? retryAfterSeconds(response) : null;
-        return new MercadoPagoException(message, false, response.statusCode(), details.code, details.message, retryAfterSeconds);
+        // Every diagnostic value is token-redacted here and whitelisted again by MercadoPagoException.
+        var diagnostics = new MercadoPagoException.ProviderDiagnostics(operation(method, uri), providerRequestId(response),
+            details.error, details.firstCauseCode, details.rootMessage);
+        return new MercadoPagoException(message, false, response.statusCode(), details.code, details.message, retryAfterSeconds, diagnostics);
+    }
+
+    /** Logical operation from the HTTP method and our own fixed base URIs - never from the resource id or query string. */
+    private static String operation(String method, URI uri) {
+        if (uri == null) return null;
+        String path = uri.getPath() == null ? "" : uri.getPath();
+        String resource = path.startsWith("/authorized_payments") ? "authorized_payments"
+            : path.startsWith("/v1/payments") ? "payments"
+            : path.startsWith("/preapproval") ? "preapproval"
+            : path.startsWith("/checkout/preferences") ? "preferences" : null;
+        if (resource == null) return null;
+        if (path.endsWith("/search")) return resource + ".search";
+        switch (method == null ? "" : method) {
+            case "GET": return resource + ".get";
+            case "POST": return resource + ".create";
+            case "PUT": return resource + ".update";
+            default: return null;
+        }
+    }
+
+    /** Mercado Pago's x-request-id response header, for support correlation; shape-checked by MercadoPagoException. */
+    private static String providerRequestId(HttpResponse<String> response) {
+        try {
+            java.net.http.HttpHeaders headers = response.headers();
+            return headers == null ? null : headers.firstValue("x-request-id").orElse(null);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     /** Seconds-only per current policy; an HTTP-date Retry-After value is intentionally not parsed. */
@@ -402,20 +433,26 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
 
     /** Only known Mercado Pago error fields are retained; arbitrary response JSON is never logged. */
     private ProviderError providerError(String body) {
-        if (body == null || body.isBlank()) return new ProviderError(null, null);
+        if (body == null || body.isBlank()) return ProviderError.EMPTY;
         try {
             JsonNode root = mapper.readTree(body);
+            if (root == null || !root.isObject()) return ProviderError.EMPTY; // non-JSON-object bodies are never echoed
             List<String> codes = new ArrayList<>();
             List<String> messages = new ArrayList<>();
             add(codes, text(root, "error")); add(codes, text(root, "code"));
             add(messages, text(root, "message"));
+            String firstCauseCode = null;
             JsonNode causes = root.path("cause");
             if (causes.isArray()) for (JsonNode cause : causes) {
                 add(codes, text(cause, "code")); add(messages, text(cause, "description"));
+                if (firstCauseCode == null) firstCauseCode = text(cause, "code");
             }
-            return new ProviderError(sanitize(String.join(", ", codes)), sanitize(String.join("; ", messages)));
+            else if (causes.isObject()) firstCauseCode = text(causes, "code");
+            String error = text(root, "error") != null ? text(root, "error") : text(root, "code");
+            return new ProviderError(sanitize(String.join(", ", codes)), sanitize(String.join("; ", messages)),
+                sanitize(error), sanitize(firstCauseCode), sanitize(text(root, "message")));
         } catch (Exception ignored) {
-            return new ProviderError(null, null);
+            return ProviderError.EMPTY;
         }
     }
 
@@ -429,7 +466,11 @@ public class MercadoPagoHttpClient implements MercadoPagoClient {
         return sanitized.length() > 500 ? sanitized.substring(0, 500) : sanitized;
     }
     private static final class ProviderError {
+        private static final ProviderError EMPTY = new ProviderError(null, null, null, null, null);
         private final String code; private final String message;
-        private ProviderError(String code, String message) { this.code = code; this.message = message; }
+        private final String error; private final String firstCauseCode; private final String rootMessage;
+        private ProviderError(String code, String message, String error, String firstCauseCode, String rootMessage) {
+            this.code = code; this.message = message; this.error = error; this.firstCauseCode = firstCauseCode; this.rootMessage = rootMessage;
+        }
     }
 }

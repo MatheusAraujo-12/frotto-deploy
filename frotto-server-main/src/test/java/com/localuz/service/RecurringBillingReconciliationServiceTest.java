@@ -131,6 +131,25 @@ class RecurringBillingReconciliationServiceTest {
         assertThat(result.providerErrorCode()).isNull();
     }
 
+    @Test void safeProviderDiagnosticsReachTheResultEvenWhenTheLegacyCodeIsWithheld() {
+        when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt()))
+            .thenThrow(new MercadoPagoException("secret body must not be logged",false,400,"Bad Request, invalid_preapproval",
+                "Invalid preapproval_id; payer someone@example.com",null,
+                new MercadoPagoException.ProviderDiagnostics("authorized_payments.search","abc-123","Bad Request","invalid_preapproval","Invalid preapproval_id")));
+        var result = service.reconcile(candidate,new RecurringReconciliationBudget(10));
+        assertThat(result.outcome()).isEqualTo(PROVIDER_FAILURE);
+        assertThat(result.providerErrorCode()).isNull();
+        assertThat(result.providerDiagnostics()).isEqualTo("operation=authorized_payments.search httpStatus=400 providerError=\"Bad Request\" "
+            + "firstCauseCode=\"invalid_preapproval\" providerRequestId=abc-123 providerMessage=\"Invalid preapproval_id\"");
+        assertThat(result.providerDiagnostics()).doesNotContain("secret body", "@");
+    }
+
+    @Test void nonHttpFailuresCarryNoProviderDiagnostics() {
+        when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt()))
+            .thenThrow(new MercadoPagoException("timeout", true, new java.net.http.HttpTimeoutException("t")));
+        assertThat(service.reconcile(candidate,new RecurringReconciliationBudget(10)).providerDiagnostics()).isNull();
+    }
+
     @Test void rateLimitPropagatesRetryAfterSecondsToTheBudget() {
         when(client.searchAuthorizedPayments(anyString(),anyInt(),anyInt()))
             .thenThrow(new MercadoPagoException("secret body must not be logged",true,429,null,null,120));

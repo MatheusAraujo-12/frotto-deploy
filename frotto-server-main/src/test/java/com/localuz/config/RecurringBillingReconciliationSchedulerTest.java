@@ -68,6 +68,17 @@ class RecurringBillingReconciliationSchedulerTest {
         });
     }
 
+    @Test void providerFailureLogsTheSafeProviderDiagnostics() {
+        enable();
+        when(reservations.candidates(any(),any(),anyInt(),anyInt())).thenReturn(List.of(new Candidate(1L,"a")));
+        when(service.reconcile(any(),any())).thenReturn(
+            new RecurringReconciliationResult(1L, Outcome.PROVIDER_FAILURE, 0, 0, 0, 1, "HTTP_400", 400, null,
+                "operation=authorized_payments.search httpStatus=400 providerError=\"Bad Request\" providerRequestId=abc-123"));
+        scheduler.reconcileSubscriptions();
+        assertThat(loggedMessages()).anySatisfy(message -> assertThat(message).contains("providerErrorCode=null",
+            "providerDiagnostics=[operation=authorized_payments.search httpStatus=400 providerError=\"Bad Request\" providerRequestId=abc-123]"));
+    }
+
     @Test void completeOutcomeLogsNullFailureFieldsRatherThanFabricatingACategory() {
         enable();
         when(reservations.candidates(any(),any(),anyInt(),anyInt())).thenReturn(List.of(new Candidate(1L,"a")));
