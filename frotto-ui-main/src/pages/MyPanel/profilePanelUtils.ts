@@ -167,6 +167,47 @@ export const hasFiscalData = (form: FiscalForm): boolean =>
           normalizeText(form.taxAddress)
   );
 
+/**
+ * Pessoa Física: pares personal_* ↔ tax_* que representam a mesma informação
+ * da mesma pessoa. Continuam sendo colunas/endpoints independentes (PATCH
+ * /api/me e /api/me/tax-data) — a unificação é só de apresentação.
+ * Data de nascimento não tem par fiscal e por isso nunca entra aqui.
+ */
+export const PF_SHARED_FIELDS: ReadonlyArray<{
+  personal: keyof PersonalForm;
+  tax: keyof Omit<FiscalForm, "taxPersonType">;
+  normalize: (value: string) => string;
+}> = [
+  { personal: "personalName", tax: "taxLandlordName", normalize: normalizeText },
+  { personal: "personalCpf", tax: "taxCpf", normalize: sanitizeDigits },
+  { personal: "personalEmail", tax: "taxEmail", normalize: (value) => normalizeText(value).toLowerCase() },
+  { personal: "personalPhone", tax: "taxPhone", normalize: sanitizeDigits },
+];
+
+/**
+ * Campos personal_* que Meu Cadastro mostra. PJ: todos (responsável pela
+ * conta ≠ empresa). PF: só data de nascimento, mais qualquer campo duplicado
+ * cujo valor SALVO seja diferente do fiscal — nesse caso a equivalência não
+ * está comprovada nos dados e o campo não pode ficar escondido.
+ */
+export const getVisiblePersonalFields = (
+  savedPersonal: PersonalForm,
+  savedFiscal: FiscalForm
+): Array<keyof PersonalForm> => {
+  if (savedFiscal.taxPersonType !== "CPF") {
+    return ["personalName", "personalCpf", "personalBirthDate", "personalEmail", "personalPhone"];
+  }
+
+  const divergent = PF_SHARED_FIELDS.filter(({ personal, tax, normalize }) => {
+    const personalValue = normalize(savedPersonal[personal]);
+    return Boolean(personalValue) && personalValue !== normalize(savedFiscal[tax]);
+  }).map(({ personal }) => personal);
+
+  return (["personalName", "personalCpf", "personalBirthDate", "personalEmail", "personalPhone"] as Array<
+    keyof PersonalForm
+  >).filter((field) => field === "personalBirthDate" || divergent.includes(field));
+};
+
 export const validatePersonal = (form: PersonalForm): FormErrors<keyof PersonalForm> => {
   const errors: FormErrors<keyof PersonalForm> = {};
   const cpf = sanitizeDigits(form.personalCpf);

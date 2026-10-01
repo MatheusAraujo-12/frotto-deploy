@@ -13,7 +13,6 @@ import { FiscalForm, FormErrors } from "./profilePanelUtils";
 import FormInputLabel from "../../components/Form/FormInputLabel";
 import FormError from "../../components/Form/FormError";
 import { getFormErrorId } from "../../components/Form/FormItemWrapper";
-import ItemNotFound from "../../components/List/ItemNotFound";
 
 export interface FiscalFieldsProps {
   form: FiscalForm;
@@ -64,38 +63,84 @@ const fieldError = (
   };
 };
 
-interface FiscalCadastralFieldsProps extends FiscalFieldsProps {
-  hasData: boolean;
-  onQuickSave: () => void;
+type FiscalTextField = Exclude<keyof FiscalForm, "taxPersonType">;
+
+interface FiscalInputProps extends FiscalFieldsProps {
+  field: FiscalTextField;
+  label: string;
+  placeholder: string;
+  type?: "email";
+  mask?: (value: string) => string;
+  multiline?: boolean;
 }
 
-export const FiscalCadastralFields: React.FC<FiscalCadastralFieldsProps> = ({
+const FiscalInput: React.FC<FiscalInputProps> = ({
   form,
   touched,
   errors,
-  hasData,
   onTouch,
   onChange,
-  onQuickSave,
+  field,
+  label,
+  placeholder,
+  type,
+  mask,
+  multiline,
 }) => {
-  const landlordField = fieldError("taxLandlordName", touched, errors);
-  const cpfField = fieldError("taxCpf", touched, errors);
-  const emailField = fieldError("taxEmail", touched, errors);
-  const phoneField = fieldError("taxPhone", touched, errors);
-  const companyField = fieldError("taxCompanyName", touched, errors);
-  const cnpjField = fieldError("taxCnpj", touched, errors);
+  const state = fieldError(field, touched, errors);
+  const handleInput = (event: any) => {
+    const raw = getInputValue(event);
+    onTouch(field);
+    onChange({ ...form, [field]: mask ? mask(raw) : raw });
+  };
 
   return (
-    <>
-      {!hasData && (
-        <ItemNotFound
-          title="Nenhum dado cadastral salvo"
-          description="Escolha Pessoa Física ou Jurídica e preencha as informações principais."
-          actionLabel="Salvar agora"
-          onAction={onQuickSave}
-        />
-      )}
+    <div className={state.wrapClassName}>
+      <IonItem className={multiline ? "app-form-item app-form-item--textarea" : "app-form-item"}>
+        <FormInputLabel name={label} />
+        {multiline ? (
+          <IonTextarea
+            value={form[field]}
+            autoGrow
+            rows={3}
+            placeholder={placeholder}
+            aria-invalid={state.ariaInvalid}
+            aria-describedby={state.ariaDescribedby}
+            onIonInput={handleInput}
+            onIonBlur={() => onTouch(field)}
+          />
+        ) : (
+          <IonInput
+            type={type}
+            value={form[field]}
+            placeholder={placeholder}
+            aria-invalid={state.ariaInvalid}
+            aria-describedby={state.ariaDescribedby}
+            onIonInput={handleInput}
+            onIonBlur={() => onTouch(field)}
+          />
+        )}
+      </IonItem>
+      {state.node}
+    </div>
+  );
+};
 
+interface FiscalCadastralFieldsProps extends FiscalFieldsProps {
+  /** Aviso curto quando o tipo selecionado difere do tipo salvo (troca apaga o outro ramo ao salvar). */
+  typeChangeWarning?: string;
+}
+
+/**
+ * Formulário de edição de "Dados cadastrais" (identidade fiscal usada nos
+ * documentos). PJ é agrupado em Empresa / Contato / Endereço / Dados fiscais;
+ * os campos, máscaras e o payload (PATCH /api/me/tax-data) são os mesmos.
+ */
+export const FiscalCadastralFields: React.FC<FiscalCadastralFieldsProps> = ({ typeChangeWarning, ...props }) => {
+  const { form, onTouch, onChange } = props;
+
+  return (
+    <div className="cadastro-edit">
       <IonSegment
         value={form.taxPersonType}
         className="app-segment-shell"
@@ -113,202 +158,66 @@ export const FiscalCadastralFields: React.FC<FiscalCadastralFieldsProps> = ({
         </IonSegmentButton>
       </IonSegment>
 
-      <div className="app-form-grid">
-        {form.taxPersonType === "CPF" ? (
-          <>
-            <div className={landlordField.wrapClassName}>
-              <IonItem className="app-form-item">
-                <FormInputLabel name="Nome" />
-                <IonInput
-                  value={form.taxLandlordName}
-                  placeholder="Ex.: João da Silva"
-                  aria-invalid={landlordField.ariaInvalid}
-                  aria-describedby={landlordField.ariaDescribedby}
-                  onIonInput={(event: any) => {
-                    onTouch("taxLandlordName");
-                    onChange({ ...form, taxLandlordName: getInputValue(event) });
-                  }}
-                  onIonBlur={() => onTouch("taxLandlordName")}
-                />
-              </IonItem>
-              {landlordField.node}
+      {typeChangeWarning && (
+        <IonText color="warning" className="cadastro-type-warning" role="status">
+          {typeChangeWarning}
+        </IonText>
+      )}
+
+      {form.taxPersonType === "CPF" ? (
+        <div className="app-form-grid cadastro-grid">
+          <FiscalInput {...props} field="taxLandlordName" label="Nome" placeholder="Ex.: João da Silva" />
+          <FiscalInput {...props} field="taxCpf" label="CPF" placeholder="000.000.000-00" mask={maskCPF} />
+          <FiscalInput {...props} field="taxEmail" label="E-mail" placeholder="voce@email.com" type="email" />
+          <FiscalInput {...props} field="taxPhone" label="Telefone" placeholder="(11) 99999-9999" mask={maskPhone} />
+        </div>
+      ) : (
+        <>
+          <section className="cadastro-group" aria-label="Empresa">
+            <h3 className="cadastro-group__title">Empresa</h3>
+            <div className="app-form-grid cadastro-grid">
+              <FiscalInput
+                {...props}
+                field="taxCompanyName"
+                label="Razão social"
+                placeholder="Ex.: Frotto Locações LTDA"
+              />
+              <FiscalInput {...props} field="taxCnpj" label="CNPJ" placeholder="00.000.000/0000-00" mask={maskCNPJ} />
             </div>
+          </section>
 
-            <div className={cpfField.wrapClassName}>
-              <IonItem className="app-form-item">
-                <FormInputLabel name="CPF" />
-                <IonInput
-                  value={form.taxCpf}
-                  placeholder="000.000.000-00"
-                  aria-invalid={cpfField.ariaInvalid}
-                  aria-describedby={cpfField.ariaDescribedby}
-                  onIonInput={(event: any) => {
-                    onTouch("taxCpf");
-                    onChange({ ...form, taxCpf: maskCPF(getInputValue(event)) });
-                  }}
-                  onIonBlur={() => onTouch("taxCpf")}
-                />
-              </IonItem>
-              {cpfField.node}
+          <section className="cadastro-group" aria-label="Contato da empresa">
+            <h3 className="cadastro-group__title">Contato da empresa</h3>
+            <div className="app-form-grid">
+              <FiscalInput
+                {...props}
+                field="taxContactPhone"
+                label="Telefone para contato"
+                placeholder="(11) 99999-9999"
+                mask={maskPhone}
+              />
             </div>
+          </section>
 
-            <div className={emailField.wrapClassName}>
-              <IonItem className="app-form-item">
-                <FormInputLabel name="E-mail" />
-                <IonInput
-                  type="email"
-                  value={form.taxEmail}
-                  placeholder="voce@email.com"
-                  aria-invalid={emailField.ariaInvalid}
-                  aria-describedby={emailField.ariaDescribedby}
-                  onIonInput={(event: any) => {
-                    onTouch("taxEmail");
-                    onChange({ ...form, taxEmail: getInputValue(event) });
-                  }}
-                  onIonBlur={() => onTouch("taxEmail")}
-                />
-              </IonItem>
-              {emailField.node}
+          <section className="cadastro-group" aria-label="Endereço">
+            <h3 className="cadastro-group__title">Endereço</h3>
+            <FiscalInput
+              {...props}
+              field="taxAddress"
+              label="Endereço completo"
+              placeholder="Rua, número, bairro, cidade, estado e CEP"
+              multiline
+            />
+          </section>
+
+          <section className="cadastro-group" aria-label="Dados fiscais">
+            <h3 className="cadastro-group__title">Dados fiscais</h3>
+            <div className="app-form-grid">
+              <FiscalInput {...props} field="taxIe" label="Inscrição Estadual" placeholder="Inscrição estadual" />
             </div>
-
-            <div className={phoneField.wrapClassName}>
-              <IonItem className="app-form-item">
-                <FormInputLabel name="Telefone" />
-                <IonInput
-                  value={form.taxPhone}
-                  placeholder="(11) 99999-9999"
-                  aria-invalid={phoneField.ariaInvalid}
-                  aria-describedby={phoneField.ariaDescribedby}
-                  onIonInput={(event: any) => {
-                    onTouch("taxPhone");
-                    onChange({ ...form, taxPhone: maskPhone(getInputValue(event)) });
-                  }}
-                  onIonBlur={() => onTouch("taxPhone")}
-                />
-              </IonItem>
-              {phoneField.node}
-            </div>
-          </>
-        ) : (
-          <>
-            <div className={companyField.wrapClassName}>
-              <IonItem className="app-form-item">
-                <FormInputLabel name="Razão social" />
-                <IonInput
-                  value={form.taxCompanyName}
-                  placeholder="Ex.: Frotto Locações LTDA"
-                  aria-invalid={companyField.ariaInvalid}
-                  aria-describedby={companyField.ariaDescribedby}
-                  onIonInput={(event: any) => {
-                    onTouch("taxCompanyName");
-                    onChange({ ...form, taxCompanyName: getInputValue(event) });
-                  }}
-                  onIonBlur={() => onTouch("taxCompanyName")}
-                />
-              </IonItem>
-              {companyField.node}
-            </div>
-
-            <div className={cnpjField.wrapClassName}>
-              <IonItem className="app-form-item">
-                <FormInputLabel name="CNPJ" />
-                <IonInput
-                  value={form.taxCnpj}
-                  placeholder="00.000.000/0000-00"
-                  aria-invalid={cnpjField.ariaInvalid}
-                  aria-describedby={cnpjField.ariaDescribedby}
-                  onIonInput={(event: any) => {
-                    onTouch("taxCnpj");
-                    onChange({ ...form, taxCnpj: maskCNPJ(getInputValue(event)) });
-                  }}
-                  onIonBlur={() => onTouch("taxCnpj")}
-                />
-              </IonItem>
-              {cnpjField.node}
-            </div>
-          </>
-        )}
-      </div>
-    </>
-  );
-};
-
-export const FiscalComplementaryFields: React.FC<FiscalFieldsProps> = ({
-  form,
-  touched,
-  errors,
-  onTouch,
-  onChange,
-}) => {
-  const ieField = fieldError("taxIe", touched, errors);
-  const contactPhoneField = fieldError("taxContactPhone", touched, errors);
-  const addressField = fieldError("taxAddress", touched, errors);
-
-  if (form.taxPersonType !== "CNPJ") {
-    return (
-      <IonText color="medium" className="my-panel-fiscal-note">
-        Pessoa Física não possui dados fiscais complementares hoje.
-      </IonText>
-    );
-  }
-
-  return (
-    <div className="app-form-grid">
-      <div className={ieField.wrapClassName}>
-        <IonItem className="app-form-item">
-          <FormInputLabel name="Inscrição Estadual" />
-          <IonInput
-            value={form.taxIe}
-            placeholder="Inscrição estadual"
-            aria-invalid={ieField.ariaInvalid}
-            aria-describedby={ieField.ariaDescribedby}
-            onIonInput={(event: any) => {
-              onTouch("taxIe");
-              onChange({ ...form, taxIe: getInputValue(event) });
-            }}
-            onIonBlur={() => onTouch("taxIe")}
-          />
-        </IonItem>
-        {ieField.node}
-      </div>
-
-      <div className={contactPhoneField.wrapClassName}>
-        <IonItem className="app-form-item">
-          <FormInputLabel name="Telefone para contato" />
-          <IonInput
-            value={form.taxContactPhone}
-            placeholder="(11) 99999-9999"
-            aria-invalid={contactPhoneField.ariaInvalid}
-            aria-describedby={contactPhoneField.ariaDescribedby}
-            onIonInput={(event: any) => {
-              onTouch("taxContactPhone");
-              onChange({ ...form, taxContactPhone: maskPhone(getInputValue(event)) });
-            }}
-            onIonBlur={() => onTouch("taxContactPhone")}
-          />
-        </IonItem>
-        {contactPhoneField.node}
-      </div>
-
-      <div className={addressField.wrapClassName}>
-        <IonItem className="app-form-item app-form-item--textarea">
-          <FormInputLabel name="Endereço completo" />
-          <IonTextarea
-            value={form.taxAddress}
-            autoGrow
-            rows={3}
-            placeholder="Rua, número, bairro, cidade, estado e CEP"
-            aria-invalid={addressField.ariaInvalid}
-            aria-describedby={addressField.ariaDescribedby}
-            onIonInput={(event: any) => {
-              onTouch("taxAddress");
-              onChange({ ...form, taxAddress: getInputValue(event) });
-            }}
-            onIonBlur={() => onTouch("taxAddress")}
-          />
-        </IonItem>
-        {addressField.node}
-      </div>
+          </section>
+        </>
+      )}
     </div>
   );
 };

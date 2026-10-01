@@ -1,4 +1,5 @@
 import {
+  IonButton,
   IonCardContent,
   IonCardHeader,
   IonCardSubtitle,
@@ -24,6 +25,9 @@ interface SecurityTabProps {
   errors: FormErrors<keyof SecurityForm>;
   onTouch: (field: keyof SecurityForm) => void;
   onChange: (form: SecurityForm) => void;
+  isSaving: boolean;
+  saveDisabled: boolean;
+  onSave: () => void;
 }
 
 const getInputValue = (event: any): string =>
@@ -35,6 +39,9 @@ const SecurityTab: React.FC<SecurityTabProps> = ({
   errors,
   onTouch,
   onChange,
+  isSaving,
+  saveDisabled,
+  onSave,
 }) => {
   const fieldError = (field: keyof SecurityForm) => {
     const show = touched[field] && Boolean(errors[field]);
@@ -125,6 +132,12 @@ const SecurityTab: React.FC<SecurityTabProps> = ({
             </IonItem>
             {confirmPasswordField.node}
           </div>
+        </div>
+
+        <div className="cadastro-section-actions cadastro-section-actions--edit">
+          <IonButton className="app-primary-btn" disabled={isSaving || saveDisabled} onClick={onSave}>
+            {isSaving ? "Salvando..." : "Salvar nova senha"}
+          </IonButton>
         </div>
       </IonCardContent>
     </FrottoCard>

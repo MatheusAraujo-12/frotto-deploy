@@ -1,9 +1,7 @@
 import {
-  IonButton,
   IonButtons,
   IonCardContent,
   IonContent,
-  IonFooter,
   IonHeader,
   IonIcon,
   IonLabel,
@@ -24,7 +22,7 @@ import FrottoCard from "../../components/UI/FrottoCard";
 import ItemNotFound from "../../components/List/ItemNotFound";
 import { usePhotoGallery } from "../../services/hooks/usePhotoGallery";
 import profileService, { MeResponseDTO } from "../../services/profileService";
-import MeuCadastroTab from "./MeuCadastroTab";
+import MeuCadastroTab, { CadastroSection } from "./MeuCadastroTab";
 import SecurityTab from "./SecurityTab";
 import {
   EMPTY_FISCAL_FORM,
@@ -34,8 +32,6 @@ import {
   EMPTY_SECURITY_FORM,
   EMPTY_SECURITY_TOUCHED,
   FiscalForm,
-  hasFiscalData,
-  hasPersonalData,
   mapFiscalForm,
   mapPersonalForm,
   PersonalForm,
@@ -183,6 +179,7 @@ const MyPanelPage: React.FC = () => {
   const { pickImage } = usePhotoGallery();
 
   const [activeSection, setActiveSection] = useState<SettingsSection>("cadastro");
+  const [editingSection, setEditingSection] = useState<CadastroSection | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasLoadError, setHasLoadError] = useState(false);
@@ -190,10 +187,12 @@ const MyPanelPage: React.FC = () => {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState("");
   const [avatarRemoved, setAvatarRemoved] = useState(false);
+  const [savedAvatarUrl, setSavedAvatarUrl] = useState("");
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState("");
   const [logoRemoved, setLogoRemoved] = useState(false);
+  const [savedLogoUrl, setSavedLogoUrl] = useState("");
 
   const [personalForm, setPersonalForm] = useState<PersonalForm>(EMPTY_PERSONAL_FORM);
   const [fiscalForm, setFiscalForm] = useState<FiscalForm>(EMPTY_FISCAL_FORM);
@@ -244,6 +243,7 @@ const MyPanelPage: React.FC = () => {
       return resolveProfileImageUrl(data.imageUrl);
     });
     setAvatarRemoved(false);
+    setSavedAvatarUrl(resolveProfileImageUrl(data.imageUrl));
 
     setLogoFile(null);
     setLogoPreviewUrl((previousPreviewUrl) => {
@@ -253,6 +253,7 @@ const MyPanelPage: React.FC = () => {
       return resolveProfileImageUrl(data.logoUrl);
     });
     setLogoRemoved(false);
+    setSavedLogoUrl(resolveProfileImageUrl(data.logoUrl));
 
     setInitialPersonalForm(personal);
     setInitialFiscalForm(fiscal);
@@ -261,6 +262,7 @@ const MyPanelPage: React.FC = () => {
     setPersonalTouched({ ...EMPTY_PERSONAL_TOUCHED });
     setFiscalTouched({ ...EMPTY_FISCAL_TOUCHED });
     setSecurityTouched({ ...EMPTY_SECURITY_TOUCHED });
+    setEditingSection(null);
   }, []);
 
   const getErrorMessage = (error: any, fallback: string): string =>
@@ -391,6 +393,7 @@ const MyPanelPage: React.FC = () => {
       setAvatarFile(file);
       setAvatarPreviewUrl(previewUrl);
       setAvatarRemoved(false);
+      setEditingSection("avatar");
     },
     [avatarPreviewUrl]
   );
@@ -403,6 +406,7 @@ const MyPanelPage: React.FC = () => {
     setAvatarFile(null);
     setAvatarPreviewUrl("");
     setAvatarRemoved(true);
+    setEditingSection("avatar");
   }, [avatarPreviewUrl]);
 
   const pickAvatar = useCallback(
@@ -441,6 +445,7 @@ const MyPanelPage: React.FC = () => {
       setLogoFile(file);
       setLogoPreviewUrl(previewUrl);
       setLogoRemoved(false);
+      setEditingSection("logo");
     },
     [logoPreviewUrl]
   );
@@ -453,6 +458,7 @@ const MyPanelPage: React.FC = () => {
     setLogoFile(null);
     setLogoPreviewUrl("");
     setLogoRemoved(true);
+    setEditingSection("logo");
   }, [logoPreviewUrl]);
 
   const pickLogo = useCallback(
@@ -482,25 +488,7 @@ const MyPanelPage: React.FC = () => {
     });
   };
 
-  const onSave = async () => {
-    if (activeSection === "cadastro") {
-      setPersonalTouched({ ...touchAllPersonal });
-      setFiscalTouched({ ...touchAllFiscal });
-
-      const invalid = Object.keys(personalErrors).length > 0 || Object.keys(fiscalErrors).length > 0;
-      if (invalid) return;
-
-      setIsSaving(true);
-      try {
-        await saveCadastro();
-      } catch (error: any) {
-        showError(getErrorMessage(error, "Falha ao salvar o cadastro."));
-      } finally {
-        setIsSaving(false);
-      }
-      return;
-    }
-
+  const onSaveSecurity = async () => {
     setSecurityTouched({ ...touchAllSecurity });
     if (Object.keys(securityErrors).length > 0) return;
 
@@ -514,18 +502,51 @@ const MyPanelPage: React.FC = () => {
     }
   };
 
+  // Só uma seção de Meu Cadastro fica em edição por vez, então os flags de
+  // "dirty" usados por saveCadastro pertencem apenas à seção sendo salva e as
+  // requisições enviadas continuam exatamente as mesmas de antes.
+  const onSaveSection = async (section: CadastroSection) => {
+    if (section === "identity") {
+      setFiscalTouched({ ...touchAllFiscal });
+      if (Object.keys(fiscalErrors).length > 0) return;
+    }
+    if (section === "personal") {
+      setPersonalTouched({ ...touchAllPersonal });
+      if (Object.keys(personalErrors).length > 0) return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Sucesso: hydrateForms volta para o modo visualização com os valores salvos.
+      await saveCadastro();
+    } catch (error: any) {
+      showError(getErrorMessage(error, "Falha ao salvar o cadastro."));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const onCancelEdit = () => {
+    setPersonalForm(initialPersonalForm);
+    setFiscalForm(initialFiscalForm);
+    setPersonalTouched({ ...EMPTY_PERSONAL_TOUCHED });
+    setFiscalTouched({ ...EMPTY_FISCAL_TOUCHED });
+
+    if (avatarPreviewUrl.startsWith("blob:")) URL.revokeObjectURL(avatarPreviewUrl);
+    setAvatarFile(null);
+    setAvatarRemoved(false);
+    setAvatarPreviewUrl(savedAvatarUrl);
+
+    if (logoPreviewUrl.startsWith("blob:")) URL.revokeObjectURL(logoPreviewUrl);
+    setLogoFile(null);
+    setLogoRemoved(false);
+    setLogoPreviewUrl(savedLogoUrl);
+
+    setEditingSection(null);
+  };
+
   const avatarDirty = Boolean(avatarFile) || avatarRemoved;
   const logoDirty = Boolean(logoFile) || logoRemoved;
-
-  const isDirty =
-    activeSection === "cadastro" ? personalDirty || fiscalDirty || avatarDirty || logoDirty : securityDirty;
-
-  const isInvalid =
-    activeSection === "cadastro"
-      ? Object.keys(personalErrors).length > 0 || Object.keys(fiscalErrors).length > 0
-      : Object.keys(securityErrors).length > 0;
-
-  const saveLabel = activeSection === "cadastro" ? "Salvar Alterações" : "Salvar Nova Senha";
 
   const navItems: Array<{ id: SettingsSection; label: string; icon: string }> = [
     { id: "cadastro", label: "Meu Cadastro", icon: idCardOutline },
@@ -594,27 +615,37 @@ const MyPanelPage: React.FC = () => {
 
             {!isLoading && activeSection === "cadastro" && (
               <MeuCadastroTab
-                personalForm={personalForm}
-                personalTouched={personalTouched}
-                personalErrors={personalErrors}
-                hasPersonalData={hasPersonalData(personalForm)}
-                avatarPreviewUrl={avatarPreviewUrl}
-                canRemoveAvatar={Boolean(avatarPreviewUrl) || avatarRemoved}
-                onPersonalTouch={(field) => setPersonalTouched((prev) => ({ ...prev, [field]: true }))}
-                onPersonalChange={setPersonalForm}
-                onChangeAvatar={openAvatarPicker}
-                onRemoveAvatar={handleRemoveAvatar}
+                editingSection={editingSection}
+                isSaving={isSaving}
+                onStartEdit={setEditingSection}
+                onCancelEdit={onCancelEdit}
+                onSaveSection={onSaveSection}
                 fiscalForm={fiscalForm}
+                savedFiscalForm={initialFiscalForm}
                 fiscalTouched={fiscalTouched}
                 fiscalErrors={fiscalErrors}
-                hasFiscalData={hasFiscalData(fiscalForm)}
+                fiscalDirty={fiscalDirty}
                 onFiscalTouch={(field) => setFiscalTouched((prev) => ({ ...prev, [field]: true }))}
                 onFiscalChange={setFiscalForm}
+                personalForm={personalForm}
+                savedPersonalForm={initialPersonalForm}
+                personalTouched={personalTouched}
+                personalErrors={personalErrors}
+                personalDirty={personalDirty}
+                onPersonalTouch={(field) => setPersonalTouched((prev) => ({ ...prev, [field]: true }))}
+                onPersonalChange={setPersonalForm}
+                avatarPreviewUrl={avatarPreviewUrl}
+                avatarDirty={avatarDirty}
+                avatarRemoved={avatarRemoved}
+                canRemoveAvatar={Boolean(avatarPreviewUrl)}
+                onChangeAvatar={openAvatarPicker}
+                onRemoveAvatar={handleRemoveAvatar}
                 logoPreviewUrl={logoPreviewUrl}
-                canRemoveLogo={Boolean(logoPreviewUrl) || logoRemoved}
+                logoDirty={logoDirty}
+                logoRemoved={logoRemoved}
+                canRemoveLogo={Boolean(logoPreviewUrl)}
                 onChangeLogo={openLogoPicker}
                 onRemoveLogo={handleRemoveLogo}
-                onQuickSave={onSave}
               />
             )}
 
@@ -623,28 +654,16 @@ const MyPanelPage: React.FC = () => {
                 form={securityForm}
                 touched={securityTouched}
                 errors={securityErrors}
+                isSaving={isSaving}
+                saveDisabled={!securityDirty}
                 onTouch={(field) => setSecurityTouched((prev) => ({ ...prev, [field]: true }))}
                 onChange={setSecurityForm}
+                onSave={onSaveSecurity}
               />
             )}
           </div>
         </div>
       </IonContent>
-
-      <IonFooter className="app-footer-bar">
-        <IonToolbar>
-          <div className="app-footer-bar__inner">
-            <IonButton
-              className="app-semantic-btn app-semantic--success"
-              expand="block"
-              disabled={isLoading || isSaving || isInvalid || !isDirty}
-              onClick={onSave}
-            >
-              {isSaving ? "Salvando..." : saveLabel}
-            </IonButton>
-          </div>
-        </IonToolbar>
-      </IonFooter>
     </IonPage>
   );
 };

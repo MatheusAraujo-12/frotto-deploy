@@ -1,11 +1,115 @@
 .my-panel-content {
-  --padding-bottom: calc(100px + env(safe-area-inset-bottom));
+  --padding-bottom: calc(var(--frotto-space-6) + env(safe-area-inset-bottom));
 }
 
-.my-panel-fiscal-note {
+/* ---- Meu Cadastro: visualizar → editar → salvar ----
+   Escala: campo↔campo space-3, grupo↔grupo space-5, título↔conteúdo space-2,
+   ações separadas do último campo por divisor + space-4. */
+.cadastro-card__body {
+  display: grid;
+  gap: var(--frotto-space-5);
+}
+
+.cadastro-card-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--frotto-space-2);
+}
+
+.cadastro-edit {
+  display: grid;
+  gap: var(--frotto-space-5);
+}
+
+.cadastro-group {
+  display: grid;
+  gap: var(--frotto-space-3);
+  min-width: 0;
+}
+
+.cadastro-group__title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--frotto-text-secondary);
+}
+
+.cadastro-grid {
+  gap: var(--frotto-space-3);
+}
+
+.cadastro-summary {
+  display: grid;
+  gap: var(--frotto-space-3) var(--frotto-space-5);
+  margin: 0;
+}
+
+.cadastro-summary__item {
+  display: grid;
+  gap: var(--frotto-space-1);
+  min-width: 0;
+}
+
+.cadastro-summary__item dt {
+  font-size: 0.8rem;
+  color: var(--frotto-text-secondary);
+}
+
+.cadastro-summary__item dd {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--frotto-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.cadastro-summary__item dd.cadastro-summary__empty {
+  font-weight: 400;
+  color: var(--frotto-text-muted);
+}
+
+.cadastro-hint,
+.cadastro-type-warning {
   display: block;
-  margin: 4px 2px 10px;
-  font-size: 13px;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.cadastro-divider {
+  height: 1px;
+  background: var(--frotto-border);
+}
+
+.cadastro-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--frotto-space-2);
+}
+
+.cadastro-section-actions ion-button {
+  margin: 0;
+}
+
+.cadastro-section-actions--edit {
+  justify-content: flex-end;
+  padding-top: var(--frotto-space-4);
+  border-top: 1px solid var(--frotto-border);
+}
+
+@media (min-width: 721px) {
+  .cadastro-grid,
+  .cadastro-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .cadastro-section-actions--edit ion-button {
+    flex: 1 1 0;
+  }
 }
 
 .my-panel-skeleton-line {
