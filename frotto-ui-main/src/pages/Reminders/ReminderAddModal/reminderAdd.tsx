@@ -97,8 +97,8 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
 
         // eslint-disable-next-line no-console
         console.error("Erro ao buscar carro:", error);
-        setFetchError("Nao foi possivel carregar informacoes do veiculo");
-        showErrorAlert("Erro ao carregar dados do veiculo");
+        setFetchError("Não foi possível carregar informações do veículo");
+        showErrorAlert("Erro ao carregar dados do veículo");
       }
     };
 
@@ -244,7 +244,7 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
             <div className="reminder-add-section-head">
               <h2 className="app-section-title">{titleText}</h2>
               <p className="app-section-subtitle">
-                Organize lembretes com o mesmo padrao visual dos demais modulos
+                Organize lembretes com o mesmo padrão visual dos demais módulos
                 de cadastro.
               </p>
             </div>
@@ -260,7 +260,7 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
                       {selectVehicleText}
                     </IonCardTitle>
                     <IonCardSubtitle className="app-panel-subtitle">
-                      Escolha o veiculo para salvar o lembrete.
+                      Escolha o veículo para salvar o lembrete.
                     </IonCardSubtitle>
                   </div>
                 </IonCardHeader>
@@ -299,7 +299,7 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
                       className="app-outline-btn"
                       onClick={handleResetCar}
                     >
-                      Trocar veiculo
+                      Trocar veículo
                     </IonButton>
                   </div>
                 </IonCardContent>
@@ -314,10 +314,10 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
                   </div>
                   <div className="app-panel-header__content">
                     <IonCardTitle className="app-panel-title">
-                      Conteudo do lembrete
+                      Conteúdo do lembrete
                     </IonCardTitle>
                     <IonCardSubtitle className="app-panel-subtitle">
-                      Registre uma orientacao clara e facil de consultar depois.
+                      Registre uma orientação clara e fácil de consultar depois.
                     </IonCardSubtitle>
                   </div>
                 </IonCardHeader>
@@ -333,7 +333,7 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
                       initialValue={message}
                       maxlength={200}
                       rows={4}
-                      placeholder="Ex: Trocar oleo a cada 10.000km, calibrar pneus mensalmente..."
+                      placeholder="Ex: Trocar óleo a cada 10.000km, calibrar pneus mensalmente..."
                       changeCallback={(value: string) => {
                         setValue("message", value, { shouldValidate: true });
                       }}
@@ -375,9 +375,9 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
                 </IonCardHeader>
                 <IonCardContent>
                   <ul className="reminder-add-tips">
-                    <li>Troca de oleo a cada 10.000km</li>
+                    <li>Troca de óleo a cada 10.000km</li>
                     <li>Calibragem de pneus semanal</li>
-                    <li>Revisao anual obrigatoria</li>
+                    <li>Revisão anual obrigatória</li>
                     <li>Troca de pastilhas de freio</li>
                     <li>Alinhamento e balanceamento</li>
                   </ul>

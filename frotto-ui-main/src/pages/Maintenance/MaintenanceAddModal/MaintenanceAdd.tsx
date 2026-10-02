@@ -291,8 +291,8 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
             <div className="maintenance-add-section-head">
               <h2 className="app-section-title">{titleText}</h2>
               <p className="app-section-subtitle">
-                Revise data, odometro, local, servicos e lembretes desta
-                manutencao.
+                Revise data, odômetro, local, serviços e lembretes desta
+                manutenção.
               </p>
             </div>
 
@@ -307,7 +307,7 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
                       {`${TEXT.select} ${TEXT.car}`}
                     </IonCardTitle>
                     <IonCardSubtitle className="app-panel-subtitle">
-                      Escolha o veiculo para continuar.
+                      Escolha o veículo para continuar.
                     </IonCardSubtitle>
                   </div>
                 </IonCardHeader>
@@ -342,7 +342,7 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
                       className="app-outline-btn"
                       onClick={handleResetCar}
                     >
-                      Trocar veiculo
+                      Trocar veículo
                     </IonButton>
                   </div>
                 </IonCardContent>
@@ -358,10 +358,10 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
                     </div>
                     <div className="app-panel-header__content">
                       <IonCardTitle className="app-panel-title">
-                        Dados da manutencao
+                        Dados da manutenção
                       </IonCardTitle>
                       <IonCardSubtitle className="app-panel-subtitle">
-                        Preencha os campos e edite a lista de servicos.
+                        Preencha os campos e edite a lista de serviços.
                       </IonCardSubtitle>
                     </div>
                   </IonCardHeader>
@@ -485,7 +485,7 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
                         ) : (
                           <ItemNotFound
                             title={TEXT.maintenanceServices}
-                            description="Nenhum servico adicionado."
+                            description="Nenhum serviço adicionado."
                           />
                         )}
                       </IonList>
@@ -506,7 +506,7 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
                       {TEXT.reminders}
                     </IonCardTitle>
                     <IonCardSubtitle className="app-panel-subtitle">
-                      Ajuste ou crie lembretes relacionados a esta manutencao.
+                      Ajuste ou crie lembretes relacionados a esta manutenção.
                     </IonCardSubtitle>
                   </div>
                 </IonCardHeader>

@@ -76,7 +76,7 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
         if (mounted) {
           // eslint-disable-next-line no-console
           console.error("Erro ao buscar carro:", error);
-          setFetchError("Nao foi possivel carregar informacoes do veiculo");
+          setFetchError("Não foi possível carregar informações do veículo");
         }
       }
     };
@@ -194,7 +194,7 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
   const selectVehicleText =
     (TEXT as any).selectVehicle || `${TEXT.select} ${TEXT.car}`;
 
-  const changeVehicleText = (TEXT as any).changeVehicle || "Trocar veiculo";
+  const changeVehicleText = (TEXT as any).changeVehicle || "Trocar veículo";
 
   return (
     <IonPage id="car-expense-add-page">
@@ -233,8 +233,8 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
             <div className="car-expense-add-section-head">
               <h2 className="app-section-title">{titleText}</h2>
               <p className="app-section-subtitle">
-                Padronize data, descricao e valor da despesa com o mesmo layout
-                dos demais lancamentos.
+                Padronize data, descrição e valor da despesa com o mesmo layout
+                dos demais lançamentos.
               </p>
             </div>
 
@@ -248,7 +248,7 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
                     Dados da despesa
                   </IonCardTitle>
                   <IonCardSubtitle className="app-panel-subtitle">
-                    Informe os campos principais e, se necessario, replique para
+                    Informe os campos principais e, se necessário, replique para
                     toda a frota.
                   </IonCardSubtitle>
                 </div>
@@ -339,7 +339,7 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
                           {selectVehicleText}
                         </IonCardTitle>
                         <IonCardSubtitle className="app-panel-subtitle">
-                          Vincule a despesa a um veiculo especifico.
+                          Vincule a despesa a um veículo específico.
                         </IonCardSubtitle>
                       </div>
                     </IonCardHeader>
@@ -363,10 +363,10 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
                       </div>
                       <div className="app-panel-header__content">
                         <IonCardTitle className="app-panel-title">
-                          {selectedCar?.name || "Veiculo selecionado"}
+                          {selectedCar?.name || "Veículo selecionado"}
                         </IonCardTitle>
                         <IonCardSubtitle className="app-panel-subtitle">
-                          {selectedCar?.plate || carId || "ID do veiculo"}
+                          {selectedCar?.plate || carId || "ID do veículo"}
                         </IonCardSubtitle>
                       </div>
                     </IonCardHeader>

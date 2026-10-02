@@ -9,7 +9,7 @@ export const COLORS = [
 
 export const COMMISSION_TYPES = [
   { value: "PERCENT_PROFIT", label: "Percentual do lucro" },
-  { value: "FIXED", label: "Comissao fixa (R$)" },
+  { value: "FIXED", label: "Comissão fixa (R$)" },
 ];
 
 export const CAR_ADMIN_STATUS_OPTIONS = [

@@ -25,8 +25,8 @@ interface CarListItemProps extends CarModel {
 const ADMIN_STATUS_LABEL: Record<CarAdminStatus, string> = {
   ATIVO: "Ativo",
   RETIRADO: "Retirado",
-  A_VENDA: "A venda",
-  MANUTENCAO: "Manutencao",
+  A_VENDA: "À venda",
+  MANUTENCAO: "Manutenção",
   BLOQUEADO: "Bloqueado",
 };
 
@@ -53,7 +53,7 @@ const CarListItem: React.FC<CarListItemProps> = (car) => {
     ? ADMIN_STATUS_LABEL[adminStatus]
     : normalizedCar?.driverName
     ? "Alugado"
-    : "Disponivel";
+    : "Disponível";
 
   const statusVariant: FrottoBadgeVariant = hasAdminOverride
     ? ADMIN_STATUS_VARIANT[adminStatus]
@@ -68,7 +68,7 @@ const CarListItem: React.FC<CarListItemProps> = (car) => {
     if (id == null) return;
 
     const carLabel = carIdentity.displayName || normalizedCar.plate || "este veículo";
-    const confirmDelete = window.confirm(`${TEXT.deleteDefault} ${carLabel}?`);
+    const confirmDelete = window.confirm(`${TEXT.deleteDefault}${carLabel}?`);
     if (!confirmDelete) return;
 
     try {

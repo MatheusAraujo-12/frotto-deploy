@@ -1894,7 +1894,7 @@ const DocumentsPage: React.FC = () => {
                       />
                     ) : (
                       <div className="documents-checklist-file-thumb documents-checklist-file-thumb-placeholder">
-                        Sem preview
+                        Sem pré-visualização
                       </div>
                     )}
                     <div className="documents-checklist-file-meta">
@@ -2985,7 +2985,7 @@ function buildChecklistTiresFromInspection(inspection: any): ChecklistTires | nu
   return normalizeChecklistTiresForEditor({
     marca: marcas.join(" / "),
     estado: estadoPrincipal,
-    observacoes: estadoVariado ? "Estados variam por posicao (ver resumo)." : "",
+    observacoes: estadoVariado ? "Estados variam por posição (ver resumo)." : "",
     source: "LAST_INSPECTION",
     positions,
   });

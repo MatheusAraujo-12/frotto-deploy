@@ -205,8 +205,8 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
             <div className="income-add-section-head">
               <h2 className="app-section-title">{titleText}</h2>
               <p className="app-section-subtitle">
-                Registre a receita com o mesmo padrao visual aplicado aos demais
-                lancamentos.
+                Registre a receita com o mesmo padrão visual aplicado aos demais
+                lançamentos.
               </p>
             </div>
 
@@ -221,7 +221,7 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
                       {`${TEXT.select} ${TEXT.car}`}
                     </IonCardTitle>
                     <IonCardSubtitle className="app-panel-subtitle">
-                      Escolha o veiculo para vincular a receita.
+                      Escolha o veículo para vincular a receita.
                     </IonCardSubtitle>
                   </div>
                 </IonCardHeader>
@@ -260,7 +260,7 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
                       className="app-outline-btn"
                       onClick={() => setSelectedCar(null)}
                     >
-                      Trocar veiculo
+                      Trocar veículo
                     </IonButton>
                   </div>
                 </IonCardContent>
@@ -278,7 +278,7 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
                       Dados da receita
                     </IonCardTitle>
                     <IonCardSubtitle className="app-panel-subtitle">
-                      Informe data, categoria e valor para salvar o lancamento.
+                      Informe data, categoria e valor para salvar o lançamento.
                     </IonCardSubtitle>
                   </div>
                 </IonCardHeader>

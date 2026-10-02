@@ -153,7 +153,7 @@ const CarAdd: React.FC<CarAddModalProps> = ({ closeModal, initialValues }) => {
                     {TEXT.addCar}
                   </IonCardTitle>
                   <IonCardSubtitle className="app-panel-subtitle">
-                    Informe os dados do veiculo.
+                    Informe os dados do veículo.
                   </IonCardSubtitle>
                 </div>
               </IonCardHeader>

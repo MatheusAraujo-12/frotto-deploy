@@ -331,7 +331,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     {TEXT.addCarInspection}
                   </IonCardTitle>
                   <IonCardSubtitle className="app-panel-subtitle">
-                    Informe data, motorista e odometro da inspecao.
+                    Informe data, motorista e odômetro da inspeção.
                   </IonCardSubtitle>
                 </div>
               </IonCardHeader>
@@ -386,7 +386,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     {TEXT.cleaning}
                   </IonCardTitle>
                   <IonCardSubtitle className="app-panel-subtitle">
-                    Avalie a limpeza interna e externa do veiculo.
+                    Avalie a limpeza interna e externa do veículo.
                   </IonCardSubtitle>
                 </div>
               </IonCardHeader>
@@ -569,7 +569,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     {TEXT.inspectionsExpenses}
                   </IonCardTitle>
                   <IonCardSubtitle className="app-panel-subtitle">
-                    Despesas relacionadas a esta inspecao.
+                    Despesas relacionadas a esta inspeção.
                   </IonCardSubtitle>
                 </div>
               </IonCardHeader>
@@ -641,7 +641,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     {TEXT.carDamages}
                   </IonCardTitle>
                   <IonCardSubtitle className="app-panel-subtitle">
-                    Avarias identificadas nesta inspecao.
+                    Avarias identificadas nesta inspeção.
                   </IonCardSubtitle>
                 </div>
               </IonCardHeader>

@@ -44,6 +44,7 @@ const FormSelect: React.FC<FormSelectProps> = ({
         <MyIonSelect
           value={initialValue}
           interface={SELECT_TYPE}
+          cancelText="Cancelar"
           placeholder={label}
           aria-invalid={hasError ? "true" : undefined}
           aria-describedby={hasError ? errorId : undefined}
