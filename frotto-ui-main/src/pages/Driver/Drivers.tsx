@@ -220,7 +220,7 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
       <IonContent>
         <div className="app-shell app-shell--compact">
           <IonList className="app-nested-list">
-            <IonItem className="app-nested-list__title">
+            <IonItem lines="none" className="app-nested-list__title">
               <IonLabel>
                 <h1>{TEXT.active}</h1>
               </IonLabel>
@@ -241,7 +241,7 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
             )}
           </IonList>
           <IonList className="app-nested-list">
-            <IonItem className="app-nested-list__title">
+            <IonItem lines="none" className="app-nested-list__title">
               <IonLabel>
                 <h1>{TEXT.carDamagesDone}</h1>
               </IonLabel>

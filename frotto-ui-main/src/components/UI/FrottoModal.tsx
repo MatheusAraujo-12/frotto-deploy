@@ -25,6 +25,7 @@ export interface FrottoModalProps {
    */
   cancelVariant?: "default" | "danger";
   primaryLabel: string;
+  primaryVariant?: "default" | "save";
   onPrimaryAction: () => void;
   primaryDisabled?: boolean;
   isLoading?: boolean;
@@ -46,6 +47,7 @@ const FrottoModal: React.FC<FrottoModalProps> = ({
   cancelDisabled = false,
   cancelVariant = "default",
   primaryLabel,
+  primaryVariant = "default",
   onPrimaryAction,
   primaryDisabled = false,
   isLoading = false,
@@ -68,7 +70,7 @@ const FrottoModal: React.FC<FrottoModalProps> = ({
           <IonTitle>{title}</IonTitle>
           <IonButtons slot="end">
             <IonButton
-              className="app-primary-btn"
+              className={primaryVariant === "save" ? "app-save-btn" : "app-primary-btn"}
               disabled={primaryDisabled}
               onClick={onPrimaryAction}
             >

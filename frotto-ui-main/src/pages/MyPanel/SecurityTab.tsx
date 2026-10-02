@@ -135,7 +135,7 @@ const SecurityTab: React.FC<SecurityTabProps> = ({
         </div>
 
         <div className="cadastro-section-actions cadastro-section-actions--edit">
-          <IonButton className="app-primary-btn" disabled={isSaving || saveDisabled} onClick={onSave}>
+          <IonButton className="app-save-btn" disabled={isSaving || saveDisabled} onClick={onSave}>
             {isSaving ? "Salvando..." : "Salvar nova senha"}
           </IonButton>
         </div>

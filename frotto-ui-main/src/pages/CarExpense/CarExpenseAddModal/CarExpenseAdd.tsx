@@ -215,7 +215,7 @@ const CarExpenseAdd: React.FC<CarExpenseAddModalProps> = ({
 
           <IonButtons slot="end">
             <IonButton
-              className="app-primary-btn"
+              className="app-save-btn"
               disabled={isLoading}
               onClick={handleSubmit(onSubmit)}
             >

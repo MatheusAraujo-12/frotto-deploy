@@ -11,7 +11,6 @@ import {
 import { idCardOutline, imageOutline, imagesOutline, personOutline } from "ionicons/icons";
 import FrottoBadge from "../../components/UI/FrottoBadge";
 import FrottoCard from "../../components/UI/FrottoCard";
-import ItemNotFound from "../../components/List/ItemNotFound";
 import {
   FiscalForm,
   FormErrors,
@@ -160,6 +159,10 @@ const MeuCadastroTab: React.FC<MeuCadastroTabProps> = (props) => {
 
   return (
     <>
+      <div className="app-section">
+        <h2 className="app-section-title">Meu Cadastro</h2>
+        <p className="app-section-subtitle">Gerencie seus dados e a identidade usada nos documentos.</p>
+      </div>
       <FrottoCard className="cadastro-card" data-testid="cadastro-identity">
         <CardHeader
           icon={idCardOutline}
@@ -189,24 +192,17 @@ const MeuCadastroTab: React.FC<MeuCadastroTabProps> = (props) => {
                 onSave={() => onSaveSection("identity")}
               />
             </>
-          ) : hasSavedIdentity ? (
+          ) : (
             <>
               {identitySummary(savedFiscalForm).map((group, index) => (
                 <SummaryList key={group.title ?? index} title={group.title} items={group.items} />
               ))}
               <SectionViewActions
-                label="Editar dados"
+                label={hasSavedIdentity ? "Editar dados" : "Preencher dados"}
                 disabled={isLocked("identity")}
                 onEdit={() => onStartEdit("identity")}
               />
             </>
-          ) : (
-            <ItemNotFound
-              title="Nenhum dado cadastral salvo"
-              description="Informe se você atua como Pessoa Física ou Jurídica."
-              actionLabel={isLocked("identity") ? undefined : "Preencher dados"}
-              onAction={() => onStartEdit("identity")}
-            />
           )}
         </IonCardContent>
       </FrottoCard>
@@ -273,8 +269,6 @@ const MeuCadastroTab: React.FC<MeuCadastroTabProps> = (props) => {
               </div>
             )}
           </div>
-
-          <div className="cadastro-divider" />
 
           {isEditing("personal") ? (
             <>

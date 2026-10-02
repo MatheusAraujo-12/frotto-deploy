@@ -149,7 +149,7 @@ const FormDate: React.FC<DateProps> = ({
               <IonButton className="app-cancel-btn" onClick={handleCancel}>
                 {TEXT.cancel}
               </IonButton>
-              <IonButton color="primary" onClick={handleConfirm}>
+              <IonButton className="app-save-btn" onClick={handleConfirm}>
                 {TEXT.confirm}
               </IonButton>
             </IonButtons>

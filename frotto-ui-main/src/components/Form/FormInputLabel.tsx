@@ -4,15 +4,17 @@ interface InputLabelProps {
   name: string;
   header?: string;
   required?: boolean;
+  position?: "stacked";
 }
 
 const FormInputLabel: React.FC<InputLabelProps> = ({
   required,
   name,
   header,
+  position,
 }) => {
   return (
-    <IonLabel>
+    <IonLabel position={position}>
       {header !== undefined && (
         <h2>
           <strong>{header}</strong>

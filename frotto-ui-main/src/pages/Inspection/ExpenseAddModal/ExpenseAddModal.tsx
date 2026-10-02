@@ -84,7 +84,7 @@ const ExpenseAddModal: React.FC<ExpenseAddModalProps> = ({
           <IonButtons slot="start">
             <IonButton
               fill="clear"
-              color="danger"
+              className="app-danger-btn"
               onClick={() => closeModal({ ...formInitial, delete: true })}
             >
               {TEXT.delete}
@@ -93,7 +93,7 @@ const ExpenseAddModal: React.FC<ExpenseAddModalProps> = ({
           <IonTitle>{TEXT.expense}</IonTitle>
           <IonButtons slot="end">
             <IonButton
-              className="app-primary-btn"
+              className="app-save-btn"
               onClick={handleSubmit(onSubmit, onInvalid)}
             >
               {TEXT.save}

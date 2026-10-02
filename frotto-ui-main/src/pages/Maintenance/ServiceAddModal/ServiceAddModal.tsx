@@ -141,7 +141,7 @@ const ServiceAddModal: React.FC<ServiceAddModalProps> = ({
           </IonButtons>
           <IonTitle>{TEXT.services}</IonTitle>
           <IonButtons slot="end">
-            <IonButton className="app-primary-btn" onClick={save}>
+            <IonButton className="app-save-btn" onClick={save}>
               {TEXT.save}
             </IonButton>
           </IonButtons>

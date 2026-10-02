@@ -67,9 +67,9 @@ export const DeletedCarsView: React.FC<{ admin?: boolean }> = ({ admin = false }
     </article>)}
     {selected && <section aria-label={admin ? "Restaurar veículo" : "Histórico do veículo"}>
       <h2>{selected.plate}</h2>
-      {admin ? <><label>Motivo obrigatório<textarea maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} /></label><IonButton disabled={!reason.trim() || busy} onClick={() => void restore()}>Confirmar restauração</IonButton></>
+      {admin ? <><label>Motivo obrigatório<textarea maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} /></label><IonButton className="app-save-btn" disabled={!reason.trim() || busy} onClick={() => void restore()}>Confirmar restauração</IonButton></>
         : <>{busy && <p>Carregando histórico…</p>}{history.map(section => <section key={section.title}><h3>{section.title}</h3>{section.rows.length === 0 ? <p>Nenhum registro.</p> : <ul>{section.rows.map((row, index) => <li key={row.id ?? index}>{date(row.date || row.startDate)} — {row.driver?.name || row.name || row.title || row.description || row.type || "Registro"}{row.cost != null && ` — ${row.cost.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`}{row.imagePath && <a href={row.imagePath} target="_blank" rel="noreferrer"> Ver imagem</a>}{row.pdfUrl && <a href={row.pdfUrl} target="_blank" rel="noreferrer"> Ver documento</a>}</li>)}</ul>}</section>)}</>}
-      <IonButton onClick={() => setSelected(null)}>Fechar</IonButton>
+      <IonButton fill="clear" className="app-cancel-btn" onClick={() => setSelected(null)}>Fechar</IonButton>
     </section>}
   </div></IonContent></IonPage>;
 };

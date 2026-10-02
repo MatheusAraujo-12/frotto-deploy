@@ -1609,7 +1609,7 @@ const DocumentsPage: React.FC = () => {
           <FormGroup title="Itens da dívida">
           <div className="documents-debt-items">
             {confissaoItems.map((item, index) => (
-              <div key={`confissao-item-${index}`} className="documents-debt-item-card">
+              <div key={`confissao-item-${index}`} className="app-form-grid documents-debt-item-card">
                 <SelectField
                   label={`Tipo do item #${index + 1}`}
                   value={item.typeId ? `${item.typeId}` : ""}
@@ -1638,7 +1638,7 @@ const DocumentsPage: React.FC = () => {
                 <div className="documents-debt-item-actions">
                   <IonButton
                     size="small"
-                    color="danger"
+                    className="app-danger-btn"
                     fill="outline"
                     onClick={() => removeConfissaoItem(index)}
                     disabled={confissaoItems.length <= 1}
@@ -1745,7 +1745,7 @@ const DocumentsPage: React.FC = () => {
                       slot="end"
                       fill="clear"
                       size="small"
-                      color="danger"
+                      className="app-danger-btn"
                       onClick={() => removeCustomChecklistItem(item.key)}
                     >
                       Remover
@@ -1784,7 +1784,7 @@ const DocumentsPage: React.FC = () => {
         </FormGroup>
         <FormGroup title="Contatos de emergência">
           {checklistEmergencyContacts.map((contact, index) => (
-            <div key={`checklist-contact-${index}`} className="documents-checklist-contact-card">
+            <div key={`checklist-contact-${index}`} className="app-form-grid documents-checklist-contact-card">
               <IonItem>
                 <IonLabel position="stacked">Contato {index + 1} - Nome *</IonLabel>
                 <IonInput
@@ -1813,7 +1813,7 @@ const DocumentsPage: React.FC = () => {
                 <div className="documents-checklist-contact-actions">
                   <IonButton
                     size="small"
-                    color="danger"
+                    className="app-danger-btn"
                     fill="outline"
                     onClick={() => removeChecklistEmergencyContact(index)}
                   >
@@ -1868,7 +1868,7 @@ const DocumentsPage: React.FC = () => {
                   </div>
                   <IonButton
                     size="small"
-                    color="danger"
+                    className="app-danger-btn"
                     fill="clear"
                     onClick={() => removeChecklistNewPhoto(index)}
                   >
@@ -1908,7 +1908,7 @@ const DocumentsPage: React.FC = () => {
                   </div>
                   <IonButton
                     size="small"
-                    color="danger"
+                    className="app-danger-btn"
                     fill="clear"
                     onClick={() => removeChecklistPhotoRef(ref)}
                   >
@@ -2427,7 +2427,7 @@ const DocumentsPage: React.FC = () => {
                 <>
                   <IonButton
                     fill="outline"
-                    className="app-outline-btn documents-wizard-footer__draft"
+                    className="app-save-btn documents-wizard-footer__draft"
                     onClick={() => void saveDraft()}
                     disabled={isActionLoading}
                   >

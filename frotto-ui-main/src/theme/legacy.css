@@ -294,6 +294,47 @@
   font-weight: 700;
 }
 
+/* Conclusão positiva; navegação e geração de PDF continuam primárias. */
+ion-button.app-save-btn {
+  --background: var(--frotto-success);
+  --color: var(--frotto-status-contrast);
+  --background-hover: var(--frotto-success);
+  --background-focused: var(--frotto-success);
+  --background-activated: var(--frotto-success);
+  --color-hover: var(--frotto-status-contrast);
+  --color-focused: var(--frotto-status-contrast);
+  --color-activated: var(--frotto-status-contrast);
+  --border-color: var(--frotto-success);
+  --border-radius: var(--app-button-radius);
+  font-weight: 700;
+}
+
+ion-button.app-save-btn[fill="outline"],
+ion-button.app-save-btn[fill="clear"] {
+  --background: transparent;
+  --color: var(--frotto-success);
+  --background-hover: var(--frotto-success-soft);
+  --background-focused: var(--frotto-success-soft);
+  --background-activated: var(--frotto-success-soft);
+  --color-hover: var(--frotto-success);
+  --color-focused: var(--frotto-success);
+  --color-activated: var(--frotto-success);
+}
+
+/* Dentro de ion-buttons o Ionic usa fill clear por padrão só via classe
+   (.button-clear, sem o atributo), e .sc-ion-buttons-md-s .button-clear
+   vencia ion-button.app-save-btn: Salvar/Confirmar dos cabeçalhos ficava
+   transparente. Repõe o verde sólido quando não há fill explícito; .button
+   supera também o --color: initial de ion-buttons dentro de .ion-color
+   (ion-datetime color="primary" do FormDate). */
+ion-buttons ion-button.app-save-btn.button:not([fill="clear"]):not([fill="outline"]) {
+  --background: var(--frotto-success);
+  --color: var(--frotto-status-contrast);
+  --background-hover: var(--frotto-success);
+  --background-focused: var(--frotto-success);
+  --background-activated: var(--frotto-success);
+}
+
 .app-danger-btn {
   --background: rgba(var(--ion-color-danger-rgb), 0.1);
   --color: var(--ion-color-danger);
@@ -328,6 +369,20 @@ ion-button.app-cancel-btn[fill="outline"] {
   --border-radius: var(--app-button-radius);
   --ripple-color: rgba(var(--frotto-danger-rgb), 0.18);
   font-weight: 700;
+}
+
+/* O cabeçalho permanece escuro nos dois temas. */
+ion-header ion-toolbar ion-button.app-cancel-btn,
+ion-header ion-toolbar ion-button.app-cancel-btn[fill="clear"],
+ion-header ion-toolbar ion-button.app-cancel-btn[fill="outline"] {
+  --color: var(--frotto-toolbar-danger);
+  --color-hover: var(--frotto-toolbar-danger);
+  --color-focused: var(--frotto-toolbar-danger);
+  --color-activated: var(--frotto-toolbar-danger);
+}
+
+ion-header ion-toolbar ion-button.app-danger-btn {
+  --frotto-danger: var(--frotto-toolbar-danger);
 }
 
 /* Voltar e navegação secundária: neutro, nunca vermelho. */
@@ -1106,7 +1161,6 @@ ion-header > ion-toolbar + ion-toolbar:not(.my-panel-segment-toolbar)::part(back
   padding: 0 2px 12px;
   background: transparent;
   border: 0;
-  border-bottom: 1px solid var(--ion-border-color);
   min-height: 0;
 }
 

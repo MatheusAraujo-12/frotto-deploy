@@ -49,7 +49,7 @@ import {
 } from "./maintenanceValidationSchema";
 import ServiceAddModal from "../ServiceAddModal/ServiceAddModal";
 import { currencyFormat } from "../../../services/currencyFormat";
-import { formatDateView } from "../../../services/dateFormat";
+
 import FormDeleteButton from "../../../components/Form/FormDeleteButton";
 import ReminderAdd from "../../Reminders/ReminderAddModal/reminderAdd";
 import "./MaintenanceAdd.css";
@@ -281,16 +281,6 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
 
           <IonTitle>{titleText}</IonTitle>
 
-          <IonButtons slot="end">
-            <IonButton
-              className="app-primary-btn"
-              disabled={isLoading || !isValid || (!isDirty && !!formInitial.id)}
-              onClick={handleSubmit(onSubmit)}
-            >
-              {TEXT.save}
-            </IonButton>
-          </IonButtons>
-
           {isLoading && <IonProgressBar type="indeterminate" />}
         </IonToolbar>
       </IonHeader>
@@ -361,59 +351,6 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
 
             {(selectedCar || carId) && (
               <>
-                <FrottoCard className="app-panel-card--soft">
-                  <IonCardHeader className="app-panel-header">
-                    <div className="app-soft-icon">
-                      <IonIcon icon={buildOutline} />
-                    </div>
-                    <div className="app-panel-header__content">
-                      <IonCardTitle className="app-panel-title">
-                        Resumo da manutencao
-                      </IonCardTitle>
-                      <IonCardSubtitle className="app-panel-subtitle">
-                        {services?.filter((service) => !!service)?.length || 0}{" "}
-                        servico(s) registrado(s)
-                      </IonCardSubtitle>
-                    </div>
-                  </IonCardHeader>
-                  <IonCardContent>
-                    <div className="maintenance-add-summary">
-                      <div className="app-soft-box app-soft-box--neutral">
-                        <span className="maintenance-add-summary__label">
-                          {TEXT.date}
-                        </span>
-                        <strong className="maintenance-add-summary__value">
-                          {date ? formatDateView(date) : "-"}
-                        </strong>
-                      </div>
-                      <div className="app-soft-box app-soft-box--neutral">
-                        <span className="maintenance-add-summary__label">
-                          {TEXT.odometer}
-                        </span>
-                        <strong className="maintenance-add-summary__value">
-                          {`${odometer || 0} ${TEXT.km}`}
-                        </strong>
-                      </div>
-                      <div className="app-soft-box app-soft-box--neutral">
-                        <span className="maintenance-add-summary__label">
-                          {TEXT.local}
-                        </span>
-                        <strong className="maintenance-add-summary__value">
-                          {local || "-"}
-                        </strong>
-                      </div>
-                      <div className="app-soft-box app-soft-box--neutral">
-                        <span className="maintenance-add-summary__label">
-                          {TEXT.total}
-                        </span>
-                        <strong className="maintenance-add-summary__value maintenance-add-summary__value--financial-negative">
-                          {currencyFormat(totalCost)}
-                        </strong>
-                      </div>
-                    </div>
-                  </IonCardContent>
-                </FrottoCard>
-
                 <FrottoCard>
                   <IonCardHeader className="app-panel-header">
                     <div className="app-soft-icon">
@@ -626,6 +563,16 @@ const MaintenanceAdd: React.FC<MaintenanceAddModalProps> = ({ closeModal, initia
                 </IonCardContent>
               </FrottoCard>
             )}
+
+            <div className="app-actions-row app-actions-row--end">
+              <IonButton
+                className="app-save-btn"
+                disabled={isLoading || !isValid || (!isDirty && !!formInitial.id)}
+                onClick={handleSubmit(onSubmit)}
+              >
+                {TEXT.save}
+              </IonButton>
+            </div>
 
             {formInitial.id && (
               <div className="maintenance-add-delete">

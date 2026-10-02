@@ -94,7 +94,7 @@ describe("MeuCadastroTab - visualizar → editar → salvar", () => {
     const identity = card("identity");
     const inputs = identity.querySelectorAll("ion-input");
     const cancel = identity.querySelector("ion-button.app-cancel-btn") as HTMLElement;
-    const save = identity.querySelector("ion-button.app-primary-btn") as HTMLElement;
+    const save = identity.querySelector("ion-button.app-save-btn") as HTMLElement;
 
     expect(inputs.length).toBe(4);
     expect(cancel).toHaveTextContent("Cancelar");

@@ -151,6 +151,7 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
       title={pageTitle}
       onCancel={() => closeModal()}
       cancelVariant="danger"
+      primaryVariant="save"
       primaryLabel={TEXT.save}
       onPrimaryAction={handleSubmit(onSubmit)}
       primaryDisabled={isLoading}

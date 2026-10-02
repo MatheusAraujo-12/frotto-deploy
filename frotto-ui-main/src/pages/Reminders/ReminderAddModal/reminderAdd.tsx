@@ -226,7 +226,7 @@ const ReminderAdd: React.FC<ReminderAddModalProps> = ({
 
           <IonButtons slot="end">
             <IonButton
-              className="app-primary-btn"
+              className="app-save-btn"
               disabled={isLoading || !isValid || (!isDirty && !!formInitial.id)}
               onClick={handleSubmit(onSubmit)}
             >

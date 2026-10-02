@@ -149,8 +149,8 @@
 }
 
 /* ---- Wizard: corpo da etapa ----
-   Escala: campo↔campo space-3, título↔campos space-3, grupo↔grupo space-5 +
-   divisor, cabeçalho da etapa↔conteúdo space-6. */
+   Escala: campo↔campo space-4, título↔campos space-3,
+   grupo↔grupo space-5, cabeçalho da etapa↔conteúdo space-6. */
 #documents-page .documents-step-body,
 .documents-modal .documents-step-body {
   gap: var(--frotto-space-6);
@@ -197,7 +197,6 @@
 #documents-page .documents-form-group + .documents-form-group,
 .documents-modal .documents-form-group + .documents-form-group {
   padding-top: var(--frotto-space-5);
-  border-top: 1px solid var(--frotto-border);
 }
 
 #documents-page .documents-form-group__title,
@@ -211,9 +210,10 @@
 }
 
 #documents-page .documents-form-group__fields,
-.documents-modal .documents-form-group__fields {
+.documents-modal .documents-form-group__fields,
+.documents-modal--wizard .app-form-grid {
   display: grid;
-  gap: var(--frotto-space-3);
+  gap: var(--frotto-space-4);
   min-width: 0;
 }
 

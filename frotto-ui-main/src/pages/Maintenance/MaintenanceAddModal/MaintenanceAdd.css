@@ -30,30 +30,6 @@
   justify-content: flex-end;
 }
 
-.maintenance-add-summary {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.maintenance-add-summary__label {
-  display: block;
-  margin-bottom: 4px;
-  font-size: 0.78rem;
-  line-height: 1.3;
-  color: var(--ion-color-medium);
-}
-
-.maintenance-add-summary__value {
-  color: var(--ion-text-color);
-  font-size: 0.94rem;
-  line-height: 1.35;
-}
-
-.maintenance-add-summary__value--financial-negative {
-  color: var(--frotto-financial-negative);
-}
-
 .maintenance-add-services-list {
   display: grid;
   gap: 10px;
@@ -225,11 +201,4 @@
   font-size: 0.8rem;
   line-height: 1.3;
   color: var(--ion-color-medium);
-}
-
-
-@media (max-width: 640px) {
-  .maintenance-add-summary {
-    grid-template-columns: 1fr;
-  }
 }

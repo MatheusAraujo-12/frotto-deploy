@@ -40,6 +40,8 @@ describe("design system accessibility contract", () => {
       ['text-primary', 'background'], ['text-secondary', 'surface'],
       ['text-muted', 'surface-secondary'], ['primary-contrast', 'primary'],
       ['primary-text', 'surface'], ['primary-hover-contrast', 'primary-hover'],
+      ['status-contrast', 'success'], ['status-contrast', 'danger'],
+      ['toolbar-danger', 'toolbar'],
       ...['success', 'warning', 'danger', 'info'].map(status => [status, 'surface-modal']),
     ];
     pairs.forEach(([foreground, background]) => {

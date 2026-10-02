@@ -135,6 +135,7 @@ const CarAdd: React.FC<CarAddModalProps> = ({ closeModal, initialValues }) => {
       title={formInitial.id ? TEXT.editCar : TEXT.newCar}
       onCancel={() => closeModal()}
       cancelVariant="danger"
+      primaryVariant="save"
       primaryLabel={TEXT.save}
       onPrimaryAction={handleSubmit(onSubmit)}
       primaryDisabled={isLoading}

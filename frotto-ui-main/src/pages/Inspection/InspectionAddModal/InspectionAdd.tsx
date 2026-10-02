@@ -307,7 +307,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
           <IonTitle>{TEXT.addCarInspection}</IonTitle>
           <IonButtons slot="end">
             <IonButton
-              className="app-primary-btn"
+              className="app-save-btn"
               disabled={isLoading}
               onClick={handleSubmit(onSubmit, onInvalid)}
             >

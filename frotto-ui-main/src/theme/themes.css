@@ -28,6 +28,7 @@ body.light {
   --frotto-border-strong: var(--frotto-slate);
   --frotto-toolbar: var(--frotto-navy);
   --frotto-toolbar-text: var(--frotto-cloud);
+  --frotto-toolbar-danger: var(--frotto-red-300);
   --frotto-success: var(--frotto-green-700);
   --frotto-success-rgb: var(--frotto-green-700-rgb);
   --frotto-success-soft: rgba(var(--frotto-success-rgb), 0.1);
@@ -85,6 +86,7 @@ body.dark {
   --frotto-border-strong: var(--frotto-slate-400);
   --frotto-toolbar: var(--frotto-navy);
   --frotto-toolbar-text: var(--frotto-cloud);
+  --frotto-toolbar-danger: var(--frotto-red-300);
   --frotto-success: var(--frotto-green-300);
   --frotto-success-rgb: var(--frotto-green-300-rgb);
   --frotto-success-soft: rgba(var(--frotto-success-rgb), 0.12);

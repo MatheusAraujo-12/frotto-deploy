@@ -350,6 +350,7 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
       title={pageTitle}
       onCancel={() => closeModal()}
       cancelVariant="danger"
+      primaryVariant="save"
       primaryLabel={TEXT.save}
       onPrimaryAction={handleSubmit(onSubmit, onInvalid)}
       primaryDisabled={isLoading}

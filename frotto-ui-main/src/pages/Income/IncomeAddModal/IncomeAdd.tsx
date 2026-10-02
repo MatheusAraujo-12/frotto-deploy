@@ -187,7 +187,7 @@ const IncomeAdd: React.FC<IncomeAddModalProps> = ({ closeModal, initialValues, c
 
           <IonButtons slot="end">
             <IonButton
-              className="app-primary-btn"
+              className="app-save-btn"
               disabled={isLoading || !isValid || (!isDirty && !!formInitial.id)}
               onClick={handleSubmit(onSubmit)}
             >

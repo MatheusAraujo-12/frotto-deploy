@@ -24,6 +24,7 @@ import { usePhotoGallery } from "../../services/hooks/usePhotoGallery";
 import profileService, { MeResponseDTO } from "../../services/profileService";
 import MeuCadastroTab, { CadastroSection } from "./MeuCadastroTab";
 import SecurityTab from "./SecurityTab";
+import { clearFieldsForTaxType } from "./FiscalTab";
 import {
   EMPTY_FISCAL_FORM,
   EMPTY_FISCAL_TOUCHED,
@@ -350,17 +351,18 @@ const MyPanelPage: React.FC = () => {
     }
 
     if (fiscalDirty) {
+      const submittedFiscal = clearFieldsForTaxType(fiscalForm, fiscalForm.taxPersonType);
       lastResponse = await profileService.updateTaxData({
-        taxPersonType: fiscalForm.taxPersonType,
-        taxLandlordName: toNullable(fiscalForm.taxLandlordName),
-        taxCpf: toNullableDigits(fiscalForm.taxCpf),
-        taxEmail: toNullable(fiscalForm.taxEmail),
-        taxPhone: toNullableDigits(fiscalForm.taxPhone),
-        taxCompanyName: toNullable(fiscalForm.taxCompanyName),
-        taxCnpj: toNullableDigits(fiscalForm.taxCnpj),
-        taxIe: toNullable(fiscalForm.taxIe),
-        taxContactPhone: toNullableDigits(fiscalForm.taxContactPhone),
-        taxAddress: toNullable(fiscalForm.taxAddress),
+        taxPersonType: submittedFiscal.taxPersonType,
+        taxLandlordName: toNullable(submittedFiscal.taxLandlordName),
+        taxCpf: toNullableDigits(submittedFiscal.taxCpf),
+        taxEmail: toNullable(submittedFiscal.taxEmail),
+        taxPhone: toNullableDigits(submittedFiscal.taxPhone),
+        taxCompanyName: toNullable(submittedFiscal.taxCompanyName),
+        taxCnpj: toNullableDigits(submittedFiscal.taxCnpj),
+        taxIe: toNullable(submittedFiscal.taxIe),
+        taxContactPhone: toNullableDigits(submittedFiscal.taxContactPhone),
+        taxAddress: toNullable(submittedFiscal.taxAddress),
       });
     }
 

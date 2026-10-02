@@ -192,7 +192,7 @@ const BodyDamageAdd: React.FC<CarDamageAddModalProps> = ({
 
           <IonButtons slot="end">
             <IonButton
-              className="app-primary-btn"
+              className="app-save-btn"
               disabled={isLoading}
               onClick={handleSubmit(onSubmit, onInvalid)}
             >

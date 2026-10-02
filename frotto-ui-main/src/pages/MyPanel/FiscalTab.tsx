@@ -97,7 +97,7 @@ const FiscalInput: React.FC<FiscalInputProps> = ({
   return (
     <div className={state.wrapClassName}>
       <IonItem className={multiline ? "app-form-item app-form-item--textarea" : "app-form-item"}>
-        <FormInputLabel name={label} />
+        <FormInputLabel name={label} position="stacked" />
         {multiline ? (
           <IonTextarea
             value={form[field]}
@@ -147,7 +147,8 @@ export const FiscalCadastralFields: React.FC<FiscalCadastralFieldsProps> = ({ ty
         onIonChange={(event) => {
           const nextType = (event.detail.value as TaxPersonType) || "CPF";
           onTouch("taxPersonType");
-          onChange(clearFieldsForTaxType(form, nextType));
+          // Trocar a visualização preserva os dois rascunhos até Salvar ou Cancelar.
+          onChange({ ...form, taxPersonType: nextType });
         }}
       >
         <IonSegmentButton value="CPF">

@@ -51,7 +51,7 @@ export const SectionEditActions: React.FC<{
     <IonButton fill="clear" className="app-cancel-btn" disabled={isSaving} onClick={onCancel}>
       Cancelar
     </IonButton>
-    <IonButton className="app-primary-btn" disabled={isSaving || saveDisabled} onClick={onSave}>
+    <IonButton className="app-save-btn" disabled={isSaving || saveDisabled} onClick={onSave}>
       {isSaving ? "Salvando..." : saveLabel}
     </IonButton>
   </div>

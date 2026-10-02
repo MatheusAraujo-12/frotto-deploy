@@ -4,10 +4,23 @@
 
 /* ---- Meu Cadastro: visualizar → editar → salvar ----
    Escala: campo↔campo space-3, grupo↔grupo space-5, título↔conteúdo space-2,
-   ações separadas do último campo por divisor + space-4. */
+   ações separadas do último campo por space-4. */
 .cadastro-card__body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--frotto-space-5);
+}
+
+.cadastro-card .app-avatar-block__avatar {
+  flex: 0 0 64px;
+  width: 64px;
+  height: 64px;
+  border: 0;
+  box-shadow: none;
+}
+
+.cadastro-card .app-avatar-block__content {
+  min-width: 0;
 }
 
 .cadastro-card-title {
@@ -19,6 +32,7 @@
 
 .cadastro-edit {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--frotto-space-5);
 }
 
@@ -39,6 +53,21 @@
 
 .cadastro-grid {
   gap: var(--frotto-space-3);
+}
+
+.cadastro-edit ion-segment-button {
+  min-width: 0;
+  --padding-start: var(--frotto-space-2);
+  --padding-end: var(--frotto-space-2);
+}
+
+.cadastro-edit ion-segment-button ion-label {
+  white-space: normal;
+}
+
+.cadastro-card .app-form-item ion-label {
+  white-space: normal;
+  overflow: visible;
 }
 
 .cadastro-summary {
@@ -78,11 +107,6 @@
   line-height: 1.45;
 }
 
-.cadastro-divider {
-  height: 1px;
-  background: var(--frotto-border);
-}
-
 .cadastro-section-actions {
   display: flex;
   flex-wrap: wrap;
@@ -96,7 +120,6 @@
 .cadastro-section-actions--edit {
   justify-content: flex-end;
   padding-top: var(--frotto-space-4);
-  border-top: 1px solid var(--frotto-border);
 }
 
 @media (min-width: 721px) {
@@ -143,7 +166,7 @@
 
 .settings-shell {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 180px minmax(0, 1fr);
   align-items: start;
   gap: var(--frotto-space-6);
 }
@@ -154,9 +177,8 @@
   gap: var(--frotto-space-2);
   position: sticky;
   top: var(--frotto-space-4);
-  border: var(--app-border);
   border-radius: var(--app-radius);
-  background: var(--app-card);
+  background: transparent;
   padding: var(--frotto-space-3);
 }
 
@@ -217,4 +239,3 @@
     display: block;
   }
 }
-
