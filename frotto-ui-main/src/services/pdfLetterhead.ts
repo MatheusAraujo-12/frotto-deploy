@@ -1,6 +1,7 @@
 import { maskCNPJ, maskCPF } from "./profileFormat";
 import api from "./axios/axios";
 import profileService, { MeResponseDTO } from "./profileService";
+import { imageCacheIdentity, resolveProfileImageSource } from "./profileImageSource";
 import { resolveApiUrl } from "./resolveApiUrl";
 
 export const PDF_LETTERHEAD_PAGE_MARGINS: [number, number, number, number] = [40, 115, 40, 60];
@@ -24,7 +25,7 @@ type FiscalIdentity = {
 export async function loadPdfLetterheadData(): Promise<{ profile: MeResponseDTO | null; logoDataUrl: string }> {
   try {
     const profile = await profileService.getMe();
-    const rawLogoUrl = `${profile.logoUrl || ""}`.trim();
+    const rawLogoUrl = resolveProfileImageSource(profile.logoAccessUrl, profile.logoUrl, (value) => value);
     const logoDataUrl = await loadLogoDataUrl(rawLogoUrl);
     return { profile, logoDataUrl };
   } catch (_error) {
@@ -198,47 +199,72 @@ export async function loadImageAsDataUrl(url: string): Promise<string> {
     return "";
   }
 
-  const memoryCached = imageDataUrlMemoryCache.get(normalizedUrl);
+  // Signed URLs change every expiration window; the content behind the same path does not.
+  const cacheIdentity = imageCacheIdentity(normalizedUrl);
+  const memoryCached = imageDataUrlMemoryCache.get(cacheIdentity);
   if (memoryCached) {
     return memoryCached;
   }
 
-  const localCacheKey = `${IMAGE_DATA_URL_CACHE_PREFIX}${encodeURIComponent(normalizedUrl)}`;
+  const localCacheKey = `${IMAGE_DATA_URL_CACHE_PREFIX}${encodeURIComponent(cacheIdentity)}`;
   const localCached = readLocalImageCache(localCacheKey);
   if (localCached) {
-    imageDataUrlMemoryCache.set(normalizedUrl, localCached);
+    imageDataUrlMemoryCache.set(cacheIdentity, localCached);
     return localCached;
   }
 
-  try {
-    const response = await api.get<Blob>(normalizedUrl, { responseType: "blob" });
-    const fromApi = await blobToImageDataUrl(response.data);
-    if (fromApi) {
-      imageDataUrlMemoryCache.set(normalizedUrl, fromApi);
-      writeLocalImageCache(localCacheKey, fromApi);
-      return fromApi;
-    }
-    throw new Error("invalid image data from api");
-  } catch (apiError) {
+  const remember = (dataUrl: string) => {
+    imageDataUrlMemoryCache.set(cacheIdentity, dataUrl);
+    writeLocalImageCache(localCacheKey, dataUrl);
+    return dataUrl;
+  };
+
+  let apiError: unknown = null;
+  // The JWT-carrying axios instance is only used for the API itself, never for the files domain or the bucket.
+  if (isApiUrl(normalizedUrl)) {
     try {
-      const response = await fetch(normalizedUrl);
-      if (!response.ok) {
-        throw new Error(`status ${response.status}`);
+      const response = await api.get<Blob>(normalizedUrl, { responseType: "blob" });
+      const fromApi = await blobToImageDataUrl(response.data);
+      if (fromApi) {
+        return remember(fromApi);
       }
-      const blob = await response.blob();
-      const fromFetch = await blobToImageDataUrl(blob);
-      if (fromFetch) {
-        imageDataUrlMemoryCache.set(normalizedUrl, fromFetch);
-        writeLocalImageCache(localCacheKey, fromFetch);
-        return fromFetch;
-      }
-      throw new Error("invalid image data from fetch");
-    } catch (fetchError) {
-      console.warn("[PDF] image load failed", fetchError || apiError);
+      throw new Error("invalid image data from api");
+    } catch (error) {
+      apiError = error;
     }
   }
 
+  try {
+    const response = await fetch(normalizedUrl);
+    if (!response.ok) {
+      throw new Error(`status ${response.status}`);
+    }
+    const blob = await response.blob();
+    const fromFetch = await blobToImageDataUrl(blob);
+    if (fromFetch) {
+      return remember(fromFetch);
+    }
+    throw new Error("invalid image data from fetch");
+  } catch (fetchError) {
+    console.warn("[PDF] image load failed", fetchError || apiError);
+  }
+
   return "";
+}
+
+function isApiUrl(url: string): boolean {
+  if (!/^https?:\/\//i.test(url)) {
+    return true;
+  }
+  try {
+    const apiBase = `${api.defaults.baseURL || ""}`.trim();
+    const apiOrigin = apiBase ? new URL(apiBase).origin : window.location.origin;
+    const parsed = new URL(url);
+    // Signed file URLs never carry the JWT, even when the files domain shares the API origin.
+    return parsed.origin === apiOrigin && !parsed.pathname.startsWith("/files/");
+  } catch (_error) {
+    return false;
+  }
 }
 
 function readLocalImageCache(key: string): string {

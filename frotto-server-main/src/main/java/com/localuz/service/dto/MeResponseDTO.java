@@ -1,5 +1,6 @@
 package com.localuz.service.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.io.Serializable;
 import java.time.LocalDate;
 
@@ -10,8 +11,19 @@ public class MeResponseDTO implements Serializable {
     private String login;
     private String firstName;
     private String lastName;
+    /** Stored avatar key (unchanged contract). */
     private String imageUrl;
+    /** Stored logo key (unchanged contract). */
     private String logoUrl;
+    /**
+     * URL the browser should load for the avatar (signed local URL or legacy bucket URL). "" = no image; omitted
+     * (s3 mode, unresolvable value) = the client resolves the stored key as before.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String avatarUrl;
+    /** Same contract as {@link #avatarUrl}, for the logo. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String logoAccessUrl;
     private String langKey;
     private String personalName;
     private String personalCpf;
@@ -67,6 +79,22 @@ public class MeResponseDTO implements Serializable {
 
     public void setLogoUrl(String logoUrl) {
         this.logoUrl = logoUrl;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
+    }
+
+    public String getLogoAccessUrl() {
+        return logoAccessUrl;
+    }
+
+    public void setLogoAccessUrl(String logoAccessUrl) {
+        this.logoAccessUrl = logoAccessUrl;
     }
 
     public String getLangKey() {

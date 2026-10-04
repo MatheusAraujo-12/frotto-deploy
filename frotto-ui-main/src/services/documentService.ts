@@ -23,6 +23,11 @@ const normalizeDigits = (value: string): string => `${value || ""}`.replace(/\D+
 const normalizePlate = (value: string): string => `${value || ""}`.toUpperCase().replace(/[^A-Z0-9]/g, "");
 
 const shouldRetryLegacyAttachmentField = (error: unknown): boolean => {
+  // A rejected file (type/size) or an unavailable storage is not a field-name problem: keep the real error.
+  const message = `${(error as any)?.response?.data?.message || ""}`;
+  if (message.startsWith("error.upload.")) {
+    return false;
+  }
   const status = (error as any)?.response?.status;
   return status === 400 || status === 404 || status === 415 || status === 422;
 };

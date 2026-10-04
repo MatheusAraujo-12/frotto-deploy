@@ -21,6 +21,7 @@ import { car, cardOutline, clipboard, documentTextOutline, logOutOutline, settin
 import api from "../../services/axios/axios";
 import { useAccountAuthorization } from "../../services/hooks/useAccountAuthorization";
 import { removeToken } from "../../services/localStorage/localstorage";
+import { resolveProfileImageSource } from "../../services/profileImageSource";
 import profileService, { MeResponseDTO } from "../../services/profileService";
 import { resolveApiUrl } from "../../services/resolveApiUrl";
 import { getActiveTheme, setTheme, subscribeTheme } from "../../services/theme";
@@ -52,8 +53,9 @@ const resolveMenuAvatarPaths = (profile: MeResponseDTO | null): string[] => {
     return [];
   }
 
-  const values = [`${profile.avatarUrl || ""}`.trim(), `${profile.imageUrl || ""}`.trim()];
-  return values.filter((item, index) => Boolean(item) && values.indexOf(item) === index);
+  // The backend-resolved URL is authoritative when present (null = placeholder); older backends only send the key.
+  const source = resolveProfileImageSource(profile.avatarUrl, profile.imageUrl, (value) => value);
+  return source ? [source] : [];
 };
 
 const resolveS3AvatarUrl = (path: string): string => {

@@ -7,6 +7,8 @@ import com.localuz.service.dto.MeResponseDTO;
 import com.localuz.service.dto.UpdatePersonalDTO;
 import com.localuz.service.dto.UpdateTaxDataDTO;
 import com.localuz.service.mapper.MeMapper;
+import com.localuz.service.storage.FileStorageGateway;
+import com.localuz.service.storage.StorageCategory;
 import com.localuz.web.rest.errors.BadRequestAlertException;
 import com.localuz.web.rest.vm.ManagedUserVM;
 import java.util.Locale;
@@ -30,24 +32,19 @@ public class MeService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final MeMapper meMapper;
-    private final AWSS3FileService awsS3FileService;
+    private final FileStorageGateway fileStorage;
 
-    public MeService(
-        UserRepository userRepository,
-        PasswordEncoder passwordEncoder,
-        MeMapper meMapper,
-        AWSS3FileService awsS3FileService
-    ) {
+    public MeService(UserRepository userRepository, PasswordEncoder passwordEncoder, MeMapper meMapper, FileStorageGateway fileStorage) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.meMapper = meMapper;
-        this.awsS3FileService = awsS3FileService;
+        this.fileStorage = fileStorage;
     }
 
     @Transactional(readOnly = true)
     public MeResponseDTO getMe(String currentUser) {
         User user = getCurrentUser(currentUser);
-        return meMapper.toDto(user);
+        return toDto(user);
     }
 
     public MeResponseDTO updatePersonal(String currentUser, UpdatePersonalDTO dto) {
@@ -58,7 +55,8 @@ public class MeService {
 
         user.setFirstName(normalizeText(dto.getFirstName()));
         user.setLastName(normalizeText(dto.getLastName()));
-        user.setImageUrl(normalizeText(dto.getImageUrl()));
+        // imageUrl in the payload is ignored: the avatar key only changes through upload/remove, so a client can
+        // never point it at an arbitrary key or URL that would later be served or deleted as a stored file.
         user.setLangKey(normalizeText(dto.getLangKey()));
         user.setPersonalName(normalizeText(dto.getPersonalName()));
         user.setPersonalCpf(personalCpf);
@@ -67,7 +65,7 @@ public class MeService {
         user.setPersonalPhone(normalizeDigits(dto.getPersonalPhone()));
 
         User savedUser = userRepository.save(user);
-        return meMapper.toDto(savedUser);
+        return toDto(savedUser);
     }
 
     public MeResponseDTO updateTaxData(String currentUser, UpdateTaxDataDTO dto) {
@@ -111,7 +109,7 @@ public class MeService {
         }
 
         User savedUser = userRepository.save(user);
-        return meMapper.toDto(savedUser);
+        return toDto(savedUser);
     }
 
     public void changePassword(String currentUser, ChangePasswordDTO dto) {
@@ -140,14 +138,13 @@ public class MeService {
         }
 
         User user = getCurrentUser(currentUser);
-        String fileName = awsS3FileService.uploadFile(file, "USER_" + user.getId());
-        if (StringUtils.isBlank(fileName)) {
-            throw new BadRequestAlertException("Falha ao enviar imagem", ENTITY_NAME, "avataruploadfailed");
-        }
+        String previousKey = user.getImageUrl();
+        String key = storeUserImage(StorageCategory.AVATAR, file, "USER_" + user.getId(), "avataruploadfailed");
 
-        user.setImageUrl(fileName);
+        user.setImageUrl(key);
         User savedUser = userRepository.save(user);
-        return meMapper.toDto(savedUser);
+        fileStorage.deleteAfterCommit(previousKey);
+        return toDto(savedUser);
     }
 
     public MeResponseDTO removeAvatar(String currentUser) {
@@ -155,17 +152,12 @@ public class MeService {
         String currentImageUrl = StringUtils.trimToNull(user.getImageUrl());
 
         if (currentImageUrl != null) {
-            String fileName = extractFileName(currentImageUrl);
-            try {
-                awsS3FileService.deleteFile(fileName);
-            } catch (Exception ex) {
-                log.warn("Falha ao remover avatar do S3: {}", fileName, ex);
-            }
+            releaseStoredImage(currentImageUrl, "avatar");
         }
 
         user.setImageUrl(null);
         User savedUser = userRepository.save(user);
-        return meMapper.toDto(savedUser);
+        return toDto(savedUser);
     }
 
     public MeResponseDTO uploadLogo(String currentUser, MultipartFile file) {
@@ -180,14 +172,13 @@ public class MeService {
         }
 
         User user = getCurrentUser(currentUser);
-        String fileName = awsS3FileService.uploadFile(file, "LOGO_" + user.getId());
-        if (StringUtils.isBlank(fileName)) {
-            throw new BadRequestAlertException("Falha ao enviar imagem", ENTITY_NAME, "logouploadfailed");
-        }
+        String previousKey = user.getLogoUrl();
+        String key = storeUserImage(StorageCategory.LOGO, file, "LOGO_" + user.getId(), "logouploadfailed");
 
-        user.setLogoUrl(fileName);
+        user.setLogoUrl(key);
         User savedUser = userRepository.save(user);
-        return meMapper.toDto(savedUser);
+        fileStorage.deleteAfterCommit(previousKey);
+        return toDto(savedUser);
     }
 
     public MeResponseDTO removeLogo(String currentUser) {
@@ -195,17 +186,50 @@ public class MeService {
         String currentLogoUrl = StringUtils.trimToNull(user.getLogoUrl());
 
         if (currentLogoUrl != null) {
-            String fileName = extractFileName(currentLogoUrl);
-            try {
-                awsS3FileService.deleteFile(fileName);
-            } catch (Exception ex) {
-                log.warn("Falha ao remover logomarca do S3: {}", fileName, ex);
-            }
+            releaseStoredImage(currentLogoUrl, "logomarca");
         }
 
         user.setLogoUrl(null);
         User savedUser = userRepository.save(user);
-        return meMapper.toDto(savedUser);
+        return toDto(savedUser);
+    }
+
+    private MeResponseDTO toDto(User user) {
+        MeResponseDTO dto = meMapper.toDto(user);
+        dto.setAvatarUrl(fileStorage.displayUrl(user.getImageUrl()));
+        dto.setLogoAccessUrl(fileStorage.displayUrl(user.getLogoUrl()));
+        return dto;
+    }
+
+    /**
+     * Stores the new image before the user row changes. Local mode: validated by real content (400) or refused when
+     * the volume is unavailable (503) with nothing changed; the new file is removed again if the transaction rolls
+     * back. S3 mode: the legacy upload, unchanged.
+     */
+    private String storeUserImage(StorageCategory category, MultipartFile file, String legacyIdentifier, String failureKey) {
+        String key = fileStorage.store(category, file, legacyIdentifier);
+        if (StringUtils.isBlank(key)) {
+            throw new BadRequestAlertException("Falha ao enviar imagem", ENTITY_NAME, failureKey);
+        }
+        fileStorage.deleteOnRollback(key);
+        return key;
+    }
+
+    /**
+     * Local mode: the stored value is a key; its file is deleted only after the removal commits, historical keys are
+     * never deleted and nothing reaches S3. S3 mode: the legacy immediate delete, failures ignored (unchanged).
+     */
+    private void releaseStoredImage(String storedValue, String label) {
+        if (fileStorage.isLocalMode()) {
+            fileStorage.deleteAfterCommit(storedValue);
+            return;
+        }
+        String fileName = extractFileName(storedValue);
+        try {
+            fileStorage.deleteFromLegacyS3(fileName);
+        } catch (Exception ex) {
+            log.warn("Falha ao remover {} do S3: {}", label, fileName, ex);
+        }
     }
 
     private User getCurrentUser(String currentUser) {

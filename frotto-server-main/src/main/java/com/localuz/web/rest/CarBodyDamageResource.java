@@ -4,8 +4,9 @@ import com.localuz.domain.Car;
 import com.localuz.domain.CarBodyDamage;
 import com.localuz.repository.CarBodyDamageRepository;
 import com.localuz.repository.CarRepository;
-import com.localuz.service.AWSS3FileService;
 import com.localuz.service.dto.BodyDamageDTO;
+import com.localuz.service.storage.FileStorageGateway;
+import com.localuz.service.storage.StorageCategory;
 import com.localuz.web.rest.errors.BadRequestAlertException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -29,7 +30,13 @@ import org.springframework.web.multipart.MultipartFile;
 import tech.jhipster.web.util.HeaderUtil;
 import tech.jhipster.web.util.ResponseUtil;
 
-/** REST controller for managing {@link com.localuz.domain.CarBodyDamage}. */
+/**
+ * REST controller for managing {@link com.localuz.domain.CarBodyDamage}.
+ *
+ * <p>Photos go through {@link FileStorageGateway}: in s3 mode the legacy calls and their order are unchanged; in local
+ * mode new files are stored before the row changes, removed again on rollback, and replaced/deleted files are only
+ * removed after commit (historical keys never). Responses carry the resolved URLs in imageUrl/imageUrl2.
+ */
 @RestController
 @RequestMapping("/api")
 @Transactional
@@ -45,22 +52,23 @@ public class CarBodyDamageResource {
     private final CarBodyDamageRepository carBodyDamageRepository;
 
     private final CarRepository carRepository;
-    private final AWSS3FileService awsS3Service;
+    private final FileStorageGateway fileStorage;
 
     public CarBodyDamageResource(
         CarBodyDamageRepository carBodyDamageRepository,
         CarRepository carRepository,
-        AWSS3FileService awsS3Service
+        FileStorageGateway fileStorage
     ) {
         this.carBodyDamageRepository = carBodyDamageRepository;
         this.carRepository = carRepository;
-        this.awsS3Service = awsS3Service;
+        this.fileStorage = fileStorage;
     }
 
     @GetMapping("/car-body-damages/car/{carId}")
     public List<CarBodyDamage> getCarBodyDamagesByCar(@PathVariable Long carId) {
         log.debug("REST request to get CarBodyDamages  by carId : {}", carId);
         List<CarBodyDamage> carBodyDamages = carBodyDamageRepository.findByCurrentUserAndCarIdByDate(carId);
+        carBodyDamages.forEach(this::withImageUrls);
         return carBodyDamages;
     }
 
@@ -68,6 +76,7 @@ public class CarBodyDamageResource {
     public List<CarBodyDamage> getActiveCarBodyDamagesByCar(@PathVariable Long carId) {
         log.debug("REST request to get Active CarBodyDamages by carId : {}", carId);
         List<CarBodyDamage> activeCarBodyDamages = carBodyDamageRepository.findActiveByCurrentUserAndCarIdByDate(carId);
+        activeCarBodyDamages.forEach(this::withImageUrls);
         return activeCarBodyDamages;
     }
 
@@ -76,7 +85,7 @@ public class CarBodyDamageResource {
         log.debug("REST request to get CarBodyDamages  by id : {}", id);
         Optional<CarBodyDamage> carBodyDamage = carBodyDamageRepository.findByCurrentUserAndCarBdId(id);
         if (carBodyDamage.isPresent()) {
-            return carBodyDamage.get();
+            return withImageUrls(carBodyDamage.get());
         }
         return null;
     }
@@ -93,26 +102,13 @@ public class CarBodyDamageResource {
         }
         com.localuz.service.VehicleLifecycleService.requireOperational(existingCarOpt.get());
         carBodyDamage.setCar(existingCarOpt.get());
-        String filePath = "";
-        if (hasMultipartFile(bodyDamageDto.getFile())) {
-            filePath = awsS3Service.uploadFile(bodyDamageDto.getFile(), "01");
-        } else if (hasBase64(bodyDamageDto.getFileBase64())) {
-            filePath = awsS3Service.uploadBase64(bodyDamageDto.getFileBase64(), "01");
-        }
-        carBodyDamage.setImagePath(filePath);
-
-        String filePath2 = "";
-        if (hasMultipartFile(bodyDamageDto.getFile2())) {
-            filePath2 = awsS3Service.uploadFile(bodyDamageDto.getFile2(), "02");
-        } else if (hasBase64(bodyDamageDto.getFile2Base64())) {
-            filePath2 = awsS3Service.uploadBase64(bodyDamageDto.getFile2Base64(), "02");
-        }
-        carBodyDamage.setImagePath2(filePath2);
+        carBodyDamage.setImagePath(storePhoto(bodyDamageDto.getFile(), bodyDamageDto.getFileBase64(), "01"));
+        carBodyDamage.setImagePath2(storePhoto(bodyDamageDto.getFile2(), bodyDamageDto.getFile2Base64(), "02"));
         CarBodyDamage result = carBodyDamageRepository.save(carBodyDamage);
         return ResponseEntity
             .created(new URI("/api/car-body-damages/" + result.getId()))
             .headers(HeaderUtil.createEntityCreationAlert(applicationName, false, ENTITY_NAME, result.getId().toString()))
-            .body(result);
+            .body(withImageUrls(result));
     }
 
     @DeleteMapping("/car-body-damages/{id}")
@@ -126,11 +122,17 @@ public class CarBodyDamageResource {
         String imagePath = carBodyDamage.get().getImagePath();
         String imagePath2 = carBodyDamage.get().getImagePath2();
         carBodyDamageRepository.deleteById(id);
-        if (imagePath != null) {
-            awsS3Service.deleteFile(imagePath);
-        }
-        if (imagePath2 != null) {
-            awsS3Service.deleteFile(imagePath2);
+        if (fileStorage.isLocalMode()) {
+            fileStorage.deleteAfterCommit(imagePath);
+            fileStorage.deleteAfterCommit(imagePath2);
+        } else {
+            // Legacy behavior, unchanged.
+            if (imagePath != null) {
+                fileStorage.deleteFromLegacyS3(imagePath);
+            }
+            if (imagePath2 != null) {
+                fileStorage.deleteFromLegacyS3(imagePath2);
+            }
         }
         return ResponseEntity
             .noContent()
@@ -167,22 +169,14 @@ public class CarBodyDamageResource {
             existingCarBodyDamage.setPart(carBodyDamage.getPart());
         }
         if (hasMultipartFile(carBodyDamage.getFile()) || hasBase64(carBodyDamage.getFileBase64())) {
-            if (existingCarBodyDamage.getImagePath() != null && !existingCarBodyDamage.getImagePath().isEmpty()) {
-                awsS3Service.deleteFile(existingCarBodyDamage.getImagePath());
-            }
-            String filePath = hasMultipartFile(carBodyDamage.getFile())
-                ? awsS3Service.uploadFile(carBodyDamage.getFile(), "01")
-                : awsS3Service.uploadBase64(carBodyDamage.getFileBase64(), "01");
-            existingCarBodyDamage.setImagePath(filePath);
+            existingCarBodyDamage.setImagePath(
+                replacePhoto(existingCarBodyDamage.getImagePath(), carBodyDamage.getFile(), carBodyDamage.getFileBase64(), "01")
+            );
         }
         if (hasMultipartFile(carBodyDamage.getFile2()) || hasBase64(carBodyDamage.getFile2Base64())) {
-            if (existingCarBodyDamage.getImagePath2() != null && !existingCarBodyDamage.getImagePath2().isEmpty()) {
-                awsS3Service.deleteFile(existingCarBodyDamage.getImagePath2());
-            }
-            String filePath2 = hasMultipartFile(carBodyDamage.getFile2())
-                ? awsS3Service.uploadFile(carBodyDamage.getFile2(), "02")
-                : awsS3Service.uploadBase64(carBodyDamage.getFile2Base64(), "02");
-            existingCarBodyDamage.setImagePath2(filePath2);
+            existingCarBodyDamage.setImagePath2(
+                replacePhoto(existingCarBodyDamage.getImagePath2(), carBodyDamage.getFile2(), carBodyDamage.getFile2Base64(), "02")
+            );
         }
         if (carBodyDamage.getCost() != null) {
             existingCarBodyDamage.setCost(carBodyDamage.getCost());
@@ -193,7 +187,7 @@ public class CarBodyDamageResource {
         carBodyDamageRepository.save(existingCarBodyDamage);
 
         return ResponseUtil.wrapOrNotFound(
-            carBodyDamageOpt,
+            carBodyDamageOpt.map(this::withImageUrls),
             HeaderUtil.createEntityUpdateAlert(applicationName, false, ENTITY_NAME, carBodyDamage.getId().toString())
         );
     }
@@ -201,7 +195,49 @@ public class CarBodyDamageResource {
     @GetMapping("/admin/car-body-damages")
     public List<CarBodyDamage> getAllCarBodyDamages() {
         log.debug("REST request to get all CarBodyDamages");
-        return carBodyDamageRepository.findAll();
+        List<CarBodyDamage> carBodyDamages = carBodyDamageRepository.findAll();
+        carBodyDamages.forEach(this::withImageUrls);
+        return carBodyDamages;
+    }
+
+    /**
+     * Stores an uploaded photo (multipart first, then Base64) and returns its key, or "" when none was sent. The key is
+     * always generated by the storage: client file names never become paths. Local mode: content validated by its
+     * real type and the photo size limit, and the file is removed again if the transaction rolls back.
+     */
+    private String storePhoto(MultipartFile file, String base64, String legacyIdentifier) {
+        String key = "";
+        if (hasMultipartFile(file)) {
+            key = fileStorage.store(StorageCategory.CAR_DAMAGE, file, legacyIdentifier);
+        } else if (hasBase64(base64)) {
+            key = fileStorage.storeBase64(StorageCategory.CAR_DAMAGE, base64, legacyIdentifier);
+        }
+        if (key != null && !key.isEmpty()) {
+            fileStorage.deleteOnRollback(key);
+        }
+        return key;
+    }
+
+    /**
+     * s3 mode: the legacy order, unchanged (previous object deleted, then the new upload). Local mode: the new file is
+     * stored first and the previous one is only deleted after commit; historical keys are never deleted.
+     */
+    private String replacePhoto(String previousKey, MultipartFile file, String base64, String legacyIdentifier) {
+        if (!fileStorage.isLocalMode()) {
+            if (previousKey != null && !previousKey.isEmpty()) {
+                fileStorage.deleteFromLegacyS3(previousKey);
+            }
+            return storePhoto(file, base64, legacyIdentifier);
+        }
+        String key = storePhoto(file, base64, legacyIdentifier);
+        fileStorage.deleteAfterCommit(previousKey);
+        return key;
+    }
+
+    private CarBodyDamage withImageUrls(CarBodyDamage carBodyDamage) {
+        carBodyDamage.setImageUrl(fileStorage.displayUrl(carBodyDamage.getImagePath()));
+        carBodyDamage.setImageUrl2(fileStorage.displayUrl(carBodyDamage.getImagePath2()));
+        return carBodyDamage;
     }
 
     private CarBodyDamage fromDto(BodyDamageDTO dto) {

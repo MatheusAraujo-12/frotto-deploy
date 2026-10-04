@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import FrottoCard from "../../components/UI/FrottoCard";
 import ItemNotFound from "../../components/List/ItemNotFound";
 import { usePhotoGallery } from "../../services/hooks/usePhotoGallery";
+import { resolveProfileImageSource } from "../../services/profileImageSource";
 import profileService, { MeResponseDTO } from "../../services/profileService";
 import MeuCadastroTab, { CadastroSection } from "./MeuCadastroTab";
 import SecurityTab from "./SecurityTab";
@@ -241,20 +242,20 @@ const MyPanelPage: React.FC = () => {
       if (previousPreviewUrl.startsWith("blob:")) {
         URL.revokeObjectURL(previousPreviewUrl);
       }
-      return resolveProfileImageUrl(data.imageUrl);
+      return resolveProfileImageSource(data.avatarUrl, data.imageUrl, resolveProfileImageUrl);
     });
     setAvatarRemoved(false);
-    setSavedAvatarUrl(resolveProfileImageUrl(data.imageUrl));
+    setSavedAvatarUrl(resolveProfileImageSource(data.avatarUrl, data.imageUrl, resolveProfileImageUrl));
 
     setLogoFile(null);
     setLogoPreviewUrl((previousPreviewUrl) => {
       if (previousPreviewUrl.startsWith("blob:")) {
         URL.revokeObjectURL(previousPreviewUrl);
       }
-      return resolveProfileImageUrl(data.logoUrl);
+      return resolveProfileImageSource(data.logoAccessUrl, data.logoUrl, resolveProfileImageUrl);
     });
     setLogoRemoved(false);
-    setSavedLogoUrl(resolveProfileImageUrl(data.logoUrl));
+    setSavedLogoUrl(resolveProfileImageSource(data.logoAccessUrl, data.logoUrl, resolveProfileImageUrl));
 
     setInitialPersonalForm(personal);
     setInitialFiscalForm(fiscal);

@@ -1,5 +1,6 @@
 package com.localuz.service.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.localuz.domain.enumeration.DocumentStatus;
 import com.localuz.domain.enumeration.DocumentType;
 import java.time.Instant;
@@ -20,7 +21,16 @@ public class DocumentDTO {
     private String carModel;
     private String pdfUrl;
     private Map<String, Object> payload;
+    /** Stored keys of the attachments (unchanged contract). */
     private List<String> attachments;
+
+    /**
+     * Reference (attachment key or checklist photo reference of the payload) → URL to load: signed local URL or
+     * legacy bucket URL; "" = not available. A reference absent from the map keeps the client's legacy resolution
+     * (s3 mode only). Present only in the document detail.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Map<String, String> attachmentUrls;
 
     public Long getId() {
         return id;
@@ -132,5 +142,13 @@ public class DocumentDTO {
 
     public void setAttachments(List<String> attachments) {
         this.attachments = attachments;
+    }
+
+    public Map<String, String> getAttachmentUrls() {
+        return attachmentUrls;
+    }
+
+    public void setAttachmentUrls(Map<String, String> attachmentUrls) {
+        this.attachmentUrls = attachmentUrls;
     }
 }

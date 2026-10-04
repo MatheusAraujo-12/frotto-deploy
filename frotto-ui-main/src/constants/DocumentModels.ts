@@ -36,7 +36,13 @@ export interface DocumentModel {
   carModel?: string;
   pdfUrl?: string | null;
   payload?: Record<string, any>;
+  /** Stored attachment keys. */
   attachments?: string[];
+  /**
+   * Reference (attachment key or checklist photo reference) → URL resolved by the backend ("" = unavailable).
+   * References absent from the map keep the legacy resolution. Only in the document detail.
+   */
+  attachmentUrls?: Record<string, string>;
 }
 
 export interface DocumentSavePayload {

@@ -6,6 +6,8 @@ import javax.servlet.http.HttpServletRequest;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.localuz.service.MercadoPagoException;
+import com.localuz.service.storage.InvalidStoredFileException;
+import com.localuz.service.storage.StorageUnavailableException;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Collection;
@@ -194,6 +196,32 @@ public class ExceptionTranslator implements ProblemHandling, SecurityAdviceTrait
             .withStatus(Status.REQUEST_ENTITY_TOO_LARGE)
             .withDetail("File too large")
             .with(MESSAGE_KEY, "error.upload.size")
+            .build();
+        return create(ex, problem, request);
+    }
+
+    @ExceptionHandler
+    public ResponseEntity<Problem> handleInvalidStoredFile(InvalidStoredFileException ex, NativeWebRequest request) {
+        Problem problem = Problem
+            .builder()
+            .withType(ErrorConstants.DEFAULT_TYPE)
+            .withTitle(ex.getMessage())
+            .withStatus(Status.BAD_REQUEST)
+            .withDetail(ex.getMessage())
+            .with(MESSAGE_KEY, "error.upload." + ex.getErrorKey())
+            .build();
+        return create(ex, problem, request);
+    }
+
+    @ExceptionHandler
+    public ResponseEntity<Problem> handleStorageUnavailable(StorageUnavailableException ex, NativeWebRequest request) {
+        Problem problem = Problem
+            .builder()
+            .withType(ErrorConstants.DEFAULT_TYPE)
+            .withTitle("Armazenamento de arquivos indisponível")
+            .withStatus(Status.SERVICE_UNAVAILABLE)
+            .withDetail("Armazenamento de arquivos indisponível")
+            .with(MESSAGE_KEY, "error.upload.storageunavailable")
             .build();
         return create(ex, problem, request);
     }

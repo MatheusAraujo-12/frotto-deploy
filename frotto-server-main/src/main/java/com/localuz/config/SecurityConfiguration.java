@@ -78,6 +78,13 @@ public class SecurityConfiguration {
                     .permitAll()
                     .antMatchers(HttpMethod.POST, "/api/webhooks/mercadopago")
                     .permitAll()
+                    // Signed file URLs: FileAccessResource checks the HMAC signature itself.
+                    .antMatchers(HttpMethod.GET, "/files/**")
+                    .permitAll()
+                    .antMatchers(HttpMethod.HEAD, "/files/**")
+                    .permitAll()
+                    .antMatchers("/files/**")
+                    .denyAll()
                     .antMatchers("/api/admin/**")
                     .hasAuthority(AuthoritiesConstants.ADMIN)
                     .antMatchers("/api/**")

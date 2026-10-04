@@ -16,8 +16,10 @@ import com.localuz.repository.DriverCarRepository;
 import com.localuz.repository.DriverDocumentRepository;
 import com.localuz.repository.DriverRepository;
 import com.localuz.repository.PendencyRepository;
-import com.localuz.service.AWSS3FileService;
 import com.localuz.service.UserService;
+import com.localuz.service.storage.FileStorageGateway;
+import com.localuz.service.storage.StorageCategory;
+import com.localuz.service.storage.StorageKeys;
 import com.localuz.service.dto.DocumentDTO;
 import com.localuz.service.dto.DocumentGeneratePdfDTO;
 import com.localuz.service.dto.DocumentSaveDTO;
@@ -30,10 +32,15 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -65,6 +72,14 @@ public class DocumentResource {
     private static final String ENTITY_NAME = "document";
     private static final int DEFAULT_LIST_LIMIT = 30;
     private static final int MAX_LIST_LIMIT = 100;
+    /** Payload keys where the frontend keeps checklist photo references (all must be attachments of the document). */
+    private static final List<String> CHECKLIST_PHOTO_REF_KEYS = List.of(
+        "attachmentsChecklist",
+        "checklistPhotoRefs",
+        "fotosChecklist",
+        "fotos",
+        "attachments"
+    );
 
     @Value("${jhipster.clientApp.name}")
     private String applicationName;
@@ -74,7 +89,7 @@ public class DocumentResource {
     private final CarRepository carRepository;
     private final DriverCarRepository driverCarRepository;
     private final PendencyRepository pendencyRepository;
-    private final AWSS3FileService awsS3FileService;
+    private final FileStorageGateway fileStorage;
     private final UserService userService;
     private final ObjectMapper objectMapper;
 
@@ -84,7 +99,7 @@ public class DocumentResource {
         CarRepository carRepository,
         DriverCarRepository driverCarRepository,
         PendencyRepository pendencyRepository,
-        AWSS3FileService awsS3FileService,
+        FileStorageGateway fileStorage,
         UserService userService,
         ObjectMapper objectMapper
     ) {
@@ -93,7 +108,7 @@ public class DocumentResource {
         this.carRepository = carRepository;
         this.driverCarRepository = driverCarRepository;
         this.pendencyRepository = pendencyRepository;
-        this.awsS3FileService = awsS3FileService;
+        this.fileStorage = fileStorage;
         this.userService = userService;
         this.objectMapper = objectMapper;
     }
@@ -114,8 +129,8 @@ public class DocumentResource {
         document.setUser(getCurrentUserOrThrow());
         document.setStatus(payload.getStatus() == null ? DocumentStatus.DRAFT : payload.getStatus());
         document.setPayloadJson(writePayload(payload.getPayload()));
-        document.setAttachmentsJson(writeAttachments(payload.getAttachments()));
-        document.setPdfUrl(normalizeText(payload.getPdfUrl()));
+        // attachments and pdfUrl are never taken from clients: attachments only come from the upload endpoint
+        // (server-generated keys) and PDFs are generated in the browser, never stored.
 
         DriverDocument result = documentRepository.save(document);
         DocumentDTO response = toDto(result, true);
@@ -161,9 +176,9 @@ public class DocumentResource {
     public ResponseEntity<Void> deleteDocument(@PathVariable Long id) {
         DriverDocument document = getDocumentOrThrow(id);
         com.localuz.service.VehicleLifecycleService.requireOperational(document.getCar());
-        deleteStoredFiles(readAttachments(document.getAttachmentsJson()));
-        deleteStoredFiles(Collections.singletonList(document.getPdfUrl()));
+        List<String> attachments = readAttachments(document.getAttachmentsJson());
         documentRepository.delete(document);
+        deleteStoredAttachments(document.getId(), attachments);
         return ResponseEntity
             .noContent()
             .headers(HeaderUtil.createEntityDeletionAlert(applicationName, false, ENTITY_NAME, id.toString()))
@@ -201,12 +216,6 @@ public class DocumentResource {
         if (payload.getPayload() != null) {
             document.setPayloadJson(writePayload(payload.getPayload()));
         }
-        if (payload.getAttachments() != null) {
-            document.setAttachmentsJson(writeAttachments(payload.getAttachments()));
-        }
-        if (payload.getPdfUrl() != null) {
-            document.setPdfUrl(normalizeText(payload.getPdfUrl()));
-        }
 
         DriverDocument result = documentRepository.save(document);
         return ResponseEntity.ok(toDto(result, true));
@@ -234,10 +243,7 @@ public class DocumentResource {
     ) {
         DriverDocument document = getDocumentOrThrow(id);
         com.localuz.service.VehicleLifecycleService.requireOperational(document.getCar());
-        if (payload != null && payload.getPdfUrl() != null) {
-            document.setPdfUrl(normalizeText(payload.getPdfUrl()));
-            document = documentRepository.save(document);
-        }
+        // The PDF is generated in the browser and never stored: a pdfUrl sent by the client is ignored.
         return ResponseEntity.ok(toDto(document, true));
     }
 
@@ -260,9 +266,10 @@ public class DocumentResource {
                 if (file == null || file.isEmpty()) {
                     continue;
                 }
-                String fileName = awsS3FileService.uploadFile(file, "DOC_" + document.getId());
-                if (fileName != null && !fileName.trim().isEmpty()) {
-                    attachments.add(fileName);
+                String key = fileStorage.store(StorageCategory.DOCUMENT, file, "DOC_" + document.getId());
+                if (key != null && !key.trim().isEmpty()) {
+                    fileStorage.deleteOnRollback(key);
+                    attachments.add(key);
                 }
             }
         }
@@ -296,8 +303,11 @@ public class DocumentResource {
         dto.setPdfUrl(document.getPdfUrl());
 
         if (includeContent) {
-            dto.setPayload(readPayload(document.getPayloadJson()));
-            dto.setAttachments(readAttachments(document.getAttachmentsJson()));
+            Map<String, Object> payload = readPayload(document.getPayloadJson());
+            List<String> attachments = readAttachments(document.getAttachmentsJson());
+            dto.setPayload(payload);
+            dto.setAttachments(attachments);
+            dto.setAttachmentUrls(attachmentUrls(document.getId(), attachments, payload));
         }
 
         return dto;
@@ -645,44 +655,82 @@ public class DocumentResource {
         return total;
     }
 
-    private void deleteStoredFiles(List<String> files) {
-        if (files == null || files.isEmpty()) {
-            return;
+    /**
+     * Resolved URL for each attachment and each checklist photo reference of the payload. References that are not
+     * files of this document (arbitrary client strings) never get a URL: "" in local mode (no image), omitted in s3
+     * mode (the client keeps its legacy resolution, unchanged behavior).
+     */
+    private Map<String, String> attachmentUrls(Long documentId, List<String> attachments, Map<String, Object> payload) {
+        Set<String> references = new LinkedHashSet<>(attachments);
+        for (String key : CHECKLIST_PHOTO_REF_KEYS) {
+            Object value = payload == null ? null : payload.get(key);
+            if (value instanceof Collection) {
+                for (Object item : (Collection<?>) value) {
+                    if (item instanceof String && !((String) item).isBlank()) {
+                        references.add((String) item);
+                    }
+                }
+            }
         }
-        for (String fileRef : files) {
-            String normalized = normalizeText(fileRef);
-            if (normalized == null) {
+        Map<String, String> urls = new LinkedHashMap<>();
+        for (String reference : references) {
+            // Rows written before Etapa 5 could hold client-supplied keys of other records: only this document's own
+            // legacy objects and server-generated keys listed in its attachments are files of this document.
+            boolean ownFile = ownedLegacyKey(documentId, reference) != null || (attachments.contains(reference) && isServerGeneratedKey(reference));
+            String url = ownFile ? fileStorage.displayUrl(reference) : (fileStorage.isLocalMode() ? "" : null);
+            if (url != null) {
+                urls.put(reference, url);
+            }
+        }
+        return urls;
+    }
+
+    /**
+     * Local mode: files are deleted only after the deletion commits; historical keys and anything that is not a key
+     * are never deleted. s3 mode: only this document's own legacy objects ({millis}_DOC_{id}...) are deleted, as
+     * before failures are ignored; references that point elsewhere are never deleted.
+     */
+    private void deleteStoredAttachments(Long documentId, List<String> attachments) {
+        for (String attachment : attachments) {
+            if (fileStorage.isLocalMode()) {
+                fileStorage.deleteAfterCommit(attachment);
+                continue;
+            }
+            String key = ownedLegacyKey(documentId, attachment);
+            if (key == null) {
+                log.warn("Document attachment not deleted: not an object of document {}", documentId);
                 continue;
             }
             try {
-                awsS3FileService.deleteFile(normalized);
-            } catch (Exception primaryError) {
-                String key = extractStorageKey(normalized);
-                if (key == null || key.equals(normalized)) {
-                    log.warn("Could not delete document file: {}", normalized, primaryError);
-                    continue;
-                }
-                try {
-                    awsS3FileService.deleteFile(key);
-                } catch (Exception fallbackError) {
-                    log.warn("Could not delete document file: {}", normalized, fallbackError);
-                }
+                fileStorage.deleteFromLegacyS3(key);
+            } catch (Exception e) {
+                log.warn("Could not delete document file: {}", key, e);
             }
         }
     }
 
-    private String extractStorageKey(String fileRef) {
-        String normalized = normalizeText(fileRef);
-        if (normalized == null) {
+    /** The legacy S3 key of an attachment uploaded for this document (plain key or URL), or null. */
+    static String ownedLegacyKey(Long documentId, String reference) {
+        String value = normalizeReference(reference);
+        if (value == null || documentId == null) {
             return null;
         }
-        int queryIndex = normalized.indexOf('?');
-        String withoutQuery = queryIndex >= 0 ? normalized.substring(0, queryIndex) : normalized;
-        int slashIndex = withoutQuery.lastIndexOf('/');
-        if (slashIndex < 0 || slashIndex == withoutQuery.length() - 1) {
-            return withoutQuery;
+        int queryIndex = value.indexOf('?');
+        String withoutQuery = queryIndex >= 0 ? value.substring(0, queryIndex) : value;
+        String key = withoutQuery.substring(withoutQuery.lastIndexOf('/') + 1);
+        return Pattern.matches("[0-9]{13}_DOC_" + documentId + "([._].*)?", key) ? key : null;
+    }
+
+    private static boolean isServerGeneratedKey(String reference) {
+        return StorageKeys.parse(reference).map(key -> !key.isLegacy()).orElse(false);
+    }
+
+    private static String normalizeReference(String value) {
+        if (value == null) {
+            return null;
         }
-        return withoutQuery.substring(slashIndex + 1);
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private LocalDate parseDate(String dateValue) {

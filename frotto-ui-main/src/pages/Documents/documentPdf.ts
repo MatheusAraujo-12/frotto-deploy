@@ -352,7 +352,7 @@ async function buildEntregaDevolucaoChecklistContent(
   const driverName = getText(payload, "driverName", document.driverName || "Motorista");
   const checklistItens = serializeChecklistItems(payload || {});
   const checklistPhotoRefs = resolveChecklistPhotoRefsFromPayload(payload, document.attachments || []);
-  const checklistPhotosSection = await buildChecklistPhotosSection(checklistPhotoRefs);
+  const checklistPhotosSection = await buildChecklistPhotosSection(checklistPhotoRefs, document.attachmentUrls);
   const checklistLines = checklistItens.length
     ? checklistItens.flatMap((item) => {
         const note = `${item.note || ""}`.trim();
@@ -615,7 +615,7 @@ function resolveChecklistPhotoRefsFromPayload(payload: Record<string, any>, fall
   return dedupeStrings(fallbackRefs);
 }
 
-async function buildChecklistPhotosSection(photoRefs: string[]) {
+async function buildChecklistPhotosSection(photoRefs: string[], attachmentUrls?: Record<string, string>) {
   if (!photoRefs.length) {
     return [];
   }
@@ -625,7 +625,7 @@ async function buildChecklistPhotosSection(photoRefs: string[]) {
   const missing: string[] = [];
 
   for (const ref of refs) {
-    const dataUrl = await loadChecklistPhotoDataUrl(ref);
+    const dataUrl = await loadChecklistPhotoDataUrl(ref, attachmentUrls);
     if (dataUrl) {
       loaded.push({ ref, dataUrl });
     } else {
@@ -690,8 +690,8 @@ function buildChecklistPhotoCell(item: { ref: string; dataUrl: string }) {
   };
 }
 
-async function loadChecklistPhotoDataUrl(ref: string): Promise<string> {
-  const candidates = resolveChecklistAttachmentUrls(ref);
+async function loadChecklistPhotoDataUrl(ref: string, attachmentUrls?: Record<string, string>): Promise<string> {
+  const candidates = resolveChecklistAttachmentUrls(ref, attachmentUrls);
   for (const candidate of candidates) {
     const dataUrl = await loadImageAsDataUrl(candidate);
     if (dataUrl) {
@@ -705,10 +705,16 @@ async function loadChecklistPhotoDataUrl(ref: string): Promise<string> {
   return "";
 }
 
-function resolveChecklistAttachmentUrls(ref: string): string[] {
+export function resolveChecklistAttachmentUrls(ref: string, attachmentUrls?: Record<string, string>): string[] {
   const value = `${ref || ""}`.trim();
   if (!value) {
     return [];
+  }
+
+  // URL resolved by the backend ("" = unavailable); references it does not list keep the legacy candidates.
+  if (attachmentUrls && Object.prototype.hasOwnProperty.call(attachmentUrls, value)) {
+    const resolved = `${attachmentUrls[value] || ""}`.trim();
+    return resolved ? [resolved] : [];
   }
 
   if (/^(https?:|blob:|data:)/i.test(value)) {

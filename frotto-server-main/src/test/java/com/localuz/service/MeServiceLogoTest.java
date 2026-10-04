@@ -33,7 +33,8 @@ class MeServiceLogoTest {
     void setUp() {
         userRepository = mock(UserRepository.class);
         s3 = mock(AWSS3FileService.class);
-        service = new MeService(userRepository, mock(PasswordEncoder.class), new MeMapper(), s3);
+        // Default storage mode (s3): the gateway delegates to the same legacy service as before.
+        service = new MeService(userRepository, mock(PasswordEncoder.class), new MeMapper(), MeServiceStorageTest.s3ModeGateway(s3));
         user = new User();
         user.setId(7L);
         user.setLogin("owner@frotto.test");

@@ -7,9 +7,14 @@ export interface MeResponseDTO {
   login: string | null;
   firstName: string | null;
   lastName: string | null;
+  /** URL resolved by the backend for the avatar (signed or legacy bucket); null = no image. */
   avatarUrl?: string | null;
+  /** Stored avatar key. */
   imageUrl: string | null;
+  /** Stored logo key. */
   logoUrl: string | null;
+  /** URL resolved by the backend for the logo (signed or legacy bucket); null = no image. */
+  logoAccessUrl?: string | null;
   langKey: string | null;
   personalName: string | null;
   personalCpf: string | null;

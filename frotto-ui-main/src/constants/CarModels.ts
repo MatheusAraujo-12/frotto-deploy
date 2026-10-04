@@ -44,8 +44,12 @@ export interface CarBodyDamageModel {
   date?: string;
   responsible?: string;
   part?: string;
+  /** Stored keys (unchanged contract). */
   imagePath?: string;
   imagePath2?: string;
+  /** URLs resolved by the backend for imagePath/imagePath2 ("" = no photo); absent in payloads that only carry keys. */
+  imageUrl?: string | null;
+  imageUrl2?: string | null;
   cost?: number;
   resolved?: boolean;
   imageTempUrl?: Url;

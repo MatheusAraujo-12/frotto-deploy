@@ -111,6 +111,10 @@ public class AWSS3FileService {
     }
 
     public String deleteFile(String fileName) {
+        // The SDK only rejects null keys: an empty key becomes a DELETE on the bucket root (the DeleteBucket request).
+        if (fileName == null || fileName.isBlank()) {
+            return "";
+        }
         s3Client.deleteObject(bucketName, fileName);
         return fileName + " removed ...";
     }

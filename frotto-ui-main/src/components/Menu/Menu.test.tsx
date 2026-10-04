@@ -120,3 +120,34 @@ describe("Menu - Billing Etapa 4A admin visibility", () => {
     expect(screen.queryByText("Painel do Administrador")).not.toBeInTheDocument();
   });
 });
+
+describe("Menu - avatar resolvido pelo backend (Etapa 3 storage)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    localStorage.clear();
+    setToken("Bearer initial-token");
+    mockedAccountService.getAccount.mockResolvedValue({ authorities: ["ROLE_USER"] });
+  });
+
+  afterEach(() => localStorage.clear());
+
+  const avatarImage = (container: HTMLElement) => container.querySelector(".menu-hero__avatar img") as HTMLImageElement | null;
+
+  it("shows the signed avatarUrl returned by the backend", async () => {
+    const signed = "https://arquivos-staging.frotto.test/files/avatars/2026/10/a.png?exp=1&sig=s";
+    mockedProfileService.getMe.mockResolvedValue({ firstName: "Ana", imageUrl: "avatars/2026/10/a.png", avatarUrl: signed } as any);
+
+    const { container } = renderMenu();
+
+    await waitFor(() => expect(avatarImage(container)?.getAttribute("src")).toBe(signed));
+  });
+
+  it("shows initials when the backend resolves no avatar, without building an S3 URL from the key", async () => {
+    mockedProfileService.getMe.mockResolvedValue({ taxPersonType: "CPF", taxLandlordName: "Ana Silva", imageUrl: "1771248962905_USER_4.png", avatarUrl: null } as any);
+
+    const { container } = renderMenu();
+
+    expect(await screen.findByText("AS")).toBeInTheDocument();
+    expect(avatarImage(container)).toBeNull();
+  });
+});

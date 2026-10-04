@@ -23,6 +23,16 @@ services:
       MERCADOPAGO_READ_TIMEOUT_MILLIS: ${MERCADOPAGO_READ_TIMEOUT_MILLIS:-7000}
       MERCADOPAGO_TEST_MODE: ${MERCADOPAGO_TEST_MODE:-false}
       MERCADOPAGO_TEST_PAYER_EMAIL: ${MERCADOPAGO_TEST_PAYER_EMAIL:-}
+      FROTTO_STORAGE_MODE: ${FROTTO_STORAGE_MODE:-s3}
+      FROTTO_STORAGE_ROOT: ${FROTTO_STORAGE_ROOT:-}
+      FROTTO_FILES_BASE_URL: ${FROTTO_FILES_BASE_URL:-}
+      FROTTO_FILES_SIGNING_SECRET: ${FROTTO_FILES_SIGNING_SECRET:-}
+      FROTTO_FILES_URL_TTL_SECONDS: ${FROTTO_FILES_URL_TTL_SECONDS:-21600}
+      FROTTO_LEGACY_S3_READ_FALLBACK_ENABLED: ${FROTTO_LEGACY_S3_READ_FALLBACK_ENABLED:-false}
+    volumes:
+      # Persistent file storage. The host path is set per environment (Coolify); without it a neutral, empty
+      # directory is mounted and the default storage mode (s3) never uses it.
+      - ${FROTTO_STORAGE_HOST_PATH:-/data/frotto/storage-unconfigured}:/app/storage
     restart: unless-stopped
     labels:
       - "traefik.enable=true"

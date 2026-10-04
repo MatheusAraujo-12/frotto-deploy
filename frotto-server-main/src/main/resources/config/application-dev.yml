@@ -115,3 +115,7 @@ jhipster:
 # application:
 aws:
   bucketName: localuz-locamais-dev
+frotto:
+  storage:
+    legacy-s3:
+      public-base-url: ${FROTTO_LEGACY_S3_PUBLIC_BASE_URL:https://localuz-locamais-dev.s3.amazonaws.com}

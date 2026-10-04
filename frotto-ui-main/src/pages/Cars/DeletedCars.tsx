@@ -6,11 +6,15 @@ import endpoints from "../../constants/endpoints";
 import api from "../../services/axios/axios";
 import { useAccountAuthorization } from "../../services/hooks/useAccountAuthorization";
 import { getApiErrorMessage } from "../../services/apiErrorMessage";
+import { urlToS3Image } from "../../services/BodyImagePath";
+import { resolveProfileImageSource } from "../../services/profileImageSource";
 
 type DeletedRow = { car: CarModel; userId?: number; userLogin?: string };
-type HistoryRow = { id?: number; date?: string; name?: string; description?: string; cost?: number; value?: number; driver?: { name?: string }; startDate?: string; title?: string; type?: string; imagePath?: string; pdfUrl?: string };
+type HistoryRow = { id?: number; date?: string; name?: string; description?: string; cost?: number; value?: number; driver?: { name?: string }; startDate?: string; title?: string; type?: string; imagePath?: string; imageUrl?: string | null; pdfUrl?: string };
 type Section = { title: string; rows: HistoryRow[] };
 const date = (value?: string) => value ? new Date(value).toLocaleDateString("pt-BR") : "Não registrado";
+// Damage photo: the backend-resolved URL when present; payloads that only carry the key use the legacy bucket URL.
+const damageImageHref = (row: HistoryRow) => resolveProfileImageSource(row.imageUrl, row.imagePath, urlToS3Image);
 
 export const DeletedCarsView: React.FC<{ admin?: boolean }> = ({ admin = false }) => {
   const [rows, setRows] = useState<DeletedRow[]>([]);
@@ -68,7 +72,7 @@ export const DeletedCarsView: React.FC<{ admin?: boolean }> = ({ admin = false }
     {selected && <section aria-label={admin ? "Restaurar veículo" : "Histórico do veículo"}>
       <h2>{selected.plate}</h2>
       {admin ? <><label>Motivo obrigatório<textarea maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} /></label><IonButton className="app-save-btn" disabled={!reason.trim() || busy} onClick={() => void restore()}>Confirmar restauração</IonButton></>
-        : <>{busy && <p>Carregando histórico…</p>}{history.map(section => <section key={section.title}><h3>{section.title}</h3>{section.rows.length === 0 ? <p>Nenhum registro.</p> : <ul>{section.rows.map((row, index) => <li key={row.id ?? index}>{date(row.date || row.startDate)} — {row.driver?.name || row.name || row.title || row.description || row.type || "Registro"}{row.cost != null && ` — ${row.cost.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`}{row.imagePath && <a href={row.imagePath} target="_blank" rel="noreferrer"> Ver imagem</a>}{row.pdfUrl && <a href={row.pdfUrl} target="_blank" rel="noreferrer"> Ver documento</a>}</li>)}</ul>}</section>)}</>}
+        : <>{busy && <p>Carregando histórico…</p>}{history.map(section => <section key={section.title}><h3>{section.title}</h3>{section.rows.length === 0 ? <p>Nenhum registro.</p> : <ul>{section.rows.map((row, index) => <li key={row.id ?? index}>{date(row.date || row.startDate)} — {row.driver?.name || row.name || row.title || row.description || row.type || "Registro"}{row.cost != null && ` — ${row.cost.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`}{damageImageHref(row) && <a href={damageImageHref(row)} target="_blank" rel="noreferrer"> Ver imagem</a>}{row.pdfUrl && <a href={row.pdfUrl} target="_blank" rel="noreferrer"> Ver documento</a>}</li>)}</ul>}</section>)}</>}
       <IonButton fill="clear" className="app-cancel-btn" onClick={() => setSelected(null)}>Fechar</IonButton>
     </section>}
   </div></IonContent></IonPage>;

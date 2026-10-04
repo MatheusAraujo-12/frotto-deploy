@@ -33,6 +33,7 @@ import { useAlert } from "../../../services/hooks/useAlert";
 import { usePhotoGallery } from "../../../services/hooks/usePhotoGallery";
 import { newFormDataFromBodyDamage } from "../../../services/formData";
 import { urlToS3Image } from "../../../services/BodyImagePath";
+import { resolveProfileImageSource } from "../../../services/profileImageSource";
 
 import FormDate from "../../../components/Form/FormDate";
 import FormInput from "../../../components/Form/FormInput";
@@ -47,6 +48,13 @@ import { BODY_DAMAGE_KEY } from "../../../services/localStorage/localstorage";
 import IonPhotoViewer from "@codesyntax/ionic-react-photo-viewer";
 import { getApiErrorMessage } from "../../../services/apiErrorMessage";
 import "./BodyDamageAdd.css";
+
+/**
+ * Photo to show for a damage position: the URL resolved by the backend (imageUrl/imageUrl2) is authoritative when
+ * present ("" = no photo); only payloads without it fall back to the legacy bucket URL built from the stored key.
+ */
+const resolvePhotoSource = (resolvedUrl: string | null | undefined, key: string | undefined) =>
+  resolveProfileImageSource(resolvedUrl, key, urlToS3Image) || undefined;
 
 interface CarDamageAddModalProps {
   closeModal: (response?: CarBodyDamageModel) => void;
@@ -98,12 +106,39 @@ const BodyDamageAdd: React.FC<CarDamageAddModalProps> = ({
     reset(nextValues);
     setBodyFile(undefined);
     setBodyFile2(undefined);
-    setBodyFilePath(
-      nextValues.imagePath ? urlToS3Image(nextValues.imagePath) : undefined
-    );
-    setBodyFilePath2(
-      nextValues.imagePath2 ? urlToS3Image(nextValues.imagePath2) : undefined
-    );
+
+    // Damages listed inside an inspection carry only the stored keys: the damage endpoint resolves their URLs.
+    const damageId = initialValues?.id;
+    const needsResolution =
+      !!damageId &&
+      initialValues?.imageUrl === undefined &&
+      initialValues?.imageUrl2 === undefined &&
+      !!(nextValues.imagePath || nextValues.imagePath2);
+    if (!needsResolution) {
+      setBodyFilePath(resolvePhotoSource(initialValues?.imageUrl, nextValues.imagePath));
+      setBodyFilePath2(resolvePhotoSource(initialValues?.imageUrl2, nextValues.imagePath2));
+      return;
+    }
+
+    setBodyFilePath(undefined);
+    setBodyFilePath2(undefined);
+    let active = true;
+    const keepPicked = (resolved?: string) => (current?: string) => (current === undefined ? resolved : current);
+    api
+      .get<CarBodyDamageModel>(endpoints.BODY_DAMAGE_EDIT({ pathVariables: { id: String(damageId) } }))
+      .then(({ data }) => {
+        if (!active) return;
+        setBodyFilePath(keepPicked(resolvePhotoSource(data?.imageUrl, data?.imagePath ?? nextValues.imagePath)));
+        setBodyFilePath2(keepPicked(resolvePhotoSource(data?.imageUrl2, data?.imagePath2 ?? nextValues.imagePath2)));
+      })
+      .catch(() => {
+        if (!active) return;
+        setBodyFilePath(keepPicked(resolvePhotoSource(undefined, nextValues.imagePath)));
+        setBodyFilePath2(keepPicked(resolvePhotoSource(undefined, nextValues.imagePath2)));
+      });
+    return () => {
+      active = false;
+    };
   }, [initialValues, reset]);
 
   const takeBodyPhoto = async () => {

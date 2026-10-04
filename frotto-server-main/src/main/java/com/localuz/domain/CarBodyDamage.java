@@ -1,5 +1,7 @@
 package com.localuz.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -24,6 +26,7 @@ import org.hibernate.annotations.CacheConcurrencyStrategy;
 @Table(name = "car_body_damage")
 @Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
 @SuppressWarnings("common-java:DuplicatedBlocks")
+@JsonIgnoreProperties(value = { "imageUrl", "imageUrl2" }, allowGetters = true)
 public class CarBodyDamage implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -49,6 +52,17 @@ public class CarBodyDamage implements Serializable {
 
     @Column(name = "image_path_2")
     private String imagePath2;
+
+    /**
+     * URLs the browser should load for imagePath/imagePath2 (signed local URL or legacy bucket URL), filled by the
+     * damage endpoints; never persisted nor accepted from clients (read-only in JSON, see the class annotation).
+     * "" = no image; omitted = client keeps its legacy resolution (s3 mode, unresolvable value).
+     * Java {@code transient} (not JPA {@code @Transient}): not persisted, and still serialized through the getters,
+     * because the Hibernate5Module of the API's ObjectMapper drops {@code @Transient} properties.
+     */
+    private transient String imageUrl;
+
+    private transient String imageUrl2;
 
     @Column(name = "cost", precision = 21, scale = 2)
     private BigDecimal cost;
@@ -140,6 +154,24 @@ public class CarBodyDamage implements Serializable {
 
     public void setImagePath2(String imagePath2) {
         this.imagePath2 = imagePath2;
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public String getImageUrl2() {
+        return imageUrl2;
+    }
+
+    public void setImageUrl2(String imageUrl2) {
+        this.imageUrl2 = imageUrl2;
     }
 
     public BigDecimal getCost() {

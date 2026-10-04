@@ -230,6 +230,21 @@ aws:
   accessKeyId: ${AWS_ACCESS_KEY_ID:}
   secretAccessKey: ${AWS_SECRET_ACCESS_KEY:}
 
+# File storage (see docs/storage-hostinger-staging.md). Default mode "s3" keeps the legacy behavior:
+# the local VPS storage is only used when FROTTO_STORAGE_MODE=local is set explicitly (staging).
+frotto:
+  storage:
+    mode: ${FROTTO_STORAGE_MODE:s3}
+    root: ${FROTTO_STORAGE_ROOT:}
+    files:
+      base-url: ${FROTTO_FILES_BASE_URL:}
+      signing-secret: ${FROTTO_FILES_SIGNING_SECRET:}
+      url-ttl-seconds: ${FROTTO_FILES_URL_TTL_SECONDS:21600}
+    legacy-s3:
+      # Read-only: browsers load historical objects from the public bucket. Never writes or deletes.
+      read-fallback-enabled: ${FROTTO_LEGACY_S3_READ_FALLBACK_ENABLED:false}
+      public-base-url: ${FROTTO_LEGACY_S3_PUBLIC_BASE_URL:}
+
 # Billing Etapa 3 feature flag. Must stay false unless explicitly overridden - staging can set
 # BILLING_ENFORCEMENT_ENABLED=true (Spring relaxed env-var binding); production with no
 # explicit override keeps this default. See CarResource#createCarInternal for the enforcement

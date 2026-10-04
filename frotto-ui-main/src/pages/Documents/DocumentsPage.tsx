@@ -931,7 +931,7 @@ const DocumentsPage: React.FC = () => {
   const checklistSavedPhotoItems = useMemo(
     () =>
       checklistPhotoRefs.map((ref) => {
-        const candidates = buildChecklistPhotoPreviewCandidates(ref);
+        const candidates = buildChecklistPhotoPreviewCandidates(ref, savedDocument?.attachmentUrls);
         const index = checklistPhotoCandidateIndexByRef[ref] ?? 0;
         const boundedIndex = index < 0 ? -1 : Math.min(index, Math.max(0, candidates.length - 1));
         const previewUrl = boundedIndex >= 0 ? candidates[boundedIndex] || "" : "";
@@ -941,7 +941,7 @@ const DocumentsPage: React.FC = () => {
           previewUrl,
         };
       }),
-    [checklistPhotoCandidateIndexByRef, checklistPhotoRefs]
+    [checklistPhotoCandidateIndexByRef, checklistPhotoRefs, savedDocument?.attachmentUrls]
   );
 
   useEffect(() => {
@@ -2784,10 +2784,16 @@ function resolveChecklistPhotoRefsFromSource(
   return dedupeStringList(fallbackAttachments);
 }
 
-function buildChecklistPhotoPreviewCandidates(ref: string): string[] {
+export function buildChecklistPhotoPreviewCandidates(ref: string, attachmentUrls?: Record<string, string>): string[] {
   const value = `${ref || ""}`.trim();
   if (!value) {
     return [];
+  }
+
+  // URL resolved by the backend ("" = unavailable); references it does not list keep the legacy candidates.
+  if (attachmentUrls && Object.prototype.hasOwnProperty.call(attachmentUrls, value)) {
+    const resolved = `${attachmentUrls[value] || ""}`.trim();
+    return resolved ? [resolved] : [];
   }
 
   if (/^(https?:|blob:|data:)/i.test(value)) {

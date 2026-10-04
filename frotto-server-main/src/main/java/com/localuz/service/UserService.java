@@ -110,7 +110,7 @@ public class UserService {
         newUser.setPassword(encryptedPassword);
         newUser.setFirstName(userDTO.getFirstName());
         newUser.setLastName(userDTO.getLastName());
-        newUser.setImageUrl(userDTO.getImageUrl());
+        // imageUrl is never taken from requests: the avatar key is only set by MeService upload/remove.
         newUser.setLangKey(userDTO.getLangKey());
         // new user is active
         newUser.setActivated(true);
@@ -143,7 +143,7 @@ public class UserService {
         if (userDTO.getEmail() != null) {
             user.setEmail(userDTO.getEmail().toLowerCase());
         }
-        user.setImageUrl(userDTO.getImageUrl());
+        // imageUrl is never taken from requests: the avatar key is only set by MeService upload/remove.
         if (userDTO.getLangKey() == null) {
             user.setLangKey(Constants.DEFAULT_LANGUAGE); // default language
         } else {
@@ -189,7 +189,7 @@ public class UserService {
                 if (userDTO.getEmail() != null) {
                     user.setEmail(userDTO.getEmail().toLowerCase());
                 }
-                user.setImageUrl(userDTO.getImageUrl());
+                // imageUrl is kept: the avatar key is only changed by MeService upload/remove.
                 user.setActivated(userDTO.isActivated());
                 user.setLangKey(userDTO.getLangKey());
                 Set<Authority> managedAuthorities = user.getAuthorities();
@@ -220,14 +220,14 @@ public class UserService {
 
     /**
      * Update basic information (first name, last name, email, language) for the current user.
+     * The avatar key (imageUrl) is not part of this update: it only changes through MeService upload/remove.
      *
      * @param firstName first name of user.
      * @param lastName last name of user.
      * @param email email id of user.
      * @param langKey language key.
-     * @param imageUrl image URL of user.
      */
-    public void updateUser(String firstName, String lastName, String email, String langKey, String imageUrl) {
+    public void updateUser(String firstName, String lastName, String email, String langKey) {
         SecurityUtils
             .getCurrentUserLogin()
             .flatMap(userRepository::findOneByLogin)
@@ -238,7 +238,6 @@ public class UserService {
                     user.setEmail(email.toLowerCase());
                 }
                 user.setLangKey(langKey);
-                user.setImageUrl(imageUrl);
                 this.clearUserCaches(user);
                 log.debug("Changed Information for User: {}", user);
             });
