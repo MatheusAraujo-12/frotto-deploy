@@ -30,9 +30,10 @@ services:
       FROTTO_FILES_URL_TTL_SECONDS: ${FROTTO_FILES_URL_TTL_SECONDS:-21600}
       FROTTO_LEGACY_S3_READ_FALLBACK_ENABLED: ${FROTTO_LEGACY_S3_READ_FALLBACK_ENABLED:-false}
     volumes:
-      # Persistent file storage. The host path is set per environment (Coolify); without it a neutral, empty
-      # directory is mounted and the default storage mode (s3) never uses it.
-      - ${FROTTO_STORAGE_HOST_PATH:-/data/frotto/storage-unconfigured}:/app/storage
+      # Staging-only: this branch mounts the staging directory explicitly (Coolify does not resolve a variable in
+      # the volume source). Before any merge to main, replace it with the production directory; never mount the
+      # staging directory in production.
+      - /data/frotto/staging/files:/app/storage
     restart: unless-stopped
     labels:
       - "traefik.enable=true"

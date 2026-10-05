@@ -71,13 +71,12 @@ Valor inválido (ex.: `locl`) impede a inicialização — nunca escolhe um stor
 
 ## Variáveis (somente backend, definidas no Coolify de cada ambiente)
 
-O recurso é Docker Compose: o `docker-compose.yml` é a fonte de verdade. As variáveis abaixo estão declaradas no
-`environment:` do serviço `backend` (sem isso o Coolify não as repassa ao container) com padrões seguros, iguais ao
-comportamento atual de produção.
+O recurso é Docker Compose: o `docker-compose.yml` é a fonte de verdade.
+As variáveis abaixo estão declaradas no `environment:` do serviço `backend` (sem isso o Coolify não as repassa ao
+container) com padrões seguros, iguais ao comportamento atual de produção.
 
 | Variável | Padrão no compose (produção sem configuração) | Valor no Coolify do staging |
 |---|---|---|
-| `FROTTO_STORAGE_HOST_PATH` | `/data/frotto/storage-unconfigured` (neutro, vazio, sem sentinela) | `/data/frotto/staging/files` |
 | `FROTTO_STORAGE_MODE` | `s3` | `local` |
 | `FROTTO_STORAGE_ROOT` | vazio | `/app/storage` |
 | `FROTTO_FILES_BASE_URL` | vazio | `https://api-staging.frotto.com.br` |
@@ -91,18 +90,24 @@ o segredo marcado como secret.
 
 Não configurar credenciais AWS no staging: o perfil `prod` aponta o código legado para o bucket de produção.
 
-## Bind mount
+## Volume persistente (mount explícito, específico da branch de staging)
 
-Declarado no compose, só no serviço `backend`:
+Na branch `staging/security-prebilling` o `docker-compose.yml` declara o mount explicitamente, só no serviço
+`backend`:
 
 ```yaml
 volumes:
-  - ${FROTTO_STORAGE_HOST_PATH:-/data/frotto/storage-unconfigured}:/app/storage
+  - /data/frotto/staging/files:/app/storage
 ```
 
-- O caminho do staging existe **somente** na configuração do Coolify do staging, nunca como padrão versionado: o mesmo
-  compose vai para `main`/produção, onde, sem configuração, é montado o diretório neutro (o modo `s3` não o usa e,
-  sem sentinela, nada seria gravado nele). Staging e produção nunca compartilham diretório.
+- `FROTTO_STORAGE_ROOT=/app/storage` aponta para o destino do mount.
+- `FROTTO_STORAGE_HOST_PATH` **não é mais utilizado**: o Coolify materializa o compose com o padrão de uma
+  interpolação `${VAR:-padrão}` no caminho de origem do volume (ignorando a variável do ambiente), e este recurso
+  não oferece Persistent Storage configurável. Por isso o caminho é literal.
+- Produção continua em `FROTTO_STORAGE_MODE=s3` e não depende de volume local.
+- **Antes de qualquer merge desta branch para `main`**, o compose deve ser revisado e o mount trocado pelo diretório
+  próprio de produção (a ser preparado, com sentinela própria). **Nunca montar o diretório de staging na produção.**
+- Com o diretório errado montado (sem a sentinela), o modo local recusa gravar (ver abaixo).
 - Preparação única no host do staging (já feita: `root:root`, diretório `0750`, sentinela `0640`; o backend roda como
   UID/GID `0:0`):
   ```sh
@@ -113,8 +118,9 @@ volumes:
 
 ### Sentinela `.frotto-storage`
 
-O backend só grava se o diretório raiz existir, contiver `.frotto-storage` e for gravável. Sem o bind mount o
-diretório do container não tem a sentinela, então nada é gravado no filesystem efêmero:
+Obrigatória. O backend só grava se o diretório raiz existir, contiver `.frotto-storage` e for gravável. Sem o
+mount (ou com o diretório errado montado) o diretório do container não tem a sentinela, então nada é
+gravado no filesystem efêmero:
 
 - a aplicação **sobe normalmente** (Billing e demais funções não são afetados) e registra `ERROR` na inicialização
   (`ROOT_MISSING`, `SENTINEL_MISSING`, `NOT_WRITABLE` ou `NOT_CONFIGURED`);
