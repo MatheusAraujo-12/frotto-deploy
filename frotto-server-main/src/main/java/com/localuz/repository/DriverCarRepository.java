@@ -1,6 +1,5 @@
 package com.localuz.repository;
 
-import com.localuz.domain.Car;
 import com.localuz.domain.DriverCar;
 import java.util.List;
 import java.util.Optional;
@@ -9,7 +8,6 @@ import org.springframework.data.repository.query.Param;
 
 /** Spring Data JPA repository for the DriverCar entity. */
 public interface DriverCarRepository extends JpaRepository<DriverCar, Long> {
-    DriverCar findFirstByConcludedAndCar(Boolean concluded, Car car);
 
     @Query(
         "select driverCar from DriverCar driverCar  join driverCar.car car  where car.user.login = ?#{principal.username} and car.id = :carId ORDER BY driverCar.startDate DESC"
@@ -33,6 +31,58 @@ public interface DriverCarRepository extends JpaRepository<DriverCar, Long> {
         @Param("driverId") Long driverId,
         @Param("carId") Long carId
     );
+
+    /** Open contracts (not concluded: ACTIVE or SUSPENDED) of a driver in the current user's fleet, any car. */
+    @Query(
+        "select driverCar from DriverCar driverCar " +
+        "join driverCar.car car " +
+        "where car.user.login = ?#{principal.username} " +
+        "and driverCar.driver.id = :driverId " +
+        "and (driverCar.concluded = false or driverCar.concluded is null) " +
+        "order by driverCar.startDate desc, driverCar.id desc"
+    )
+    List<DriverCar> findOpenByCurrentUserAndDriver(@Param("driverId") Long driverId);
+
+    /** Operational (ACTIVE, not suspended) contracts of a driver in the current user's fleet, except one. Always read from the database. */
+    @Query(
+        "select count(driverCar) from DriverCar driverCar " +
+        "join driverCar.car car " +
+        "where car.user.login = ?#{principal.username} " +
+        "and driverCar.driver.id = :driverId and driverCar.id <> :exceptId " +
+        "and (driverCar.concluded = false or driverCar.concluded is null) and driverCar.suspended = false"
+    )
+    long countOperationalByCurrentUserAndDriver(@Param("driverId") Long driverId, @Param("exceptId") Long exceptId);
+
+    /**
+     * Operational contracts occupying a car, except one: not concluded (false or NULL - the same rule as the driver
+     * side) and not suspended. Always read from the database.
+     */
+    @Query(
+        "select count(driverCar) from DriverCar driverCar " +
+        "where driverCar.car.id = :carId and driverCar.id <> :exceptId " +
+        "and (driverCar.concluded = false or driverCar.concluded is null) and driverCar.suspended = false"
+    )
+    long countOperationalOnCar(@Param("carId") Long carId, @Param("exceptId") Long exceptId);
+
+    /** Operational contracts of a car (same rule as countOperationalOnCar), most recent first. */
+    @Query(
+        "select driverCar from DriverCar driverCar " +
+        "where driverCar.car.id = :carId " +
+        "and (driverCar.concluded = false or driverCar.concluded is null) and driverCar.suspended = false " +
+        "order by driverCar.startDate desc, driverCar.id desc"
+    )
+    List<DriverCar> findOperationalOnCar(@Param("carId") Long carId);
+
+    /** Car of a contract, read without loading the contract (used to take the car lock first). */
+    @Query("select driverCar.car.id from DriverCar driverCar where driverCar.id = :id")
+    Long findCarIdById(@Param("id") Long id);
+
+    /** True when a reserve contract points to {@code primaryDriverCarId} as its primary. Explicit JPQL: not derivable by name. */
+    @Query(
+        "select case when count(driverCar) > 0 then true else false end from DriverCar driverCar " +
+        "where driverCar.primaryDriverCar.id = :primaryDriverCarId"
+    )
+    boolean existsByPrimaryDriverCarId(@Param("primaryDriverCarId") Long primaryDriverCarId);
 
     @Query(
         "select driverCar from DriverCar driverCar " +

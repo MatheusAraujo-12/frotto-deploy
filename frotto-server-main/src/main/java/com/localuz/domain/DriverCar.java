@@ -1,5 +1,6 @@
 package com.localuz.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.io.Serializable;
@@ -52,7 +53,60 @@ public class DriverCar implements Serializable {
     @JsonIgnoreProperties(value = { "driverCars" }, allowSetters = true)
     private Driver driver;
 
+    /**
+     * A primary contract whose driver is temporarily on a reserve car: not concluded, no end date, not operational
+     * while suspended. Only server operations change it (never the request body).
+     */
+    @Column(name = "suspended", nullable = false)
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private Boolean suspended = false;
+
+    /**
+     * Set only on reserve contracts: the primary contract it temporarily replaces and that is restored when the
+     * reserve is returned. Always the primary itself, never another reserve. Lazy so it is read after the locks.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "primary_driver_car_id")
+    @JsonIgnore
+    private DriverCar primaryDriverCar;
+
     // jhipster-needle-entity-add-field - JHipster will add fields here
+
+    public Boolean getSuspended() {
+        return suspended;
+    }
+
+    public void setSuspended(Boolean suspended) {
+        this.suspended = suspended;
+    }
+
+    public DriverCar getPrimaryDriverCar() {
+        return primaryDriverCar;
+    }
+
+    public void setPrimaryDriverCar(DriverCar primaryDriverCar) {
+        this.primaryDriverCar = primaryDriverCar;
+    }
+
+    @JsonProperty(value = "primaryDriverCarId", access = JsonProperty.Access.READ_ONLY)
+    public Long getPrimaryDriverCarId() {
+        return primaryDriverCar == null ? null : primaryDriverCar.getId();
+    }
+
+    /** True for a reserve (temporary) contract; false for a normal/primary one. */
+    @JsonProperty(value = "reserve", access = JsonProperty.Access.READ_ONLY)
+    public boolean isReserve() {
+        return primaryDriverCar != null;
+    }
+
+    /** CONCLUDED, SUSPENDED or ACTIVE (operational). */
+    @JsonProperty(value = "status", access = JsonProperty.Access.READ_ONLY)
+    public String getStatus() {
+        if (Boolean.TRUE.equals(concluded)) {
+            return "CONCLUDED";
+        }
+        return Boolean.TRUE.equals(suspended) ? "SUSPENDED" : "ACTIVE";
+    }
 
     public Long getId() {
         return this.id;
@@ -228,6 +282,11 @@ public class DriverCar implements Serializable {
         + ", contractNumber='"
         + getContractNumber()
         + "'"
+        + ", suspended='"
+        + getSuspended()
+        + "'"
+        + ", primaryDriverCarId="
+        + getPrimaryDriverCarId()
         + "}";
   }
 }

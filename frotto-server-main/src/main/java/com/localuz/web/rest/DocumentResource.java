@@ -16,6 +16,7 @@ import com.localuz.repository.DriverCarRepository;
 import com.localuz.repository.DriverDocumentRepository;
 import com.localuz.repository.DriverRepository;
 import com.localuz.repository.PendencyRepository;
+import com.localuz.service.DebtConfessionService;
 import com.localuz.service.UserService;
 import com.localuz.service.storage.FileStorageGateway;
 import com.localuz.service.storage.StorageCategory;
@@ -92,6 +93,7 @@ public class DocumentResource {
     private final FileStorageGateway fileStorage;
     private final UserService userService;
     private final ObjectMapper objectMapper;
+    private final DebtConfessionService debtConfessionService;
 
     public DocumentResource(
         DriverDocumentRepository documentRepository,
@@ -101,8 +103,10 @@ public class DocumentResource {
         PendencyRepository pendencyRepository,
         FileStorageGateway fileStorage,
         UserService userService,
-        ObjectMapper objectMapper
+        ObjectMapper objectMapper,
+        DebtConfessionService debtConfessionService
     ) {
+        this.debtConfessionService = debtConfessionService;
         this.documentRepository = documentRepository;
         this.driverRepository = driverRepository;
         this.carRepository = carRepository;
@@ -122,13 +126,28 @@ public class DocumentResource {
         com.localuz.service.VehicleLifecycleService.requireOperational(car);
         validateTypeBinding(payload.getType(), driver.getId(), car == null ? null : car.getId());
 
+        Map<String, Object> storedPayload = payload.getPayload();
+        if (DebtConfessionService.hasOrigin(payload.getPayload())) {
+            // Confession originated from pendencies: the server rebuilds the payload from the database.
+            if (payload.getType() != DocumentType.CONFISSAO_DIVIDA) {
+                throw new BadRequestAlertException("Origem permitida somente na confissão de dívida.", ENTITY_NAME, "confessionorigininvalid");
+            }
+            if (payload.getStatus() != null && payload.getStatus() != DocumentStatus.DRAFT) {
+                throw new BadRequestAlertException("A confissão deve ser criada como rascunho.", ENTITY_NAME, "confessionmustbedraft");
+            }
+            storedPayload =
+                debtConfessionService.confirmPendencyOrigin(driver.getId(), car == null ? null : car.getId(), payload.getPayload());
+        } else {
+            rejectPendencyReferencesWithoutOrigin(payload.getPayload());
+        }
+
         DriverDocument document = new DriverDocument();
         document.setType(payload.getType());
         document.setDriver(driver);
         document.setCar(car);
         document.setUser(getCurrentUserOrThrow());
         document.setStatus(payload.getStatus() == null ? DocumentStatus.DRAFT : payload.getStatus());
-        document.setPayloadJson(writePayload(payload.getPayload()));
+        document.setPayloadJson(writePayload(storedPayload));
         // attachments and pdfUrl are never taken from clients: attachments only come from the upload endpoint
         // (server-generated keys) and PDFs are generated in the browser, never stored.
 
@@ -193,6 +212,15 @@ public class DocumentResource {
             throw new BadRequestAlertException("Only DRAFT documents can be edited", ENTITY_NAME, "documentnotdraft");
         }
 
+        if (DebtConfessionService.isPendencyOrigin(readPayload(document.getPayloadJson()))) {
+            return ResponseEntity.ok(toDto(documentRepository.save(updatePendencyOriginDraft(document, payload)), true));
+        }
+        if (DebtConfessionService.hasOrigin(payload.getPayload())) {
+            // An existing document is never turned into a confession originated from pendencies.
+            throw new BadRequestAlertException("A origem da confissão não pode ser alterada.", ENTITY_NAME, "confessionoriginimmutable");
+        }
+        rejectPendencyReferencesWithoutOrigin(payload.getPayload());
+
         if (payload.getType() != null) {
             document.setType(payload.getType());
         }
@@ -226,10 +254,20 @@ public class DocumentResource {
         DriverDocument document = getDocumentOrThrow(id);
         com.localuz.service.VehicleLifecycleService.requireOperational(document.getCar());
         DocumentStatus previousStatus = document.getStatus();
+        Map<String, Object> storedPayload = readPayload(document.getPayloadJson());
+        boolean pendencyOrigin = DebtConfessionService.isPendencyOrigin(storedPayload);
+        if (pendencyOrigin && previousStatus != DocumentStatus.FINAL && previousStatus != DocumentStatus.SENT) {
+            // Validated before anything changes: a rejected finalization leaves the document untouched.
+            debtConfessionService.revalidateForFinalize(
+                document.getDriver() == null ? null : document.getDriver().getId(),
+                document.getCar() == null ? null : document.getCar().getId(),
+                storedPayload
+            );
+        }
         document.setStatus(DocumentStatus.FINAL);
         DriverDocument result = documentRepository.save(document);
 
-        if (previousStatus == DocumentStatus.DRAFT) {
+        if (previousStatus == DocumentStatus.DRAFT && !pendencyOrigin) {
             createPendencyIfApplicable(result);
         }
 
@@ -439,8 +477,51 @@ public class DocumentResource {
         return page;
     }
 
+    /**
+     * PATCH of a draft confession originated from pendencies: driver, car, contract, pendencies and origin never
+     * change; a new payload is accepted only for the same selection, revalidated and rebuilt by the server.
+     */
+    private DriverDocument updatePendencyOriginDraft(DriverDocument document, DocumentSaveDTO patch) {
+        Long driverId = document.getDriver() == null ? null : document.getDriver().getId();
+        Long carId = document.getCar() == null ? null : document.getCar().getId();
+        boolean changesContext =
+            (patch.getType() != null && patch.getType() != document.getType()) ||
+            (patch.getDriverId() != null && !patch.getDriverId().equals(driverId)) ||
+            (patch.getCarId() != null && !patch.getCarId().equals(carId));
+        if (changesContext) {
+            throw new BadRequestAlertException("A origem da confissão não pode ser alterada.", ENTITY_NAME, "confessionoriginimmutable");
+        }
+        if (patch.getStatus() != null && patch.getStatus() != DocumentStatus.DRAFT) {
+            // Only /finalize revalidates the pendencies: a status change here would skip it.
+            throw new BadRequestAlertException("Use a finalização para concluir a confissão.", ENTITY_NAME, "confessionfinalizerequired");
+        }
+        if (patch.getPayload() != null) {
+            Map<String, Object> stored = readPayload(document.getPayloadJson());
+            if (!DebtConfessionService.sameOriginSelection(stored, patch.getPayload())) {
+                throw new BadRequestAlertException("A origem da confissão não pode ser alterada.", ENTITY_NAME, "confessionoriginimmutable");
+            }
+            document.setPayloadJson(writePayload(debtConfessionService.confirmPendencyOrigin(driverId, carId, patch.getPayload())));
+        }
+        return document;
+    }
+
+    /** A manual confession (no origin) can never claim to come from pendencies. */
+    private void rejectPendencyReferencesWithoutOrigin(Map<String, Object> payload) {
+        if (DebtConfessionService.referencesPendencies(payload)) {
+            throw new BadRequestAlertException(
+                "Itens vinculados a pendências exigem a origem PENDENCIAS.",
+                ENTITY_NAME,
+                "sourcependencywithoutorigin"
+            );
+        }
+    }
+
     private void createPendencyIfApplicable(DriverDocument document) {
         if (document == null || document.getType() == null || document.getDriver() == null) {
+            return;
+        }
+        if (DebtConfessionService.isPendencyOrigin(readPayload(document.getPayloadJson()))) {
+            // The selected pendencies stay the only financial record of the debt: never a consolidated copy.
             return;
         }
 
@@ -469,6 +550,7 @@ public class DocumentResource {
 
         Pendency pendency = new Pendency();
         pendency.setDriverCar(driverCar);
+        pendency.setDebtor(driverCar.getDriver());
         pendency.setName(truncate(resolvePendencyName(document.getType(), payload), 60));
         pendency.setCost(amount);
         pendency.setDate(resolvePendencyDate(document.getType(), payload));

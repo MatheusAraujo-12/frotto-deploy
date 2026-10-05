@@ -1,5 +1,6 @@
 package com.localuz.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.localuz.domain.enumeration.PendencyStatus;
 import java.io.Serializable;
@@ -14,6 +15,7 @@ import javax.persistence.Enumerated;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 import javax.persistence.Table;
 import javax.validation.constraints.Size;
@@ -65,9 +67,19 @@ public class Pendency implements Serializable {
     @Column(name = "payment_method", length = 60)
     private String paymentMethod;
 
+    /** Historical origin: the contract (driver_car) during which the debt was recorded. Never moved. */
     @ManyToOne
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private DriverCar driverCar;
+
+    /**
+     * Who owes the debt: the driver of {@link #driverCar} when the pendency was recorded, frozen from then on
+     * (transfers, concluded contracts or the car's current driver never change it). Never taken from clients.
+     */
+    @ManyToOne
+    @JoinColumn(name = "debtor_driver_id")
+    @JsonIgnore
+    private Driver debtor;
 
     public Long getId() {
         return id;
@@ -99,6 +111,26 @@ public class Pendency implements Serializable {
 
     public void setDriverCar(DriverCar driverCar) {
         this.driverCar = driverCar;
+    }
+
+    public Driver getDebtor() {
+        return debtor;
+    }
+
+    public void setDebtor(Driver debtor) {
+        this.debtor = debtor;
+    }
+
+    /** Debtor exposed read-only: clients can never re-assign a debt through it. */
+    @JsonProperty(value = "debtorDriverId", access = JsonProperty.Access.READ_ONLY)
+    public Long getDebtorDriverId() {
+        return debtor == null ? null : debtor.getId();
+    }
+
+    /** Contract (driver_car) of the pendency, exposed read-only: clients can never re-link a pendency through it. */
+    @JsonProperty(value = "driverCarId", access = JsonProperty.Access.READ_ONLY)
+    public Long getDriverCarId() {
+        return driverCar == null ? null : driverCar.getId();
     }
 
     public LocalDate getDate() {

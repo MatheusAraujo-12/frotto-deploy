@@ -7,6 +7,9 @@ import com.localuz.domain.enumeration.PendencyStatus;
 import com.localuz.repository.DriverCarRepository;
 import com.localuz.repository.DriverRepository;
 import com.localuz.repository.PendencyRepository;
+import com.localuz.service.DebtConfessionService;
+import com.localuz.service.dto.DebtConfessionPreviewDTO;
+import com.localuz.service.dto.DebtConfessionPreviewRequest;
 import com.localuz.service.dto.DebtSummaryDTO;
 import com.localuz.service.dto.PendencyPaymentDTO;
 import com.localuz.web.rest.errors.BadRequestAlertException;
@@ -55,14 +58,26 @@ public class PendencyResource {
 
     private final DriverRepository driverRepository;
 
+    private final DebtConfessionService debtConfessionService;
+
     public PendencyResource(
         PendencyRepository pendencyRepository,
         DriverCarRepository driverCarRepository,
-        DriverRepository driverRepository
+        DriverRepository driverRepository,
+        DebtConfessionService debtConfessionService
     ) {
         this.pendencyRepository = pendencyRepository;
         this.driverCarRepository = driverCarRepository;
         this.driverRepository = driverRepository;
+        this.debtConfessionService = debtConfessionService;
+    }
+
+    /** Read-only: data of a Confissão de Dívida for the selected pendencies of one contract. Nothing is written. */
+    @PostMapping("/pendencies/confissao-divida/preview")
+    @Transactional(readOnly = true)
+    public DebtConfessionPreviewDTO previewDebtConfession(@RequestBody(required = false) DebtConfessionPreviewRequest request) {
+        log.debug("REST request to preview a debt confession for pendencies : {}", request == null ? null : request.getPendencyIds());
+        return debtConfessionService.preview(request == null ? null : request.getPendencyIds());
     }
 
     @GetMapping("/pendencies/car-driver/{carDriverId}")
@@ -140,6 +155,8 @@ public class PendencyResource {
         com.localuz.service.VehicleLifecycleService.requireOperational(pendencyCarDriver.getCar());
         initializePendencyForCreate(pendency);
         pendency.setDriverCar(pendencyCarDriver);
+        // The debtor is frozen now: the driver of this contract, never re-derived from the car later.
+        pendency.setDebtor(pendencyCarDriver.getDriver());
 
         Pendency result = pendencyRepository.save(pendency);
         return ResponseEntity

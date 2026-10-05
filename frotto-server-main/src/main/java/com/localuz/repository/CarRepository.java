@@ -17,7 +17,7 @@ public interface CarRepository extends JpaRepository<Car, Long> {
     Optional<Car> findByIdForUpdate(@Param("id") Long id);
     @Query(
         "select new com.localuz.DTO.CarDriverDto(car,driver.name) from Car car " +
-        "left join DriverCar driverCar on driverCar.car = car and driverCar.concluded=false " +
+        "left join DriverCar driverCar on driverCar.car = car and (driverCar.concluded = false or driverCar.concluded is null) and driverCar.suspended = false " +
         "left join Driver driver on driverCar.driver=driver " +
         "where car.user.login = ?#{principal.username} " +
         "and car.deleted = false"

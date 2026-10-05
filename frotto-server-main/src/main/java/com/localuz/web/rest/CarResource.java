@@ -170,7 +170,7 @@ public class CarResource {
             Car car = existingCar.get();
             CarDTO carDto = new CarDTO();
             carDto.setCar(car);
-            DriverCar activeDriver = driverCarRepository.findFirstByConcludedAndCar(false, car);
+            DriverCar activeDriver = driverCarRepository.findOperationalOnCar(car.getId()).stream().findFirst().orElse(null);
             carDto.setActiveDriver(activeDriver);
             Inspection lastInspection = inspectionRepository.findFirstByCarOrderByDateDesc(car);
             carDto.setLastInspection(lastInspection);

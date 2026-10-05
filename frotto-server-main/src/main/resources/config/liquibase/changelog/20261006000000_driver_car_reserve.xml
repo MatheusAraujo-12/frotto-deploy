@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <!--
+        Etapa 2.2.1: a primary contract can be SUSPENDED while its driver uses a reserve car, and a reserve contract
+        points to the primary contract it temporarily replaces. Existing rows stay normal primary contracts:
+        suspended = false and no primary reference (nothing historical is classified as a reserve).
+    -->
+    <changeSet id="20261006000000-1" author="claude">
+        <addColumn tableName="driver_car">
+            <column name="suspended" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="primary_driver_car_id" type="bigint"/>
+        </addColumn>
+        <createIndex tableName="driver_car" indexName="idx_driver_car_primary">
+            <column name="primary_driver_car_id"/>
+        </createIndex>
+        <addForeignKeyConstraint baseTableName="driver_car" baseColumnNames="primary_driver_car_id" referencedTableName="driver_car" referencedColumnNames="id" constraintName="fk_driver_car__primary_driver_car_id"/>
+    </changeSet>
+</databaseChangeLog>

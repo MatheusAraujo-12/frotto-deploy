@@ -3,6 +3,7 @@ package com.localuz.repository;
 import com.localuz.domain.Pendency;
 import com.localuz.domain.enumeration.PendencyStatus;
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -24,7 +25,7 @@ public interface PendencyRepository extends JpaRepository<Pendency, Long> {
         "select pendency from Pendency pendency " +
         "join pendency.driverCar driverCar " +
         "join driverCar.car car " +
-        "where car.user.login = ?#{principal.username} and driverCar.driver.id = :driverId " +
+        "where car.user.login = ?#{principal.username} and pendency.debtor.id = :driverId " +
         "order by pendency.date desc, pendency.id desc"
     )
     List<Pendency> findByCurrentUserAndDriverIdOrderByDateDesc(@Param("driverId") Long driverId);
@@ -34,7 +35,7 @@ public interface PendencyRepository extends JpaRepository<Pendency, Long> {
         "join pendency.driverCar driverCar " +
         "join driverCar.car car " +
         "where car.user.login = ?#{principal.username} " +
-        "and driverCar.driver.id = :driverId " +
+        "and pendency.debtor.id = :driverId " +
         "and (pendency.status is null or pendency.status <> com.localuz.domain.enumeration.PendencyStatus.PAID) " +
         "order by pendency.date desc, pendency.id desc"
     )
@@ -56,7 +57,7 @@ public interface PendencyRepository extends JpaRepository<Pendency, Long> {
         "select pendency from Pendency pendency " +
         "join pendency.driverCar driverCar " +
         "join driverCar.car car " +
-        "where car.user.login = ?#{principal.username} and driverCar.driver.id = :driverId and pendency.status in :statuses " +
+        "where car.user.login = ?#{principal.username} and pendency.debtor.id = :driverId and pendency.status in :statuses " +
         "order by pendency.date desc, pendency.id desc"
     )
     List<Pendency> findByCurrentUserAndDriverIdAndStatusInOrderByDateDesc(
@@ -71,6 +72,17 @@ public interface PendencyRepository extends JpaRepository<Pendency, Long> {
         "where car.user.login = ?#{principal.username} and pendency.id = :id"
     )
     Optional<Pendency> findByCurrentUserAndPendencyId(@Param("id") Long id);
+
+    /** Only the current user's pendencies among {@code ids}: ids of other accounts or missing ids are simply absent. */
+    @Query(
+        "select pendency from Pendency pendency " +
+        "join fetch pendency.driverCar driverCar " +
+        "join fetch driverCar.car car " +
+        "left join fetch driverCar.driver driver " +
+        "left join fetch pendency.debtor debtor " +
+        "where car.user.login = ?#{principal.username} and pendency.id in :ids"
+    )
+    List<Pendency> findByCurrentUserAndIdIn(@Param("ids") Collection<Long> ids);
 
     @Query(
         "select pendency from Pendency pendency " +
@@ -106,7 +118,7 @@ public interface PendencyRepository extends JpaRepository<Pendency, Long> {
         "from Pendency pendency " +
         "join pendency.driverCar driverCar " +
         "join driverCar.car car " +
-        "where car.user.login = ?#{principal.username} and driverCar.driver.id = :driverId"
+        "where car.user.login = ?#{principal.username} and pendency.debtor.id = :driverId"
     )
     BigDecimal findOutstandingTotalByCurrentUserAndDriverId(@Param("driverId") Long driverId);
 
@@ -123,7 +135,7 @@ public interface PendencyRepository extends JpaRepository<Pendency, Long> {
         "select count(pendency) from Pendency pendency " +
         "join pendency.driverCar driverCar " +
         "join driverCar.car car " +
-        "where car.user.login = ?#{principal.username} and driverCar.driver.id = :driverId " +
+        "where car.user.login = ?#{principal.username} and pendency.debtor.id = :driverId " +
         "and (pendency.status is null or pendency.status <> com.localuz.domain.enumeration.PendencyStatus.PAID)"
     )
     long countOpenByCurrentUserAndDriverId(@Param("driverId") Long driverId);
@@ -140,7 +152,7 @@ public interface PendencyRepository extends JpaRepository<Pendency, Long> {
         "select count(pendency) from Pendency pendency " +
         "join pendency.driverCar driverCar " +
         "join driverCar.car car " +
-        "where car.user.login = ?#{principal.username} and driverCar.driver.id = :driverId"
+        "where car.user.login = ?#{principal.username} and pendency.debtor.id = :driverId"
     )
     long countByCurrentUserAndDriverId(@Param("driverId") Long driverId);
 }

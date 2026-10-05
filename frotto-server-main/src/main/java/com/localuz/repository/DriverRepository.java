@@ -13,6 +13,11 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
     // via endpoint REST diretamente — use findByCurrentUserAndCpf para requests autenticados.
     Optional<Driver> findByCpf(String cpf);
 
+    /** Row lock serializing concurrent assignments of the same driver (see DriverAssignmentService). */
+    @Lock(javax.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select driver from Driver driver where driver.id = :id")
+    Optional<Driver> findByIdForUpdate(@Param("id") Long id);
+
     @Query(
         "select distinct driver from Driver driver " +
         "join driver.driverCars driverCar " +
@@ -28,6 +33,15 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
         "where car.user.login = ?#{principal.username} and driver.cpf = :cpf"
     )
     Optional<Driver> findByCurrentUserAndCpf(@Param("cpf") String cpf);
+
+    /** Same filter as findByCurrentUserAndCpf, tolerating accounts that already hold duplicated CPFs. */
+    @Query(
+        "select distinct driver from Driver driver " +
+        "join driver.driverCars driverCar " +
+        "join driverCar.car car " +
+        "where car.user.login = ?#{principal.username} and driver.cpf = :cpf"
+    )
+    List<Driver> findAllByCurrentUserAndCpf(@Param("cpf") String cpf);
 
     @Query(
         "select distinct driver from Driver driver " +

@@ -3,13 +3,17 @@ package com.localuz.web.rest;
 import com.localuz.domain.Car;
 import com.localuz.domain.Driver;
 import com.localuz.domain.DriverCar;
+import com.localuz.domain.enumeration.DriverAssignmentType;
 import com.localuz.repository.AddressRepository;
 import com.localuz.repository.CarRepository;
 import com.localuz.repository.DriverCarRepository;
 import com.localuz.repository.DriverRepository;
+import com.localuz.service.DriverAssignmentService;
+import com.localuz.service.dto.ReserveReturnResultDTO;
 import com.localuz.web.rest.errors.BadRequestAlertException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -17,6 +21,7 @@ import javax.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -27,6 +32,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import tech.jhipster.web.util.HeaderUtil;
 
@@ -51,12 +57,16 @@ public class DriverCarResource {
 
     private final AddressRepository addressRepository;
 
+    private final DriverAssignmentService driverAssignmentService;
+
     public DriverCarResource(
         DriverCarRepository driverCarRepository,
         CarRepository carRepository,
         AddressRepository addressRepository,
-        DriverRepository driverRepository
+        DriverRepository driverRepository,
+        DriverAssignmentService driverAssignmentService
     ) {
+        this.driverAssignmentService = driverAssignmentService;
         this.driverCarRepository = driverCarRepository;
         this.carRepository = carRepository;
         this.driverRepository = driverRepository;
@@ -81,8 +91,11 @@ public class DriverCarResource {
     }
 
     @PostMapping("/car/{carId}")
-    public ResponseEntity<DriverCar> createDriverCarByCar(@PathVariable Long carId, @Valid @RequestBody DriverCar driverCar)
-        throws URISyntaxException {
+    public ResponseEntity<DriverCar> createDriverCarByCar(
+        @PathVariable Long carId,
+        @RequestParam(name = "assignment", required = false) DriverAssignmentType assignment,
+        @Valid @RequestBody DriverCar driverCar
+    ) throws URISyntaxException {
         log.debug("REST request to save DriverCar : {}", driverCar);
         if (driverCar.getId() != null) {
             throw new BadRequestAlertException("A new driverCar cannot already have an ID", ENTITY_NAME, "idexists");
@@ -92,9 +105,22 @@ public class DriverCarResource {
             throw new BadRequestAlertException("Car not found for current user", ENTITY_NAME, "notcurrentuser");
         }
 
-        if (driverCar.getConcluded() == null || driverCar.getConcluded() == false) {
-            DriverCar driverCarActive = driverCarRepository.findFirstByConcludedAndCar(false, existingCarOpt.get());
-            if (driverCarActive != null) {
+        Car car = existingCarOpt.get();
+        Driver updatedDriver = driverCar.getDriver();
+        Optional<Driver> driver = updatedDriver != null && StringUtils.hasText(updatedDriver.getCpf())
+            ? driverRepository.findByCpf(updatedDriver.getCpf())
+            : Optional.empty();
+        if (updatedDriver != null && !driver.isPresent() && updatedDriver.getId() != null && !driverRepository.findByCurrentUserAndId(updatedDriver.getId()).isPresent()) {
+            // A driver id chosen by the client must be a driver of this fleet: never another account's driver.
+            throw new BadRequestAlertException("Driver not found for current user", ENTITY_NAME, "drivernotfound");
+        }
+        Long assignedDriverId = driver.map(Driver::getId).orElse(updatedDriver == null ? null : updatedDriver.getId());
+        boolean activeContract = !Boolean.TRUE.equals(driverCar.getConcluded());
+
+        if (activeContract) {
+            // Serializes concurrent assignments of this car and of this driver until the transaction ends.
+            driverAssignmentService.lockForAssignment(car, assignedDriverId);
+            if (driverAssignmentService.isCarOccupied(car.getId(), null)) {
                 throw new BadRequestAlertException(
                     "Active Driver-Car exists, may not add another active driver",
                     ENTITY_NAME,
@@ -102,14 +128,33 @@ public class DriverCarResource {
                 );
             }
         }
-        com.localuz.service.VehicleLifecycleService.requireOperational(existingCarOpt.get());
-        driverCar.setCar(existingCarOpt.get());
+        com.localuz.service.VehicleLifecycleService.requireOperational(car);
+        driverCar.setCar(car);
+        // Server-owned state: a new contract is never suspended; it is a reserve only through the assignment below.
+        driverCar.setSuspended(false);
+        // Never store NULL: "not concluded" is false (NULL keeps meaning the same thing for legacy rows).
+        driverCar.setConcluded(Boolean.TRUE.equals(driverCar.getConcluded()));
+        driverCar.setPrimaryDriverCar(null);
+        if (activeContract && assignedDriverId != null) {
+            // RESERVE suspends the primary, PERMANENT concludes the open contracts. Same transaction: any failure
+            // below rolls it back.
+            driverCar.setPrimaryDriverCar(
+                driverAssignmentService.prepareAssignment(
+                    assignedDriverId,
+                    car,
+                    assignment,
+                    driverCar.getStartDate() == null ? LocalDate.now() : driverCar.getStartDate()
+                )
+            );
+        } else if (assignment == DriverAssignmentType.RESERVE) {
+            throw new BadRequestAlertException(
+                "Carro reserva exige um vínculo principal do motorista.",
+                ENTITY_NAME,
+                "drivercarreserverequiresprimary"
+            );
+        }
 
-        Driver updatedDriver = driverCar.getDriver();
         if (updatedDriver != null) {
-            Optional<Driver> driver = StringUtils.hasText(updatedDriver.getCpf())
-                ? driverRepository.findByCpf(updatedDriver.getCpf())
-                : Optional.empty();
             Long existingAddressId = null;
             if (driver.isPresent()) {
                 updatedDriver.setId(driver.get().getId());
@@ -143,6 +188,27 @@ public class DriverCarResource {
             throw new BadRequestAlertException("DriverCar not found for current user", ENTITY_NAME, "notcurrentuser");
         }
         com.localuz.service.VehicleLifecycleService.requireOperational(carBodyDamage.get().getCar());
+        if (driverAssignmentService.hasPendencies(id)) {
+            // pendency.driver_car_id has no database FK: deleting the contract would orphan its debts.
+            throw new BadRequestAlertException(
+                "O vínculo possui pendências e não pode ser excluído. Encerre o vínculo.",
+                ENTITY_NAME,
+                "drivercarhaspendencies"
+            );
+        }
+        DriverCar contract = carBodyDamage.get();
+        if (
+            Boolean.TRUE.equals(contract.getSuspended()) ||
+            (contract.isReserve() && !Boolean.TRUE.equals(contract.getConcluded())) ||
+            driverAssignmentService.isPrimaryOfReserves(id)
+        ) {
+            // The primary/reserve link must stay: return the reserve (or conclude the contract) instead.
+            throw new BadRequestAlertException(
+                "O vínculo está suspenso ou ligado a um carro reserva e não pode ser excluído.",
+                ENTITY_NAME,
+                "drivercarhasreserves"
+            );
+        }
         driverCarRepository.deleteById(id);
         return ResponseEntity
             .noContent()
@@ -166,21 +232,49 @@ public class DriverCarResource {
         if (!existingCarOpt.isPresent()) {
             throw new BadRequestAlertException("Car not found for current user", ENTITY_NAME, "notcurrentuser");
         }
-        if (driverCar.getConcluded() == null || driverCar.getConcluded() == false) {
-            DriverCar driverCarActive = driverCarRepository.findFirstByConcludedAndCar(false, existingCarOpt.get().getCar());
-            if (driverCarActive != null && !driverCarActive.getId().equals(driverCar.getId())) {
-                throw new BadRequestAlertException(
-                    "Active Driver-Car exists, may not add another active driver",
-                    ENTITY_NAME,
-                    "activedriverexists"
-                );
-            }
+        DriverCar existingDriverCar = existingCarOpt.get();
+        boolean wasOpen = !Boolean.TRUE.equals(existingDriverCar.getConcluded());
+        boolean staysOrBecomesOpen = !Boolean.TRUE.equals(driverCar.getConcluded());
+        // A suspended primary does not occupy its car: editing it never conflicts with whoever drives the car now.
+        if (
+            staysOrBecomesOpen &&
+            existingDriverCar.getCar() != null &&
+            !Boolean.TRUE.equals(existingDriverCar.getSuspended()) &&
+            driverAssignmentService.isCarOccupied(existingDriverCar.getCar().getId(), existingDriverCar.getId())
+        ) {
+            throw new BadRequestAlertException(
+                "Active Driver-Car exists, may not add another active driver",
+                ENTITY_NAME,
+                "activedriverexists"
+            );
         }
 
-        DriverCar existingDriverCar = existingCarOpt.get();
         com.localuz.service.VehicleLifecycleService.requireOperational(existingDriverCar.getCar());
 
         Driver updatedDriver = driverCar.getDriver();
+        requireSameDriver(existingDriverCar.getDriver(), updatedDriver);
+        if (!wasOpen && staysOrBecomesOpen) {
+            if (existingDriverCar.isReserve()) {
+                // A returned reserve is history; a new reserve is created through the assignment.
+                throw new BadRequestAlertException(
+                    "Um carro reserva devolvido não pode ser reaberto.",
+                    ENTITY_NAME,
+                    "drivercarreservecannotreopen"
+                );
+            }
+            if (existingDriverCar.getDriver() != null) {
+                // Re-opening a concluded primary never leaves the driver with two open contracts.
+                Long driverId = existingDriverCar.getDriver().getId();
+                driverAssignmentService.lockForAssignment(existingDriverCar.getCar(), driverId);
+                if (driverAssignmentService.hasOpenContractElsewhere(driverId, existingDriverCar.getId())) {
+                    throw new BadRequestAlertException(
+                        "O motorista já possui um vínculo ativo em outro veículo.",
+                        ENTITY_NAME,
+                        "driveractiveelsewhere"
+                    );
+                }
+            }
+        }
         if (updatedDriver != null) {
             Driver existingDriver = existingDriverCar.getDriver();
             if (updatedDriver.getId() == null && existingDriver != null) {
@@ -204,13 +298,79 @@ public class DriverCarResource {
         existingDriverCar.setWarranty(driverCar.getWarranty());
         existingDriverCar.setScore(driverCar.getScore());
         existingDriverCar.setDebt(driverCar.getDebt());
-        existingDriverCar.setConcluded(driverCar.getConcluded());
+        existingDriverCar.setConcluded(Boolean.TRUE.equals(driverCar.getConcluded()));
         existingDriverCar.setContractNumber(driverCar.getContractNumber());
+        boolean concludedNow = wasOpen && Boolean.TRUE.equals(existingDriverCar.getConcluded());
+        if (concludedNow) {
+            // A concluded contract is never suspended.
+            existingDriverCar.setSuspended(false);
+        }
 
         DriverCar result = driverCarRepository.save(existingDriverCar);
+        if (concludedNow && result.isReserve()) {
+            // Concluding a reserve is returning it: same rules as POST /return (the primary comes back only if safe).
+            driverAssignmentService.restoreAfterReserve(result);
+        }
         return ResponseEntity
             .ok()
             .headers(HeaderUtil.createEntityUpdateAlert(applicationName, false, ENTITY_NAME, driverCar.getId().toString()))
             .body(result);
+    }
+
+    /**
+     * Returns a reserve car: the reserve is concluded and the same primary contract goes back to ACTIVE when its car
+     * is free; otherwise the primary stays SUSPENDED and the outcome says why (nobody is ever removed from a car).
+     */
+    @PostMapping("/{id}/return")
+    public ReserveReturnResultDTO returnReserveCar(
+        @PathVariable Long id,
+        @RequestParam(name = "endDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
+    ) {
+        log.debug("REST request to return reserve DriverCar : {}", id);
+        DriverCar reserve = driverCarRepository
+            .findByCurrentUserAndId(id)
+            .orElseThrow(() -> new BadRequestAlertException("DriverCar not found for current user", ENTITY_NAME, "notcurrentuser"));
+        com.localuz.service.VehicleLifecycleService.requireOperational(reserve.getCar());
+        return driverAssignmentService.returnReserve(reserve, endDate == null ? LocalDate.now() : endDate);
+    }
+
+    /** Restores a SUSPENDED primary contract once its car is free (e.g. after a return conflict was resolved). */
+    @PostMapping("/{id}/restore")
+    public DriverCar restorePrimaryContract(@PathVariable Long id) {
+        log.debug("REST request to restore suspended DriverCar : {}", id);
+        DriverCar primary = driverCarRepository
+            .findByCurrentUserAndId(id)
+            .orElseThrow(() -> new BadRequestAlertException("DriverCar not found for current user", ENTITY_NAME, "notcurrentuser"));
+        com.localuz.service.VehicleLifecycleService.requireOperational(primary.getCar());
+        return driverAssignmentService.restorePrimary(primary);
+    }
+
+    /**
+     * A driver_car is the contract of one person: its pendencies, warranty, score and period belong to that driver.
+     * Editing it may update that same driver's data (same id, or no id), never put another person in it - another
+     * driver of the car needs a new driver_car. Identity is the driver id; a CPF only counts when it is the CPF of
+     * another driver of this account (the edit form switches to that driver when such a CPF is typed).
+     */
+    private void requireSameDriver(Driver existingDriver, Driver requestedDriver) {
+        if (existingDriver == null) {
+            return;
+        }
+        boolean otherPerson = requestedDriver == null || (requestedDriver.getId() != null && !requestedDriver.getId().equals(existingDriver.getId()));
+        String requestedCpf = requestedDriver == null || requestedDriver.getCpf() == null ? "" : requestedDriver.getCpf().trim();
+        String currentCpf = existingDriver.getCpf() == null ? "" : existingDriver.getCpf().trim();
+        if (!otherPerson && !requestedCpf.isEmpty() && !requestedCpf.equals(currentCpf)) {
+            otherPerson =
+                driverRepository
+                    .findAllByCurrentUserAndCpf(requestedCpf)
+                    .stream()
+                    .anyMatch(found -> !found.getId().equals(existingDriver.getId()));
+        }
+        if (otherPerson) {
+            throw new BadRequestAlertException(
+                "O motorista de um vínculo existente não pode ser trocado. Encerre este vínculo e cadastre um novo para o outro motorista.",
+                ENTITY_NAME,
+                "drivercarchangeforbidden"
+            );
+        }
     }
 }
