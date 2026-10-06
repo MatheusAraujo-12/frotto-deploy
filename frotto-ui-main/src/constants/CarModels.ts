@@ -204,6 +204,10 @@ export interface DriverPendencyModel {
   remainingAmount?: number;
   paymentMethod?: string;
   delete?: boolean;
+  /** Read-only: the driver who owes the debt (null for legacy rows whose debtor could not be determined). */
+  debtorDriverId?: number | null;
+  /** Read-only: the contract (driver_car) during which the debt was recorded - its historical origin. */
+  driverCarId?: number | null;
 }
 
 export type DriverPendencyStatus = "OPEN" | "PARTIALLY_PAID" | "PAID";

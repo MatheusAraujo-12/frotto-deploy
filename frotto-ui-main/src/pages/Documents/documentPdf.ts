@@ -312,15 +312,35 @@ function buildConfissaoItensTable(items: Array<{ descricao: string; valorItem: n
   ];
 }
 
-function resolveConfissaoDebtItems(payload: Record<string, any>) {
+/**
+ * Vehicle each debt was born in, for confessions originated from pendencies (payload.origem.pendencias, written by
+ * the server): "Veículo de origem: Onix - ABC1D23". A confession groups the debts of one driver, possibly from
+ * several cars, so the origin is per item. Other confessions have no origin and print exactly as before.
+ */
+function resolveOriginVehicles(payload: Record<string, any>): Record<string, string> {
+  const snapshots = payload?.origem?.tipo === "PENDENCIAS" && Array.isArray(payload?.origem?.pendencias) ? payload.origem.pendencias : [];
+  const vehicles: Record<string, string> = {};
+  snapshots.forEach((snapshot: any) => {
+    const vehicle = [getText(snapshot, "carModel", ""), getText(snapshot, "carPlate", "")].filter(Boolean).join(" - ");
+    if (snapshot?.id !== undefined && snapshot?.id !== null && vehicle) {
+      vehicles[`${snapshot.id}`] = vehicle;
+    }
+  });
+  return vehicles;
+}
+
+export function resolveConfissaoDebtItems(payload: Record<string, any>) {
   const rawItems = Array.isArray(payload?.itensDaDivida) ? payload.itensDaDivida : [];
+  const originVehicles = resolveOriginVehicles(payload);
 
   const normalizedItems = rawItems
     .map((item: any) => {
       const typeName = getText(item, "typeNameSnapshot", getText(item, "typeName", getText(item, "tipoItem", "Outros")));
       const descricaoItem = getText(item, "descricaoItem", "");
       const valorItem = getNumber(item, "valorItem");
-      const descricao = descricaoItem ? `${typeName} - ${descricaoItem}` : typeName;
+      const vehicle = item?.sourcePendencyId !== undefined && item?.sourcePendencyId !== null ? originVehicles[`${item.sourcePendencyId}`] : undefined;
+      const base = descricaoItem ? `${typeName} - ${descricaoItem}` : typeName;
+      const descricao = vehicle ? `${base}. Veículo de origem: ${vehicle}` : base;
       return { descricao, valorItem };
     })
     .filter((item) => item.descricao || item.valorItem > 0);

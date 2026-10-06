@@ -6,6 +6,7 @@ import {
   IonCardHeader,
   IonCardSubtitle,
   IonCardTitle,
+  IonCheckbox,
   IonContent,
   IonHeader,
   IonIcon,
@@ -22,7 +23,7 @@ import {
 import api from "../../services/axios/axios";
 import endpoints from "../../constants/endpoints";
 import { TEXT } from "../../constants/texts";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAlert } from "../../services/hooks/useAlert";
 import {
   CarDriverModel,
@@ -56,6 +57,21 @@ import DriverPendencyPaymentModal, {
 } from "./DriverPendencyPaymentModal";
 import "./DriverPendencies.css";
 import "./DriverPendenciesSummary.css";
+import DebtConfessionPreviewView from "./DebtConfessionPreview";
+import {
+  DEBT_CONFESSION_ERROR_MESSAGES,
+  DIFFERENT_DEBTORS_MESSAGE,
+  DebtConfessionPreview,
+  DebtConfessionTerms,
+  OUTDATED_MESSAGE,
+  generateDebtConfession,
+  isConfessionEligible,
+  isOutdatedConfession,
+  previewDebtConfession,
+  selectionBlockReason,
+} from "../../services/debtConfessionService";
+import { createSingleFlight } from "../../services/driverAssignmentService";
+import { getApiErrorMessage } from "../../services/apiErrorMessage";
 
 interface DriverPendencyDetail
   extends RouteComponentProps<{
@@ -66,7 +82,7 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
   const location = useLocation();
   const nav = useHistory();
   const history = useIonRouter();
-  const { showErrorAlert } = useAlert();
+  const { showErrorAlert, showSuccessAlert } = useAlert();
   const [isLoading, setisLoading] = useState(false);
   const [modalDriverPendencyValue, setModalDriverPendencyValue] =
     useState<DriverPendencyModel>({});
@@ -82,6 +98,11 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
     DriverPendencyModel | undefined
   >(undefined);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  // Confissão de Dívida: selection of open debts of one debtor, then the backend preview.
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [confessionPreview, setConfessionPreview] = useState<DebtConfessionPreview | null>(null);
+  const [isConfessionBusy, setIsConfessionBusy] = useState(false);
+  const confessionOnce = useRef(createSingleFlight());
 
   useEffect(() => {
     if (!location.search.includes("modalOpened=true")) {
@@ -400,6 +421,68 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
     }
   };
 
+  // Only debts still eligible stay selected when the list changes (paid, edited or reloaded meanwhile).
+  useEffect(() => {
+    setSelectedIds((current) =>
+      current.filter((id) => driverPendencyList.some((pendency) => pendency.id === id && isConfessionEligible(pendency)))
+    );
+  }, [driverPendencyList]);
+
+  const selectedDebtorId = useMemo(() => {
+    const first = driverPendencyList.find((pendency) => pendency.id !== undefined && selectedIds.includes(pendency.id));
+    return first?.debtorDriverId ?? null;
+  }, [driverPendencyList, selectedIds]);
+
+  const toggleConfessionSelection = (pendency: DriverPendencyModel) => {
+    if (!pendency.id) return;
+    if (selectedIds.includes(pendency.id)) {
+      setSelectedIds((current) => current.filter((id) => id !== pendency.id));
+      return;
+    }
+    const blocked = selectionBlockReason(pendency, selectedDebtorId);
+    if (blocked) {
+      showErrorAlert(blocked);
+      return;
+    }
+    setSelectedIds((current) => [...current, pendency.id as number]);
+  };
+
+  const openConfessionPreview = () =>
+    confessionOnce.current(async () => {
+      if (selectedIds.length === 0) return;
+      setIsConfessionBusy(true);
+      try {
+        setConfessionPreview(await previewDebtConfession(selectedIds));
+      } catch (error) {
+        showErrorAlert(getApiErrorMessage(error, "Não foi possível montar a prévia da Confissão de Dívida.", DEBT_CONFESSION_ERROR_MESSAGES));
+      } finally {
+        setIsConfessionBusy(false);
+      }
+    });
+
+  const generateConfession = (terms: DebtConfessionTerms) =>
+    confessionOnce.current(async () => {
+      if (!confessionPreview) return;
+      setIsConfessionBusy(true);
+      try {
+        await generateDebtConfession(confessionPreview, terms);
+        showSuccessAlert("Confissão de Dívida gerada. O PDF foi baixado e o documento está em Documentos.");
+        setConfessionPreview(null);
+        setSelectedIds([]);
+      } catch (error) {
+        showErrorAlert(
+          isOutdatedConfession(error)
+            ? OUTDATED_MESSAGE
+            : getApiErrorMessage(error, "Não foi possível gerar a Confissão de Dívida.", DEBT_CONFESSION_ERROR_MESSAGES)
+        );
+        setConfessionPreview(null);
+      } finally {
+        setIsConfessionBusy(false);
+        // The pendencies are never changed by a confession: reloading only shows the current backend state.
+        loadDriverPendencys();
+      }
+    });
+
   const closeModal = useCallback((response?: DriverPendencyModel) => {
     setIsModalOpen(false);
     nav.goBack();
@@ -559,16 +642,41 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                 </div>
               </IonCardHeader>
               <IonCardContent>
+                <div className="driver-pendencies-confession-bar">
+                  <span className="driver-pendencies-confession-bar__hint">
+                    {selectedIds.length === 0
+                      ? "Selecione pendências em aberto do motorista para gerar a Confissão de Dívida."
+                      : `${selectedIds.length} pendência(s) selecionada(s).`}
+                  </span>
+                  <div className="driver-pendencies-confession-bar__actions">
+                    {selectedIds.length > 0 && (
+                      <IonButton size="small" fill="clear" className="app-outline-btn" onClick={() => setSelectedIds([])} disabled={isConfessionBusy}>
+                        Limpar seleção
+                      </IonButton>
+                    )}
+                    <IonButton
+                      size="small"
+                      className="app-primary-btn"
+                      disabled={selectedIds.length === 0 || isConfessionBusy}
+                      onClick={() => void openConfessionPreview()}
+                    >
+                      <IonIcon icon={documentTextOutline} slot="start" />
+                      {selectedIds.length > 0 ? `Gerar Confissão de Dívida (${selectedIds.length})` : "Gerar Confissão de Dívida"}
+                    </IonButton>
+                  </div>
+                </div>
                 <div className="driver-pendencies-list">
                   {filteredList.map((driverPendency: DriverPendencyModel, index) => {
                     const remainingAmount = getRemainingAmount(driverPendency);
                     const paid = isPaid(driverPendency.status);
+                    const selected = driverPendency.id !== undefined && selectedIds.includes(driverPendency.id);
+                    const blockReason = selected ? null : selectionBlockReason(driverPendency, selectedDebtorId);
 
                     return (
                       <IonItem
-                        className={`driver-pendency-list-item ${statusClassName(
-                          driverPendency.status
-                        )}`.trim()}
+                        className={`driver-pendency-list-item ${statusClassName(driverPendency.status)}${
+                          blockReason === DIFFERENT_DEBTORS_MESSAGE ? " driver-pendency-list-item--other-debtor" : ""
+                        }`.trim()}
                         key={driverPendency.id ?? `driver-pendency-${index}`}
                         button
                         detail={false}
@@ -577,6 +685,20 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                         }}
                       >
                         <div className="driver-pendency-list-item__wrap">
+                          {!paid && (
+                            <IonCheckbox
+                              className="driver-pendency-list-item__select"
+                              aria-label={`Selecionar ${driverPendency.name || "pendência"} para a Confissão de Dívida`}
+                              checked={selected}
+                              disabled={Boolean(blockReason) && blockReason !== DIFFERENT_DEBTORS_MESSAGE}
+                              title={blockReason || undefined}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                event.preventDefault();
+                                toggleConfessionSelection(driverPendency);
+                              }}
+                            />
+                          )}
                           <div
                             className={`app-soft-icon ${statusToneClass(
                               driverPendency.status
@@ -611,6 +733,11 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                             {driverPendency.note && (
                               <p className="driver-pendency-list-item__note">
                                 {driverPendency.note}
+                              </p>
+                            )}
+                            {!paid && !driverPendency.debtorDriverId && (
+                              <p className="driver-pendency-list-item__blocked">
+                                Sem motorista devedor identificado: não pode entrar na Confissão de Dívida.
                               </p>
                             )}
 
@@ -707,6 +834,17 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
           closeModal={closeModal}
           initialValues={modalDriverPendencyValue}
         />
+      </IonModal>
+
+      <IonModal className="debt-confession-preview-modal" isOpen={Boolean(confessionPreview)} backdropDismiss={false}>
+        {confessionPreview && (
+          <DebtConfessionPreviewView
+            preview={confessionPreview}
+            isGenerating={isConfessionBusy}
+            onCancel={() => setConfessionPreview(null)}
+            onGenerate={(terms) => void generateConfession(terms)}
+          />
+        )}
       </IonModal>
 
       <IonModal isOpen={isPaymentModalOpen} backdropDismiss={false}>

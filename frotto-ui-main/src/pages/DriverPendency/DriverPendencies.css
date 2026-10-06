@@ -223,3 +223,44 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Confissão de Dívida: selection of open debts of one debtor. */
+.driver-pendencies-confession-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(var(--ion-color-medium-rgb), 0.14);
+}
+
+.driver-pendencies-confession-bar__hint {
+  color: var(--ion-color-medium);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.driver-pendencies-confession-bar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.driver-pendency-list-item__select {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-right: 4px;
+}
+
+.driver-pendency-list-item--other-debtor .driver-pendency-list-item__select {
+  opacity: 0.4;
+}
+
+.driver-pendency-list-item__blocked {
+  margin: 4px 0 0;
+  color: var(--ion-color-medium);
+  font-size: 0.8rem;
+}

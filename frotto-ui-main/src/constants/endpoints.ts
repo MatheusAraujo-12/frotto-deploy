@@ -189,6 +189,7 @@ const endpoints = {
   DRIVER_PENDENCIES_EDIT: apiEndpoint("/pendencies/{id}"),
   DRIVER_PENDENCIES_PAY: apiEndpoint("/pendencies/{id}/pay"),
   DRIVER_PENDENCIES_PAYMENTS: apiEndpoint("/pendencies/{id}/payments"),
+  DEBT_CONFESSION_PREVIEW: apiEndpoint("/pendencies/confissao-divida/preview"),
 
   REPORTS: apiEndpoint("/reports"),
   REPORTS_HISTORY: apiEndpoint("/reports-history"),

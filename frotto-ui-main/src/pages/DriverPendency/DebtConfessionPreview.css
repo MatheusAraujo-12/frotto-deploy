@@ -1,0 +1,78 @@
+.debt-confession-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 16px;
+  padding-bottom: 24px;
+}
+
+.debt-confession-preview__block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  background: var(--app-card);
+  border: var(--app-border);
+  border-radius: 14px;
+  box-shadow: var(--app-shadow);
+}
+
+.debt-confession-preview__eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+}
+
+.debt-confession-preview__driver {
+  font-size: 1.05rem;
+  color: var(--ion-text-color);
+}
+
+.debt-confession-preview__muted {
+  color: var(--ion-color-medium);
+  line-height: 1.4;
+}
+
+.debt-confession-preview__items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.debt-confession-preview__item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(var(--ion-color-medium-rgb), 0.14);
+}
+
+.debt-confession-preview__item-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--ion-text-color);
+}
+
+.debt-confession-preview__total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding-top: 4px;
+  color: var(--ion-text-color);
+  font-size: 1.05rem;
+}
+
+.debt-confession-preview__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
