@@ -29,9 +29,10 @@ import {
 } from "../../constants/CarModels";
 import { filterListObj } from "../../services/filterList";
 import ItemNotFound from "../../components/List/ItemNotFound";
-import FrottoBadge from "../../components/UI/FrottoBadge";
 import { RouteComponentProps, useHistory, useLocation } from "react-router";
 import DriverAdd from "./DriverAddModal/DriverAdd";
+import { DriverCarBadges, DriverCarLifecycleActions } from "./DriverCarLifecycle";
+import { driverCarStatus, groupDriverCars } from "../../services/driverAssignmentService";
 import { formatDateView } from "../../services/dateFormat";
 import { currencyFormat } from "../../services/currencyFormat";
 import { formatCPF, formatTel } from "../../services/iMaskFormat";
@@ -133,18 +134,8 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
     return filterListObj(driverList, searchValue);
   }, [driverList, searchValue]);
 
-  const activeDoneList = useMemo(() => {
-    let activeItem: CarDriverModel | undefined;
-    const doneList: CarDriverModel[] = [];
-    filteredList.forEach((item: CarDriverModel) => {
-      if (item.concluded) {
-        doneList.push(item);
-      } else {
-        activeItem = item;
-      }
-    });
-    return { active: activeItem, done: doneList };
-  }, [filteredList]);
+  // Open contracts (ACTIVE and SUSPENDED) on top, the concluded history below.
+  const activeDoneList = useMemo(() => groupDriverCars(filteredList), [filteredList]);
 
   const closeModal = useCallback((response?: CarDriverModel) => {
     setIsModalOpen(false);
@@ -152,19 +143,8 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
 
     if (!response) return;
 
-    setDriversList((prev) => {
-      const exists = prev.some((item) => item.id === response.id);
-      if (exists) {
-        const updatedList = prev.map((item) =>
-          item.id === response.id ? response : item
-        );
-        loadDebtSummaryByDrivers(updatedList);
-        return updatedList;
-      }
-      const updatedList = [response, ...prev];
-      loadDebtSummaryByDrivers(updatedList);
-      return updatedList;
-    });
+    // A movement (transfer, reserve, return, restore) can change several contracts: reload what the backend says.
+    loadDrivers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -226,17 +206,17 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
               </IonLabel>
             </IonItem>
 
-            {activeDoneList.active && (
+            {activeDoneList.open.map((carDriver: CarDriverModel, index) => (
               <DriverRow
-                carDriver={activeDoneList.active}
-                outstandingDebt={getOutstandingDebt(activeDoneList.active)}
-                onOpen={() => openDriverEditor(activeDoneList.active!)}
-                onOpenPendencies={(event) =>
-                  openDriverPendencies(event, activeDoneList.active)
-                }
+                key={carDriver.id ?? index}
+                carDriver={carDriver}
+                outstandingDebt={getOutstandingDebt(carDriver)}
+                onOpen={() => openDriverEditor(carDriver)}
+                onOpenPendencies={(event) => openDriverPendencies(event, carDriver)}
+                onChanged={() => loadDrivers()}
               />
-            )}
-            {!isLoading && !activeDoneList.active && (
+            ))}
+            {!isLoading && activeDoneList.open.length === 0 && (
               <ItemNotFound message="Nenhum motorista ativo neste veículo." />
             )}
           </IonList>
@@ -254,6 +234,7 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
                 outstandingDebt={getOutstandingDebt(carDriver)}
                 onOpen={() => openDriverEditor(carDriver)}
                 onOpenPendencies={(event) => openDriverPendencies(event, carDriver)}
+                onChanged={() => loadDrivers()}
               />
             ))}
             {!isLoading && activeDoneList.done.length === 0 && (
@@ -275,17 +256,19 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
 
 export default Drivers;
 
-const DriverRow: React.FC<{
+export const DriverRow: React.FC<{
   carDriver: CarDriverModel;
   outstandingDebt: number;
   onOpen: () => void;
   onOpenPendencies: (event: MouseEvent) => void;
-}> = ({ carDriver, outstandingDebt, onOpen, onOpenPendencies }) => {
+  onChanged: () => void;
+}> = ({ carDriver, outstandingDebt, onOpen, onOpenPendencies, onChanged }) => {
   const hasDebt = outstandingDebt > 0;
   const contractLabel = formatDriverContract(carDriver?.contractNumber);
-  const period = carDriver?.concluded
-    ? `${formatDateView(carDriver?.startDate)} - ${formatDateView(carDriver?.endDate)}`
-    : formatDateView(carDriver?.startDate);
+  const period =
+    driverCarStatus(carDriver) === "CONCLUDED"
+      ? `${formatDateView(carDriver?.startDate)} - ${formatDateView(carDriver?.endDate ?? undefined)}`
+      : `${formatDateView(carDriver?.startDate)} até —`;
 
   return (
     <IonItem className="app-nested-list__item driver-list-item" button onClick={onOpen}>
@@ -297,9 +280,7 @@ const DriverRow: React.FC<{
           <div className="driver-col-left__content">
             <div className="driver-list-item__header">
               <h2>{carDriver?.driver?.name}</h2>
-              <FrottoBadge variant={carDriver?.concluded ? "neutral" : "success"}>
-                {carDriver?.concluded ? TEXT.resolved : TEXT.active}
-              </FrottoBadge>
+              <DriverCarBadges driverCar={carDriver} />
             </div>
             <p>{formatCPF(carDriver?.driver?.cpf)}</p>
             <p>{formatTel(carDriver?.driver?.contact)}</p>
@@ -314,6 +295,7 @@ const DriverRow: React.FC<{
             {TEXT.totalOutstanding}: {currencyFormat(outstandingDebt)}
           </p>
           <div className="driver-col-actions">
+            <DriverCarLifecycleActions driverCar={carDriver} onChanged={onChanged} />
             <IonButton
               className="driver-pendency-button app-semantic-btn app-semantic--warning"
               size="small"

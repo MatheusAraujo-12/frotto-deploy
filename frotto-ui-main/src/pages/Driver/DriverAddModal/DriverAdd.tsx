@@ -5,6 +5,7 @@ import {
   IonCardTitle,
   IonIcon,
   IonItem,
+  IonModal,
   IonRange,
 } from "@ionic/react";
 import {
@@ -13,7 +14,7 @@ import {
   personCircleOutline,
 } from "ionicons/icons";
 import { TEXT } from "../../../constants/texts";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAlert } from "../../../services/hooks/useAlert";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -28,9 +29,22 @@ import api from "../../../services/axios/axios";
 import endpoints from "../../../constants/endpoints";
 import {
   CarDriverModel,
+  DriverAssignmentType,
   DriverDebtSummaryModel,
   DriverModel,
 } from "../../../constants/CarModels";
+import {
+  ASSIGNMENT_MESSAGES,
+  AssignmentConflict,
+  DRIVER_CAR_ERROR_MESSAGES,
+  canRestorePrimary,
+  canReturnReserve,
+  createSingleFlight,
+  driverCarStatus,
+  saveNewDriverCar,
+} from "../../../services/driverAssignmentService";
+import DriverAssignmentChoice from "../DriverAssignmentChoice";
+import { DriverCarBadges, DriverCarLifecycleActions } from "../DriverCarLifecycle";
 import FormInput from "../../../components/Form/FormInput";
 import FormSelect from "../../../components/Form/FormSelect";
 import { STATES_BR } from "../../../constants/selectOptions";
@@ -99,8 +113,14 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
   initialValues,
   carId,
 }) => {
-  const { showErrorAlert } = useAlert();
+  const { showErrorAlert, showSuccessAlert } = useAlert();
   const [isLoading, setisLoading] = useState(false);
+  const submitOnce = useRef(createSingleFlight());
+  const [pendingChoice, setPendingChoice] = useState<{
+    conflict: AssignmentConflict;
+    resolve: (assignment: DriverAssignmentType | null) => void;
+  } | null>(null);
+  const isReserveContract = Boolean(initialValues?.reserve);
   const [driverDebtSummary, setDriverDebtSummary] =
     useState<DriverDebtSummaryModel>();
   const initialValuesKey = JSON.stringify(initialValues || {});
@@ -301,41 +321,58 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
     };
   }, [loadDriverByCpf, watchedDriverId, watchedDriverName]);
 
-  const onSubmit = async (newCarDriverForm: DriverForm) => {
-    const newCarDriver = driverFormtoDriver(newCarDriverForm);
-    setisLoading(true);
-    try {
-      let responseCar: CarDriverModel;
-      if (newCarDriver.id) {
-        const urlPatch = endpoints.DRIVERS_EDIT({
-          pathVariables: {
-            id: newCarDriver.id,
-          },
-        });
-        const response = await api.put(urlPatch, newCarDriver);
-        responseCar = response.data;
-      } else {
-        const urlPost = endpoints.DRIVERS({
-          pathVariables: {
-            id: carId,
-          },
-        });
-        const response = await api.post(urlPost, newCarDriver);
-        responseCar = response.data;
-      }
-      setisLoading(false);
-      closeModal(responseCar);
-    } catch (e: any) {
-      setisLoading(false);
-      showErrorAlert(
-        getApiErrorMessage(e, TEXT.saveFailed, {
-          activedriverexists: TEXT.activeDriverExist,
-          driverempty: "Preencha os dados do motorista antes de salvar.",
-          notcurrentuser: "Este carro não foi encontrado para o usuário atual.",
-        })
-      );
-    }
+  // Opened only when the backend asks for an explicit choice (409 driverassignmentrequired).
+  const askAssignment = useCallback(
+    (conflict: AssignmentConflict) =>
+      new Promise<DriverAssignmentType | null>((resolve) => setPendingChoice({ conflict, resolve })),
+    []
+  );
+
+  const answerAssignment = (assignment: DriverAssignmentType | null) => {
+    pendingChoice?.resolve(assignment);
+    setPendingChoice(null);
   };
+
+  const onSubmit = (newCarDriverForm: DriverForm) =>
+    submitOnce.current(async () => {
+      const newCarDriver = driverFormtoDriver(newCarDriverForm);
+      setisLoading(true);
+      try {
+        let responseCar: CarDriverModel | undefined;
+        if (newCarDriver.id) {
+          const urlPatch = endpoints.DRIVERS_EDIT({
+            pathVariables: {
+              id: newCarDriver.id,
+            },
+          });
+          const response = await api.put(urlPatch, newCarDriver);
+          responseCar = response.data;
+        } else {
+          const result = await saveNewDriverCar(carId, newCarDriver, askAssignment);
+          if (result.cancelled) {
+            // Cancelled in the choice: nothing was created or changed; the form stays as it was.
+            setisLoading(false);
+            return;
+          }
+          responseCar = result.driverCar;
+          if (result.assignment) {
+            showSuccessAlert(ASSIGNMENT_MESSAGES[result.assignment]);
+          }
+        }
+        setisLoading(false);
+        closeModal(responseCar);
+      } catch (e: any) {
+        setisLoading(false);
+        showErrorAlert(
+          getApiErrorMessage(e, TEXT.saveFailed, {
+            ...DRIVER_CAR_ERROR_MESSAGES,
+            activedriverexists: TEXT.activeDriverExist,
+            driverempty: "Preencha os dados do motorista antes de salvar.",
+            notcurrentuser: "Este carro não foi encontrado para o usuário atual.",
+          })
+        );
+      }
+    });
 
   const onInvalid = (invalidErrors: unknown) => {
     showErrorAlert(buildInvalidFieldsMessage(invalidErrors, DRIVER_FIELD_LABELS));
@@ -373,6 +410,29 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
                 </div>
               </IonCardHeader>
               <IonCardContent>
+                {formInitial.id && (
+                  <div className="driver-contract-lifecycle">
+                    <DriverCarBadges driverCar={initialValues} />
+                    {canReturnReserve(initialValues) && (
+                      <p className="driver-contract-lifecycle__note">
+                        Vínculo temporário de carro reserva. Para finalizá-lo, devolva o carro reserva.
+                      </p>
+                    )}
+                    {isReserveContract && driverCarStatus(initialValues) === "CONCLUDED" && (
+                      <p className="driver-contract-lifecycle__note">Carro reserva devolvido.</p>
+                    )}
+                    {canRestorePrimary(initialValues) && (
+                      <p className="driver-contract-lifecycle__note">
+                        Vínculo principal suspenso enquanto o motorista utiliza um carro reserva ou aguarda o retorno a
+                        este veículo.
+                      </p>
+                    )}
+                    <DriverCarLifecycleActions
+                      driverCar={initialValues}
+                      onChanged={(updated) => closeModal(updated ?? { ...initialValues })}
+                    />
+                  </div>
+                )}
                 <form className="app-form-grid">
                   <FormDate
                     id="start-date-driver-add"
@@ -405,16 +465,18 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
                       updateField("contractNumber", value);
                     }}
                   />
-                  <FormToggle
-                    label={TEXT.resolved}
-                    initialValue={watch("concluded") ?? false}
-                    changeCallback={(value: boolean) => {
-                      updateField("concluded", value);
-                      setShowConcluded(value);
-                    }}
-                  />
+                  {!isReserveContract && (
+                    <FormToggle
+                      label={TEXT.resolved}
+                      initialValue={watch("concluded") ?? false}
+                      changeCallback={(value: boolean) => {
+                        updateField("concluded", value);
+                        setShowConcluded(value);
+                      }}
+                    />
+                  )}
 
-                  {showConcluded && (
+                  {!isReserveContract && showConcluded && (
                     <>
                       <FormDate
                         id="end-date-driver-add"
@@ -688,6 +750,15 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
             </FrottoCard>
           </section>
         </div>
+        <IonModal className="driver-assignment-choice-modal" isOpen={Boolean(pendingChoice)} backdropDismiss={false}>
+          {pendingChoice && (
+            <DriverAssignmentChoice
+              conflictingCarPlate={pendingChoice.conflict.conflictingCarPlate}
+              onChoose={answerAssignment}
+              onCancel={() => answerAssignment(null)}
+            />
+          )}
+        </IonModal>
     </FrottoModal>
   );
 };

@@ -163,6 +163,8 @@ const endpoints = {
   DRIVERS_SEARCH: apiEndpoint("/drivers/search"),
   DRIVERS: apiEndpoint("/driver-cars/car/{id}"),
   DRIVERS_EDIT: apiEndpoint("/driver-cars/{id}"),
+  DRIVER_CAR_RETURN: apiEndpoint("/driver-cars/{id}/return"),
+  DRIVER_CAR_RESTORE: apiEndpoint("/driver-cars/{id}/restore"),
   DRIVER_DEBTS: apiEndpoint("/drivers/{id}/debts"),
   DRIVER_DEBT_SUMMARY: apiEndpoint("/drivers/{id}/debt-summary"),
   DRIVER_OPEN_PENDENCIES: apiEndpoint("/drivers/{id}/open-pendencies"),

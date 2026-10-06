@@ -26,5 +26,19 @@ export const useAlert = () => {
     present({ message, duration: 7000, position: "top", color: "success" });
   }, [present]);
 
-  return { showErrorAlert, showSuccessAlert };
+  /** Completed operation the user must still know something about (not an error). */
+  const showWarningAlert = useCallback(
+    (message: string) => {
+      present({
+        message,
+        duration: 10000,
+        position: "top",
+        color: "warning",
+        buttons: [{ text: "X", role: "cancel" }],
+      });
+    },
+    [present]
+  );
+
+  return { showErrorAlert, showSuccessAlert, showWarningAlert };
 };

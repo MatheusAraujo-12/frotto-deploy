@@ -1,0 +1,45 @@
+.driver-assignment-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+.driver-assignment-choice__intro {
+  margin: 0 0 4px;
+  color: var(--ion-text-color);
+  line-height: 1.45;
+}
+
+.driver-assignment-choice__option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 14px;
+  text-align: left;
+  font: inherit;
+  color: var(--ion-text-color);
+  background: var(--app-card);
+  border: var(--app-border);
+  border-radius: 14px;
+  box-shadow: var(--app-shadow);
+  cursor: pointer;
+}
+
+.driver-assignment-choice__option:hover,
+.driver-assignment-choice__option:focus-visible {
+  box-shadow: var(--app-shadow-hover);
+}
+
+.driver-assignment-choice__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.driver-assignment-choice__text span {
+  color: var(--ion-color-medium);
+  line-height: 1.4;
+}

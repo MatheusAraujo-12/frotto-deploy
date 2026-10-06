@@ -134,7 +134,7 @@ export interface DriverModel {
 export interface CarDriverModel {
   id?: number;
   startDate?: string;
-  endDate?: string;
+  endDate?: string | null;
   warranty?: number;
   score?: number;
   debt?: number;
@@ -143,6 +143,32 @@ export interface CarDriverModel {
   openPendenciesCount?: number;
   concluded?: boolean;
   driver?: DriverModel;
+  /** Read-only, computed by the backend: ACTIVE (operational), SUSPENDED (primary while on a reserve car) or CONCLUDED. */
+  status?: DriverCarStatus;
+  /** Read-only: true for a temporary reserve-car contract. */
+  reserve?: boolean;
+  /** Read-only: the primary contract a reserve temporarily replaces. */
+  primaryDriverCarId?: number | null;
+  /** Read-only. */
+  suspended?: boolean;
+}
+
+export type DriverCarStatus = "ACTIVE" | "SUSPENDED" | "CONCLUDED";
+
+/** Explicit choice when the driver already has an open contract in another car. */
+export type DriverAssignmentType = "RESERVE" | "PERMANENT";
+
+export type ReserveReturnOutcome = "RESTORED" | "PRIMARY_CAR_OCCUPIED" | "DRIVER_ACTIVE_ELSEWHERE" | "PRIMARY_CONCLUDED";
+
+/** POST /api/driver-cars/{id}/return */
+export interface ReserveReturnResultModel {
+  returnedDriverCarId?: number;
+  primaryDriverCarId?: number | null;
+  primaryCarPlate?: string | null;
+  outcome?: ReserveReturnOutcome;
+  primaryRestored?: boolean;
+  occupyingDriverCarId?: number | null;
+  occupyingDriverName?: string | null;
 }
 
 export interface IncomeModel {

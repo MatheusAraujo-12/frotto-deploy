@@ -133,11 +133,8 @@ const Car: React.FC<CarDetail> = ({ match }) => {
 
     if (!response) return;
 
-    if (response.concluded) {
-      setDriver(undefined);
-    } else {
-      setDriver(response);
-    }
+    // A movement (transfer, reserve, return, restore) can change several contracts: the backend says who drives now.
+    loadCar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -337,6 +334,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                     <h2 className="car-page__headline">
                       {driver?.driver?.name || TEXT.driver}
                     </h2>
+                    {driver?.reserve && <FrottoBadge variant="info">Carro reserva</FrottoBadge>}
                     <p className="car-page__subheadline">
                       {[
                         formatCPF(driver?.driver?.cpf),

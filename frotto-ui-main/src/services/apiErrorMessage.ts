@@ -72,6 +72,11 @@ export function getApiErrorMessage(
   return fallback;
 }
 
+/** Domain error code of an API error (errorKey, or the last part of "error.<code>"), if any. */
+export function getApiErrorCode(error: unknown): string | undefined {
+  return getErrorCode((error as any)?.response?.data as ApiErrorData | undefined);
+}
+
 function getErrorCode(data?: ApiErrorData): string | undefined {
   const candidates = [data?.errorKey, data?.message];
 
