@@ -76,3 +76,15 @@
   justify-content: flex-end;
   gap: 10px;
 }
+
+.debt-confession-preview__amount {
+  font-size: 1.35rem;
+  color: var(--ion-text-color);
+}
+
+.debt-confession-preview__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ion-color-medium);
+  text-align: right;
+}

@@ -1,9 +1,58 @@
-import { resolveConfissaoDebtItems } from "./documentPdf";
-import { STORED_CONFESSION } from "../../services/debtConfessionContract.fixtures";
+import * as pdfMake from "pdfmake/build/pdfmake";
+import { createDocumentPdfBlob, resolveConfissaoDebtItems } from "./documentPdf";
+import { STORED_CONFESSION, STORED_CONFESSION_WITH_TERMS } from "../../services/debtConfessionContract.fixtures";
+import { buildPdfLetterhead, loadPdfLetterheadData } from "../../services/pdfLetterhead";
+import api from "../../services/axios/axios";
 
 jest.mock("../../services/axios/axios");
+jest.mock("pdfmake/build/pdfmake", () => ({ createPdf: jest.fn() }));
+jest.mock("../../services/pdfLetterhead", () => ({
+  ...jest.requireActual("../../services/pdfLetterhead"),
+  loadPdfLetterheadData: jest.fn(),
+  buildPdfLetterhead: jest.fn(),
+}));
 
-describe("PDF da Confissão de Dívida - itens", () => {
+const INSTALLMENT_CLAUSE =
+  "Inadimplemento: o não pagamento de qualquer parcela implicará vencimento antecipado das demais, " +
+  "multa de 2%, juros de 1% ao mês, correção monetária e demais encargos legais.";
+const DEADLINE_CLAUSE =
+  "Inadimplemento: o não pagamento do valor devido até o prazo estabelecido nesta Confissão de Dívida " +
+  "caracterizará o inadimplemento do acordo, ficando o débito sujeito às medidas de cobrança cabíveis.";
+
+/** Every text the PDF would print, in order (paragraphs, list items, table cells, signature labels). */
+function textsOf(node: any): string[] {
+  if (node === null || node === undefined) return [];
+  if (typeof node === "string" || typeof node === "number") return [`${node}`];
+  if (Array.isArray(node)) return node.flatMap(textsOf);
+  if (typeof node !== "object") return [];
+  return [
+    ...textsOf(node.text),
+    ...textsOf(node.ul),
+    ...textsOf(node.stack),
+    ...textsOf(node.columns),
+    ...textsOf(node.table?.body),
+  ];
+}
+
+async function printedTexts(document: any): Promise<string[]> {
+  let definition: any;
+  (pdfMake.createPdf as jest.Mock).mockImplementation((value: any) => {
+    definition = value;
+    return { getBlob: (callback: (blob: Blob) => void) => callback(new Blob()) };
+  });
+  await createDocumentPdfBlob(document);
+  return textsOf(definition.content);
+}
+
+describe("PDF da Confissão de Dívida", () => {
+  beforeEach(() => {
+    (loadPdfLetterheadData as jest.Mock).mockResolvedValue({
+      profile: { taxPersonType: "CNPJ", taxCompanyName: "Frotas Exemplo Ltda", taxCnpj: "12345678000190" },
+      logoDataUrl: null,
+    });
+    (buildPdfLetterhead as jest.Mock).mockReturnValue([]);
+  });
+
   it("a confession from pendencies prints each debt with its own vehicle of origin and the backend values", () => {
     expect(resolveConfissaoDebtItems(STORED_CONFESSION.payload)).toEqual([
       { descricao: "Outros - Multa (20/08/2026). AIT 123. Veículo de origem: Onix - ONX1A11", valorItem: 200 },
@@ -23,5 +72,113 @@ describe("PDF da Confissão de Dívida - itens", () => {
     };
     expect(resolveConfissaoDebtItems(manual)).toEqual([{ descricao: "Outros - Acordo", valorItem: 250 }]);
     expect(resolveConfissaoDebtItems({ tipoItem: "Danos", valorTotal: 90 })).toEqual([{ descricao: "Danos", valorItem: 90 }]);
+  });
+
+  it("M/N) new confession: the stored conditions, the observation, only creditor and debtor sign - no witnesses", async () => {
+    const texts = await printedTexts(STORED_CONFESSION_WITH_TERMS);
+    const all = texts.join("\n");
+
+    expect(texts).toEqual(
+      expect.arrayContaining([
+        "Condições de pagamento:",
+        "Forma de pagamento: Parcelado",
+        "Prazo para pagamento: 20/02/2027",
+        "Quantidade de parcelas: 5",
+        "Primeiro vencimento: 20/10/2026",
+        "Observação: Em caso de atraso, o acordo deverá ser renegociado com a empresa.",
+        "CREDOR / EMPRESA",
+        "DEVEDOR / MOTORISTA",
+        // A) installments keep the existing clause, acceleration of the remaining installments included.
+        INSTALLMENT_CLAUSE,
+      ])
+    );
+    expect(all).not.toContain(DEADLINE_CLAUSE);
+    expect(all).toContain("Devedor: João Silva, CPF 11111111111.");
+    expect(all).toContain("Veículo de origem: Argo - ARG3C33");
+    expect(all).toContain("Valor total reconhecido: R$");
+    expect(all).not.toMatch(/Testemunha/i);
+    expect(all).not.toContain("Credor/Locador");
+    // Old flat terms are not printed for the new structure.
+    expect(all).not.toContain("Pagamento à vista");
+    expect(all).not.toContain("Parcelamento:");
+    // Every party signs exactly once: the two of the agreement.
+    expect(texts.filter((text) => /^_{10,}$/.test(text))).toHaveLength(2);
+  });
+
+  it("B) without observation nothing is invented; a non-installment form prints no installment lines", async () => {
+    const document = {
+      ...STORED_CONFESSION_WITH_TERMS,
+      payload: { ...STORED_CONFESSION_WITH_TERMS.payload, condicoesPagamento: { formaPagamento: "PIX", prazoPagamento: "2026-10-20" } },
+    };
+    const texts = await printedTexts(document);
+
+    expect(texts).toEqual(expect.arrayContaining(["Forma de pagamento: PIX", "Prazo para pagamento: 20/10/2026"]));
+    expect(texts.some((text) => text.startsWith("Observação"))).toBe(false);
+    expect(texts.some((text) => text.startsWith("Quantidade de parcelas") || text.startsWith("Primeiro vencimento"))).toBe(false);
+  });
+
+  it.each(["PIX", "TRANSFERENCIA", "DINHEIRO", "OUTRO"])(
+    "B/C/D/E/H) %s: the deadline clause, nothing about installments, no new charge, no witnesses",
+    async (formaPagamento) => {
+      const document = {
+        ...STORED_CONFESSION_WITH_TERMS,
+        payload: { ...STORED_CONFESSION_WITH_TERMS.payload, condicoesPagamento: { formaPagamento, prazoPagamento: "2026-10-20" } },
+      };
+      const texts = await printedTexts(document);
+      const all = texts.join("\n");
+
+      expect(texts).toContain(DEADLINE_CLAUSE);
+      expect(all).not.toMatch(/parcela/i);
+      expect(all).not.toMatch(/vencimento antecipado/i);
+      // The items include a traffic fine ("Multa"): what must not appear are the charges of the old clause.
+      expect(all).not.toMatch(/multa de|juros de|correção monetária|encargos legais|honorários/i);
+      expect(all).not.toMatch(/Testemunha/i);
+      expect(texts).toEqual(expect.arrayContaining(["CREDOR / EMPRESA", "DEVEDOR / MOTORISTA"]));
+      // I) printing is local: no request, so nothing financial can be written.
+      expect((api as any).post).not.toHaveBeenCalled();
+      expect((api as any).put).not.toHaveBeenCalled();
+      expect((api as any).delete).not.toHaveBeenCalled();
+    }
+  );
+
+  it("L) generating again from the stored document prints exactly the same conditions", async () => {
+    const first = await printedTexts(STORED_CONFESSION_WITH_TERMS);
+    const again = await printedTexts(JSON.parse(JSON.stringify(STORED_CONFESSION_WITH_TERMS)));
+    const conditionsOf = (texts: string[]) => texts.filter((text) => /^(Forma de pagamento|Prazo|Quantidade|Primeiro|Observação)/.test(text));
+
+    expect(conditionsOf(again)).toEqual(conditionsOf(first));
+    expect(conditionsOf(first)).toHaveLength(5);
+  });
+
+  it("F) an old à vista confession without condicoesPagamento keeps the legacy wording (no deadline clause)", async () => {
+    const old = {
+      ...STORED_CONFESSION,
+      payload: { ...STORED_CONFESSION.payload, formaPagamento: "A_VISTA", parcelasQtd: undefined, valorParcela: undefined },
+    };
+    const all = (await printedTexts(old)).join("\n");
+
+    expect(all).toContain("Forma de pagamento: A_VISTA.");
+    expect(all).toContain("Pagamento à vista com vencimento em");
+    expect(all).toContain(INSTALLMENT_CLAUSE);
+    expect(all).not.toContain(DEADLINE_CLAUSE);
+  });
+
+  it("G/P) an old confession keeps printing as it was saved: its own terms and its witnesses", async () => {
+    const old = {
+      ...STORED_CONFESSION,
+      payload: { ...STORED_CONFESSION.payload, testemunha1Nome: "Carlos Lima", testemunha1Cpf: "333.333.333-33", observacoes: "Acordo antigo" },
+    };
+    const all = (await printedTexts(old)).join("\n");
+
+    expect(all).toContain("Forma de pagamento: PARCELADO.");
+    expect(all).toContain("Parcelamento: 3 parcelas de R$");
+    expect(all).toContain("Testemunhas:");
+    expect(all).toContain("1) Carlos Lima - CPF 333.333.333-33");
+    expect(all).toContain("Observações: Acordo antigo");
+    expect(all).toContain("Credor/Locador");
+    // F) the old renderer keeps its own clause, untouched by the new choice.
+    expect(all).toContain(INSTALLMENT_CLAUSE);
+    expect(all).not.toContain(DEADLINE_CLAUSE);
+    expect(all).not.toContain("CREDOR / EMPRESA");
   });
 });

@@ -5,6 +5,9 @@ import { generateDocumentPdf } from "../pages/Documents/documentPdf";
 import { getApiErrorCode } from "./apiErrorMessage";
 import api from "./axios/axios";
 import documentService from "./documentService";
+import { DebtConfessionTerms, TERMS_KEY, normalizeConfessionTerms } from "./debtConfessionTerms";
+
+export type { DebtConfessionTerms } from "./debtConfessionTerms";
 
 /**
  * Confissão de Dívida from Pendências. The backend is the authority: the preview, the totals, the debtor and the
@@ -49,19 +52,6 @@ export interface DebtConfessionPreview {
   valorTotal: number;
 }
 
-/** Terms the user fills in the preview (the same optional fields the existing Confissão form has). */
-export interface DebtConfessionTerms {
-  formaPagamento?: "A_VISTA" | "PARCELADO";
-  parcelasQtd?: number;
-  valorParcela?: number;
-  vencimentoInicial?: string;
-  observacoes?: string;
-  testemunha1Nome?: string;
-  testemunha1Cpf?: string;
-  testemunha2Nome?: string;
-  testemunha2Cpf?: string;
-}
-
 export const DIFFERENT_DEBTORS_MESSAGE = "Selecione apenas pendências do mesmo motorista para gerar a Confissão de Dívida.";
 export const OUTDATED_MESSAGE = "As pendências foram alteradas desde a prévia. Atualize os dados antes de gerar o documento.";
 export const WITHOUT_DEBTOR_MESSAGE =
@@ -79,7 +69,10 @@ export const DEBT_CONFESSION_ERROR_MESSAGES: Record<string, string> = {
   VEHICLE_DELETED: "Uma das pendências é de um veículo excluído e não pode entrar na Confissão de Dívida.",
   confessionoriginmismatch: OUTDATED_MESSAGE,
   confessionorigininvalid: OUTDATED_MESSAGE,
+  confessiontermsinvalid: "Confira as condições de pagamento: forma, prazo e, se parcelado, parcelas e primeiro vencimento.",
 };
+
+export const INVALID_TERMS_MESSAGE = DEBT_CONFESSION_ERROR_MESSAGES.confessiontermsinvalid;
 
 /** Open pendency with a known debtor: the only ones that can be selected (the backend checks again). */
 export function isConfessionEligible(pendency: DriverPendencyModel): boolean {
@@ -115,6 +108,11 @@ export function isOutdatedConfession(error: unknown): boolean {
   );
 }
 
+/** Payment terms refused (here or by the backend): the user can fix them in the same preview. */
+export function isInvalidTermsError(error: unknown): boolean {
+  return getApiErrorCode(error) === "confessiontermsinvalid" || (error as Error)?.message === INVALID_TERMS_MESSAGE;
+}
+
 export async function previewDebtConfession(pendencyIds: number[]): Promise<DebtConfessionPreview> {
   const { data } = await api.post(endpoints.DEBT_CONFESSION_PREVIEW(), { pendencyIds });
   return data;
@@ -122,11 +120,16 @@ export async function previewDebtConfession(pendencyIds: number[]): Promise<Debt
 
 /**
  * Payload of a Confissão de Dívida originated from pendencies, in the backend contract: the debtor and the ids
- * (origem), each item with its pendency and the balance the user saw, and the user's terms. The backend reloads
- * everything, refuses values that no longer match the database and rebuilds descriptions, origins and totals.
+ * (origem), each item with its pendency and the balance the user saw, and the payment terms of the agreement
+ * (condicoesPagamento). The backend reloads everything, refuses values that no longer match the database, validates
+ * the terms and rebuilds descriptions, origins and totals. No witnesses: new confessions are signed by the two parties.
  */
 export function buildConfessionPayload(preview: DebtConfessionPreview, terms: DebtConfessionTerms): Record<string, unknown> {
-  const payload: Record<string, unknown> = {
+  const stored = normalizeConfessionTerms(terms);
+  if (!stored) {
+    throw new Error(INVALID_TERMS_MESSAGE);
+  }
+  return {
     origem: {
       tipo: "PENDENCIAS",
       driverId: preview.driverId,
@@ -134,17 +137,8 @@ export function buildConfessionPayload(preview: DebtConfessionPreview, terms: De
     },
     itensDaDivida: preview.items.map((item) => ({ sourcePendencyId: item.pendencyId, valorItem: item.valorItem })),
     valorTotal: preview.valorTotal,
-    formaPagamento: terms.formaPagamento || "A_VISTA",
+    [TERMS_KEY]: stored,
   };
-  if (terms.formaPagamento === "PARCELADO") {
-    if (terms.parcelasQtd) payload.parcelasQtd = terms.parcelasQtd;
-    if (terms.valorParcela) payload.valorParcela = terms.valorParcela;
-  }
-  (["vencimentoInicial", "observacoes", "testemunha1Nome", "testemunha1Cpf", "testemunha2Nome", "testemunha2Cpf"] as const).forEach((key) => {
-    const value = `${terms[key] || ""}`.trim();
-    if (value) payload[key] = value;
-  });
-  return payload;
 }
 
 /**
@@ -153,12 +147,14 @@ export function buildConfessionPayload(preview: DebtConfessionPreview, terms: De
  * the PDF mark. Pendencies are never written. If the finalization is refused, the draft is removed.
  */
 export async function generateDebtConfession(preview: DebtConfessionPreview, terms: DebtConfessionTerms): Promise<DocumentModel> {
+  // Invalid terms throw here, before anything is created.
+  const payload = buildConfessionPayload(preview, terms);
   const draft = await documentService.createDocument({
     type: "CONFISSAO_DIVIDA",
     status: "DRAFT",
     driverId: preview.driverId,
     carId: preview.carId ?? null,
-    payload: buildConfessionPayload(preview, terms),
+    payload,
   });
   try {
     await documentService.finalizeDocument(draft.id as number);

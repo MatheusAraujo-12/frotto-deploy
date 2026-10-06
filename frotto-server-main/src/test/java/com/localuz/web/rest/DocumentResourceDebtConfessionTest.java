@@ -166,8 +166,15 @@ class DocumentResourceDebtConfessionTest {
             assertThat(payload.get("driverName")).isEqualTo("João Silva");
             assertThat(payload.get("driverCpf")).isEqualTo("111.111.111-11");
             assertThat(payload.get("carPlate")).isEqualTo("ABC1D23");
-            assertThat(payload.get("formaPagamento")).isEqualTo("PARCELADO");
-            assertThat(payload.get("testemunha1Nome")).isEqualTo("Testemunha");
+            assertThat(terms(payload))
+                .containsExactly(
+                    entry("formaPagamento", "PARCELADO"),
+                    entry("prazoPagamento", "2027-03-10"),
+                    entry("parcelasQtd", 2),
+                    entry("primeiroVencimento", "2026-11-10"),
+                    entry("observacao", "Acordo em duas vezes")
+                );
+            assertThat(payload).doesNotContainKeys("testemunha1Nome", "testemunha2Nome", "formaPagamento");
             assertThat(money(payload.get("valorTotal"))).isEqualByComparingTo("700.00");
 
             List<Map<String, Object>> items = items(payload);
@@ -479,13 +486,13 @@ class DocumentResourceDebtConfessionTest {
         void sameSelectionUpdatesUserFieldsAndIsRebuiltFromTheDatabase() {
             Long id = createOrigin(5L, 10L, 100L, List.of(1000L), Map.of(1000L, "500.00")).getId();
             DocumentSaveDTO patch = payloadOnly(originRequest(5L, 10L, 100L, List.of(1000L), Map.of(1000L, "500.00")));
-            patch.getPayload().put("parcelasQtd", 5);
+            terms(patch.getPayload()).put("parcelasQtd", 5);
             patch.getPayload().put("driverName", "Maria Souza");
             items(patch.getPayload()).get(0).put("descricaoItem", "outra coisa");
 
             Map<String, Object> payload = stored(resource.updateDocumentDraft(id, patch).getBody());
 
-            assertThat(payload.get("parcelasQtd")).isEqualTo(5);
+            assertThat(terms(payload).get("parcelasQtd")).isEqualTo(5);
             assertThat(payload.get("driverName")).isEqualTo("João Silva");
             assertThat(items(payload).get(0).get("descricaoItem")).isEqualTo("Aluguel atrasado (01/03/2026)");
         }
@@ -687,6 +694,130 @@ class DocumentResourceDebtConfessionTest {
         }
     }
 
+    /** Payment terms of the agreement: required on new confessions, stored normalized, never touching pendencies. */
+    @Nested
+    class PaymentTerms {
+
+        private DocumentSaveDTO withTerms(Map<String, Object> terms) {
+            DocumentSaveDTO request = originRequest(5L, 10L, 100L, List.of(1000L), Map.of(1000L, "500.00"));
+            if (terms == null) {
+                request.getPayload().remove("condicoesPagamento");
+            } else {
+                request.getPayload().put("condicoesPagamento", terms);
+            }
+            return request;
+        }
+
+        private Map<String, Object> termsOf(Object... keyValues) {
+            Map<String, Object> terms = new LinkedHashMap<>();
+            for (int i = 0; i < keyValues.length; i += 2) {
+                terms.put((String) keyValues[i], keyValues[i + 1]);
+            }
+            return terms;
+        }
+
+        @Test
+        void pixWithDeadlineAndObservationIsStoredAsSent() {
+            DocumentDTO created = create(withTerms(termsOf("formaPagamento", "PIX", "prazoPagamento", "2026-10-20", "observacao", "  Pagamento via PIX.  ")))
+                .getBody();
+
+            assertThat(terms(stored(created)))
+                .containsExactly(entry("formaPagamento", "PIX"), entry("prazoPagamento", "2026-10-20"), entry("observacao", "Pagamento via PIX."));
+        }
+
+        @Test
+        void onlyTheKeysThatApplyAreKeptAndAnEmptyObservationIsDropped() {
+            DocumentDTO created = create(
+                withTerms(
+                    termsOf(
+                        "formaPagamento",
+                        "DINHEIRO",
+                        "prazoPagamento",
+                        "2026-10-20",
+                        "parcelasQtd",
+                        4,
+                        "primeiroVencimento",
+                        "2026-10-01",
+                        "observacao",
+                        "   ",
+                        "testemunha1Nome",
+                        "X"
+                    )
+                )
+            )
+                .getBody();
+
+            assertThat(terms(stored(created))).containsExactly(entry("formaPagamento", "DINHEIRO"), entry("prazoPagamento", "2026-10-20"));
+        }
+
+        @Test
+        void invalidOrMissingTermsAreRejectedAndNothingIsStored() {
+            List<Map<String, Object>> invalid = new ArrayList<>();
+            invalid.add(termsOf("prazoPagamento", "2026-10-20"));
+            invalid.add(termsOf("formaPagamento", "A_VISTA", "prazoPagamento", "2026-10-20"));
+            invalid.add(termsOf("formaPagamento", "PIX"));
+            invalid.add(termsOf("formaPagamento", "PIX", "prazoPagamento", "20/10/2026"));
+            invalid.add(termsOf("formaPagamento", "PIX", "prazoPagamento", "2026-02-30"));
+            invalid.add(termsOf("formaPagamento", "PARCELADO", "prazoPagamento", "2027-03-10", "primeiroVencimento", "2026-11-10"));
+            invalid.add(termsOf("formaPagamento", "PARCELADO", "prazoPagamento", "2027-03-10", "parcelasQtd", 1, "primeiroVencimento", "2026-11-10"));
+            invalid.add(termsOf("formaPagamento", "PARCELADO", "prazoPagamento", "2027-03-10", "parcelasQtd", 2.5, "primeiroVencimento", "2026-11-10"));
+            invalid.add(termsOf("formaPagamento", "PARCELADO", "prazoPagamento", "2027-03-10", "parcelasQtd", "3", "primeiroVencimento", "2026-11-10"));
+            invalid.add(termsOf("formaPagamento", "PARCELADO", "prazoPagamento", "2027-03-10", "parcelasQtd", 121, "primeiroVencimento", "2026-11-10"));
+            invalid.add(termsOf("formaPagamento", "PARCELADO", "prazoPagamento", "2027-03-10", "parcelasQtd", 3));
+            invalid.add(termsOf("formaPagamento", "PARCELADO", "prazoPagamento", "2026-11-10", "parcelasQtd", 3, "primeiroVencimento", "2026-12-10"));
+            invalid.add(termsOf("formaPagamento", "PIX", "prazoPagamento", "2026-10-20", "observacao", "x".repeat(1001)));
+            invalid.add(termsOf("formaPagamento", "PIX", "prazoPagamento", "2026-10-20", "observacao", 12));
+
+            assertRejected(() -> create(withTerms(null)), "confessiontermsinvalid");
+            invalid.forEach(terms -> assertRejected(() -> create(withTerms(terms)), "confessiontermsinvalid"));
+            assertThat(storedDocuments).isEmpty();
+        }
+
+        @Test
+        void installmentsAreOnlyConditionsOfTheAgreementAndNeverTouchThePendencies() {
+            Map<Long, String> before = pendencyStates();
+            Long id = create(
+                withTerms(termsOf("formaPagamento", "PARCELADO", "prazoPagamento", "2027-03-10", "parcelasQtd", 5, "primeiroVencimento", "2026-11-10"))
+            )
+                .getBody()
+                .getId();
+            resource.finalizeDocument(id);
+
+            assertThat(terms(storedById(id)))
+                .containsExactly(
+                    entry("formaPagamento", "PARCELADO"),
+                    entry("prazoPagamento", "2027-03-10"),
+                    entry("parcelasQtd", 5),
+                    entry("primeiroVencimento", "2026-11-10")
+                );
+            assertThat(pendencyStates()).isEqualTo(before);
+            verify(pendencies, never()).save(any());
+        }
+
+        @Test
+        void aDraftWithTermsKeepsThemButADraftSavedBeforeTheTermsCanStillBeEdited() throws Exception {
+            Long withTermsId = create(originRequest(5L, 10L, 100L, List.of(1000L), Map.of(1000L, "500.00"))).getBody().getId();
+            assertRejected(() -> resource.updateDocumentDraft(withTermsId, payloadOnly(withTerms(null))), "confessiontermsinvalid");
+
+            // Draft of a confession from pendencies stored before the terms existed.
+            DriverDocument legacy = storedDocuments.get(withTermsId);
+            Map<String, Object> legacyPayload = storedById(withTermsId);
+            legacyPayload.remove("condicoesPagamento");
+            legacyPayload.put("formaPagamento", "A_VISTA");
+            legacy.setPayloadJson(objectMapper.writeValueAsString(legacyPayload));
+
+            DocumentSaveDTO edit = payloadOnly(withTerms(null));
+            edit.getPayload().put("observacoes", "editado");
+            Map<String, Object> edited = stored(resource.updateDocumentDraft(withTermsId, edit).getBody());
+            assertThat(edited).containsEntry("observacoes", "editado").doesNotContainKey("condicoesPagamento");
+            // Terms sent on that old draft are validated all the same.
+            assertRejected(
+                () -> resource.updateDocumentDraft(withTermsId, payloadOnly(withTerms(termsOf("formaPagamento", "PIX")))),
+                "confessiontermsinvalid"
+            );
+        }
+    }
+
     /** Etapa 2.1: editing João's contract can never hand his confessions over to another driver. */
     @Nested
     class DriverCarEdits {
@@ -813,10 +944,13 @@ class DocumentResourceDebtConfessionTest {
         payload.put("origem", origin);
         payload.put("itensDaDivida", items);
         payload.put("valorTotal", total.doubleValue());
-        payload.put("formaPagamento", "PARCELADO");
-        payload.put("parcelasQtd", 2);
-        payload.put("vencimentoInicial", "2026-11-10");
-        payload.put("testemunha1Nome", "Testemunha");
+        Map<String, Object> terms = new LinkedHashMap<>();
+        terms.put("formaPagamento", "PARCELADO");
+        terms.put("prazoPagamento", "2027-03-10");
+        terms.put("parcelasQtd", 2);
+        terms.put("primeiroVencimento", "2026-11-10");
+        terms.put("observacao", "Acordo em duas vezes");
+        payload.put("condicoesPagamento", terms);
         DocumentSaveDTO request = new DocumentSaveDTO();
         request.setType(DocumentType.CONFISSAO_DIVIDA);
         request.setDriverId(driverId);
@@ -852,12 +986,23 @@ class DocumentResourceDebtConfessionTest {
         return patch;
     }
 
+    private Map<String, Object> storedById(Long id) {
+        DocumentDTO dto = new DocumentDTO();
+        dto.setId(id);
+        return stored(dto);
+    }
+
     private Map<String, Object> stored(DocumentDTO dto) {
         try {
             return objectMapper.readValue(storedDocuments.get(dto.getId()).getPayloadJson(), new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> terms(Map<String, Object> payload) {
+        return (Map<String, Object>) payload.get("condicoesPagamento");
     }
 
     @SuppressWarnings("unchecked")

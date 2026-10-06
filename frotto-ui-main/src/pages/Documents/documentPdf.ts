@@ -15,6 +15,12 @@ import { formatCurrencyPtBr, parseDecimal } from "../../services/decimalPtBr";
 import { serializeChecklistItems } from "./checklistUtils";
 import { resolveApiUrl } from "../../services/resolveApiUrl";
 import { maskPhone } from "../../services/profileFormat";
+import {
+  StoredConfessionTerms,
+  formatTermsDate,
+  paymentFormLabel,
+  readStoredConfessionTerms,
+} from "../../services/debtConfessionTerms";
 
 const vfsFonts =
   (pdfFonts as any).pdfMake?.vfs || (pdfFonts as any).default || (pdfFonts as any);
@@ -226,7 +232,12 @@ function buildConfissaoDividaContent(
   const itensDaDivida = resolveConfissaoDebtItems(payload);
   const totalItens = itensDaDivida.reduce((sum, item) => sum + item.valorItem, 0);
   const valorTotal = getNumber(payload, "valorTotal", totalItens);
+  const storedTerms = readStoredConfessionTerms(payload);
+  if (storedTerms) {
+    return buildConfissaoWithTermsContent(payload, fiscal, driverName, driverCpf, itensDaDivida, valorTotal, storedTerms);
+  }
 
+  // Confessions saved before the payment terms: printed exactly as they always were (witnesses included).
   return [
     { text: "INSTRUMENTO PARTICULAR DE CONFISSÃO E RECONHECIMENTO DE DÍVIDA", style: "title" },
     {
@@ -277,6 +288,76 @@ function buildConfissaoDividaContent(
     ...buildWitnessSection(payload),
     ...buildSignatureBlock(fiscal.fiscalName, driverName),
   ];
+}
+
+/**
+ * Confissão with the payment terms of the agreement (payload.condicoesPagamento): the conditions as stored, the
+ * observation only when filled, and only the two parties sign - no witnesses.
+ */
+function buildConfissaoWithTermsContent(
+  payload: Record<string, any>,
+  fiscal: ReturnType<typeof resolveFiscalIdentity>,
+  driverName: string,
+  driverCpf: string,
+  itensDaDivida: Array<{ descricao: string; valorItem: number }>,
+  valorTotal: number,
+  terms: StoredConfessionTerms
+) {
+  const conditions = [
+    `Forma de pagamento: ${paymentFormLabel(terms.formaPagamento)}`,
+    `Prazo para pagamento: ${formatTermsDate(terms.prazoPagamento)}`,
+    ...(terms.formaPagamento === "PARCELADO"
+      ? [`Quantidade de parcelas: ${terms.parcelasQtd ?? "-"}`, `Primeiro vencimento: ${formatTermsDate(terms.primeiroVencimento)}`]
+      : []),
+  ];
+  const note = `${terms.observacao || ""}`.trim();
+
+  return [
+    { text: "INSTRUMENTO PARTICULAR DE CONFISSÃO E RECONHECIMENTO DE DÍVIDA", style: "title" },
+    {
+      text:
+        `Credor: ${fiscal.fiscalName}, ${fiscal.documentLabel} ${fiscal.documentValue || "-"}${
+          fiscal.address ? `, endereço ${fiscal.address}` : ""
+        }.`,
+      style: "section",
+    },
+    {
+      text:
+        `Devedor: ${driverName}${driverCpf ? `, CPF ${driverCpf}` : ""}. ` +
+        `Origem da dívida (descrição geral): ${getText(payload, "origemDaDivida", "-")}.`,
+      style: "section",
+    },
+    ...buildConfissaoItensTable(itensDaDivida, valorTotal),
+    { text: `Valor total reconhecido: ${formatCurrency(valorTotal)}.`, style: "section" },
+    { text: "Condições de pagamento:", style: "section", bold: true, margin: [0, 6, 0, 2] },
+    { ul: conditions, style: "section" },
+    { text: confissaoDefaultClause(terms), style: "section" },
+    {
+      text:
+        "Fica eleito o foro do domicílio do credor para dirimir eventuais controvérsias oriundas deste instrumento, " +
+        "com renúncia de qualquer outro, por mais privilegiado que seja.",
+      style: "section",
+    },
+    ...(note ? [{ text: `Observação: ${note}`, style: "section" }] : []),
+    ...buildSignatureBlock(fiscal.fiscalName, driverName, { creditor: "CREDOR / EMPRESA", debtor: "DEVEDOR / MOTORISTA" }),
+  ];
+}
+
+/**
+ * Default clause of a Confissão with payment terms: the existing installment wording only when the agreement is in
+ * installments; otherwise a neutral wording tied to the agreed deadline, with no new charge or acceleration.
+ */
+function confissaoDefaultClause(terms: StoredConfessionTerms): string {
+  if (terms.formaPagamento === "PARCELADO") {
+    return (
+      "Inadimplemento: o não pagamento de qualquer parcela implicará vencimento antecipado das demais, " +
+      "multa de 2%, juros de 1% ao mês, correção monetária e demais encargos legais."
+    );
+  }
+  return (
+    "Inadimplemento: o não pagamento do valor devido até o prazo estabelecido nesta Confissão de Dívida " +
+    "caracterizará o inadimplemento do acordo, ficando o débito sujeito às medidas de cobrança cabíveis."
+  );
 }
 
 function buildConfissaoItensTable(items: Array<{ descricao: string; valorItem: number }>, valorTotal: number) {
@@ -776,7 +857,11 @@ function dedupeStrings(values: string[]) {
   return unique;
 }
 
-function buildSignatureBlock(fiscalName: string, driverName: string) {
+function buildSignatureBlock(
+  fiscalName: string,
+  driverName: string,
+  roles: { creditor: string; debtor: string } = { creditor: "Credor/Locador", debtor: "Devedor/Motorista" }
+) {
   const today = new Date();
   return [
     {
@@ -791,7 +876,7 @@ function buildSignatureBlock(fiscalName: string, driverName: string) {
           stack: [
             { text: "__________________________________________", style: "signatureLine" },
             { text: fiscalName, alignment: "center", fontSize: 9 },
-            { text: "Credor/Locador", alignment: "center", fontSize: 8, color: "#607D8B" },
+            { text: roles.creditor, alignment: "center", fontSize: 8, color: "#607D8B" },
           ],
         },
         {
@@ -799,7 +884,7 @@ function buildSignatureBlock(fiscalName: string, driverName: string) {
           stack: [
             { text: "__________________________________________", style: "signatureLine" },
             { text: driverName, alignment: "center", fontSize: 9 },
-            { text: "Devedor/Motorista", alignment: "center", fontSize: 8, color: "#607D8B" },
+            { text: roles.debtor, alignment: "center", fontSize: 8, color: "#607D8B" },
           ],
         },
       ],

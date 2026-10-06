@@ -19,6 +19,7 @@ import java.text.Normalizer;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -68,6 +69,16 @@ public class DebtConfessionService {
         "descricaoItem",
         "valorItem"
     );
+
+    /**
+     * Payment terms of the agreement, stored inside the document so the PDF can be generated again with the same
+     * conditions. They never touch the pendencies and never create installments or receivables.
+     */
+    public static final String TERMS_KEY = "condicoesPagamento";
+    static final String TERMS_INSTALLMENTS = "PARCELADO";
+    private static final Set<String> PAYMENT_FORMS = Set.of("PIX", "TRANSFERENCIA", "DINHEIRO", TERMS_INSTALLMENTS, "OUTRO");
+    static final int MAX_INSTALLMENTS = 120;
+    static final int MAX_TERMS_NOTE = 1000;
 
     private static final String ENTITY_NAME = "pendency";
     private static final Locale PT_BR = new Locale("pt", "BR");
@@ -177,6 +188,11 @@ public class DebtConfessionService {
         return ordered;
     }
 
+    /** True when the stored confession already carries payment terms (created after they became mandatory). */
+    public static boolean hasPaymentTerms(Map<String, Object> payload) {
+        return payload != null && payload.get(TERMS_KEY) != null;
+    }
+
     /** True when the payload carries an origin block, whatever its content. */
     public static boolean hasOrigin(Map<String, Object> payload) {
         return payload != null && payload.containsKey(ORIGIN_KEY);
@@ -229,7 +245,16 @@ public class DebtConfessionService {
      * values the client shows must still be the database values (otherwise {@link DebtConfessionOutdatedException}).
      * Returns the payload to store, rebuilt by the server.
      */
-    public Map<String, Object> confirmPendencyOrigin(Long documentDriverId, Long documentCarId, Map<String, Object> clientPayload) {
+    /**
+     * @param requirePaymentTerms true for a new confession (the terms are mandatory); on a draft update the terms are
+     *     validated only when sent, so drafts saved before them can still be edited.
+     */
+    public Map<String, Object> confirmPendencyOrigin(
+        Long documentDriverId,
+        Long documentCarId,
+        Map<String, Object> clientPayload,
+        boolean requirePaymentTerms
+    ) {
         Map<?, ?> origin = requirePendencyOrigin(clientPayload);
         Long claimedDebtorId = requireId(origin.get("driverId"));
         List<Long> pendencyIds = requireIds(origin.get("pendencyIds"));
@@ -246,7 +271,13 @@ public class DebtConfessionService {
         }
 
         requireClientValuesMatch(clientPayload, preview);
-        return buildStoredPayload(clientPayload, preview);
+        Map<String, Object> stored = buildStoredPayload(clientPayload, preview);
+        Object terms = clientPayload.get(TERMS_KEY);
+        stored.remove(TERMS_KEY);
+        if (terms != null || requirePaymentTerms) {
+            stored.put(TERMS_KEY, normalizePaymentTerms(terms));
+        }
+        return stored;
     }
 
     /**
@@ -484,6 +515,65 @@ public class DebtConfessionService {
 
     private static String text(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    /**
+     * Forma de pagamento and prazo are required; PARCELADO also needs 2..MAX parcels and a first due date not after
+     * the deadline (the deadline is for the whole debt). Only the keys that apply are kept; empty observation dropped.
+     */
+    static Map<String, Object> normalizePaymentTerms(Object raw) {
+        if (!(raw instanceof Map)) {
+            throw termsInvalid();
+        }
+        Map<?, ?> terms = (Map<?, ?>) raw;
+        String form = text(terms.get("formaPagamento"));
+        if (!PAYMENT_FORMS.contains(form)) {
+            throw termsInvalid();
+        }
+        LocalDate deadline = isoDate(terms.get("prazoPagamento"));
+        Map<String, Object> normalized = new LinkedHashMap<>();
+        normalized.put("formaPagamento", form);
+        normalized.put("prazoPagamento", deadline.toString());
+        if (TERMS_INSTALLMENTS.equals(form)) {
+            Object count = terms.get("parcelasQtd");
+            if (!(count instanceof Number) || ((Number) count).doubleValue() != ((Number) count).longValue()) {
+                throw termsInvalid();
+            }
+            long installments = ((Number) count).longValue();
+            LocalDate firstDue = isoDate(terms.get("primeiroVencimento"));
+            if (installments < 2 || installments > MAX_INSTALLMENTS || firstDue.isAfter(deadline)) {
+                throw termsInvalid();
+            }
+            normalized.put("parcelasQtd", (int) installments);
+            normalized.put("primeiroVencimento", firstDue.toString());
+        }
+        Object note = terms.get("observacao");
+        if (note != null && !(note instanceof String)) {
+            throw termsInvalid();
+        }
+        String noteText = text(note);
+        if (noteText.length() > MAX_TERMS_NOTE) {
+            throw termsInvalid();
+        }
+        if (!noteText.isEmpty()) {
+            normalized.put("observacao", noteText);
+        }
+        return normalized;
+    }
+
+    private static LocalDate isoDate(Object value) {
+        if (!(value instanceof String)) {
+            throw termsInvalid();
+        }
+        try {
+            return LocalDate.parse((String) value, DateTimeFormatter.ISO_LOCAL_DATE);
+        } catch (DateTimeParseException e) {
+            throw termsInvalid();
+        }
+    }
+
+    private static BadRequestAlertException termsInvalid() {
+        return new BadRequestAlertException("Condições de pagamento inválidas.", "document", "confessiontermsinvalid");
     }
 
     private static BadRequestAlertException originInvalid() {

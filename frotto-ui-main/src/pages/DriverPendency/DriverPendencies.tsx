@@ -66,6 +66,8 @@ import {
   OUTDATED_MESSAGE,
   generateDebtConfession,
   isConfessionEligible,
+  INVALID_TERMS_MESSAGE,
+  isInvalidTermsError,
   isOutdatedConfession,
   previewDebtConfession,
   selectionBlockReason,
@@ -470,6 +472,11 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
         setConfessionPreview(null);
         setSelectedIds([]);
       } catch (error) {
+        if (isInvalidTermsError(error)) {
+          // Nothing was created: the preview stays open with what the user filled.
+          showErrorAlert(INVALID_TERMS_MESSAGE);
+          return;
+        }
         showErrorAlert(
           isOutdatedConfession(error)
             ? OUTDATED_MESSAGE

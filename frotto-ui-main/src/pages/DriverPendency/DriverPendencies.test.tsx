@@ -6,10 +6,11 @@ import api from "../../services/axios/axios";
 import { generateDocumentPdf } from "../Documents/documentPdf";
 import {
   ERROR_OUTDATED_409,
+  ERROR_TERMS_INVALID_400,
   JOAO_PENDENCIES,
   LEGACY_WITHOUT_DEBTOR,
   PREVIEW_MULTI_CAR,
-  STORED_CONFESSION,
+  STORED_CONFESSION_WITH_TERMS,
 } from "../../services/debtConfessionContract.fixtures";
 import { apiError } from "../../services/driverAssignmentContract.fixtures";
 
@@ -38,7 +39,7 @@ const renderPage = (list: any[]) => {
   mockedApi.get.mockImplementation((url: string) => {
     if (url === "/api/driver-cars/3") return Promise.resolve({ data: { id: 3, startDate: "2026-09-20", driver: { id: 1, name: "João Silva", cpf: "11111111111" } } });
     if (url === "/api/drivers/1/debts") return Promise.resolve({ data: list });
-    if (url === "/api/documents/1") return Promise.resolve({ data: STORED_CONFESSION });
+    if (url === "/api/documents/1") return Promise.resolve({ data: STORED_CONFESSION_WITH_TERMS });
     return Promise.resolve({ data: {} });
   });
   render(
@@ -57,6 +58,21 @@ const click = async (element: Element) => {
   await act(async () => {
     fireEvent.click(element);
   });
+};
+const ionChange = async (selector: string, value: unknown) => {
+  const element = document.querySelector(selector);
+  if (!element) throw new Error(`field not found: ${selector}`);
+  await act(async () => {
+    fireEvent(element, new CustomEvent("ionChange", { detail: { value }, bubbles: true }));
+  });
+};
+/** The agreement of STORED_CONFESSION_WITH_TERMS, filled in the preview. */
+const fillInstallmentTerms = async () => {
+  await ionChange(".debt-confession-preview ion-select", "PARCELADO");
+  await ionChange('ion-input[data-field="prazoPagamento"]', "2027-02-20");
+  await ionChange('ion-input[data-field="parcelasQtd"]', "5");
+  await ionChange('ion-input[data-field="primeiroVencimento"]', "2026-10-20");
+  await ionChange(".debt-confession-preview ion-textarea", "Em caso de atraso, o acordo deverá ser renegociado com a empresa.");
 };
 const pendencyWrites = () =>
   [...mockedApi.post.mock.calls, ...mockedApi.put.mock.calls, ...mockedApi.delete.mock.calls].filter((call) => `${call[0]}`.startsWith("/api/pendencies/") && !`${call[0]}`.includes("confissao-divida/preview"));
@@ -132,6 +148,8 @@ describe("Pendências → Confissão de Dívida", () => {
       .mockResolvedValueOnce({ data: { id: 1, status: "FINAL" } });
     await click(generateButton());
     await screen.findByText("Total da Confissão");
+    expect((screen.getByText("Gerar PDF").closest("ion-button") as any).disabled).toBe(true);
+    await fillInstallmentTerms();
     await click(screen.getByText("Gerar PDF"));
 
     await waitFor(() =>
@@ -143,7 +161,11 @@ describe("Pendências → Confissão de Dívida", () => {
       "/api/documents/1/finalize",
       "/api/documents/1/generate-pdf",
     ]);
-    expect(generateDocumentPdf).toHaveBeenCalledWith(STORED_CONFESSION);
+    // J) the conditions go into the document; K/L) the PDF is built from the stored document, not from the screen.
+    const draft = mockedApi.post.mock.calls.find((call) => call[0] === "/api/documents")![1] as any;
+    expect(draft.payload.condicoesPagamento).toEqual(STORED_CONFESSION_WITH_TERMS.payload.condicoesPagamento);
+    expect(draft.payload).not.toHaveProperty("testemunha1Nome");
+    expect(generateDocumentPdf).toHaveBeenCalledWith(STORED_CONFESSION_WITH_TERMS);
     expect(pendencyWrites()).toEqual([]);
     await waitFor(() => expect(screen.queryByText("Total da Confissão")).not.toBeInTheDocument());
   });
@@ -156,6 +178,7 @@ describe("Pendências → Confissão de Dívida", () => {
 
     await click(generateButton());
     await screen.findByText("Total da Confissão");
+    await fillInstallmentTerms();
     await click(screen.getByText("Gerar PDF"));
 
     await waitFor(() =>
@@ -163,5 +186,26 @@ describe("Pendências → Confissão de Dívida", () => {
     );
     expect(generateDocumentPdf).not.toHaveBeenCalled();
     expect(mockAlerts.showSuccessAlert).not.toHaveBeenCalled();
+  });
+
+  it("terms refused by the backend: nothing generated, the preview stays open to fix them", async () => {
+    renderPage(JOAO_PENDENCIES);
+    await screen.findByText("Combustível");
+    await click(checkboxOf("Danos/Avarias"));
+    mockedApi.post.mockResolvedValueOnce({ data: PREVIEW_MULTI_CAR }).mockRejectedValueOnce(apiError(400, ERROR_TERMS_INVALID_400));
+
+    await click(generateButton());
+    await screen.findByText("Total da Confissão");
+    await fillInstallmentTerms();
+    await click(screen.getByText("Gerar PDF"));
+
+    await waitFor(() =>
+      expect(mockAlerts.showErrorAlert).toHaveBeenCalledWith(
+        "Confira as condições de pagamento: forma, prazo e, se parcelado, parcelas e primeiro vencimento."
+      )
+    );
+    expect(screen.getByText("Total da Confissão")).toBeInTheDocument();
+    expect(generateDocumentPdf).not.toHaveBeenCalled();
+    expect(mockedApi.delete).not.toHaveBeenCalled();
   });
 });

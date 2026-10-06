@@ -136,7 +136,7 @@ public class DocumentResource {
                 throw new BadRequestAlertException("A confissão deve ser criada como rascunho.", ENTITY_NAME, "confessionmustbedraft");
             }
             storedPayload =
-                debtConfessionService.confirmPendencyOrigin(driver.getId(), car == null ? null : car.getId(), payload.getPayload());
+                debtConfessionService.confirmPendencyOrigin(driver.getId(), car == null ? null : car.getId(), payload.getPayload(), true);
         } else {
             rejectPendencyReferencesWithoutOrigin(payload.getPayload());
         }
@@ -500,7 +500,11 @@ public class DocumentResource {
             if (!DebtConfessionService.sameOriginSelection(stored, patch.getPayload())) {
                 throw new BadRequestAlertException("A origem da confissão não pode ser alterada.", ENTITY_NAME, "confessionoriginimmutable");
             }
-            document.setPayloadJson(writePayload(debtConfessionService.confirmPendencyOrigin(driverId, carId, patch.getPayload())));
+            // A draft with payment terms keeps them; only drafts saved before the terms may go without.
+            boolean termsRequired = DebtConfessionService.hasPaymentTerms(stored);
+            document.setPayloadJson(
+                writePayload(debtConfessionService.confirmPendencyOrigin(driverId, carId, patch.getPayload(), termsRequired))
+            );
         }
         return document;
     }

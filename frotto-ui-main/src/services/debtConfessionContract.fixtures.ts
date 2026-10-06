@@ -354,3 +354,32 @@ export const STORED_CONFESSION = {
     }
   }
 };
+
+/** 400 of create when the payment terms are missing or invalid (DebtConfessionService.normalizePaymentTerms). */
+export const ERROR_TERMS_INVALID_400 = {
+  "entityName": "document",
+  "errorKey": "confessiontermsinvalid",
+  "type": "https://www.jhipster.tech/problem/problem-with-message",
+  "title": "Condições de pagamento inválidas.",
+  "status": 400,
+  "message": "error.confessiontermsinvalid",
+  "params": "document"
+};
+
+/**
+ * The same confession created with the payment terms (no witnesses, no old flat terms), as GET returns it.
+ * Terms and payload keys confirmed against a local run of the backend with the payment terms.
+ */
+export const STORED_CONFESSION_WITH_TERMS = {
+  ...STORED_CONFESSION,
+  "payload": {
+    ...(({ formaPagamento, parcelasQtd, valorParcela, vencimentoInicial, ...rest }) => rest)(STORED_CONFESSION.payload as any),
+    "condicoesPagamento": {
+      "formaPagamento": "PARCELADO",
+      "prazoPagamento": "2027-02-20",
+      "parcelasQtd": 5,
+      "primeiroVencimento": "2026-10-20",
+      "observacao": "Em caso de atraso, o acordo deverá ser renegociado com a empresa."
+    }
+  }
+};
