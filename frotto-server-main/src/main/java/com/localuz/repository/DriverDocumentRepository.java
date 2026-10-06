@@ -6,7 +6,9 @@ import com.localuz.domain.enumeration.DocumentType;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
+import javax.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -37,4 +39,20 @@ public interface DriverDocumentRepository extends JpaRepository<DriverDocument, 
         @Param("status") DocumentStatus status,
         Pageable pageable
     );
+
+    /** Ownership check that does not load the entity (so a locking read can load it fresh afterwards). */
+    @Query(
+        "select count(document) > 0 from DriverDocument document " +
+        "where document.user.login = ?#{principal.username} and document.id = :id"
+    )
+    boolean existsByCurrentUserAndId(@Param("id") Long id);
+
+    /** SELECT ... FOR UPDATE of the document row only; call it after the ownership check. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select document from DriverDocument document where document.id = :id")
+    Optional<DriverDocument> findByIdForUpdate(@Param("id") Long id);
+
+    /** The document issued from a pendency for one type (unique by origin_pendency_id + type). */
+    @Query("select document from DriverDocument document where document.originPendencyId = :pendencyId and document.type = :type")
+    Optional<DriverDocument> findByOriginPendencyIdAndType(@Param("pendencyId") Long pendencyId, @Param("type") DocumentType type);
 }

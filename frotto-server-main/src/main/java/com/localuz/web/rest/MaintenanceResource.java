@@ -7,6 +7,7 @@ import com.localuz.repository.CarRepository;
 import com.localuz.repository.MaintenanceRepository;
 import com.localuz.repository.ServiceRepository;
 import com.localuz.service.CarService;
+import com.localuz.service.DriverChargeService;
 import com.localuz.web.rest.errors.BadRequestAlertException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -51,16 +52,20 @@ public class MaintenanceResource {
 
     private final CarService carService;
 
+    private final DriverChargeService driverChargeService;
+
     public MaintenanceResource(
         MaintenanceRepository maintenanceRepository,
         CarRepository carRepository,
         CarService carService,
-        ServiceRepository serviceRepository
+        ServiceRepository serviceRepository,
+        DriverChargeService driverChargeService
     ) {
         this.maintenanceRepository = maintenanceRepository;
         this.carRepository = carRepository;
         this.carService = carService;
         this.serviceRepository = serviceRepository;
+        this.driverChargeService = driverChargeService;
     }
 
     @GetMapping("/car/{carId}")
@@ -114,6 +119,8 @@ public class MaintenanceResource {
         }
 
         com.localuz.service.VehicleLifecycleService.requireOperational(existingMaintenanceOpt.get().getCar());
+        // A maintenance charged to drivers is the origin of their debts: it stays (the FK is the final barrier).
+        driverChargeService.requireNoDriverCharges(id);
         maintenanceRepository.deleteById(id);
         return ResponseEntity
             .noContent()

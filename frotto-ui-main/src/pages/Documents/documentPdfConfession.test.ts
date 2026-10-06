@@ -182,3 +182,80 @@ describe("PDF da Confissão de Dívida", () => {
     expect(all).not.toContain("CREDOR / EMPRESA");
   });
 });
+
+describe("PDF de Multa emitida a partir da pendência (payload real do backend)", () => {
+  beforeEach(() => {
+    (loadPdfLetterheadData as jest.Mock).mockResolvedValue({ profile: { taxPersonType: "CNPJ", taxCompanyName: "Frotas Exemplo Ltda" }, logoDataUrl: null });
+    (buildPdfLetterhead as jest.Mock).mockReturnValue([]);
+  });
+
+  it("prints the infraction day/time and the due date without any timezone shift", async () => {
+    const issued = {
+      id: 31,
+      type: "MULTA",
+      status: "FINAL",
+      driverName: "João Silva",
+      carPlate: "ONX1A11",
+      payload: {
+        origem: { tipo: "PENDENCIA", pendencyId: 1 },
+        driverName: "João Silva",
+        driverCpf: "11111111111",
+        carPlate: "ONX1A11",
+        carModel: "Onix",
+        dataHora: "2026-08-20T10:30",
+        local: "Av. Brasil",
+        ait: "AIT-1",
+        orgao: "DETRAN",
+        enquadramento: null,
+        valor: 200,
+        vencimento: "2026-10-20T12:00",
+        responsavelPagamento: "João Silva",
+        observacoes: null,
+      },
+    };
+    const all = (await printedTexts(issued)).join("\n");
+
+    expect(all).toMatch(/ocorrida em 20\/08\/2026,? 10:30/);
+    expect(all).toContain("Vencimento 20/10/2026.");
+    expect(all).toContain("AIT AIT-1; Órgão autuador DETRAN");
+    expect(all).toMatch(/Valor R\$\s?200,00/);
+  });
+});
+
+describe("G) PDFs de Multa e Manutenção Compartilhada antigos continuam sendo gerados", () => {
+  beforeEach(() => {
+    (loadPdfLetterheadData as jest.Mock).mockResolvedValue({ profile: { taxPersonType: "CNPJ", taxCompanyName: "Frotas Exemplo Ltda" }, logoDataUrl: null });
+    (buildPdfLetterhead as jest.Mock).mockReturnValue([]);
+  });
+
+  it("an old wizard MULTA (no origin) prints as before", async () => {
+    const all = (
+      await printedTexts({
+        id: 9,
+        type: "MULTA",
+        status: "FINAL",
+        driverName: "João Silva",
+        carPlate: "ONX1A11",
+        payload: { ait: "123", orgao: "DETRAN", valor: 195, local: "Av. Brasil", vencimento: "20/10/2026", responsavelPagamento: "Motorista" },
+      })
+    ).join("\n");
+    expect(all).toContain("NOTIFICAÇÃO E TERMO DE CIÊNCIA E RESPONSABILIDADE POR INFRAÇÃO DE TRÂNSITO");
+    expect(all).toContain("AIT 123; Órgão autuador DETRAN");
+    expect(all).toMatch(/Valor R\$\s?195,00/);
+  });
+
+  it("an old wizard MANUTENCAO_COMPARTILHADA (no origin) prints as before", async () => {
+    const all = (
+      await printedTexts({
+        id: 10,
+        type: "MANUTENCAO_COMPARTILHADA",
+        status: "FINAL",
+        driverName: "João Silva",
+        payload: { valorTotal: 900, parteMotoristaValor: 300, oficina: "Oficina X", descricao: "Freio", formaDivisao: "1/3" },
+      })
+    ).join("\n");
+    expect(all).toContain("ACORDO DE RATEIO DE DESPESAS DE MANUTENÇÃO");
+    expect(all).toMatch(/Valor total: R\$\s?900,00/);
+    expect(all).toMatch(/Parcela do motorista: R\$\s?300,00/);
+  });
+});

@@ -120,6 +120,8 @@ class DocumentResourceDebtConfessionTest {
                 return saved;
             });
         when(documents.findByCurrentUserAndId(anyLong())).thenAnswer(call -> Optional.ofNullable(storedDocuments.get(call.<Long>getArgument(0))));
+        when(documents.existsByCurrentUserAndId(anyLong())).thenAnswer(call -> storedDocuments.containsKey(call.<Long>getArgument(0)));
+        when(documents.findByIdForUpdate(anyLong())).thenAnswer(call -> Optional.ofNullable(storedDocuments.get(call.<Long>getArgument(0))));
 
         DriverRepository drivers = mock(DriverRepository.class);
         when(drivers.findByCurrentUserAndId(5L)).thenReturn(Optional.of(joao));
@@ -691,6 +693,83 @@ class DocumentResourceDebtConfessionTest {
 
             assertThat(updated.getDriverId()).isEqualTo(8L);
             assertThat(updated.getStatus()).isEqualTo(DocumentStatus.FINAL);
+        }
+    }
+
+    /** Fines and shared maintenance are born in Pendências: no second entry point through the legacy wizard. */
+    @Nested
+    class LegacyChargeDocuments {
+
+        private DocumentSaveDTO manual(DocumentType type) {
+            DocumentSaveDTO request = new DocumentSaveDTO();
+            request.setType(type);
+            request.setDriverId(5L);
+            request.setCarId(10L);
+            request.setStatus(DocumentStatus.DRAFT);
+            request.setPayload(new LinkedHashMap<>(Map.of("valor", 195, "parteMotoristaValor", 300)));
+            return request;
+        }
+
+        @Test
+        void aNewManualFineOrSharedMaintenanceIsRefusedAndCreatesNothing() {
+            for (DocumentType type : List.of(DocumentType.MULTA, DocumentType.MANUTENCAO_COMPARTILHADA)) {
+                assertRejected(() -> create(manual(type)), "documenttypemovedtopendencies");
+                DocumentSaveDTO directlyFinal = manual(type);
+                directlyFinal.setStatus(DocumentStatus.FINAL);
+                assertRejected(() -> create(directlyFinal), "documenttypemovedtopendencies");
+            }
+            assertThat(storedDocuments).isEmpty();
+            verify(pendencies, never()).save(any());
+        }
+
+        @Test
+        void aDraftCannotBeTurnedIntoAFineOrASharedMaintenance() {
+            Long id = create(manualRequest("250.00")).getBody().getId();
+            for (DocumentType type : List.of(DocumentType.MULTA, DocumentType.MANUTENCAO_COMPARTILHADA)) {
+                DocumentSaveDTO patch = new DocumentSaveDTO();
+                patch.setType(type);
+                assertRejected(() -> resource.updateDocumentDraft(id, patch), "documenttypemovedtopendencies");
+            }
+            assertThat(storedDocuments.get(id).getType()).isEqualTo(DocumentType.CONFISSAO_DIVIDA);
+        }
+
+        @Test
+        void aLegacyDraftStaysEditableAndFinalizesIntoAtMostOneDebt() {
+            DriverDocument legacy = new DriverDocument();
+            legacy.setType(DocumentType.MULTA);
+            legacy.setStatus(DocumentStatus.DRAFT);
+            legacy.setDriver(joao);
+            legacy.setCar(car10);
+            legacy.setPayloadJson("{\"valor\":195,\"ait\":\"123\"}");
+            Long id = documents.save(legacy).getId();
+
+            DocumentSaveDTO edit = new DocumentSaveDTO();
+            edit.setPayload(new LinkedHashMap<>(Map.of("valor", 195, "ait", "123", "observacoes", "editado")));
+            assertThat(stored(resource.updateDocumentDraft(id, edit).getBody())).containsEntry("observacoes", "editado");
+
+            resource.finalizeDocument(id);
+            resource.finalizeDocument(id);
+
+            ArgumentCaptor<Pendency> captor = ArgumentCaptor.forClass(Pendency.class);
+            verify(pendencies, times(1)).save(captor.capture());
+            assertThat(captor.getValue().getOriginDocumentId()).isEqualTo(id);
+            assertThat(captor.getValue().getOriginType()).isEqualTo(com.localuz.domain.enumeration.PendencyOriginType.FINE);
+            assertThat(captor.getValue().getDebtor()).isSameAs(joao);
+        }
+
+        @Test
+        void aLegacyDraftWhoseDebtAlreadyExistsCreatesNoOther() {
+            DriverDocument legacy = new DriverDocument();
+            legacy.setType(DocumentType.MANUTENCAO_COMPARTILHADA);
+            legacy.setStatus(DocumentStatus.DRAFT);
+            legacy.setDriver(joao);
+            legacy.setCar(car10);
+            legacy.setPayloadJson("{\"valorTotal\":900,\"parteMotoristaValor\":300}");
+            Long id = documents.save(legacy).getId();
+            when(pendencies.existsByOriginDocumentId(id)).thenReturn(true);
+
+            assertThat(resource.finalizeDocument(id).getBody().getStatus()).isEqualTo(DocumentStatus.FINAL);
+            verify(pendencies, never()).save(any());
         }
     }
 

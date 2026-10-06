@@ -45,8 +45,11 @@ import {
   checkmarkDoneCircleOutline,
   checkmarkDoneOutline,
   closeOutline,
+  constructOutline,
   createOutline,
+  documentAttachOutline,
   documentTextOutline,
+  receiptOutline,
   personCircleOutline,
   timeOutline,
 } from "ionicons/icons";
@@ -58,6 +61,13 @@ import DriverPendencyPaymentModal, {
 import "./DriverPendencies.css";
 import "./DriverPendenciesSummary.css";
 import DebtConfessionPreviewView from "./DebtConfessionPreview";
+import DriverChargeModal, { DriverChargeMode } from "./DriverChargeModal";
+import {
+  DRIVER_CHARGE_ERROR_MESSAGES,
+  canIssuePendencyDocument,
+  issuePendencyDocument,
+  pendencyOriginLabel,
+} from "../../services/driverChargeService";
 import {
   DEBT_CONFESSION_ERROR_MESSAGES,
   DIFFERENT_DEBTORS_MESSAGE,
@@ -105,6 +115,10 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
   const [confessionPreview, setConfessionPreview] = useState<DebtConfessionPreview | null>(null);
   const [isConfessionBusy, setIsConfessionBusy] = useState(false);
   const confessionOnce = useRef(createSingleFlight());
+  // Fines and shared maintenance as debts of this contract's driver; documents issued from a debt.
+  const [chargeMode, setChargeMode] = useState<DriverChargeMode | null>(null);
+  const [issuingId, setIssuingId] = useState<number | null>(null);
+  const issueOnce = useRef(createSingleFlight());
 
   useEffect(() => {
     if (!location.search.includes("modalOpened=true")) {
@@ -490,6 +504,27 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
       }
     });
 
+  const issueDocument = (pendency: DriverPendencyModel) =>
+    issueOnce.current(async () => {
+      if (!pendency.id) return;
+      setIssuingId(pendency.id);
+      try {
+        // The same document every time (archived in Documentos); it never creates nor changes a pendency.
+        await issuePendencyDocument(pendency.id);
+        showSuccessAlert("Documento emitido. O PDF foi baixado e o documento está em Documentos.");
+      } catch (error) {
+        showErrorAlert(getApiErrorMessage(error, "Não foi possível emitir o documento.", DRIVER_CHARGE_ERROR_MESSAGES));
+      } finally {
+        setIssuingId(null);
+      }
+    });
+
+  const chargeCreated = () => {
+    setChargeMode(null);
+    showSuccessAlert("Pendência registrada para o motorista.");
+    loadDriverPendencys();
+  };
+
   const closeModal = useCallback((response?: DriverPendencyModel) => {
     setIsModalOpen(false);
     nav.goBack();
@@ -649,6 +684,22 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                 </div>
               </IonCardHeader>
               <IonCardContent>
+                <div className="driver-pendencies-charge-actions">
+                  <IonButton size="small" fill="outline" className="app-outline-btn" onClick={() => setChargeMode("fine")} disabled={!driverCar?.driver}>
+                    <IonIcon icon={receiptOutline} slot="start" />
+                    Nova multa
+                  </IonButton>
+                  <IonButton
+                    size="small"
+                    fill="outline"
+                    className="app-outline-btn"
+                    onClick={() => setChargeMode("maintenance")}
+                    disabled={!driverCar?.driver || !driverCar?.carId}
+                  >
+                    <IonIcon icon={constructOutline} slot="start" />
+                    Cobrar manutenção
+                  </IonButton>
+                </div>
                 <div className="driver-pendencies-confession-bar">
                   <span className="driver-pendencies-confession-bar__hint">
                     {selectedIds.length === 0
@@ -732,9 +783,16 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                                   )}
                                 </div>
                               </div>
-                              <FrottoBadge variant={statusVariant(driverPendency.status)}>
-                                {getStatusLabel(driverPendency.status)}
-                              </FrottoBadge>
+                              <div className="driver-pendency-list-item__badges">
+                                {pendencyOriginLabel(driverPendency) && (
+                                  <FrottoBadge variant="info" className="driver-pendency-list-item__origin">
+                                    {pendencyOriginLabel(driverPendency)}
+                                  </FrottoBadge>
+                                )}
+                                <FrottoBadge variant={statusVariant(driverPendency.status)}>
+                                  {getStatusLabel(driverPendency.status)}
+                                </FrottoBadge>
+                              </div>
                             </div>
 
                             {driverPendency.note && (
@@ -793,6 +851,22 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                                 {TEXT.edit}
                               </IonButton>
 
+                              {canIssuePendencyDocument(driverPendency) && (
+                                <IonButton
+                                  size="small"
+                                  fill="outline"
+                                  className="app-outline-btn"
+                                  disabled={issuingId !== null}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    issueDocument(driverPendency);
+                                  }}
+                                >
+                                  <IonIcon icon={documentAttachOutline} slot="start" />
+                                  {issuingId === driverPendency.id ? "Emitindo..." : "Emitir documento"}
+                                </IonButton>
+                              )}
+
                               {!paid && (
                                 <IonButton
                                   size="small"
@@ -850,6 +924,18 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
             isGenerating={isConfessionBusy}
             onCancel={() => setConfessionPreview(null)}
             onGenerate={(terms) => void generateConfession(terms)}
+          />
+        )}
+      </IonModal>
+
+      <IonModal className="driver-charge-modal-host" isOpen={Boolean(chargeMode)} backdropDismiss={false}>
+        {chargeMode && (
+          <DriverChargeModal
+            mode={chargeMode}
+            driverCarId={match.params.id}
+            carId={driverCar?.carId}
+            onCancel={() => setChargeMode(null)}
+            onCreated={chargeCreated}
           />
         )}
       </IonModal>

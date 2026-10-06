@@ -162,12 +162,12 @@ describe("Documentos - autocomplete de motorista/carro", () => {
     await act(async () => new Promise((resolve) => setTimeout(resolve, 400)));
     expect(within(dialog()).queryByText("João Motorista (39053344705)")).not.toBeInTheDocument();
 
-    await goToStep3("MULTA");
+    await goToStep3("RECIBO_ALUGUEL");
     clickButton("Salvar rascunho");
 
     await waitFor(() => expect(mockedDocuments.createDocument).toHaveBeenCalledTimes(1));
     expect(mockedDocuments.createDocument.mock.calls[0][0]).toMatchObject({
-      type: "MULTA",
+      type: "RECIBO_ALUGUEL",
       status: "DRAFT",
       driverId: 1,
       carId: 7,
@@ -182,13 +182,26 @@ describe("Documentos - autocomplete de motorista/carro", () => {
     typeInto(fieldInput("Motorista"), "João Motoris"); // usuário edita a pesquisa
     typeInto(fieldInput("Motorista"), "João Motorista"); // texto idêntico, mas sem escolher a entidade
 
-    await goToStep3("MULTA");
+    await goToStep3("RECIBO_ALUGUEL");
     clickButton("Salvar rascunho");
 
     await waitFor(() =>
       expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ message: "Selecione um motorista." }))
     );
     expect(mockedDocuments.createDocument).not.toHaveBeenCalled();
+  });
+});
+
+describe("Documentos - Novo Documento sem Multa / Manutenção Compartilhada", () => {
+  it("H/I) the type selector of a new document no longer offers them (they are born in Pendências)", async () => {
+    await openWizardAndSelect();
+    clickButton("Próximo");
+    const options = Array.from((dialog().querySelector("select") as HTMLSelectElement).options).map((option) => option.value);
+
+    expect(options).not.toContain("MULTA");
+    expect(options).not.toContain("MANUTENCAO_COMPARTILHADA");
+    expect(options).toEqual(expect.arrayContaining(["RECIBO_ALUGUEL", "CONFISSAO_DIVIDA", "ENTREGA_DEVOLUCAO_CHECKLIST"]));
+    expect(within(dialog()).getByTestId("documents-moved-to-pendencies").textContent).toMatch(/registradas em Pendências/);
   });
 });
 

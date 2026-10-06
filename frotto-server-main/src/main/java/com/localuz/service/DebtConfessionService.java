@@ -5,6 +5,7 @@ import com.localuz.domain.DebtItemType;
 import com.localuz.domain.Driver;
 import com.localuz.domain.DriverCar;
 import com.localuz.domain.Pendency;
+import com.localuz.domain.enumeration.PendencyOriginType;
 import com.localuz.domain.enumeration.PendencyStatus;
 import com.localuz.repository.DebtItemTypeRepository;
 import com.localuz.repository.PendencyRepository;
@@ -617,7 +618,8 @@ public class DebtConfessionService {
 
     private DebtConfessionPreviewDTO.Item toItem(Pendency pendency, List<DebtItemType> activeTypes) {
         BigDecimal outstanding = outstandingAmount(pendency);
-        DebtItemType type = findType(pendency.getName(), activeTypes);
+        // Structural kind first (fines and shared maintenance know what they are); the name only for older rows.
+        DebtItemType type = findType(typeNameOf(pendency), activeTypes);
 
         DebtConfessionPreviewDTO.Item item = new DebtConfessionPreviewDTO.Item();
         item.setPendencyId(pendency.getId());
@@ -642,6 +644,17 @@ public class DebtConfessionService {
     }
 
     /** Exact name match (ignoring case, accents and spacing), otherwise "Outros": never a guess by substring. */
+    /** The catalog name of the debt kind: from originType when the pendency has one, its own name otherwise. */
+    private static String typeNameOf(Pendency pendency) {
+        if (pendency.getOriginType() == PendencyOriginType.FINE) {
+            return DriverChargeService.FINE_NAME;
+        }
+        if (pendency.getOriginType() == PendencyOriginType.SHARED_MAINTENANCE) {
+            return DriverChargeService.SHARED_MAINTENANCE_NAME;
+        }
+        return pendency.getName();
+    }
+
     private DebtItemType findType(String pendencyName, List<DebtItemType> activeTypes) {
         String target = normalizeName(pendencyName);
         DebtItemType fallback = null;

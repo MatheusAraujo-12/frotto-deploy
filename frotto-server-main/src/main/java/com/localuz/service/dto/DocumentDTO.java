@@ -20,6 +20,8 @@ public class DocumentDTO {
     private String carPlate;
     private String carModel;
     private String pdfUrl;
+    /** The pendency the document was issued from (Pendências -> Emitir documento), when it was. */
+    private Long originPendencyId;
     private Map<String, Object> payload;
     /** Stored keys of the attachments (unchanged contract). */
     private List<String> attachments;
@@ -150,5 +152,13 @@ public class DocumentDTO {
 
     public void setAttachmentUrls(Map<String, String> attachmentUrls) {
         this.attachmentUrls = attachmentUrls;
+    }
+
+    public Long getOriginPendencyId() {
+        return originPendencyId;
+    }
+
+    public void setOriginPendencyId(Long originPendencyId) {
+        this.originPendencyId = originPendencyId;
     }
 }

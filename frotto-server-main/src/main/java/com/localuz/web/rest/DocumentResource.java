@@ -10,6 +10,7 @@ import com.localuz.domain.Pendency;
 import com.localuz.domain.User;
 import com.localuz.domain.enumeration.DocumentStatus;
 import com.localuz.domain.enumeration.DocumentType;
+import com.localuz.domain.enumeration.PendencyOriginType;
 import com.localuz.domain.enumeration.PendencyStatus;
 import com.localuz.repository.CarRepository;
 import com.localuz.repository.DriverCarRepository;
@@ -140,6 +141,7 @@ public class DocumentResource {
         } else {
             rejectPendencyReferencesWithoutOrigin(payload.getPayload());
         }
+        rejectChargeDocumentType(payload.getType());
 
         DriverDocument document = new DriverDocument();
         document.setType(payload.getType());
@@ -221,6 +223,10 @@ public class DocumentResource {
         }
         rejectPendencyReferencesWithoutOrigin(payload.getPayload());
 
+        if (payload.getType() != null && payload.getType() != document.getType()) {
+            // A draft is never turned into a new fine / shared maintenance (those are born in Pendências).
+            rejectChargeDocumentType(payload.getType());
+        }
         if (payload.getType() != null) {
             document.setType(payload.getType());
         }
@@ -251,7 +257,9 @@ public class DocumentResource {
 
     @PostMapping("/{id}/finalize")
     public ResponseEntity<DocumentDTO> finalizeDocument(@PathVariable Long id) {
-        DriverDocument document = getDocumentOrThrow(id);
+        // Row lock until commit: a double click, a retry or two tabs finalize one after the other, and the second
+        // one reads FINAL here (the lock read is always the latest committed row), so it never creates a pendency.
+        DriverDocument document = getDocumentForUpdateOrThrow(id);
         com.localuz.service.VehicleLifecycleService.requireOperational(document.getCar());
         DocumentStatus previousStatus = document.getStatus();
         Map<String, Object> storedPayload = readPayload(document.getPayloadJson());
@@ -267,7 +275,8 @@ public class DocumentResource {
         document.setStatus(DocumentStatus.FINAL);
         DriverDocument result = documentRepository.save(document);
 
-        if (previousStatus == DocumentStatus.DRAFT && !pendencyOrigin) {
+        // A document issued from a pendency is only its notification: it never creates another pendency.
+        if (previousStatus == DocumentStatus.DRAFT && !pendencyOrigin && !isIssuedFromPendency(result, storedPayload)) {
             createPendencyIfApplicable(result);
         }
 
@@ -339,6 +348,7 @@ public class DocumentResource {
         }
 
         dto.setPdfUrl(document.getPdfUrl());
+        dto.setOriginPendencyId(document.getOriginPendencyId());
 
         if (includeContent) {
             Map<String, Object> payload = readPayload(document.getPayloadJson());
@@ -355,6 +365,25 @@ public class DocumentResource {
         return documentRepository
             .findByCurrentUserAndId(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found for current user"));
+    }
+
+    private DriverDocument getDocumentForUpdateOrThrow(Long id) {
+        // Ownership first without loading the entity, so the locking read below loads it fresh from the database.
+        if (!documentRepository.existsByCurrentUserAndId(id)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found for current user");
+        }
+        return documentRepository
+            .findByIdForUpdate(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found for current user"));
+    }
+
+    /** Structural: the origin column set by the server, or an origin block of type PENDENCIA. Never by text. */
+    private static boolean isIssuedFromPendency(DriverDocument document, Map<String, Object> payload) {
+        if (document.getOriginPendencyId() != null) {
+            return true;
+        }
+        Object origin = payload == null ? null : payload.get(DebtConfessionService.ORIGIN_KEY);
+        return origin instanceof Map && "PENDENCIA".equals(((Map<?, ?>) origin).get("tipo"));
     }
 
     private User getCurrentUserOrThrow() {
@@ -520,8 +549,27 @@ public class DocumentResource {
         }
     }
 
+    /**
+     * Fines and shared maintenance are created in Pendências (the debt) and their documents are issued from there
+     * (DriverChargeService, origin_pendency_id). A new manual document of these types would be a second entry point
+     * for the same debt, so it is refused here; existing documents and drafts stay readable and usable.
+     */
+    private static void rejectChargeDocumentType(DocumentType type) {
+        if (type == DocumentType.MULTA || type == DocumentType.MANUTENCAO_COMPARTILHADA) {
+            throw new BadRequestAlertException(
+                "Multas e manutenções compartilhadas são registradas em Pendências; o documento é emitido a partir da pendência.",
+                ENTITY_NAME,
+                "documenttypemovedtopendencies"
+            );
+        }
+    }
+
     private void createPendencyIfApplicable(DriverDocument document) {
         if (document == null || document.getType() == null || document.getDriver() == null) {
+            return;
+        }
+        if (document.getId() != null && pendencyRepository.existsByOriginDocumentId(document.getId())) {
+            // Structural: this document already produced its debt (one per document, unique in the database).
             return;
         }
         if (DebtConfessionService.isPendencyOrigin(readPayload(document.getPayloadJson()))) {
@@ -555,6 +603,9 @@ public class DocumentResource {
         Pendency pendency = new Pendency();
         pendency.setDriverCar(driverCar);
         pendency.setDebtor(driverCar.getDriver());
+        // Where it came from (one pendency per document, unique in the database) and what kind of debt it is.
+        pendency.setOriginDocumentId(document.getId());
+        pendency.setOriginType(originTypeOf(document.getType()));
         pendency.setName(truncate(resolvePendencyName(document.getType(), payload), 60));
         pendency.setCost(amount);
         pendency.setDate(resolvePendencyDate(document.getType(), payload));
@@ -565,6 +616,17 @@ public class DocumentResource {
         pendency.setRemainingAmount(amount);
         pendency.setPaymentMethod(null);
         pendencyRepository.save(pendency);
+    }
+
+    private static PendencyOriginType originTypeOf(DocumentType type) {
+        if (type == DocumentType.MULTA) {
+            return PendencyOriginType.FINE;
+        }
+        if (type == DocumentType.MANUTENCAO_COMPARTILHADA) {
+            return PendencyOriginType.SHARED_MAINTENANCE;
+        }
+        // A manual Confissão consolidates debts of any kind: its origin is the document, its kind is unknown.
+        return null;
     }
 
     private DriverCar resolveDriverCarForPendency(Long driverId, Long carId) {

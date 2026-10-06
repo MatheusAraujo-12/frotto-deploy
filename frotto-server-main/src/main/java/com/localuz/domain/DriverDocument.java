@@ -68,6 +68,10 @@ public class DriverDocument implements Serializable {
     @Column(name = "pdf_url", length = 500)
     private String pdfUrl;
 
+    /** The pendency this document was issued from (Pendências -> Emitir documento); it never creates a pendency. */
+    @Column(name = "origin_pendency_id")
+    private Long originPendencyId;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -153,6 +157,14 @@ public class DriverDocument implements Serializable {
 
     public void setAttachmentsJson(String attachmentsJson) {
         this.attachmentsJson = attachmentsJson;
+    }
+
+    public Long getOriginPendencyId() {
+        return originPendencyId;
+    }
+
+    public void setOriginPendencyId(Long originPendencyId) {
+        this.originPendencyId = originPendencyId;
     }
 
     public String getPdfUrl() {

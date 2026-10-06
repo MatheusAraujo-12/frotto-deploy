@@ -37,7 +37,7 @@ const MARIA_DEBT = { ...JOAO_PENDENCIES.find((pendency) => pendency.status === "
 
 const renderPage = (list: any[]) => {
   mockedApi.get.mockImplementation((url: string) => {
-    if (url === "/api/driver-cars/3") return Promise.resolve({ data: { id: 3, startDate: "2026-09-20", driver: { id: 1, name: "João Silva", cpf: "11111111111" } } });
+    if (url === "/api/driver-cars/3") return Promise.resolve({ data: { id: 3, carId: 92003, startDate: "2026-09-20", driver: { id: 1, name: "João Silva", cpf: "11111111111" } } });
     if (url === "/api/drivers/1/debts") return Promise.resolve({ data: list });
     if (url === "/api/documents/1") return Promise.resolve({ data: STORED_CONFESSION_WITH_TERMS });
     return Promise.resolve({ data: {} });
@@ -207,5 +207,58 @@ describe("Pendências → Confissão de Dívida", () => {
     expect(screen.getByText("Total da Confissão")).toBeInTheDocument();
     expect(generateDocumentPdf).not.toHaveBeenCalled();
     expect(mockedApi.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe("Pendências → origem estrutural e documento da pendência", () => {
+  const OPEN = JOAO_PENDENCIES.find((pendency) => pendency.status === "OPEN")!;
+  const FINE = { ...OPEN, id: 60, name: "Multa de trânsito", originType: "FINE", fineAit: "AIT-1" };
+  const SHARE = { ...OPEN, id: 61, name: "Manutenção compartilhada", originType: "SHARED_MAINTENANCE", originMaintenanceId: 101 };
+  const LEGACY_FROM_DOCUMENT = { ...OPEN, id: 62, name: "Multa AIT 123", originType: null, originDocumentId: 92901 };
+  const LEGACY_BY_NAME = { ...OPEN, id: 63, name: "Manutenção compartilhada", originType: null };
+
+  beforeAll(() => {
+    (global as any).IntersectionObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  });
+  beforeEach(() => jest.resetAllMocks());
+
+  it("origin badge only from originType; Emitir documento only where the backend has a document", async () => {
+    renderPage([FINE, SHARE, LEGACY_FROM_DOCUMENT, LEGACY_BY_NAME]);
+    await screen.findByText("Multa AIT 123");
+
+    const badges = Array.from(document.querySelectorAll(".driver-pendency-list-item__origin")).map((badge) => badge.textContent);
+    expect(badges).toEqual(["Multa", "Manutenção compartilhada"]);
+    // Legacy rows are never classified by their name.
+    expect(screen.getAllByText("Emitir documento")).toHaveLength(3);
+  });
+
+  it("Emitir documento: issued by the backend, PDF from the stored document, no pendency written", async () => {
+    renderPage([FINE]);
+    await screen.findByText("Multa de trânsito");
+    const stored = { id: 31, type: "MULTA", status: "FINAL", payload: { origem: { tipo: "PENDENCIA", pendencyId: 60 } } };
+    mockedApi.post.mockResolvedValueOnce({ data: { id: 31, type: "MULTA", status: "FINAL" } }).mockResolvedValueOnce({ data: stored });
+    const previousGet = mockedApi.get.getMockImplementation()!;
+    mockedApi.get.mockImplementation((url: string) => (url === "/api/documents/31" ? Promise.resolve({ data: stored }) : previousGet(url)));
+
+    await click(screen.getByText("Emitir documento"));
+
+    await waitFor(() =>
+      expect(mockAlerts.showSuccessAlert).toHaveBeenCalledWith("Documento emitido. O PDF foi baixado e o documento está em Documentos.")
+    );
+    expect(mockedApi.post.mock.calls.map((call) => call[0])).toEqual(["/api/pendencies/60/document", "/api/documents/31/generate-pdf"]);
+    expect(generateDocumentPdf).toHaveBeenCalledWith(stored);
+    expect(mockedApi.put).not.toHaveBeenCalled();
+  });
+
+  it("Nova multa and Cobrar manutenção open the charge screen of this contract", async () => {
+    renderPage([FINE]);
+    await screen.findByText("Multa de trânsito");
+    await click(screen.getByText("Nova multa"));
+    expect(await screen.findByText("Registrar pendência")).toBeInTheDocument();
+    expect(document.querySelector('[data-field="infractionDate"]')).not.toBeNull();
   });
 });

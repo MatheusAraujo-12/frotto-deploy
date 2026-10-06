@@ -18,6 +18,7 @@ import com.localuz.repository.DriverCarRepository;
 import com.localuz.repository.DriverRepository;
 import com.localuz.repository.PendencyRepository;
 import com.localuz.service.DebtConfessionService;
+import com.localuz.service.DriverChargeService;
 import com.localuz.service.DriverAssignmentService;
 import com.localuz.service.dto.DebtConfessionPreviewDTO;
 import com.localuz.service.dto.PendencyPaymentDTO;
@@ -159,7 +160,7 @@ class DriverAssignmentFlowTest {
         DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies);
         resource = new DriverCarResource(driverCars, cars, mock(AddressRepository.class), drivers, assignments);
         ReflectionTestUtils.setField(resource, "applicationName", "localmaisApp");
-        pendencyResource = new PendencyResource(pendencies, driverCars, drivers, mock(DebtConfessionService.class));
+        pendencyResource = new PendencyResource(pendencies, driverCars, drivers, mock(DebtConfessionService.class), mock(DriverChargeService.class));
         ReflectionTestUtils.setField(pendencyResource, "applicationName", "localmaisApp");
         DebtItemTypeRepository types = mock(DebtItemTypeRepository.class);
         when(types.findByActiveTrueOrderBySortOrderAscNameAsc()).thenReturn(List.<DebtItemType>of());

@@ -6,7 +6,9 @@ import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import javax.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -155,4 +157,41 @@ public interface PendencyRepository extends JpaRepository<Pendency, Long> {
         "where car.user.login = ?#{principal.username} and pendency.debtor.id = :driverId"
     )
     long countByCurrentUserAndDriverId(@Param("driverId") Long driverId);
+
+    @Query(
+        "select pendency from Pendency pendency " +
+        "join pendency.driverCar driverCar " +
+        "join driverCar.car car " +
+        "where car.user.login = ?#{principal.username} and pendency.idempotencyKey = :key"
+    )
+    Optional<Pendency> findByCurrentUserAndIdempotencyKey(@Param("key") String key);
+
+    /** Whether a key is taken at all (any account): only to tell a foreign key from another integrity error. */
+    @Query("select count(pendency) > 0 from Pendency pendency where pendency.idempotencyKey = :key")
+    boolean existsByIdempotencyKey(@Param("key") String key);
+
+    @Query(
+        "select count(pendency) > 0 from Pendency pendency " +
+        "join pendency.driverCar driverCar " +
+        "join driverCar.car car " +
+        "where car.user.login = ?#{principal.username} and pendency.id = :id"
+    )
+    boolean existsByCurrentUserAndId(@Param("id") Long id);
+
+    /** SELECT ... FOR UPDATE of the pendency row only; call it after the ownership check. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select pendency from Pendency pendency where pendency.id = :id")
+    Optional<Pendency> findByIdForUpdate(@Param("id") Long id);
+
+    /** Locking read of every charge of a maintenance: always the latest committed rows, whatever the isolation. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select pendency from Pendency pendency where pendency.originMaintenanceId = :maintenanceId")
+    List<Pendency> findByOriginMaintenanceIdForUpdate(@Param("maintenanceId") Long maintenanceId);
+
+    /** Charges of a maintenance for display (the limit itself is always checked with the locking read above). */
+    @Query("select pendency from Pendency pendency where pendency.originMaintenanceId = :maintenanceId order by pendency.id")
+    List<Pendency> findByOriginMaintenanceId(@Param("maintenanceId") Long maintenanceId);
+
+    @Query("select count(pendency) > 0 from Pendency pendency where pendency.originDocumentId = :documentId")
+    boolean existsByOriginDocumentId(@Param("documentId") Long documentId);
 }

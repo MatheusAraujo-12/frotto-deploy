@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <!--
+        Pendências as the operational home of fines and shared maintenance (additive only, no backfill):
+        - origin_type: what kind of debt it is (FINE, SHARED_MAINTENANCE); NULL for every existing row.
+        - origin_maintenance_id: the car maintenance a shared-maintenance charge comes from (several charges per
+          maintenance are allowed; the sum is limited by the application under a row lock).
+        - origin_document_id: the legacy Documentos document whose finalization created the pendency (one at most).
+        - idempotency_key: one key per creation operation of the screen, so retries never create a second charge.
+        - fine_*: the infraction data of a fine charged to the driver (the pendency is the fine).
+        origin_maintenance_id is RESTRICT: a maintenance charged to drivers cannot be deleted, so a shared-maintenance
+        debt never loses its origin nor the maintenance limit. origin_document_id is SET NULL: deleting a legacy
+        document keeps the debt. No cascade anywhere: a debt is never deleted by deleting its origin.
+    -->
+    <changeSet id="20261007000000-1" author="claude">
+        <addColumn tableName="pendency">
+            <column name="origin_type" type="varchar(40)"/>
+            <column name="origin_maintenance_id" type="bigint"/>
+            <column name="origin_document_id" type="bigint"/>
+            <column name="idempotency_key" type="varchar(80)"/>
+            <column name="fine_ait" type="varchar(40)"/>
+            <column name="fine_agency" type="varchar(120)"/>
+            <column name="fine_location" type="varchar(255)"/>
+            <column name="fine_classification" type="varchar(255)"/>
+            <column name="fine_infraction_time" type="time"/>
+            <column name="fine_due_date" type="date"/>
+        </addColumn>
+        <createIndex tableName="pendency" indexName="idx_pendency_origin_maintenance">
+            <column name="origin_maintenance_id"/>
+        </createIndex>
+        <addUniqueConstraint tableName="pendency" columnNames="origin_document_id" constraintName="ux_pendency_origin_document"/>
+        <addUniqueConstraint tableName="pendency" columnNames="idempotency_key" constraintName="ux_pendency_idempotency_key"/>
+        <addForeignKeyConstraint baseTableName="pendency" baseColumnNames="origin_maintenance_id" referencedTableName="maintenance" referencedColumnNames="id" onDelete="RESTRICT" constraintName="fk_pendency__origin_maintenance_id"/>
+        <addForeignKeyConstraint baseTableName="pendency" baseColumnNames="origin_document_id" referencedTableName="driver_document" referencedColumnNames="id" onDelete="SET NULL" constraintName="fk_pendency__origin_document_id"/>
+    </changeSet>
+
+    <!-- A document issued from a pendency (Pendências -> Emitir documento): at most one per pendency and type. -->
+    <changeSet id="20261007000000-2" author="claude">
+        <addColumn tableName="driver_document">
+            <column name="origin_pendency_id" type="bigint"/>
+        </addColumn>
+        <addUniqueConstraint tableName="driver_document" columnNames="origin_pendency_id, type" constraintName="ux_driver_document_origin_pendency"/>
+        <addForeignKeyConstraint baseTableName="driver_document" baseColumnNames="origin_pendency_id" referencedTableName="pendency" referencedColumnNames="id" onDelete="SET NULL" constraintName="fk_driver_document__origin_pendency_id"/>
+    </changeSet>
+</databaseChangeLog>

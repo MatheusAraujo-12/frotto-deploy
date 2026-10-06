@@ -17,6 +17,7 @@ import com.localuz.repository.DriverCarRepository;
 import com.localuz.repository.DriverRepository;
 import com.localuz.repository.PendencyRepository;
 import com.localuz.service.DebtConfessionService;
+import com.localuz.service.DriverChargeService;
 import com.localuz.service.dto.DebtConfessionPreviewDTO;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -39,7 +40,7 @@ class PendencyResourceDebtConfessionTest {
 
     @BeforeEach
     void setup() {
-        PendencyResource resource = new PendencyResource(pendencies, driverCars, drivers, confessions);
+        PendencyResource resource = new PendencyResource(pendencies, driverCars, drivers, confessions, mock(DriverChargeService.class));
         mvc = MockMvcBuilders.standaloneSetup(resource).setMessageConverters(new MappingJackson2HttpMessageConverter(mapper)).build();
     }
 

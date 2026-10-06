@@ -145,6 +145,8 @@ export interface CarDriverModel {
   driver?: DriverModel;
   /** Read-only, computed by the backend: ACTIVE (operational), SUSPENDED (primary while on a reserve car) or CONCLUDED. */
   status?: DriverCarStatus;
+  /** Read-only: the car of the contract. */
+  carId?: number | null;
   /** Read-only: true for a temporary reserve-car contract. */
   reserve?: boolean;
   /** Read-only: the primary contract a reserve temporarily replaces. */
@@ -208,6 +210,31 @@ export interface DriverPendencyModel {
   debtorDriverId?: number | null;
   /** Read-only: the contract (driver_car) during which the debt was recorded - its historical origin. */
   driverCarId?: number | null;
+  /** Read-only, structural: what kind of debt it is (null for rows recorded before the origin existed). */
+  originType?: PendencyOriginType | null;
+  /** Read-only: the car maintenance a shared-maintenance charge comes from. */
+  originMaintenanceId?: number | null;
+  /** Read-only: the Documentos document whose finalization created this debt (legacy flow). */
+  originDocumentId?: number | null;
+  /** Read-only: infraction data of a FINE. */
+  fineAit?: string | null;
+  fineAgency?: string | null;
+  fineLocation?: string | null;
+  fineClassification?: string | null;
+  fineInfractionTime?: string | null;
+  fineDueDate?: string | null;
+}
+
+export type PendencyOriginType = "FINE" | "SHARED_MAINTENANCE";
+
+/** GET /api/pendencies/shared-maintenance/{maintenanceId}/summary */
+export interface MaintenanceChargeSummaryModel {
+  maintenanceId: number;
+  maintenanceCost: number;
+  /** Responsibility already assigned to drivers (paid or not). */
+  assignedAmount: number;
+  availableAmount: number;
+  chargesCount: number;
 }
 
 export type DriverPendencyStatus = "OPEN" | "PARTIALLY_PAID" | "PAID";

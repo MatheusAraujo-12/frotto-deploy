@@ -49,6 +49,7 @@ import {
   DocumentStatus,
   DocumentType,
   DriverSearchModel,
+  wizardTypeOptions,
 } from "../../constants/DocumentModels";
 import debtItemTypeService from "../../services/debtItemTypeService";
 import documentService from "../../services/documentService";
@@ -2340,9 +2341,13 @@ const DocumentsPage: React.FC = () => {
                   <SelectField
                     label="Tipo"
                     value={wizardType}
-                    options={DOCUMENT_TYPES}
+                    options={wizardTypeOptions(Boolean(savedDocument?.id), wizardType)}
                     onChange={(value) => setWizardType((value as DocumentType) || "")}
                   />
+                  <p className="documents-hint" data-testid="documents-moved-to-pendencies">
+                    Multas e manutenções compartilhadas são registradas em Pendências do motorista; o documento é emitido a
+                    partir da pendência e fica arquivado aqui.
+                  </p>
                   {wizardRequiresCar && !wizardCar?.id && (
                     <p className="documents-warning">Esse tipo exige vínculo com carro.</p>
                   )}

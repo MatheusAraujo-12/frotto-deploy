@@ -63,6 +63,23 @@ export const DOCUMENT_TYPES: Array<{ value: DocumentType; label: string }> = [
   { value: "ENTREGA_DEVOLUCAO_CHECKLIST", label: "Entrega/Devolução Checklist" },
 ];
 
+/** Born in Pendências (the debt), their documents issued from the pendency: never created here anymore. */
+export const DOCUMENT_TYPES_FROM_PENDENCIES: DocumentType[] = ["MULTA", "MANUTENCAO_COMPARTILHADA"];
+
+/** Types a new document can be created with in Documentos (the history and filters still show every type). */
+export const DOCUMENT_TYPES_CREATABLE = DOCUMENT_TYPES.filter((item) => !DOCUMENT_TYPES_FROM_PENDENCIES.includes(item.value));
+
+/**
+ * Options of the wizard's type selector: only the creatable types; an old draft of a fine / shared maintenance being
+ * edited keeps showing its own type so it can still be completed (the backend refuses turning a draft into one).
+ */
+export function wizardTypeOptions(editingSavedDraft: boolean, currentType: DocumentType | "") {
+  if (editingSavedDraft && currentType && DOCUMENT_TYPES_FROM_PENDENCIES.includes(currentType)) {
+    return DOCUMENT_TYPES.filter((item) => item.value === currentType || DOCUMENT_TYPES_CREATABLE.includes(item));
+  }
+  return DOCUMENT_TYPES_CREATABLE;
+}
+
 export const DOCUMENT_STATUSES: Array<{ value: DocumentStatus; label: string }> = [
   { value: "DRAFT", label: "Rascunho" },
   { value: "FINAL", label: "Finalizado" },

@@ -7,6 +7,7 @@ import static org.mockito.Mockito.*;
 import com.localuz.domain.*;
 import com.localuz.repository.*;
 import com.localuz.service.CarService;
+import com.localuz.service.DriverChargeService;
 import com.localuz.web.rest.errors.BadRequestAlertException;
 import java.util.Optional;
 import java.util.Set;
@@ -45,7 +46,7 @@ class InspectionHistoryProtectionTest {
         var maintenances = mock(MaintenanceRepository.class);
         var cars = mock(CarRepository.class);
         var services = mock(ServiceRepository.class);
-        var resource = new MaintenanceResource(maintenances, cars, mock(CarService.class), services);
+        var resource = new MaintenanceResource(maintenances, cars, mock(CarService.class), services, mock(DriverChargeService.class));
         Car operational = new Car().id(1L);
         when(cars.findByCurrentUserAndId(1L)).thenReturn(Optional.of(operational));
         com.localuz.domain.Service historical = new com.localuz.domain.Service(); historical.setId(99L);

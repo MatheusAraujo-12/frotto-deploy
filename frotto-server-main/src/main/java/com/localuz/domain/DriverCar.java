@@ -212,6 +212,12 @@ public class DriverCar implements Serializable {
         this.contractNumber = contractNumber;
     }
 
+    /** Car of the contract exposed read-only (its id only): clients can never re-link a contract through it. */
+    @JsonProperty(value = "carId", access = JsonProperty.Access.READ_ONLY)
+    public Long getCarId() {
+        return car == null ? null : car.getId();
+    }
+
     public Car getCar() {
         return this.car;
     }

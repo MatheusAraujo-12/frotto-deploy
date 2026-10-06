@@ -4,7 +4,9 @@ import com.localuz.domain.Car;
 import com.localuz.domain.Maintenance;
 import java.util.List;
 import java.util.Optional;
+import javax.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -31,4 +33,15 @@ public interface MaintenanceRepository extends JpaRepository<Maintenance, Long> 
         "select maintenance from Maintenance maintenance join maintenance.car car  where car.id = :carId and year(maintenance.date) = :year ORDER BY maintenance.date DESC"
     )
     List<Maintenance> findByCarIdAndYear(@Param("carId") Long carId, @Param("year") int year);
+
+    @Query(
+        "select count(maintenance) > 0 from Maintenance maintenance join maintenance.car car " +
+        "where car.user.login = ?#{principal.username} and maintenance.id = :id"
+    )
+    boolean existsByCurrentUserAndMaintenanceId(@Param("id") Long id);
+
+    /** SELECT ... FOR UPDATE of the maintenance row: serializes the driver charges of one maintenance. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select maintenance from Maintenance maintenance where maintenance.id = :id")
+    Optional<Maintenance> findByIdForUpdate(@Param("id") Long id);
 }
