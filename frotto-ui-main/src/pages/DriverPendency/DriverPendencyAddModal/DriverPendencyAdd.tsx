@@ -19,6 +19,7 @@ import { DriverPendencyModel } from "../../../constants/CarModels";
 import {
   driverPendencyAddValidationSchema,
   initialDriverPendencyValues,
+  PENDENCY_COST_REQUIRED,
 } from "./driverPendencyAddValidationSchema";
 import FormSelectFilterAdd from "../../../components/Form/FormSelectFilterAdd";
 import { DRIVER_PENDENCIES } from "../../../constants/selectOptions";
@@ -31,6 +32,9 @@ import FormInputArea from "../../../components/Form/FormInputArea";
 import FrottoCard from "../../../components/UI/FrottoCard";
 import FrottoModal from "../../../components/UI/FrottoModal";
 import { currencyFormat } from "../../../services/currencyFormat";
+import FormSelect from "../../../components/Form/FormSelect";
+import { PENDENCY_KIND_OPTIONS, PendencyKind, useDriverChargeForm } from "../DriverChargeFields";
+import { pendencyOriginLabel } from "../../../services/driverChargeService";
 import "./DriverPendencyAdd.css";
 
 interface DriverPendencyAddModalProps {
@@ -46,6 +50,11 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
 }) => {
   const { showErrorAlert } = useAlert();
   const [isLoading, setisLoading] = useState(false);
+  // One entry point: the kind decides the form (only when creating; an existing debt keeps its kind).
+  const [kind, setKind] = useState<PendencyKind>("OTHER");
+  const charge = useDriverChargeForm(kind, driverCarId);
+  const isCharge = !initialValues?.id && kind !== "OTHER";
+  const originLabel = initialValues?.id ? pendencyOriginLabel(initialValues) : null;
 
   const formInitial = initialDriverPendencyValues(initialValues || {});
   const pageTitle = formInitial.id
@@ -153,9 +162,21 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
       cancelVariant="danger"
       primaryVariant="save"
       primaryLabel={TEXT.save}
-      onPrimaryAction={handleSubmit(onSubmit)}
-      primaryDisabled={isLoading}
-      isLoading={isLoading}
+      onPrimaryAction={
+        isCharge
+          ? async () => {
+              const created = await charge.submit();
+              if (created) closeModal(created);
+            }
+          : handleSubmit(onSubmit)
+      }
+      primaryDisabled={
+        isLoading ||
+        (isCharge && (charge.busy || Boolean(charge.problem))) ||
+        // A new common pendency of R$ 0,00 is not a debt: it cannot be saved (the backend refuses it too).
+        (!isCharge && !formInitial.id && !(costValue > 0))
+      }
+      isLoading={isLoading || (isCharge && charge.busy)}
     >
         <div className="app-shell app-shell--compact driver-pendency-add-shell">
           <section className="app-section">
@@ -182,6 +203,25 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
                 </div>
               </IonCardHeader>
               <IonCardContent>
+                {!formInitial.id && (
+                  <div className="driver-pendency-add-kind" data-testid="pendency-kind">
+                    <FormSelect
+                      label="Tipo da pendência"
+                      required
+                      options={PENDENCY_KIND_OPTIONS}
+                      initialValue={kind}
+                      changeCallback={(value: string) => setKind((value as PendencyKind) || "OTHER")}
+                    />
+                  </div>
+                )}
+                {originLabel && (
+                  <p className="driver-pendency-add-origin" data-testid="pendency-origin">
+                    Tipo: {originLabel}
+                  </p>
+                )}
+                {isCharge ? (
+                  charge.fields
+                ) : (
                 <form className="app-form-grid driver-pendency-add-form">
                   <FormDate
                     id="date-pendency-add"
@@ -216,6 +256,11 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
                     }}
                     required
                   />
+                  {!formInitial.id && !(costValue > 0) && (
+                    <p className="driver-charge-form__hint" data-testid="pendency-cost-hint">
+                      {PENDENCY_COST_REQUIRED}
+                    </p>
+                  )}
                   <FormInputArea
                     label={TEXT.note}
                     errorsObj={errors}
@@ -227,6 +272,7 @@ const DriverPendencyAdd: React.FC<DriverPendencyAddModalProps> = ({
                     }}
                   />
                 </form>
+                )}
               </IonCardContent>
             </FrottoCard>
 

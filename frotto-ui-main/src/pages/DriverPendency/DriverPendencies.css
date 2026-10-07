@@ -265,13 +265,6 @@
   font-size: 0.8rem;
 }
 
-.driver-pendencies-charge-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
 .driver-pendency-list-item__badges {
   display: flex;
   flex-wrap: wrap;

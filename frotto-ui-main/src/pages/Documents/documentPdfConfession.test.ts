@@ -185,7 +185,7 @@ describe("PDF da Confissão de Dívida", () => {
 
 describe("PDF de Multa emitida a partir da pendência (payload real do backend)", () => {
   beforeEach(() => {
-    (loadPdfLetterheadData as jest.Mock).mockResolvedValue({ profile: { taxPersonType: "CNPJ", taxCompanyName: "Frotas Exemplo Ltda" }, logoDataUrl: null });
+    (loadPdfLetterheadData as jest.Mock).mockResolvedValue({ profile: { taxPersonType: "CNPJ", taxCompanyName: "Frotas Exemplo Ltda", taxCnpj: "12345678000190" }, logoDataUrl: null });
     (buildPdfLetterhead as jest.Mock).mockReturnValue([]);
   });
 
@@ -215,10 +215,83 @@ describe("PDF de Multa emitida a partir da pendência (payload real do backend)"
     };
     const all = (await printedTexts(issued)).join("\n");
 
-    expect(all).toMatch(/ocorrida em 20\/08\/2026,? 10:30/);
-    expect(all).toContain("Vencimento 20/10/2026.");
-    expect(all).toContain("AIT AIT-1; Órgão autuador DETRAN");
-    expect(all).toMatch(/Valor R\$\s?200,00/);
+    // Documents issued before the simplification (dataHora / vencimento with time) print the same day and time.
+    expect(all).toContain("ocorrida em 20/08/2026 às 10:30, no local Av. Brasil.");
+    expect(all).toMatch(/Dados da infração: AIT AIT-1; Órgão autuador DETRAN; Valor R\$\s?200,00; Vencimento 20\/10\/2026\./);
+    expect(all).not.toContain("Enquadramento");
+    expect(all).not.toContain("Observações");
+  });
+
+  it("B/D) only value and day: no time invented, no empty details, no '-', 'null' or 'undefined'", async () => {
+    const minimal = {
+      id: 32,
+      type: "MULTA",
+      status: "FINAL",
+      payload: {
+        origem: { tipo: "PENDENCIA", pendencyId: 2 },
+        driverName: "João Silva",
+        carPlate: "ONX1A11",
+        dataInfracao: "2026-09-03",
+        valor: 130,
+        responsavelPagamento: "João Silva",
+      },
+    };
+    const texts = await printedTexts(minimal);
+    const all = texts.join("\n");
+
+    expect(all).toContain("vinculada ao veículo ONX1A11, ocorrida em 03/09/2026.");
+    expect(all).toMatch(/Dados da infração: Valor R\$\s?130,00\./);
+    expect(all).not.toMatch(/ às |00:00|12:00|AIT|Órgão|Enquadramento|Vencimento|no local|Observações|undefined|null/);
+    expect(texts.filter((text) => text.includes("Dados da infração") || text.includes("notifica")).join(" ")).not.toContain(" -");
+  });
+
+  it("C) a complete fine prints every detail, time included", async () => {
+    const complete = {
+      id: 33,
+      type: "MULTA",
+      status: "FINAL",
+      payload: {
+        origem: { tipo: "PENDENCIA", pendencyId: 3 },
+        driverName: "João Silva",
+        driverCpf: "11111111111",
+        carPlate: "ONX1A11",
+        dataInfracao: "2026-08-20",
+        horaInfracao: "10:30",
+        local: "Av. Brasil",
+        ait: "AIT-1",
+        orgao: "DETRAN",
+        enquadramento: "Art. 218",
+        valor: 195,
+        vencimento: "2026-10-20",
+        responsavelPagamento: "João Silva",
+        observacoes: "Pagar até o vencimento",
+      },
+    };
+    const all = (await printedTexts(complete)).join("\n");
+    expect(all).toContain("ocorrida em 20/08/2026 às 10:30, no local Av. Brasil.");
+    expect(all).toMatch(/AIT AIT-1; Órgão autuador DETRAN; Enquadramento Art\. 218; Valor R\$\s?195,00; Vencimento 20\/10\/2026\./);
+    expect(all).toContain("Observações: Pagar até o vencimento");
+  });
+
+  it("O) a maintenance share document prints what the maintenance has, nothing invented", async () => {
+    const share = {
+      id: 34,
+      type: "MANUTENCAO_COMPARTILHADA",
+      status: "FINAL",
+      payload: {
+        origem: { tipo: "PENDENCIA", pendencyId: 4 },
+        driverName: "João Silva",
+        data: "2026-09-10",
+        descricao: "Freio, Mão de obra",
+        valorTotal: 1200,
+        formaDivisao: "Valor atribuído ao motorista",
+        parteMotoristaValor: 400,
+      },
+    };
+    const all = (await printedTexts(share)).join("\n");
+    expect(all).toContain("Data: 10/09/2026; Descrição: Freio, Mão de obra.");
+    expect(all).toMatch(/Valor total: R\$\s?1\.200,00\. Forma de divisão: Valor atribuído ao motorista\. Parcela do motorista: R\$\s?400,00\./);
+    expect(all).not.toMatch(/Oficina|Observações|undefined|null/);
   });
 });
 

@@ -1,6 +1,6 @@
 import endpoints from "../constants/endpoints";
 import { DocumentModel } from "../constants/DocumentModels";
-import { DriverPendencyModel, MaintenanceChargeSummaryModel, MaintenanceModel } from "../constants/CarModels";
+import { DriverPendencyModel } from "../constants/CarModels";
 import { generateDocumentPdf } from "../pages/Documents/documentPdf";
 import api from "./axios/axios";
 import documentService from "./documentService";
@@ -30,8 +30,8 @@ export interface FineChargeInput {
   amount: number;
   /** YYYY-MM-DD */
   infractionDate: string;
-  /** HH:mm */
-  infractionTime: string;
+  /** HH:mm, optional (never invented when absent) */
+  infractionTime?: string;
   ait?: string;
   agency?: string;
   location?: string;
@@ -57,7 +57,7 @@ export async function chargeFine(driverCarId: number | string, input: FineCharge
     idempotencyKey,
     amount: input.amount,
     infractionDate: input.infractionDate,
-    infractionTime: input.infractionTime,
+    infractionTime: optional(input.infractionTime),
     ait: optional(input.ait),
     agency: optional(input.agency),
     location: optional(input.location),
@@ -82,14 +82,24 @@ export async function chargeSharedMaintenance(
   return data;
 }
 
-export async function listCarMaintenances(carId: number | string): Promise<MaintenanceModel[]> {
-  const { data } = await api.get(endpoints.MAINTENANCES({ pathVariables: { id: carId } }));
-  return Array.isArray(data) ? data : [];
+/** GET /api/pendencies/car-driver/{id}/chargeable-maintenances (MaintenanceChargeOptionDTO). */
+export interface MaintenanceChargeOption {
+  id: number;
+  date?: string | null;
+  local?: string | null;
+  /** From the maintenance's own services. */
+  description?: string | null;
+  cost: number;
+  /** Responsibility already assigned to drivers (paid or not). */
+  assignedAmount: number;
+  availableAmount: number;
+  chargeable: boolean;
 }
 
-export async function getMaintenanceChargeSummary(maintenanceId: number): Promise<MaintenanceChargeSummaryModel> {
-  const { data } = await api.get(endpoints.SHARED_MAINTENANCE_SUMMARY({ pathVariables: { id: maintenanceId } }));
-  return data;
+/** The maintenances of the contract's car (same account) a shared-maintenance charge can come from. */
+export async function listChargeableMaintenances(driverCarId: number | string): Promise<MaintenanceChargeOption[]> {
+  const { data } = await api.get(endpoints.DRIVER_PENDENCIES_CHARGEABLE_MAINTENANCES({ pathVariables: { id: driverCarId } }));
+  return Array.isArray(data) ? data : [];
 }
 
 /**
@@ -123,7 +133,7 @@ export const DRIVER_CHARGE_ERROR_MESSAGES: Record<string, string> = {
   maintenancerequired: "Selecione a manutenção.",
   drivercarwithoutdriver: "Este contrato não tem motorista: não há devedor para a cobrança.",
   chargeamountinvalid: "Informe um valor maior que zero, com no máximo 2 casas decimais.",
-  fineinfractionrequired: "Informe a data e a hora da infração.",
+  fineinfractionrequired: "Informe a data da infração.",
   chargetexttoolong: "Um dos textos está longo demais.",
   idempotencykeyinvalid: "Abra a tela novamente para registrar a cobrança.",
   idempotencykeyconflict: "Esta operação já foi usada para outra cobrança. Abra a tela novamente para registrar uma nova.",

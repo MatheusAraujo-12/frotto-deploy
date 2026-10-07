@@ -5,6 +5,7 @@ import {
   chargeFine,
   chargeSharedMaintenance,
   issuePendencyDocument,
+  listChargeableMaintenances,
   newOperationKey,
   pendencyOriginLabel,
 } from "./driverChargeService";
@@ -54,6 +55,29 @@ describe("Multas e manutenção compartilhada como pendências do motorista", ()
         note: undefined,
       },
     ]);
+  });
+
+  it("A/B) a minimal fine sends only value and day: no time, no empty details", async () => {
+    mockedApi.post.mockResolvedValueOnce({ data: { id: 9 } });
+    await chargeFine(3, { amount: 130, infractionDate: "2026-09-03" }, "op-key-000000000009");
+    expect(mockedApi.post.mock.calls[0][1]).toEqual({
+      idempotencyKey: "op-key-000000000009",
+      amount: 130,
+      infractionDate: "2026-09-03",
+      infractionTime: undefined,
+      ait: undefined,
+      agency: undefined,
+      location: undefined,
+      classification: undefined,
+      dueDate: undefined,
+      note: undefined,
+    });
+  });
+
+  it("chargeable maintenances come from the contract (its car, its account) with what is left", async () => {
+    mockedApi.get.mockResolvedValueOnce({ data: [{ id: 101, cost: 1200, assignedAmount: 800, availableAmount: 400, chargeable: true }] });
+    await expect(listChargeableMaintenances(3)).resolves.toHaveLength(1);
+    expect(mockedApi.get).toHaveBeenCalledWith("/api/pendencies/car-driver/3/chargeable-maintenances");
   });
 
   it("a maintenance share sends only the maintenance, the share and the key (the maintenance itself is not touched)", async () => {

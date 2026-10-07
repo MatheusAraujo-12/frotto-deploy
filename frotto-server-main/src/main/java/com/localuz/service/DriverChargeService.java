@@ -17,6 +17,7 @@ import com.localuz.repository.DriverDocumentRepository;
 import com.localuz.repository.MaintenanceRepository;
 import com.localuz.repository.PendencyRepository;
 import com.localuz.service.dto.FineChargeRequest;
+import com.localuz.service.dto.MaintenanceChargeOptionDTO;
 import com.localuz.service.dto.MaintenanceChargeSummaryDTO;
 import com.localuz.service.dto.SharedMaintenanceChargeRequest;
 import com.localuz.web.rest.errors.BadRequestAlertException;
@@ -120,8 +121,9 @@ public class DriverChargeService {
         }
         String key = requireKey(request.getIdempotencyKey());
         BigDecimal amount = requireAmount(request.getAmount());
-        if (request.getInfractionDate() == null || request.getInfractionTime() == null) {
-            throw invalid("Informe a data e a hora da infração.", "fineinfractionrequired");
+        // Only the value and the day are required; the time and the other details are optional (never invented).
+        if (request.getInfractionDate() == null) {
+            throw invalid("Informe a data da infração.", "fineinfractionrequired");
         }
         String ait = optionalText(request.getAit(), 40, "AIT");
         String agency = optionalText(request.getAgency(), 120, "Órgão autuador");
@@ -142,7 +144,7 @@ public class DriverChargeService {
                 fine.setFineAgency(agency);
                 fine.setFineLocation(location);
                 fine.setFineClassification(classification);
-                fine.setFineInfractionTime(request.getInfractionTime().withSecond(0).withNano(0));
+                fine.setFineInfractionTime(request.getInfractionTime() == null ? null : request.getInfractionTime().withSecond(0).withNano(0));
                 fine.setFineDueDate(request.getDueDate());
                 return new Outcome<>(pendencies.saveAndFlush(fine), true);
             },
@@ -196,6 +198,34 @@ public class DriverChargeService {
                 Objects.equals(existing.getOriginMaintenanceId(), maintenanceId) &&
                 sameMoney(existing.getCost(), amount)
         );
+    }
+
+    /**
+     * The maintenances a shared-maintenance charge of this contract can come from: those of the contract's car, in
+     * the current account, each with its cost, what is already assigned and what is still available (display only:
+     * the limit is always enforced under the row lock when charging).
+     */
+    public List<MaintenanceChargeOptionDTO> chargeableMaintenances(Long driverCarId) {
+        return read.execute(status -> {
+            DriverCar contract = driverCars.findByCurrentUserAndId(driverCarId).orElseThrow(() -> notFound("Contrato não encontrado."));
+            if (contract.getCar() == null) {
+                return List.<MaintenanceChargeOptionDTO>of();
+            }
+            return maintenances
+                .findByCurrentUserAndCarIdByDate(contract.getCar().getId())
+                .stream()
+                .map(maintenance ->
+                    new MaintenanceChargeOptionDTO(
+                        maintenance.getId(),
+                        maintenance.getDate(),
+                        maintenance.getLocal(),
+                        describe(maintenance),
+                        money(maintenance.getCost()),
+                        assignedAmount(pendencies.findByOriginMaintenanceId(maintenance.getId()), null)
+                    )
+                )
+                .collect(java.util.stream.Collectors.toList());
+        });
     }
 
     /** Cost of the maintenance and how much of it is already charged to drivers (paid or not). */
@@ -297,27 +327,33 @@ public class DriverChargeService {
         payload.put("driverCpf", debtor.getCpf());
         payload.put("carPlate", car.getPlate());
         payload.put("carModel", car.getModel());
+        // Only what is known goes into the document (no empty keys, no invented time): the PDF omits the rest.
         if (type == DocumentType.MULTA) {
-            payload.put("dataHora", localTimestamp(pendency.getDate(), pendency.getFineInfractionTime()));
-            payload.put("local", pendency.getFineLocation());
-            payload.put("ait", pendency.getFineAit());
-            payload.put("orgao", pendency.getFineAgency());
-            payload.put("enquadramento", pendency.getFineClassification());
+            putIfPresent(payload, "dataInfracao", pendency.getDate() == null ? null : pendency.getDate().toString());
+            if (pendency.getFineInfractionTime() != null) {
+                payload.put("horaInfracao", pendency.getFineInfractionTime().toString());
+                payload.put("dataHora", localTimestamp(pendency.getDate(), pendency.getFineInfractionTime()));
+            }
+            putIfPresent(payload, "local", pendency.getFineLocation());
+            putIfPresent(payload, "ait", pendency.getFineAit());
+            putIfPresent(payload, "orgao", pendency.getFineAgency());
+            putIfPresent(payload, "enquadramento", pendency.getFineClassification());
             payload.put("valor", money(pendency.getCost()));
-            payload.put("vencimento", localTimestamp(pendency.getFineDueDate(), null));
+            putIfPresent(payload, "vencimento", pendency.getFineDueDate() == null ? null : pendency.getFineDueDate().toString());
             payload.put("responsavelPagamento", debtor.getName());
         } else {
             Optional<Maintenance> maintenance = pendency.getOriginMaintenanceId() == null
                 ? Optional.empty()
                 : maintenances.findById(pendency.getOriginMaintenanceId());
-            payload.put("data", localTimestamp(maintenance.map(Maintenance::getDate).orElse(pendency.getDate()), null));
-            payload.put("oficina", maintenance.map(Maintenance::getLocal).orElse(null));
-            payload.put("descricao", pendency.getNote() == null ? "Manutenção do veículo" : pendency.getNote());
+            LocalDate date = maintenance.map(Maintenance::getDate).orElse(pendency.getDate());
+            putIfPresent(payload, "data", date == null ? null : date.toString());
+            putIfPresent(payload, "oficina", maintenance.map(Maintenance::getLocal).map(String::trim).filter(text -> !text.isEmpty()).orElse(null));
+            putIfPresent(payload, "descricao", maintenance.map(DriverChargeService::describe).orElse(null));
             maintenance.ifPresent(found -> payload.put("valorTotal", money(found.getCost())));
             payload.put("formaDivisao", "Valor atribuído ao motorista");
             payload.put("parteMotoristaValor", money(pendency.getCost()));
         }
-        payload.put("observacoes", pendency.getNote());
+        putIfPresent(payload, "observacoes", pendency.getNote());
 
         DriverDocument document = new DriverDocument();
         document.setType(type);
@@ -484,6 +520,28 @@ public class DriverChargeService {
 
     private static BigDecimal money(BigDecimal value) {
         return (value == null ? BigDecimal.ZERO : value).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private static void putIfPresent(Map<String, Object> payload, String key, String value) {
+        if (value != null && !value.trim().isEmpty()) {
+            payload.put(key, value.trim());
+        }
+    }
+
+    /** What the maintenance was, from its own services (never retyped by the user). */
+    static String describe(Maintenance maintenance) {
+        if (maintenance.getServices() == null) {
+            return null;
+        }
+        String names = maintenance
+            .getServices()
+            .stream()
+            .map(com.localuz.domain.Service::getName)
+            .filter(name -> name != null && !name.trim().isEmpty())
+            .map(String::trim)
+            .sorted()
+            .collect(java.util.stream.Collectors.joining(", "));
+        return names.isEmpty() ? null : names;
     }
 
     private static String localTimestamp(LocalDate date, LocalTime time) {

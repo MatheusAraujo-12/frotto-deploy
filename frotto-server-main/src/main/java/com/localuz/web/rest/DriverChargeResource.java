@@ -6,9 +6,11 @@ import com.localuz.service.DriverChargeService;
 import com.localuz.service.DriverChargeService.Outcome;
 import com.localuz.service.dto.DocumentDTO;
 import com.localuz.service.dto.FineChargeRequest;
+import com.localuz.service.dto.MaintenanceChargeOptionDTO;
 import com.localuz.service.dto.MaintenanceChargeSummaryDTO;
 import com.localuz.service.dto.SharedMaintenanceChargeRequest;
 import java.net.URI;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -44,6 +46,12 @@ public class DriverChargeResource {
         @RequestBody SharedMaintenanceChargeRequest request
     ) {
         return pendencyResponse(driverChargeService.chargeSharedMaintenance(driverCarId, request));
+    }
+
+    /** Maintenances of the contract's car that a shared-maintenance charge can come from. */
+    @GetMapping("/pendencies/car-driver/{driverCarId}/chargeable-maintenances")
+    public List<MaintenanceChargeOptionDTO> chargeableMaintenances(@PathVariable Long driverCarId) {
+        return driverChargeService.chargeableMaintenances(driverCarId);
     }
 
     @GetMapping("/pendencies/shared-maintenance/{maintenanceId}/summary")

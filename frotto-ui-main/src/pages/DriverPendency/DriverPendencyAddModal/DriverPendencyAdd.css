@@ -30,3 +30,62 @@
 .driver-pendency-add-delete ion-button {
   margin: 0 !important;
 }
+
+/* Nova Pendência: kind chooser and the fine / shared-maintenance fields (scoped by class: the modal mounts under ion-app). */
+.driver-pendency-add-kind {
+  margin-bottom: 12px;
+}
+
+.driver-pendency-add-origin {
+  margin: 0 0 12px;
+  font-size: 0.86rem;
+  color: var(--ion-color-medium);
+}
+
+.driver-charge-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.driver-charge-form__toggle {
+  align-self: flex-start;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ion-color-primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.driver-charge-form__details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 10px;
+  border-left: 2px solid var(--app-border-color, rgba(127, 127, 127, 0.25));
+}
+
+.driver-charge-form__summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.driver-charge-form__summary dt {
+  font-size: 0.75rem;
+  color: var(--ion-color-medium);
+}
+
+.driver-charge-form__summary dd {
+  margin: 2px 0 0;
+  font-weight: 700;
+}
+
+.driver-charge-form__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ion-color-medium);
+}

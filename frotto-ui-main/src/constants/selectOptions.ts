@@ -426,6 +426,5 @@ export const DRIVER_PENDENCIES = [
   "Aluguel atrasado",
   "Dano",
   "Dívida",
-  "Multa",
-  "Manutenção compartilhada",
+  "Multa contratual",
 ];

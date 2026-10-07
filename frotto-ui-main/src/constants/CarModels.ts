@@ -227,16 +227,6 @@ export interface DriverPendencyModel {
 
 export type PendencyOriginType = "FINE" | "SHARED_MAINTENANCE";
 
-/** GET /api/pendencies/shared-maintenance/{maintenanceId}/summary */
-export interface MaintenanceChargeSummaryModel {
-  maintenanceId: number;
-  maintenanceCost: number;
-  /** Responsibility already assigned to drivers (paid or not). */
-  assignedAmount: number;
-  availableAmount: number;
-  chargesCount: number;
-}
-
 export type DriverPendencyStatus = "OPEN" | "PARTIALLY_PAID" | "PAID";
 
 export interface DriverDebtSummaryModel {

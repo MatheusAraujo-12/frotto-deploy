@@ -3,6 +3,8 @@ import * as Yup from "yup";
 import { TEXT } from "../../../constants/texts";
 import { DATE_TODAY } from "../../../constants/form";
 
+export const PENDENCY_COST_REQUIRED = "Informe um valor maior que zero.";
+
 export const initialDriverPendencyValues = (
   initialValues: DriverPendencyModel
 ) => {
@@ -25,10 +27,15 @@ export const initialDriverPendencyValues = (
 export const driverPendencyAddValidationSchema = Yup.object().shape({
   id: Yup.number().nullable(),
   name: Yup.string().required(TEXT.requiredField),
+  // A new pendency is a debt: more than zero. Editing a legacy zero row stays possible (same rule as the backend).
   cost: Yup.number()
     .typeError(TEXT.requiredField)
     .min(0, TEXT.minFieldNumber("0"))
-    .required(TEXT.requiredField),
+    .required(TEXT.requiredField)
+    .when("id", {
+      is: (id: unknown) => id === undefined || id === null,
+      then: (schema) => schema.moreThan(0, PENDENCY_COST_REQUIRED),
+    }),
   date: Yup.string().required(TEXT.requiredField),
   note: Yup.string().max(255, TEXT.maxFieldSize("255")).nullable(),
   paidAmount: Yup.number()

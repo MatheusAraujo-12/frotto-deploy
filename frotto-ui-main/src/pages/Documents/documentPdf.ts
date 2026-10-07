@@ -80,11 +80,15 @@ async function buildDocumentContent(
   if (type === "RECIBO_ALUGUEL") {
     return buildReciboAluguelContent(document, payload, fiscal);
   }
+  // Issued from a pendency (Pendências -> Emitir documento): only the data that exists is printed.
+  const fromPendency = payload?.origem?.tipo === "PENDENCIA";
   if (type === "MULTA") {
-    return buildMultaContent(document, payload, fiscal);
+    return fromPendency ? buildMultaFromPendencyContent(document, payload, fiscal) : buildMultaContent(document, payload, fiscal);
   }
   if (type === "MANUTENCAO_COMPARTILHADA") {
-    return buildManutencaoCompartilhadaContent(document, payload, fiscal);
+    return fromPendency
+      ? buildManutencaoFromPendencyContent(document, payload, fiscal)
+      : buildManutencaoCompartilhadaContent(document, payload, fiscal);
   }
   if (type === "CONFISSAO_DIVIDA") {
     return buildConfissaoDividaContent(document, payload, fiscal);
@@ -173,6 +177,101 @@ function buildMultaContent(
     },
     { text: `Responsável pelo pagamento: ${getText(payload, "responsavelPagamento", "-")}.`, style: "section" },
     { text: `Observações: ${getText(payload, "observacoes", "-")}`, style: "section" },
+    ...buildAttachmentsSection(payload.attachments || document.attachments || []),
+    ...buildSignatureBlock(fiscal.fiscalName, driverName),
+  ];
+}
+
+/** Day (and time, only when known) of the infraction: ISO fields of the server, or the older dataHora. */
+function infractionMoment(payload: Record<string, any>) {
+  const dataHora = getText(payload, "dataHora");
+  const day = getText(payload, "dataInfracao") || dataHora.slice(0, 10);
+  const time = getText(payload, "horaInfracao") || (dataHora.length >= 16 ? dataHora.slice(11, 16) : "");
+  return { day: day ? formatTermsDate(day.slice(0, 10)) : "", time: time.slice(0, 5) };
+}
+
+/** Same notification and clauses as the legacy one; absent optional data is simply left out. */
+function buildMultaFromPendencyContent(
+  document: DocumentModel,
+  payload: Record<string, any>,
+  fiscal: ReturnType<typeof resolveFiscalIdentity>
+) {
+  const driverName = getText(payload, "driverName", document.driverName || "Motorista");
+  const driverCpf = getText(payload, "driverCpf", document.driverCpf || "");
+  const plate = getText(payload, "carPlate") || document.carPlate || "";
+  const { day, time } = infractionMoment(payload);
+  const local = getText(payload, "local");
+  const dueDate = getText(payload, "vencimento");
+  const details = [
+    getText(payload, "ait") && `AIT ${getText(payload, "ait")}`,
+    getText(payload, "orgao") && `Órgão autuador ${getText(payload, "orgao")}`,
+    getText(payload, "enquadramento") && `Enquadramento ${getText(payload, "enquadramento")}`,
+    `Valor ${formatCurrency(getNumber(payload, "valor"))}`,
+    dueDate && `Vencimento ${formatTermsDate(dueDate.slice(0, 10))}`,
+  ].filter(Boolean);
+  const note = getText(payload, "observacoes");
+
+  return [
+    { text: "NOTIFICAÇÃO E TERMO DE CIÊNCIA E RESPONSABILIDADE POR INFRAÇÃO DE TRÂNSITO", style: "title" },
+    {
+      text:
+        `${fiscal.fiscalName} (${fiscal.documentLabel} ${fiscal.documentValue || "-"}) notifica ${driverName}${
+          driverCpf ? ` (CPF ${driverCpf})` : ""
+        }, quanto à infração de trânsito vinculada ao veículo${plate ? ` ${plate}` : ""}` +
+        `${day ? `, ocorrida em ${day}${time ? ` às ${time}` : ""}` : ""}${local ? `, no local ${local}` : ""}.`,
+      style: "section",
+    },
+    { text: `Dados da infração: ${details.join("; ")}.`, style: "section" },
+    {
+      text:
+        "Cláusula de responsabilidade: o condutor declara ciência e assume integral responsabilidade pelo pagamento da infração, " +
+        "incluindo encargos legais. Caso o pagamento inicial seja realizado pela empresa, fica o motorista obrigado ao reembolso " +
+        "integral no prazo estipulado, sob pena de registro de débito e demais medidas cabíveis.",
+      style: "section",
+    },
+    { text: `Responsável pelo pagamento: ${getText(payload, "responsavelPagamento", driverName)}.`, style: "section" },
+    ...(note ? [{ text: `Observações: ${note}`, style: "section" }] : []),
+    ...buildAttachmentsSection(payload.attachments || document.attachments || []),
+    ...buildSignatureBlock(fiscal.fiscalName, driverName),
+  ];
+}
+
+function buildManutencaoFromPendencyContent(
+  document: DocumentModel,
+  payload: Record<string, any>,
+  fiscal: ReturnType<typeof resolveFiscalIdentity>
+) {
+  const driverName = getText(payload, "driverName", document.driverName || "Motorista");
+  const date = getText(payload, "data");
+  const facts = [
+    date && `Data: ${formatTermsDate(date.slice(0, 10))}`,
+    getText(payload, "oficina") && `Oficina: ${getText(payload, "oficina")}`,
+    getText(payload, "descricao") && `Descrição: ${getText(payload, "descricao")}`,
+  ].filter(Boolean);
+  const values = [
+    payload?.valorTotal !== undefined && payload?.valorTotal !== null && `Valor total: ${formatCurrency(getNumber(payload, "valorTotal"))}`,
+    getText(payload, "formaDivisao") && `Forma de divisão: ${getText(payload, "formaDivisao")}`,
+    `Parcela do motorista: ${formatCurrency(getNumber(payload, "parteMotoristaValor"))}`,
+  ].filter(Boolean);
+  const note = getText(payload, "observacoes");
+
+  return [
+    { text: "ACORDO DE RATEIO DE DESPESAS DE MANUTENÇÃO", style: "title" },
+    {
+      text:
+        `${fiscal.fiscalName}, ${fiscal.documentLabel} ${fiscal.documentValue || "-"}, e ${driverName}, ` +
+        "ajustam o rateio da manutenção do veículo nos seguintes termos.",
+      style: "section",
+    },
+    ...(facts.length ? [{ text: `${facts.join("; ")}.`, style: "section" }] : []),
+    { text: `${values.join(". ")}.`, style: "section" },
+    {
+      text:
+        "O valor devido pelo motorista deverá ser pago no prazo ajustado entre as partes. Em caso de inadimplemento, " +
+        "incidirão multa contratual de 2% e juros simples de 1% ao mês, sem prejuízo de atualização monetária e cobrança judicial.",
+      style: "section",
+    },
+    ...(note ? [{ text: `Observações: ${note}`, style: "section" }] : []),
     ...buildAttachmentsSection(payload.attachments || document.attachments || []),
     ...buildSignatureBlock(fiscal.fiscalName, driverName),
   ];

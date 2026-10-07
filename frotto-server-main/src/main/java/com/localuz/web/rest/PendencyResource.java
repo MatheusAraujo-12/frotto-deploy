@@ -305,7 +305,10 @@ public class PendencyResource {
     }
 
     private void initializePendencyForCreate(Pendency pendency) {
-        validateCost(pendency.getCost());
+        // A new debt must be worth something. Editing keeps validateCost (>= 0) so legacy zero rows stay editable.
+        if (pendency.getCost() == null || pendency.getCost().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestAlertException("O valor da pendência deve ser maior que zero.", ENTITY_NAME, "costinvalid");
+        }
         pendency.setStatus(PendencyStatus.OPEN);
         pendency.setPaidAt(null);
         pendency.setPaidAmount(BigDecimal.ZERO);

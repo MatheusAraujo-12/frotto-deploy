@@ -550,6 +550,53 @@ class DriverChargePersistenceTest {
         assertThat(count("SELECT COUNT(*) FROM maintenance WHERE id = " + kept)).isEqualTo(1);
     }
 
+    // ------------------------------------------------------------------ simplified fine and the maintenance options
+
+    @Test
+    void aFineWithOnlyValueAndDayIsSavedAndItsDocumentInventsNothing() {
+        as(OWNER_A);
+        FineChargeRequest minimal = new FineChargeRequest();
+        minimal.setIdempotencyKey(key());
+        minimal.setAmount(new BigDecimal("130.00"));
+        minimal.setInfractionDate(LocalDate.of(2026, 9, 3));
+
+        Pendency fine = charges.chargeFine(JOAO_ONIX, minimal).getValue();
+
+        Map<String, Object> row = row(fine.getId());
+        assertThat(row).containsEntry("origin_type", "FINE").containsEntry("debtor_driver_id", JOAO);
+        assertThat(row.get("fine_infraction_time")).isNull();
+        assertThat(row.get("fine_ait")).isNull();
+        String payload = String.valueOf(documentRow(charges.issueDocument(fine.getId()).getValue().getId()).get("payload_json"));
+        assertThat(payload).contains("\"dataInfracao\":\"2026-09-03\"", "\"valor\":130.00");
+        assertThat(payload).doesNotContain("dataHora", "horaInfracao", "\"ait\"", "\"orgao\"", "\"local\"", "\"enquadramento\"", "\"vencimento\"", "null");
+    }
+
+    @Test
+    void theChargeableMaintenancesAreThoseOfTheContractCarWithWhatIsLeft() {
+        long full = insertMaintenance(92160, ARGO, "300.00");
+        long partial = insertMaintenance(92161, ARGO, "500.00");
+        as(OWNER_A);
+        charges.chargeSharedMaintenance(JOAO_ARGO, share(key(), full, "300.00"));
+        charges.chargeSharedMaintenance(JOAO_ARGO, share(key(), partial, "120.00"));
+
+        Map<Long, com.localuz.service.dto.MaintenanceChargeOptionDTO> options = charges
+            .chargeableMaintenances(JOAO_ARGO)
+            .stream()
+            .collect(Collectors.toMap(com.localuz.service.dto.MaintenanceChargeOptionDTO::getId, option -> option));
+
+        // Only the Argo's maintenances (the contract's car): never the Onix or another account's.
+        assertThat(options).containsKeys(full, partial, 92106L).doesNotContainKeys(92101L, 92104L);
+        assertThat(options.get(full).isChargeable()).isFalse();
+        assertThat(options.get(full).getAvailableAmount()).isEqualByComparingTo("0.00");
+        assertThat(options.get(partial).getAssignedAmount()).isEqualByComparingTo("120.00");
+        assertThat(options.get(partial).getAvailableAmount()).isEqualByComparingTo("380.00");
+        assertThat(options.get(partial).getLocal()).isEqualTo("Oficina Reserva");
+        assertRejected(() -> charges.chargeSharedMaintenance(JOAO_ARGO, share(key(), full, "0.01")), "maintenancechargeexceeded");
+
+        as(OWNER_B);
+        assertNotFound(() -> charges.chargeableMaintenances(JOAO_ARGO));
+    }
+
     // ------------------------------------------------------------------ legacy wizard
 
     @Test

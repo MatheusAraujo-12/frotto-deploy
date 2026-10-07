@@ -254,11 +254,13 @@ describe("Pendências → origem estrutural e documento da pendência", () => {
     expect(mockedApi.put).not.toHaveBeenCalled();
   });
 
-  it("Nova multa and Cobrar manutenção open the charge screen of this contract", async () => {
+  it("J/K) one entry point: only + Nova Pendência, no separate Nova multa / Cobrar manutenção buttons", async () => {
     renderPage([FINE]);
     await screen.findByText("Multa de trânsito");
-    await click(screen.getByText("Nova multa"));
-    expect(await screen.findByText("Registrar pendência")).toBeInTheDocument();
-    expect(document.querySelector('[data-field="infractionDate"]')).not.toBeNull();
+    expect(screen.queryByText("Nova multa")).toBeNull();
+    expect(screen.queryByText("Cobrar manutenção")).toBeNull();
+    expect(document.querySelectorAll("ion-button[aria-label='Adicionar pendência']")).toHaveLength(1);
+    await click(document.querySelector("ion-button[aria-label='Adicionar pendência']") as Element);
+    expect(await screen.findByTestId("pendency-kind")).toBeInTheDocument();
   });
 });

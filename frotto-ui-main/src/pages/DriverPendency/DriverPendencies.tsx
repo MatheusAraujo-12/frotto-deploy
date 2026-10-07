@@ -45,11 +45,9 @@ import {
   checkmarkDoneCircleOutline,
   checkmarkDoneOutline,
   closeOutline,
-  constructOutline,
   createOutline,
   documentAttachOutline,
   documentTextOutline,
-  receiptOutline,
   personCircleOutline,
   timeOutline,
 } from "ionicons/icons";
@@ -61,7 +59,6 @@ import DriverPendencyPaymentModal, {
 import "./DriverPendencies.css";
 import "./DriverPendenciesSummary.css";
 import DebtConfessionPreviewView from "./DebtConfessionPreview";
-import DriverChargeModal, { DriverChargeMode } from "./DriverChargeModal";
 import {
   DRIVER_CHARGE_ERROR_MESSAGES,
   canIssuePendencyDocument,
@@ -115,8 +112,7 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
   const [confessionPreview, setConfessionPreview] = useState<DebtConfessionPreview | null>(null);
   const [isConfessionBusy, setIsConfessionBusy] = useState(false);
   const confessionOnce = useRef(createSingleFlight());
-  // Fines and shared maintenance as debts of this contract's driver; documents issued from a debt.
-  const [chargeMode, setChargeMode] = useState<DriverChargeMode | null>(null);
+  // Documents issued from a debt (fines and shared maintenance are created in Nova Pendência).
   const [issuingId, setIssuingId] = useState<number | null>(null);
   const issueOnce = useRef(createSingleFlight());
 
@@ -519,12 +515,6 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
       }
     });
 
-  const chargeCreated = () => {
-    setChargeMode(null);
-    showSuccessAlert("Pendência registrada para o motorista.");
-    loadDriverPendencys();
-  };
-
   const closeModal = useCallback((response?: DriverPendencyModel) => {
     setIsModalOpen(false);
     nav.goBack();
@@ -684,22 +674,6 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                 </div>
               </IonCardHeader>
               <IonCardContent>
-                <div className="driver-pendencies-charge-actions">
-                  <IonButton size="small" fill="outline" className="app-outline-btn" onClick={() => setChargeMode("fine")} disabled={!driverCar?.driver}>
-                    <IonIcon icon={receiptOutline} slot="start" />
-                    Nova multa
-                  </IonButton>
-                  <IonButton
-                    size="small"
-                    fill="outline"
-                    className="app-outline-btn"
-                    onClick={() => setChargeMode("maintenance")}
-                    disabled={!driverCar?.driver || !driverCar?.carId}
-                  >
-                    <IonIcon icon={constructOutline} slot="start" />
-                    Cobrar manutenção
-                  </IonButton>
-                </div>
                 <div className="driver-pendencies-confession-bar">
                   <span className="driver-pendencies-confession-bar__hint">
                     {selectedIds.length === 0
@@ -924,18 +898,6 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
             isGenerating={isConfessionBusy}
             onCancel={() => setConfessionPreview(null)}
             onGenerate={(terms) => void generateConfession(terms)}
-          />
-        )}
-      </IonModal>
-
-      <IonModal className="driver-charge-modal-host" isOpen={Boolean(chargeMode)} backdropDismiss={false}>
-        {chargeMode && (
-          <DriverChargeModal
-            mode={chargeMode}
-            driverCarId={match.params.id}
-            carId={driverCar?.carId}
-            onCancel={() => setChargeMode(null)}
-            onCreated={chargeCreated}
           />
         )}
       </IonModal>
