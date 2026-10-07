@@ -144,7 +144,7 @@ describe("Nova Pendência: um ponto de entrada, o tipo decide o formulário", ()
     await ionChange(document.querySelector('[data-testid="maintenance-fields"] ion-select'), "101");
     await typeAmount("50000");
 
-    expect(screen.getByTestId("charge-feedback").textContent).toMatch(/ultrapassa o disponível para atribuição nesta manutenção \(R\$\s?400,00\)/);
+    expect(document.getElementById("form-error-amount")?.textContent).toMatch(/^O valor não pode ultrapassar o saldo disponível de R\$\s?400,00\.$/);
     expect(saveButton().disabled).toBe(true);
   });
 
@@ -155,7 +155,7 @@ describe("Nova Pendência: um ponto de entrada, o tipo decide o formulário", ()
     expect(document.body.textContent).toContain("sem saldo para cobrança");
     await ionChange(document.querySelector('[data-testid="maintenance-fields"] ion-select'), "102");
     await typeAmount("100");
-    expect(screen.getByTestId("charge-feedback").textContent).toContain("já tem todo o custo atribuído");
+    expect(document.getElementById("form-error-maintenanceId")?.textContent).toBe("Esta manutenção não possui saldo disponível para cobrança.");
     expect(saveButton().disabled).toBe(true);
   });
 
@@ -163,7 +163,7 @@ describe("Nova Pendência: um ponto de entrada, o tipo decide o formulário", ()
     mockedApi.get.mockResolvedValue({ data: [OPTIONS[1]] });
     renderForm();
     await chooseKind("SHARED_MAINTENANCE");
-    await waitFor(() => expect(screen.getByTestId("charge-feedback").textContent).toContain("Nenhuma manutenção deste veículo tem saldo"));
+    await waitFor(() => expect(document.getElementById("form-error-maintenanceId")?.textContent).toBe("Nenhuma manutenção deste veículo possui saldo disponível para cobrança."));
     expect(saveButton().disabled).toBe(true);
   });
 
@@ -251,3 +251,119 @@ describe("Nova Pendência: um ponto de entrada, o tipo decide o formulário", ()
     expect(document.querySelector('[data-testid="pendency-kind"]')).toBeNull();
   });
 });
+
+/**
+ * Staging report: "Manutenção compartilhada não salva, o botão fica desabilitado e não diz o que falta".
+ * Reproduced in Chrome: with a maintenance registered without services (cost R$ 0,00) or a value above what is left,
+ * the only explanation was a muted sentence at the bottom of the form (and a wrong one for the zero-cost case).
+ */
+describe("Manutenção compartilhada: o que impede salvar fica visível no campo", () => {
+  const STAGING_OPTIONS = [
+    { id: 1, date: "2026-09-10", local: "Oficina Centro", description: "Freio, Mão de obra", cost: 1200, assignedAmount: 0, availableAmount: 1200, chargeable: true },
+    { id: 2, date: "2026-09-15", local: "Oficina Sem Serviço", description: null, cost: 0, assignedAmount: 0, availableAmount: 0, chargeable: false },
+    { id: 3, date: "2026-09-20", local: "Oficina Parcial", description: "Pneu", cost: 500, assignedAmount: 300, availableAmount: 200, chargeable: true },
+  ];
+
+  beforeAll(() => {
+    (global as any).IntersectionObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  });
+  beforeEach(() => {
+    jest.resetAllMocks();
+    mockedApi.get.mockImplementation((url: string) =>
+      url === "/api/pendencies/car-driver/3/chargeable-maintenances" ? Promise.resolve({ data: STAGING_OPTIONS }) : Promise.resolve({ data: [] })
+    );
+  });
+
+  const openSharedMaintenance = async () => {
+    const result = renderForm();
+    await chooseKind("SHARED_MAINTENANCE");
+    await waitFor(() => expect(mockedApi.get).toHaveBeenCalledWith("/api/pendencies/car-driver/3/chargeable-maintenances"));
+    await waitFor(() => expect(document.querySelector('[data-testid="maintenance-fields"] ion-select')).not.toBeNull());
+    return result;
+  };
+  const selectMaintenance = (id: number) => ionChange(document.querySelector('[data-testid="maintenance-fields"] ion-select'), `${id}`);
+  /** Android/IME: keydown says "Unidentified", the digit arrives in the input event. */
+  const typeMobile = async (digits: string) => {
+    const field = document.querySelector('[data-field="amount"]') as HTMLIonInputElement;
+    for (const digit of digits) {
+      await act(async () => {
+        fireEvent.keyDown(field, { key: "Unidentified", keyCode: 229 });
+      });
+      field.value = `${field.value || ""}${digit}`;
+      await act(async () => {
+        fireEvent(field, new CustomEvent("ionInput", { detail: { value: field.value }, bubbles: true }));
+      });
+    }
+    return field;
+  };
+  const fieldError = (name: string) => document.getElementById(`form-error-${name}`)?.textContent || null;
+
+  it("valid maintenance + R$ 400 typed on a phone + empty observation: no error, Salvar enabled, 201, closes", async () => {
+    const { closeModal } = await openSharedMaintenance();
+    await selectMaintenance(1);
+    const field = await typeMobile("40000");
+
+    expect(field.value).toBe(currencyFormatForTest(400));
+    expect(fieldError("maintenanceId")).toBeNull();
+    expect(fieldError("amount")).toBeNull();
+    expect(document.querySelectorAll('[data-testid="maintenance-fields"] .app-form-field--invalid')).toHaveLength(0);
+    expect(saveButton().disabled).toBe(false);
+
+    mockedApi.post.mockResolvedValueOnce({ status: 201, data: { id: 80, originType: "SHARED_MAINTENANCE", cost: 400 } });
+    await click(saveButton());
+
+    await waitFor(() => expect(closeModal).toHaveBeenCalledWith({ id: 80, originType: "SHARED_MAINTENANCE", cost: 400 }));
+    expect(mockedApi.post).toHaveBeenCalledTimes(1);
+    expect(mockedApi.post.mock.calls[0]).toEqual([
+      "/api/pendencies/car-driver/3/shared-maintenance",
+      { idempotencyKey: expect.stringMatching(/^op-/), maintenanceId: 1, amount: 400, note: undefined },
+    ]);
+  });
+
+  it("the selected id (number) survives a later re-render of the list", async () => {
+    await openSharedMaintenance();
+    await selectMaintenance(3);
+    await typeMobile("10000");
+    expect(screen.getByTestId("maintenance-summary").textContent).toMatch(/Disponível para atribuição\s?R\$\s?200,00/);
+    expect(saveButton().disabled).toBe(false);
+  });
+
+  it("nothing selected: 'Selecione uma manutenção.' under the field", async () => {
+    await openSharedMaintenance();
+    await typeMobile("40000");
+    expect(fieldError("maintenanceId")).toBe("Selecione uma manutenção.");
+    expect(saveButton().disabled).toBe(true);
+  });
+
+  it("zero value: 'Informe o valor cobrado do motorista.' under the value", async () => {
+    await openSharedMaintenance();
+    await selectMaintenance(1);
+    expect(fieldError("amount")).toBe("Informe o valor cobrado do motorista.");
+    expect(saveButton().disabled).toBe(true);
+  });
+
+  it("maintenance of R$ 0,00 (registered without services): says it has no balance, not that it was assigned", async () => {
+    await openSharedMaintenance();
+    await selectMaintenance(2);
+    await typeMobile("40000");
+    expect(fieldError("maintenanceId")).toBe("Esta manutenção não possui saldo disponível para cobrança.");
+    expect(document.body.textContent).not.toContain("já tem todo o custo atribuído");
+    expect(saveButton().disabled).toBe(true);
+  });
+
+  it("above what is left: 'O valor não pode ultrapassar o saldo disponível de R$ 200,00.' under the value", async () => {
+    await openSharedMaintenance();
+    await selectMaintenance(3);
+    await typeMobile("40000");
+    expect(fieldError("amount")).toMatch(/^O valor não pode ultrapassar o saldo disponível de R\$\s?200,00\.$/);
+    expect(saveButton().disabled).toBe(true);
+  });
+});
+
+function currencyFormatForTest(value: number) {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2, maximumFractionDigits: 3 }).format(value);
+}

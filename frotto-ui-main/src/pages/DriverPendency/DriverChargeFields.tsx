@@ -1,6 +1,7 @@
 import { IonInput, IonItem } from "@ionic/react";
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import FormCurrency from "../../components/Form/FormCurrency";
+import FormError from "../../components/Form/FormError";
 import FormInput from "../../components/Form/FormInput";
 import FormInputArea from "../../components/Form/FormInputArea";
 import FormInputLabel from "../../components/Form/FormInputLabel";
@@ -104,22 +105,39 @@ export function useDriverChargeForm(kind: PendencyKind, driverCarId: number | st
 
   const selected = options?.find((option) => option.id === maintenanceId) || null;
 
+  /*
+   * Shared maintenance: every condition that blocks saving is shown under its own field (never only a muted note):
+   * the maintenance (none / without balance - e.g. registered without services, cost R$ 0,00) and the value.
+   */
+  const maintenanceError = useMemo(() => {
+    if (kind !== "SHARED_MAINTENANCE" || options === null) return null;
+    if (options.length === 0) return "Nenhuma manutenção registrada para este veículo.";
+    if (!selected && !options.some((option) => option.chargeable)) {
+      return "Nenhuma manutenção deste veículo possui saldo disponível para cobrança.";
+    }
+    if (!selected) return "Selecione uma manutenção.";
+    if (!selected.chargeable) return "Esta manutenção não possui saldo disponível para cobrança.";
+    return null;
+  }, [kind, options, selected]);
+  const amountError = useMemo(() => {
+    if (kind !== "SHARED_MAINTENANCE") return null;
+    if (!(amount > 0)) return "Informe o valor cobrado do motorista.";
+    if (selected && selected.chargeable && amount > selected.availableAmount) {
+      return `O valor não pode ultrapassar o saldo disponível de ${currencyFormat(selected.availableAmount)}.`;
+    }
+    return null;
+  }, [kind, selected, amount]);
+
   const problem = useMemo(() => {
     if (kind === "OTHER") return null;
     if (kind === "SHARED_MAINTENANCE") {
-      if (options && !options.some((option) => option.chargeable)) {
-        return "Nenhuma manutenção deste veículo tem saldo para cobrança: todo o custo já foi atribuído (ou não há manutenção registrada).";
-      }
-      if (!selected) return "Selecione a manutenção.";
-      if (!selected.chargeable) return "Esta manutenção já tem todo o custo atribuído a motoristas: não é possível cobrar mais.";
+      if (options === null) return "Carregando manutenções do veículo...";
+      return maintenanceError || amountError;
     }
     if (!(amount > 0)) return mode(kind) === "fine" ? "Informe o valor da multa." : "Informe o valor de responsabilidade do motorista.";
     if (kind === "FINE" && !infractionDate) return "Informe a data da infração.";
-    if (kind === "SHARED_MAINTENANCE" && selected && amount > selected.availableAmount) {
-      return `O valor ultrapassa o disponível para atribuição nesta manutenção (${currencyFormat(selected.availableAmount)}).`;
-    }
     return null;
-  }, [kind, options, selected, amount, infractionDate]);
+  }, [kind, options, maintenanceError, amountError, amount, infractionDate]);
 
   const submit = async () =>
     once.current(async () => {
@@ -193,6 +211,11 @@ export function useDriverChargeForm(kind: PendencyKind, driverCarId: number | st
   } else if (kind === "SHARED_MAINTENANCE") {
     fields = (
       <div className="driver-charge-form" data-testid="maintenance-fields">
+        {error && (
+          <p className="driver-pendency-list-item__blocked" role="alert" data-testid="charge-feedback">
+            {error}
+          </p>
+        )}
         {options === null ? (
           <p className="driver-charge-form__hint">Carregando manutenções do veículo...</p>
         ) : options.length > 0 ? (
@@ -201,9 +224,13 @@ export function useDriverChargeForm(kind: PendencyKind, driverCarId: number | st
             required
             options={options.map((option) => ({ value: `${option.id}`, label: optionLabel(option) }))}
             initialValue={maintenanceId ? `${maintenanceId}` : ""}
+            errorsObj={maintenanceError ? { maintenanceId: { type: "validate", message: maintenanceError } } : {}}
+            errorName="maintenanceId"
             changeCallback={(value: string) => setMaintenanceId(value ? Number(value) : null)}
           />
-        ) : null}
+        ) : (
+          <FormError id="form-error-maintenanceId" message={maintenanceError || ""} />
+        )}
         {selected && (
           <dl className="driver-charge-form__summary" data-testid="maintenance-summary">
             <div>
@@ -225,11 +252,12 @@ export function useDriverChargeForm(kind: PendencyKind, driverCarId: number | st
           required
           data-field="amount"
           initialValue={amount}
+          errorsObj={amountError ? { amount: { type: "validate", message: amountError } } : {}}
+          errorName="amount"
           changeCallback={(value: number) => setAmount(Number(value) || 0)}
         />
         <FormInputArea label="Observação" maxlength={255} initialValue={note} changeCallback={(value: string) => setNote(value)} />
         <p className="driver-charge-form__hint">A manutenção continua com o custo integral no veículo; só este valor vira pendência do motorista.</p>
-        {feedback}
       </div>
     );
   }
