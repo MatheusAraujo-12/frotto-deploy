@@ -1,3 +1,4 @@
+import React from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import DocumentsPage from "./DocumentsPage";
 import documentService from "../../services/documentService";
@@ -242,10 +243,35 @@ describe("Checklist - Finalizar e Gerar PDF", () => {
     expect(within(wizard()).queryByRole("button", { name: "Salvar rascunho" })).not.toBeInTheDocument();
     expect(within(wizard()).queryByRole("button", { name: /Excluir/ })).not.toBeInTheDocument();
 
-    click("Gerar PDF");
+    // The PDF of the FINAL document is generated right after the confirmed finalization...
     await waitFor(() => expect(mockedDocuments.generateDocumentPdf).toHaveBeenCalledWith(99));
     expect(generateDocumentPdf).toHaveBeenCalledTimes(1);
+    expect(mockedDocuments.generateDocumentPdf.mock.invocationCallOrder[0]).toBeGreaterThan(
+      mockedDocuments.finalizeDocument.mock.invocationCallOrder[0]
+    );
+    // ...and Gerar PDF stays available for another copy.
+    click("Gerar PDF");
+    await waitFor(() => expect(generateDocumentPdf).toHaveBeenCalledTimes(2));
     expect(mockedDocuments.finalizeDocument).toHaveBeenCalledTimes(1); // the PDF never finalizes again
+  });
+
+  it("a PDF failure after the finalization is explained and retried with Gerar PDF, never finalizing again", async () => {
+    (generateDocumentPdf as jest.Mock).mockRejectedValueOnce(new Error("popup blocked"));
+    await openChecklist();
+    fill("ENTREGA");
+    click("Finalizar entrega");
+
+    expect(await within(wizard()).findByTestId("checklist-pdf-failed")).toBeInTheDocument();
+    expect(toastMessages()).toContain("Checklist finalizado, mas o PDF não pôde ser gerado agora. Use Gerar PDF para tentar novamente.");
+    expect(within(wizard()).getByTestId("checklist-final")).toBeInTheDocument();
+
+    click("Gerar PDF");
+
+    await waitFor(() => expect(within(wizard()).queryByTestId("checklist-pdf-failed")).not.toBeInTheDocument());
+    expect(generateDocumentPdf).toHaveBeenCalledTimes(2);
+    expect(mockedDocuments.generateDocumentPdf).toHaveBeenCalledTimes(1);
+    expect(mockedDocuments.finalizeDocument).toHaveBeenCalledTimes(1);
+    expect(mockedDocuments.createDocument).toHaveBeenCalledTimes(1);
   });
 
   it("cancelling the confirmation sends nothing", async () => {
@@ -483,5 +509,52 @@ describe("Checklist - histórico", () => {
       checklistType: "ENTREGA",
       payload: expect.objectContaining({ dataVistoria: "2026-10-07", km: 12000, combustivel: "HALF" }),
     });
+  });
+});
+
+describe("Checklist aberto a partir de Inspeções", () => {
+  const CAR_ROW = { id: 7, plate: "ABC1D23", model: "Onix", active: true };
+  /** The page under a router-like harness: replace really changes the location (and re-renders), as in the app. */
+  const Harness: React.FC<{ search: string; history: { push: jest.Mock; replace: jest.Mock } }> = ({ search, history }) => {
+    const [location, setLocation] = React.useState({ pathname: "/documents", search, hash: "", state: undefined });
+    history.replace.mockImplementation((to: any) => setLocation({ pathname: to.pathname, search: to.search, hash: "", state: undefined }));
+    return <DocumentsPage {...({ location, history } as any)} />;
+  };
+  const launch = async (search: string, contractsOfCar: any[] = []) => {
+    mockedApi.get.mockImplementation(async (url: string) => {
+      if (url === "/api/cars/7") return { data: { car: CAR_ROW } } as any; // the real shape of GET /cars/{id}
+      if (url === "/api/driver-cars/car/7") return { data: contractsOfCar } as any;
+      return { data: [] } as any;
+    });
+    const props = { history: { push: jest.fn(), replace: jest.fn() } };
+    render(<Harness search={search} history={props.history} />);
+    return props;
+  };
+
+  it("Devolução opens the wizard on the form of that car, with the driver of its active contract, and returns on close", async () => {
+    const props = await launch("?checklist=DEVOLUCAO&carId=7&from=%2Fmenu%2Fcarros%2F7", [OPEN_CONTRACT]);
+
+    await within(await screen.findByRole("dialog")).findByText("Passo 3 de 3");
+    expect(props.history.replace).toHaveBeenCalledWith({ pathname: "/documents", search: "" });
+    expect(select("Tipo").value).toBe("DEVOLUCAO");
+    expect((await within(wizard()).findByTestId("checklist-contract-info")).textContent).toMatch(/Vínculo desde 01\/09\/2026/);
+
+    fireEvent.click(wizard().querySelector("button.app-cancel-btn") as HTMLElement); // Fechar (icon button)
+    expect(props.history.push).toHaveBeenCalledWith("/menu/carros/7");
+  });
+
+  it("Entrega opens on the first step with the car already chosen (the driver is picked there)", async () => {
+    await launch("?checklist=ENTREGA&carId=7&from=%2Fmenu%2Fcarros%2F7");
+
+    await within(await screen.findByRole("dialog")).findByText("Passo 1 de 3");
+    expect(input("Carro").value).toBe("ABC1D23");
+    expect(input("Motorista").value).toBe(""); // an Entrega never assumes the driver
+  });
+
+  it("an invalid or external launch request is ignored", async () => {
+    await launch("?checklist=OUTRO&carId=7");
+    await act(async () => undefined);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockedApi.get).not.toHaveBeenCalledWith("/api/cars/7");
   });
 });

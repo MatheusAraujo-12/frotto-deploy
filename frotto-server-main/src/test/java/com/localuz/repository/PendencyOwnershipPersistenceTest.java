@@ -748,6 +748,90 @@ class PendencyOwnershipPersistenceTest {
         assertThat(pendencies.findByCurrentUserAndIdIn(List.of(91003L))).extracting(Pendency::getId).containsExactly(91003L);
     }
 
+    // ------------------------------------------------------------------ vehicle history of a driver (read only)
+
+    /** Motorista A (91001) drives for both accounts: an open contract on B's car and a returned reserve on A's car. */
+    private void sharedDriverContracts() {
+        em.createNativeQuery(
+            "INSERT INTO driver_car (id,car_id,driver_id,concluded,suspended,start_date,end_date,primary_driver_car_id) VALUES " +
+            "(91910,91002,91001,false,false,'2026-05-01',NULL,NULL)," +
+            "(91911,91004,91001,true,false,'2026-03-01','2026-03-10',91003)"
+        ).executeUpdate();
+        em.createNativeQuery("UPDATE car SET model = 'Onix' WHERE id = 91004").executeUpdate();
+        em.flush();
+        em.clear();
+    }
+
+    private com.localuz.web.rest.DriverCarResource historyResource() {
+        com.localuz.web.rest.DriverCarResource resource = new com.localuz.web.rest.DriverCarResource(
+            driverCars,
+            cars,
+            org.mockito.Mockito.mock(AddressRepository.class),
+            drivers,
+            org.mockito.Mockito.mock(DriverAssignmentService.class)
+        );
+        org.springframework.test.util.ReflectionTestUtils.setField(resource, "applicationName", "localmaisApp");
+        return resource;
+    }
+
+    @Test
+    void theVehicleHistoryOfADriverHasOnlyTheContractsOfTheAccountMostRecentFirst() {
+        sharedDriverContracts();
+        loginAs("owner-a");
+
+        List<com.localuz.service.dto.DriverCarHistoryDTO> history = historyResource().getDriverCarHistory(91001L);
+
+        // 91911 (reserve, 2026-03) and 91003 (primary, 2026-01): never the contract 91910 on owner-b's car.
+        assertThat(history).extracting(com.localuz.service.dto.DriverCarHistoryDTO::getDriverCarId).containsExactly(91911L, 91003L);
+        com.localuz.service.dto.DriverCarHistoryDTO reserve = history.get(0);
+        assertThat(reserve.getCarId()).isEqualTo(91004L);
+        assertThat(reserve.getCarPlate()).isEqualTo("DDD4D44");
+        assertThat(reserve.getCarModel()).isEqualTo("Onix");
+        assertThat(reserve.getAssignmentType()).isEqualTo(DriverAssignmentType.RESERVE);
+        assertThat(reserve.getStartDate()).isEqualTo(LocalDate.of(2026, 3, 1));
+        assertThat(reserve.getEndDate()).isEqualTo(LocalDate.of(2026, 3, 10));
+        assertThat(reserve.getStatus()).isEqualTo("CONCLUDED");
+        assertThat(history.get(1).getAssignmentType()).isEqualTo(DriverAssignmentType.PERMANENT);
+        assertThat(history.get(1).getCarPlate()).isEqualTo("AAA1A11");
+    }
+
+    @Test
+    void theOtherAccountSeesOnlyItsOwnContractsOfTheSharedDriver() {
+        sharedDriverContracts();
+        loginAs("owner-b");
+
+        List<com.localuz.service.dto.DriverCarHistoryDTO> history = historyResource().getDriverCarHistory(91001L);
+
+        assertThat(history).extracting(com.localuz.service.dto.DriverCarHistoryDTO::getDriverCarId).containsExactly(91910L);
+        assertThat(history.get(0).getCarPlate()).isEqualTo("BBB2B22");
+        assertThat(history.get(0).getStatus()).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void aDriverIdOfAnotherAccountOrUnknownGivesNothingAndTheQueryWritesNothing() {
+        sharedDriverContracts();
+        loginAs("owner-a");
+        Object before = em.createNativeQuery("SELECT CONCAT(COUNT(*), ':', COALESCE(SUM(concluded), 0)) FROM driver_car").getSingleResult();
+
+        // 91002 (Motorista B) only drives owner-b's car; 99999 does not exist.
+        assertThat(historyResource().getDriverCarHistory(91002L)).isEmpty();
+        assertThat(historyResource().getDriverCarHistory(99999L)).isEmpty();
+        // The legacy duplicate of A's CPF (91004) keeps its own history: never merged by CPF.
+        assertThat(historyResource().getDriverCarHistory(91004L))
+            .extracting(com.localuz.service.dto.DriverCarHistoryDTO::getDriverCarId)
+            .containsExactly(91004L);
+
+        em.flush();
+        assertThat(em.createNativeQuery("SELECT CONCAT(COUNT(*), ':', COALESCE(SUM(concluded), 0)) FROM driver_car").getSingleResult()).isEqualTo(before);
+    }
+
+    @Test
+    void theHistoryEndpointIsReadOnly() throws Exception {
+        java.lang.reflect.Method method = com.localuz.web.rest.DriverCarResource.class.getMethod("getDriverCarHistory", Long.class);
+        assertThat(method.getAnnotation(org.springframework.transaction.annotation.Transactional.class).readOnly()).isTrue();
+        assertThat(method.getAnnotation(org.springframework.web.bind.annotation.GetMapping.class).value()).containsExactly("/driver/{driverId}");
+    }
+
     private static void loginAs(String login) {
         User principal = new User(login, "x", List.of());
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(principal, null, List.of()));

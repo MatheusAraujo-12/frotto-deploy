@@ -1,0 +1,92 @@
+.driver-vehicle-history {
+  display: grid;
+  gap: 12px;
+}
+
+.driver-vehicle-history__driver {
+  margin: 0;
+  font-weight: 700;
+  color: var(--ion-text-color);
+}
+
+.driver-vehicle-history__tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 4px;
+  border-radius: 12px;
+  border: var(--app-border);
+  background: var(--app-card);
+}
+
+.driver-vehicle-history__tab {
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ion-color-medium);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.driver-vehicle-history__tab--active {
+  background: var(--ion-color-primary);
+  color: var(--ion-color-primary-contrast);
+}
+
+.driver-vehicle-history__tab:focus-visible {
+  outline: 2px solid var(--ion-color-primary);
+  outline-offset: 2px;
+}
+
+.driver-vehicle-history__search {
+  padding: 0;
+}
+
+.driver-vehicle-history__list {
+  display: grid;
+  gap: 10px;
+}
+
+.driver-vehicle-history__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: var(--app-border);
+  background: var(--app-card);
+  box-shadow: var(--app-shadow);
+}
+
+.driver-vehicle-history__vehicle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-width: 0;
+  color: var(--ion-text-color);
+}
+
+.driver-vehicle-history__vehicle span {
+  color: var(--ion-color-medium);
+}
+
+.driver-vehicle-history__period {
+  grid-column: 1;
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--ion-color-medium);
+}
+
+.driver-vehicle-history__item .frotto-badge {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.driver-vehicle-history__hint {
+  margin: 0;
+  color: var(--ion-color-medium);
+}

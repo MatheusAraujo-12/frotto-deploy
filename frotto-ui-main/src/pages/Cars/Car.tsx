@@ -43,6 +43,7 @@ import { formatCPF, formatTel } from "../../services/iMaskFormat";
 import { servicesToString } from "../../services/toString";
 import DriverAdd from "../Driver/DriverAddModal/DriverAdd";
 import InspectionAdd from "../Inspection/InspectionAddModal/InspectionAdd";
+import InspectionNewMenu from "../Inspection/InspectionNewMenu";
 import MaintenanceAdd from "../Maintenance/MaintenanceAddModal/MaintenanceAdd";
 import CarAdd from "./CarAddModal/CarAdd";
 import "./Car.css";
@@ -426,14 +427,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                 <ItemNotFound message={TEXT.noInspection} />
               )}
               <div className="app-actions-row car-page__actions">
-                <IonButton
-                  className="app-semantic-btn app-semantic--neutral"
-                  size="small"
-                  fill="outline"
-                  onClick={() => setAddInspectionModalOpen(true)}
-                >
-                  {TEXT.new}
-                </IonButton>
+                <InspectionNewMenu carId={match.params.id} onSingleInspection={() => setAddInspectionModalOpen(true)} />
                 <IonButton
                   className="app-semantic-btn app-semantic--neutral"
                   size="small"

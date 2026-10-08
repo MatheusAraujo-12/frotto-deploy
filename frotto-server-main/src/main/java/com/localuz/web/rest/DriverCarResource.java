@@ -10,6 +10,7 @@ import com.localuz.repository.CarRepository;
 import com.localuz.repository.DriverCarRepository;
 import com.localuz.repository.DriverRepository;
 import com.localuz.service.DriverAssignmentService;
+import com.localuz.service.dto.DriverCarHistoryDTO;
 import com.localuz.service.dto.ReserveReturnResultDTO;
 import com.localuz.web.rest.errors.BadRequestAlertException;
 import java.net.URI;
@@ -80,6 +81,21 @@ public class DriverCarResource {
         log.debug("REST request to get DriverCar  by carId : {}", carId);
         List<DriverCar> driverCars = driverCarRepository.findByCurrentUserAndCarIdByDate(carId);
         return driverCars;
+    }
+
+    /**
+     * GET /driver-cars/driver/{driverId}: the vehicle history of a driver (read only). Only contracts on cars of the
+     * current account: the id alone gives nothing (another account's driver or contracts come back empty).
+     */
+    @GetMapping("/driver/{driverId}")
+    @Transactional(readOnly = true)
+    public List<DriverCarHistoryDTO> getDriverCarHistory(@PathVariable Long driverId) {
+        log.debug("REST request to get the vehicle history of Driver : {}", driverId);
+        return driverCarRepository
+            .findHistoryByCurrentUserAndDriver(driverId)
+            .stream()
+            .map(DriverCarHistoryDTO::of)
+            .collect(java.util.stream.Collectors.toList());
     }
 
     @GetMapping("/{id}")

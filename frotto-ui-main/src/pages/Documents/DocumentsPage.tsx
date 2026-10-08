@@ -57,6 +57,8 @@ import { currencyFormat } from "../../services/currencyFormat";
 import { useAlert } from "../../services/hooks/useAlert";
 import { formatDecimalInput, parseDecimal, sanitizeDecimalInput } from "../../services/decimalPtBr";
 import { generateDocumentPdf } from "./documentPdf";
+import { RouteComponentProps } from "react-router";
+import { parseChecklistLaunch } from "./checklistLaunch";
 import {
   CHECKLIST_TYPE_OPTIONS,
   ChecklistItem,
@@ -161,7 +163,8 @@ const DOCUMENT_TYPE_ICON: Record<DocumentType, string> = {
 const documentToneClass = (status: DocumentStatus): string =>
   DOCUMENT_STATUS_TONE_CLASS[status] || "";
 
-const DocumentsPage: React.FC = () => {
+/** Route props (absent when rendered outside a route): a URL launch request opens the checklist wizard directly. */
+const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, history }) => {
   const { showErrorAlert } = useAlert();
   const [presentToast] = useIonToast();
 
@@ -208,6 +211,10 @@ const DocumentsPage: React.FC = () => {
   const [checklistFeedback, setChecklistFeedback] = useState("");
   /** A draft of the old wizard (no checklistType) becomes structured only when the user converts it explicitly. */
   const [checklistLegacyConversion, setChecklistLegacyConversion] = useState(false);
+  /** Where to go back when a wizard opened from another screen (Inspeções) closes. */
+  const [launchReturnTo, setLaunchReturnTo] = useState<string | null>(null);
+  /** The checklist was finalized but its PDF could not be generated: Gerar PDF retries (never finalizes again). */
+  const [checklistPdfFailed, setChecklistPdfFailed] = useState(false);
   const [newChecklistLabel, setNewChecklistLabel] = useState("");
   const [debtItemTypes, setDebtItemTypes] = useState<DebtItemTypeModel[]>([]);
   const [isDebtItemTypesLoading, setIsDebtItemTypesLoading] = useState(false);
@@ -443,6 +450,12 @@ const DocumentsPage: React.FC = () => {
   const closeWizard = () => {
     setIsWizardOpen(false);
     resetWizard();
+    setChecklistPdfFailed(false);
+    if (launchReturnTo) {
+      const target = launchReturnTo;
+      setLaunchReturnTo(null);
+      history?.push(target);
+    }
   };
 
   const openWizard = () => {
@@ -1227,6 +1240,94 @@ const DocumentsPage: React.FC = () => {
     return "";
   }, [checklistContractState, checklistType, isStructuredChecklist, wizardCar, wizardDriver?.id]);
 
+  // Launch from Inspeções (/documents?checklist=ENTREGA|DEVOLUCAO&carId=..&from=..): the existing wizard, already on
+  // the checklist of that car; a Devolução also gets the driver of the car's active contract. The URL is consumed.
+  // Consuming the URL changes location.search: the opening in progress must not be cancelled by that, so a launch is
+  // handled once (by its URL) and only an unmount stops it.
+  const handledLaunchRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    const search = location?.search || "";
+    const launch = parseChecklistLaunch(search);
+    if (!launch) {
+      handledLaunchRef.current = null; // the same request can be made again later
+      return;
+    }
+    if (handledLaunchRef.current === search) {
+      return;
+    }
+    handledLaunchRef.current = search;
+    history?.replace({ pathname: location?.pathname || "/documents", search: "" });
+    const open = async () => {
+      const active = () => mountedRef.current;
+      try {
+        const { data } = await api.get(endpoints.CAR({ pathVariables: { id: launch.carId } }));
+        const car = data?.car ?? data; // GET /cars/{id} answers { car, ... } (as the car page reads it)
+        if (!active() || !car?.id) {
+          return;
+        }
+        let driver: DriverSearchModel | null = null;
+        if (launch.checklistType === "DEVOLUCAO") {
+          const { data: contracts } = await api.get<CarDriverModel[]>(endpoints.DRIVERS({ pathVariables: { id: car.id } }));
+          const operating = (Array.isArray(contracts) ? contracts : []).filter((contract) => driverCarStatus(contract) === "ACTIVE");
+          if (operating.length === 1 && operating[0].driver?.id) {
+            const contractDriver = operating[0].driver;
+            driver = { id: contractDriver.id as number, name: contractDriver.name || "", cpf: contractDriver.cpf || "", active: true };
+          }
+        }
+        if (!active()) {
+          return;
+        }
+        resetWizard();
+        setChecklistPdfFailed(false);
+        setWizardType("ENTREGA_DEVOLUCAO_CHECKLIST");
+        setWizardCar({ id: car.id, plate: car.plate || "", model: car.model || "", active: true });
+        setWizardCarQuery(car.plate || "");
+        if (driver) {
+          setWizardDriver(driver);
+          setWizardDriverQuery(driver.name || "");
+        }
+        setWizardPayload({
+          tipo: launch.checklistType,
+          carPlate: car.plate || "",
+          carModel: car.model || "",
+          driverName: driver?.name || "",
+          driverCpf: driver?.cpf || "",
+        });
+        // With the driver known the form opens directly; otherwise the first step asks for the driver.
+        setWizardStep(driver ? 3 : 1);
+        setLaunchReturnTo(launch.returnTo);
+        setIsWizardOpen(true);
+      } catch (_error) {
+        if (active()) {
+          showErrorAlert("Não foi possível abrir o checklist deste veículo.");
+        }
+      }
+    };
+    void open();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location?.search]);
+
+  /** PDF of a finalized checklist, from its stored document: documentary only, it never finalizes again. */
+  const issueChecklistPdf = async (documentId: number): Promise<boolean> => {
+    try {
+      const detailed = await documentService.getDocument(documentId);
+      await generateDocumentPdf(detailed);
+      setSavedDocument(await documentService.generateDocumentPdf(documentId));
+      setChecklistPdfFailed(false);
+      return true;
+    } catch (_error) {
+      setChecklistPdfFailed(true);
+      return false;
+    }
+  };
+
   const validateWizard = () => {
     if (!wizardDriver?.id) {
       showErrorAlert("Selecione um motorista.");
@@ -1440,8 +1541,18 @@ const DocumentsPage: React.FC = () => {
       showErrorAlert("Finalize o checklist antes de gerar o PDF.");
       return;
     }
+    if (isStructuredChecklist && savedDocument?.id) {
+      // Finalized checklist: only the document's PDF (a retry after a failure included).
+      setIsActionLoading(true);
+      const issued = await issueChecklistPdf(savedDocument.id);
+      setIsActionLoading(false);
+      if (!issued) {
+        showErrorAlert("Falha ao gerar o PDF. Tente novamente.");
+      }
+      return;
+    }
     // A legacy checklist draft keeps the old flow (saved, finalized without automation, PDF).
-    const draft = isStructuredChecklist ? savedDocument : (await saveDraft()) || savedDocument;
+    const draft = (await saveDraft()) || savedDocument;
     if (!draft?.id) {
       return;
     }
@@ -1519,6 +1630,10 @@ const DocumentsPage: React.FC = () => {
       setChecklistFeedback(result?.reserveReturn ? describeReserveReturn(result.reserveReturn, wizardDriver?.name).message : "");
       showSuccessToast(checklistType === "DEVOLUCAO" ? "Devolução finalizada." : "Entrega finalizada.");
       await loadDocuments();
+      // Only after the confirmed finalization: the PDF of the FINAL document (a failure keeps Gerar PDF to retry).
+      if (!(await issueChecklistPdf(draft.id))) {
+        showErrorAlert("Checklist finalizado, mas o PDF não pôde ser gerado agora. Use Gerar PDF para tentar novamente.");
+      }
     } catch (error) {
       const conflict = getAssignmentConflict(error);
       if (conflict && !assignment) {
@@ -1751,6 +1866,11 @@ const DocumentsPage: React.FC = () => {
           <p>
             Vistoria: {formatChecklistDate(payload.dataVistoria, payload.horaVistoria) || "-"} · KM: {`${payload.km ?? "-"}`} ·
             Combustível: {fuelLevelLabel(payload.combustivel) || "-"}
+          </p>
+        )}
+        {checklistPdfFailed && (
+          <p className="documents-warning" role="alert" data-testid="checklist-pdf-failed">
+            O PDF não foi gerado. Use Gerar PDF para tentar novamente: o checklist não é finalizado de novo.
           </p>
         )}
         <p className="documents-hint">Gerar o PDF não altera o vínculo, a inspeção nem o hodômetro.</p>

@@ -31,6 +31,7 @@ import { filterListObj } from "../../services/filterList";
 import ItemNotFound from "../../components/List/ItemNotFound";
 import { RouteComponentProps, useHistory, useLocation } from "react-router";
 import DriverAdd from "./DriverAddModal/DriverAdd";
+import DriverVehicleHistory from "./DriverVehicleHistory";
 import { DriverCarBadges, DriverCarLifecycleActions } from "./DriverCarLifecycle";
 import { driverCarStatus, groupDriverCars } from "../../services/driverAssignmentService";
 import { formatDateView } from "../../services/dateFormat";
@@ -53,6 +54,8 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchValue, setSearchValue] = useState<string | undefined>(undefined);
   const [driverList, setDriversList] = useState<CarDriverModel[]>([]);
+  /** Driver whose vehicle history (all cars of this account) is open. */
+  const [historyDriver, setHistoryDriver] = useState<{ id: number; name?: string } | null>(null);
   const [debtSummaryByDriverId, setDebtSummaryByDriverId] = useState<
     Record<number, DriverDebtSummaryModel>
   >({});
@@ -170,6 +173,13 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
     nav.push(`/menu/carros/motorista/${carDriver.id}/pendencias`);
   };
 
+  const openVehicleHistory = (event: MouseEvent, carDriver?: CarDriverModel) => {
+    event.stopPropagation();
+    if (carDriver?.driver?.id) {
+      setHistoryDriver({ id: carDriver.driver.id, name: carDriver.driver.name });
+    }
+  };
+
   const openDriverEditor = useCallback(
     (carDriver: CarDriverModel) => {
       setModalDriver(carDriver);
@@ -213,6 +223,7 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
                 outstandingDebt={getOutstandingDebt(carDriver)}
                 onOpen={() => openDriverEditor(carDriver)}
                 onOpenPendencies={(event) => openDriverPendencies(event, carDriver)}
+                onOpenHistory={(event) => openVehicleHistory(event, carDriver)}
                 onChanged={() => loadDrivers()}
               />
             ))}
@@ -234,6 +245,7 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
                 outstandingDebt={getOutstandingDebt(carDriver)}
                 onOpen={() => openDriverEditor(carDriver)}
                 onOpenPendencies={(event) => openDriverPendencies(event, carDriver)}
+                onOpenHistory={(event) => openVehicleHistory(event, carDriver)}
                 onChanged={() => loadDrivers()}
               />
             ))}
@@ -243,6 +255,15 @@ const Drivers: React.FC<DriverDetail> = ({ match }) => {
           </IonList>
         </div>
       </IonContent>
+      <IonModal isOpen={Boolean(historyDriver)} onDidDismiss={() => setHistoryDriver(null)}>
+        {historyDriver && (
+          <DriverVehicleHistory
+            driverId={historyDriver.id}
+            driverName={historyDriver.name}
+            onClose={() => setHistoryDriver(null)}
+          />
+        )}
+      </IonModal>
       <IonModal isOpen={isModalOpen} backdropDismiss={false}>
         <DriverAdd
           carId={match.params.id}
@@ -261,8 +282,10 @@ export const DriverRow: React.FC<{
   outstandingDebt: number;
   onOpen: () => void;
   onOpenPendencies: (event: MouseEvent) => void;
+  /** Vehicle history of this driver (all cars of the account); absent where the row is shown without it. */
+  onOpenHistory?: (event: MouseEvent) => void;
   onChanged: () => void;
-}> = ({ carDriver, outstandingDebt, onOpen, onOpenPendencies, onChanged }) => {
+}> = ({ carDriver, outstandingDebt, onOpen, onOpenPendencies, onOpenHistory, onChanged }) => {
   const hasDebt = outstandingDebt > 0;
   const contractLabel = formatDriverContract(carDriver?.contractNumber);
   const period =
@@ -304,6 +327,11 @@ export const DriverRow: React.FC<{
             >
               {TEXT.driverPendencies}
             </IonButton>
+            {onOpenHistory && carDriver?.driver?.id && (
+              <IonButton className="app-outline-btn" size="small" fill="outline" onClick={onOpenHistory}>
+                Histórico de veículos
+              </IonButton>
+            )}
           </div>
         </div>
       </div>

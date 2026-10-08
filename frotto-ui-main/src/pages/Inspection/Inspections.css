@@ -12,6 +12,22 @@
   gap: 12px;
 }
 
+.inspection-list-entry {
+  display: grid;
+  gap: 6px;
+}
+
+.inspection-list-entry__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.inspection-list-item__origin {
+  margin-top: 6px;
+}
+
 .inspection-list-item {
   --background: transparent;
   --border-color: transparent;

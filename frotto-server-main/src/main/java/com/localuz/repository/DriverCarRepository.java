@@ -14,6 +14,17 @@ public interface DriverCarRepository extends JpaRepository<DriverCar, Long> {
     )
     List<DriverCar> findByCurrentUserAndCarIdByDate(@Param("carId") Long carId);
 
+    /**
+     * Vehicle history of one driver in this account: every contract (open or concluded) on a car of the current user,
+     * most recent first. A driver shared with another account never brings that account's cars.
+     */
+    @Query(
+        "select driverCar from DriverCar driverCar join fetch driverCar.car car " +
+        "where car.user.login = ?#{principal.username} and driverCar.driver.id = :driverId " +
+        "order by driverCar.startDate desc, driverCar.id desc"
+    )
+    List<DriverCar> findHistoryByCurrentUserAndDriver(@Param("driverId") Long driverId);
+
     @Query(
         "select driverCar from DriverCar driverCar  join driverCar.car car  where car.user.login = ?#{principal.username} and driverCar.id = :id"
     )
