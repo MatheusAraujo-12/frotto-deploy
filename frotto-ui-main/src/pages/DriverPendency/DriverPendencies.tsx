@@ -10,7 +10,6 @@ import {
   IonContent,
   IonHeader,
   IonIcon,
-  IonItem,
   IonModal,
   IonPage,
   IonProgressBar,
@@ -58,6 +57,7 @@ import DriverPendencyPaymentModal, {
 } from "./DriverPendencyPaymentModal";
 import "./DriverPendencies.css";
 import "./DriverPendenciesSummary.css";
+import { isCardActivationKey, isFromInnerControl } from "./cardSelection";
 import DebtConfessionPreviewView from "./DebtConfessionPreview";
 import {
   DRIVER_CHARGE_ERROR_MESSAGES,
@@ -704,16 +704,26 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                     const selected = driverPendency.id !== undefined && selectedIds.includes(driverPendency.id);
                     const blockReason = selected ? null : selectionBlockReason(driverPendency, selectedDebtorId);
 
+                    // The card's free area selects an open debt (a paid one opens it); its controls only do their own action.
+                    const activateCard = () => (paid ? openPendencyEditor(driverPendency) : toggleConfessionSelection(driverPendency));
                     return (
-                      <IonItem
+                      <div
                         className={`driver-pendency-list-item ${statusClassName(driverPendency.status)}${
                           blockReason === DIFFERENT_DEBTORS_MESSAGE ? " driver-pendency-list-item--other-debtor" : ""
-                        }`.trim()}
+                        }${selected ? " driver-pendency-list-item--selected" : ""}`.trim()}
                         key={driverPendency.id ?? `driver-pendency-${index}`}
-                        button
-                        detail={false}
-                        onClick={() => {
-                          openPendencyEditor(driverPendency);
+                        role="group"
+                        tabIndex={0}
+                        aria-label={driverPendency.name || "Pendência"}
+                        data-testid="driver-pendency-card"
+                        onClick={(event) => {
+                          if (!isFromInnerControl(event)) activateCard();
+                        }}
+                        onKeyDown={(event) => {
+                          if (isCardActivationKey(event)) {
+                            event.preventDefault();
+                            activateCard();
+                          }
                         }}
                       >
                         <div className="driver-pendency-list-item__wrap">
@@ -725,7 +735,7 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                               disabled={Boolean(blockReason) && blockReason !== DIFFERENT_DEBTORS_MESSAGE}
                               title={blockReason || undefined}
                               onClick={(event) => {
-                                event.stopPropagation();
+                                // Controlled by the selection: the toggle decides its state (the card ignores this click).
                                 event.preventDefault();
                                 toggleConfessionSelection(driverPendency);
                               }}
@@ -816,10 +826,7 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                                 size="small"
                                 fill="outline"
                                 className="app-outline-btn"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  openPendencyEditor(driverPendency);
-                                }}
+                                onClick={() => openPendencyEditor(driverPendency)}
                               >
                                 <IonIcon icon={createOutline} slot="start" />
                                 {TEXT.edit}
@@ -831,10 +838,7 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                                   fill="outline"
                                   className="app-outline-btn"
                                   disabled={issuingId !== null}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    issueDocument(driverPendency);
-                                  }}
+                                  onClick={() => issueDocument(driverPendency)}
                                 >
                                   <IonIcon icon={documentAttachOutline} slot="start" />
                                   {issuingId === driverPendency.id ? "Emitindo..." : "Emitir documento"}
@@ -847,10 +851,7 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                                   color="success"
                                   fill="outline"
                                   className="driver-pendency-list-item__settle-btn"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    openPaymentModal(driverPendency);
-                                  }}
+                                  onClick={() => openPaymentModal(driverPendency)}
                                 >
                                   <IonIcon
                                     icon={checkmarkDoneCircleOutline}
@@ -862,7 +863,7 @@ const DriverPendencies: React.FC<DriverPendencyDetail> = ({ match }) => {
                             </div>
                           </div>
                         </div>
-                      </IonItem>
+                      </div>
                     );
                   })}
                 </div>

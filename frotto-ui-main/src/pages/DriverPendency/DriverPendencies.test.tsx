@@ -264,3 +264,142 @@ describe("Pendências → origem estrutural e documento da pendência", () => {
     expect(await screen.findByTestId("pendency-kind")).toBeInTheDocument();
   });
 });
+
+describe("Pendências → card selecionável × controles internos", () => {
+  const OPEN = JOAO_PENDENCIES.find((pendency) => pendency.status === "OPEN")!;
+  const FINE = { ...OPEN, id: 70, name: "Multa de trânsito", originType: "FINE", fineAit: "AIT-1" };
+  const SHARE = { ...OPEN, id: 71, name: "Pneu dividido", originType: "SHARED_MAINTENANCE", originMaintenanceId: 101 };
+  const PAID = { ...JOAO_PENDENCIES.find((pendency) => pendency.status === "PAID")!, id: 72, name: "Aluguel quitado" };
+
+  beforeAll(() => {
+    (global as any).IntersectionObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  });
+  beforeEach(() => jest.resetAllMocks());
+
+  const cardOf = (name: string) =>
+    Array.from(document.querySelectorAll<HTMLElement>('[data-testid="driver-pendency-card"]')).find(
+      (card) => card.querySelector(".driver-pendency-list-item__title")?.textContent === name
+    ) as HTMLElement;
+  /** A click on the card's free area (its title text: no control there). */
+  const clickFreeArea = (name: string) => click(cardOf(name).querySelector(".driver-pendency-list-item__title")!);
+  const controlOf = (name: string, label: string) =>
+    Array.from(cardOf(name).querySelectorAll("ion-button")).find((button) => button.textContent?.includes(label)) as HTMLElement;
+  const selectedCount = () => {
+    const match = /Gerar Confissão de Dívida \((\d+)\)/.exec(document.body.textContent || "");
+    return match ? Number(match[1]) : 0;
+  };
+  const openModals = () => Array.from(document.querySelectorAll("ion-modal")).filter((modal: any) => modal.isOpen === true);
+  const key = async (element: Element, keyName: string) => {
+    await act(async () => {
+      fireEvent.keyDown(element, { key: keyName });
+    });
+  };
+  const renderCards = async () => {
+    renderPage([FINE, SHARE, PAID]);
+    await screen.findByText("Aluguel quitado");
+  };
+
+  it("the free area selects a Multa and a second click unselects it", async () => {
+    await renderCards();
+
+    await clickFreeArea("Multa de trânsito");
+    expect(selectedCount()).toBe(1);
+    expect(cardOf("Multa de trânsito")).toHaveClass("driver-pendency-list-item--selected");
+
+    await clickFreeArea("Multa de trânsito");
+    expect(selectedCount()).toBe(0);
+    expect(cardOf("Multa de trânsito")).not.toHaveClass("driver-pendency-list-item--selected");
+  });
+
+  it("a Manutenção Compartilhada is selected by its free area and earlier selections stay", async () => {
+    await renderCards();
+
+    await clickFreeArea("Multa de trânsito");
+    await clickFreeArea("Pneu dividido");
+
+    expect(selectedCount()).toBe(2);
+    expect(mockedApi.post).not.toHaveBeenCalled();
+  });
+
+  it("Quitar dívida opens the payment and never changes the selection", async () => {
+    await renderCards();
+    await clickFreeArea("Multa de trânsito");
+    expect(openModals()).toHaveLength(0);
+
+    await click(controlOf("Pneu dividido", "Quitar dívida"));
+    await click(controlOf("Multa de trânsito", "Quitar dívida"));
+
+    expect(openModals().length).toBeGreaterThan(0);
+    expect(selectedCount()).toBe(1);
+    expect(cardOf("Multa de trânsito")).toHaveClass("driver-pendency-list-item--selected");
+    expect(cardOf("Pneu dividido")).not.toHaveClass("driver-pendency-list-item--selected");
+  });
+
+  it("Editar opens the editor and never changes the selection", async () => {
+    await renderCards();
+    await clickFreeArea("Pneu dividido");
+
+    await click(controlOf("Pneu dividido", "Editar"));
+    await click(controlOf("Multa de trânsito", "Editar"));
+
+    expect((document.querySelector(".driver-pendency-main-modal") as any).isOpen).toBe(true);
+    expect(selectedCount()).toBe(1);
+    expect(cardOf("Pneu dividido")).toHaveClass("driver-pendency-list-item--selected");
+  });
+
+  it("Emitir documento issues the document and never changes the selection", async () => {
+    await renderCards();
+    await clickFreeArea("Multa de trânsito");
+    const stored = { id: 31, type: "MULTA", status: "FINAL", payload: { origem: { tipo: "PENDENCIA", pendencyId: 70 } } };
+    mockedApi.post.mockResolvedValueOnce({ data: { id: 31, type: "MULTA", status: "FINAL" } }).mockResolvedValueOnce({ data: stored });
+    const previousGet = mockedApi.get.getMockImplementation()!;
+    mockedApi.get.mockImplementation((url: string) => (url === "/api/documents/31" ? Promise.resolve({ data: stored }) : previousGet(url)));
+
+    await click(controlOf("Multa de trânsito", "Emitir documento"));
+
+    await waitFor(() => expect(generateDocumentPdf).toHaveBeenCalledWith(stored));
+    expect(mockedApi.post.mock.calls[0][0]).toBe("/api/pendencies/70/document");
+    expect(selectedCount()).toBe(1);
+  });
+
+  it("the checkbox still toggles the selection exactly once", async () => {
+    await renderCards();
+
+    await click(checkboxOf("Multa de trânsito"));
+    expect(selectedCount()).toBe(1);
+    await click(checkboxOf("Multa de trânsito"));
+    expect(selectedCount()).toBe(0);
+  });
+
+  it("keyboard: Enter / Space on the card toggle it; Enter on an inner control is that control's", async () => {
+    await renderCards();
+    const card = cardOf("Multa de trânsito");
+    expect(card).toHaveAttribute("tabindex", "0");
+
+    await key(card, "Enter");
+    expect(selectedCount()).toBe(1);
+    await key(card, " ");
+    expect(selectedCount()).toBe(0);
+
+    // Enter on the button: the card ignores the key; the browser then activates the button (its click).
+    const settle = controlOf("Multa de trânsito", "Quitar dívida");
+    await key(settle, "Enter");
+    expect(selectedCount()).toBe(0);
+    await click(settle);
+    expect(openModals().length).toBeGreaterThan(0);
+    expect(selectedCount()).toBe(0);
+  });
+
+  it("a paid debt is never selected: its free area opens it, as before", async () => {
+    await renderCards();
+
+    await clickFreeArea("Aluguel quitado");
+
+    expect(selectedCount()).toBe(0);
+    expect((document.querySelector(".driver-pendency-main-modal") as any).isOpen).toBe(true);
+  });
+});

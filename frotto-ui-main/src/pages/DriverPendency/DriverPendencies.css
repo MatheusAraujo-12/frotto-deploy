@@ -51,43 +51,44 @@
   gap: 12px;
 }
 
+/* A plain container (not an ion-item button): its controls are never covered nor nested in a button. */
 .driver-pendency-list-item {
-  --background: transparent;
-  --border-color: transparent;
-  --inner-border-width: 0;
-  --inner-box-shadow: none;
-  --padding-start: 0;
-  --inner-padding-end: 0;
-  --min-height: auto;
   margin: 0;
-}
-
-.driver-pendency-list-item::part(native) {
   background: var(--app-card);
   border: var(--app-border);
   border-radius: 16px;
   box-shadow: var(--app-shadow);
   padding: 12px 14px;
+  cursor: pointer;
   transition: transform 0.12s ease, box-shadow 0.15s ease,
     border-color 0.15s ease;
 }
 
-.driver-pendency-list-item:hover::part(native),
-.driver-pendency-list-item:active::part(native) {
+.driver-pendency-list-item:hover,
+.driver-pendency-list-item:active {
   transform: translateY(-1px);
   box-shadow: var(--app-shadow-hover);
 }
 
-.driver-pendency-list-item--open::part(native) {
+.driver-pendency-list-item:focus-visible {
+  outline: 2px solid var(--ion-color-primary);
+  outline-offset: 2px;
+}
+
+.driver-pendency-list-item--open {
   border-color: rgba(var(--ion-color-warning-rgb), 0.22);
 }
 
-.driver-pendency-list-item--partial::part(native) {
+.driver-pendency-list-item--partial {
   border-color: rgba(var(--frotto-info-rgb), 0.22);
 }
 
-.driver-pendency-list-item--paid::part(native) {
+.driver-pendency-list-item--paid {
   border-color: rgba(var(--ion-color-success-rgb), 0.22);
+}
+
+.driver-pendency-list-item--selected {
+  border-color: var(--ion-color-primary);
 }
 
 .driver-pendency-list-item__wrap {
