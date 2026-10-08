@@ -2,6 +2,7 @@ package com.localuz.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.localuz.domain.enumeration.FuelLevel;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -10,6 +11,8 @@ import java.util.Set;
 import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.EnumType;
+import javax.persistence.Enumerated;
 import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
@@ -106,6 +109,18 @@ public class Inspection implements Serializable {
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private Car car;
 
+    /** The finalized checklist that generated this inspection (UNIQUE: one per checklist). Never set by clients. */
+    @Column(name = "origin_document_id")
+    private Long originDocumentId;
+
+    /** The contract (driver_car) inspected at the delivery / return. Never set by clients. */
+    @Column(name = "driver_car_id")
+    private Long driverCarId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "fuel_level", length = 20)
+    private FuelLevel fuelLevel;
+
     // jhipster-needle-entity-add-field - JHipster will add fields here
 
     public Long getId() {
@@ -145,6 +160,34 @@ public class Inspection implements Serializable {
 
     public void setDriverName(String driverName) {
         this.driverName = driverName;
+    }
+
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    public Long getOriginDocumentId() {
+        return originDocumentId;
+    }
+
+    public void setOriginDocumentId(Long originDocumentId) {
+        this.originDocumentId = originDocumentId;
+    }
+
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    public Long getDriverCarId() {
+        return driverCarId;
+    }
+
+    public void setDriverCarId(Long driverCarId) {
+        this.driverCarId = driverCarId;
+    }
+
+    /** Recorded by the Entrega/Devolução checklist that created the inspection (server-owned, read-only in JSON). */
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    public FuelLevel getFuelLevel() {
+        return fuelLevel;
+    }
+
+    public void setFuelLevel(FuelLevel fuelLevel) {
+        this.fuelLevel = fuelLevel;
     }
 
     public Float getOdometer() {

@@ -1,3 +1,5 @@
+import { ReserveReturnResultModel } from "./CarModels";
+
 export type DocumentType =
   | "MULTA"
   | "MANUTENCAO_COMPARTILHADA"
@@ -43,6 +45,14 @@ export interface DocumentModel {
    * References absent from the map keep the legacy resolution. Only in the document detail.
    */
   attachmentUrls?: Record<string, string>;
+  /** Entrega/Devolução checklist: ENTREGA | DEVOLUCAO (structured checklists; null on documents of the old wizard). */
+  checklistType?: "ENTREGA" | "DEVOLUCAO" | null;
+  /** The contract the checklist delivers / returns (set by the backend on finalization of an Entrega). */
+  driverCarId?: number | null;
+  /** The inspection created by the finalization of the checklist (only in the document detail). */
+  inspectionId?: number | null;
+  /** Only in the response of the finalization of a Devolução of a reserve car. */
+  reserveReturn?: ReserveReturnResultModel | null;
 }
 
 export interface DocumentSavePayload {
@@ -53,6 +63,8 @@ export interface DocumentSavePayload {
   payload?: Record<string, any>;
   attachments?: string[];
   pdfUrl?: string | null;
+  checklistType?: "ENTREGA" | "DEVOLUCAO" | null;
+  driverCarId?: number | null;
 }
 
 export const DOCUMENT_TYPES: Array<{ value: DocumentType; label: string }> = [

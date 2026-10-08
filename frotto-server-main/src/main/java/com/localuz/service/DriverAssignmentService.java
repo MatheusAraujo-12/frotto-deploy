@@ -1,6 +1,7 @@
 package com.localuz.service;
 
 import com.localuz.domain.Car;
+import com.localuz.domain.Driver;
 import com.localuz.domain.DriverCar;
 import com.localuz.domain.enumeration.DriverAssignmentType;
 import com.localuz.repository.CarRepository;
@@ -13,6 +14,11 @@ import com.localuz.web.rest.errors.DriverAssignmentConflictException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
+import javax.persistence.EntityManager;
+import javax.persistence.LockModeType;
+import javax.persistence.PersistenceException;
+import org.springframework.dao.DataAccessException;
+import org.springframework.orm.jpa.EntityManagerFactoryUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +35,10 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Contracts are history: their pendencies stay on them (origin) and with their frozen debtor; nothing here ever
  * touches a pendency. Every change that makes a contract operational runs under the car lock, then the driver lock,
  * and decides with counts read from the database.
+ *
+ * <p>Callers run in READ COMMITTED (the DriverCar routes and /documents/{id}/finalize declare it): the counts read after
+ * the locks must see what the previous holder of the locks committed - a REPEATABLE READ snapshot taken before them
+ * would not. Rows loaded before the locks are re-read under them ({@link #lockContract}).
  */
 @Service
 @Transactional(propagation = Propagation.MANDATORY)
@@ -41,17 +51,20 @@ public class DriverAssignmentService {
     private final DriverRepository driverRepository;
     private final CarRepository carRepository;
     private final PendencyRepository pendencyRepository;
+    private final EntityManager entityManager;
 
     public DriverAssignmentService(
         DriverCarRepository driverCarRepository,
         DriverRepository driverRepository,
         CarRepository carRepository,
-        PendencyRepository pendencyRepository
+        PendencyRepository pendencyRepository,
+        EntityManager entityManager
     ) {
         this.driverCarRepository = driverCarRepository;
         this.driverRepository = driverRepository;
         this.carRepository = carRepository;
         this.pendencyRepository = pendencyRepository;
+        this.entityManager = entityManager;
     }
 
     /**
@@ -63,9 +76,65 @@ public class DriverAssignmentService {
     }
 
     public void lockForAssignment(Long carId, Long driverId) {
-        carRepository.findByIdForUpdate(carId);
+        if (carId != null) {
+            lockRow(Car.class, carId, () -> carRepository.findByIdForUpdate(carId));
+        }
         if (driverId != null) {
-            driverRepository.findByIdForUpdate(driverId);
+            lockRow(Driver.class, driverId, () -> driverRepository.findByIdForUpdate(driverId));
+        }
+    }
+
+    /**
+     * Locks everything an operation on this contract may change, always in the domain order: the cars (ascending id),
+     * then the driver, then the contract rows. A reserve also takes its primary's car and row up front - returning it
+     * may restore the primary - so a return never waits for a car while holding the driver (the order of /restore,
+     * POST / PUT and the checklist: no lock cycle). The caller read the contract before the locks: it is re-read under
+     * them, so every decision (open, suspended, concluded) is taken on the latest committed rows and the save never
+     * writes back what another request changed.
+     */
+    public void lockContract(DriverCar contract) {
+        Long primaryId = contract.getPrimaryDriverCarId();
+        Long carId = contract.getCar() == null ? null : contract.getCar().getId();
+        Long primaryCarId = primaryId == null ? null : driverCarRepository.findCarIdById(primaryId);
+        java.util.stream.Stream.of(carId, primaryCarId)
+            .filter(java.util.Objects::nonNull)
+            .distinct()
+            .sorted()
+            .forEach(id -> lockRow(Car.class, id, () -> carRepository.findByIdForUpdate(id)));
+        lockForAssignment((Long) null, contract.getDriver() == null ? null : contract.getDriver().getId());
+        lockRow(DriverCar.class, contract.getId(), () -> driverCarRepository.findByIdForUpdate(contract.getId()));
+        if (primaryId != null) {
+            lockRow(DriverCar.class, primaryId, () -> driverCarRepository.findByIdForUpdate(primaryId));
+        }
+    }
+
+    /**
+     * Only the contract row (locked and re-read), for a caller that already holds the car and driver locks of the
+     * contract and changes nothing else (a delivery registered on an existing contract): keeps the domain order.
+     */
+    public void lockContractRow(DriverCar contract) {
+        lockRow(DriverCar.class, contract.getId(), () -> driverCarRepository.findByIdForUpdate(contract.getId()));
+    }
+
+    /**
+     * SELECT ... FOR UPDATE that also refreshes the managed instance: an entity loaded before the lock (with the
+     * document, the contract, the route's first read) is never decided on nor saved with its stale state. Once locked in
+     * this transaction the row is not re-read again (pending changes stay). A row that does not exist has nothing to lock.
+     */
+    private void lockRow(Class<?> type, Long id, Runnable lockingQuery) {
+        try {
+            Object entity = entityManager.find(type, id);
+            if (entity == null) {
+                lockingQuery.run();
+                return;
+            }
+            if (entityManager.getLockMode(entity) != LockModeType.PESSIMISTIC_WRITE) {
+                entityManager.refresh(entity, LockModeType.PESSIMISTIC_WRITE);
+            }
+        } catch (PersistenceException e) {
+            // A lock timeout / deadlock victim: the same Spring exception a repository would throw (409, retry).
+            DataAccessException translated = EntityManagerFactoryUtils.convertJpaAccessExceptionIfPossible(e);
+            throw translated != null ? translated : e;
         }
     }
 
@@ -133,8 +202,34 @@ public class DriverAssignmentService {
         return primary;
     }
 
+    /**
+     * New open contract of an existing driver on {@code car} with the same rules as POST /driver-cars: locks, the car
+     * must be free, and the explicit PERMANENT / RESERVE choice applied by {@link #prepareAssignment} (a conflict
+     * without a choice is the same 409 the contract screen answers). Used by the Checklist de Entrega.
+     */
+    public DriverCar openContract(Driver driver, Car car, DriverAssignmentType type, LocalDate startDate) {
+        lockForAssignment(car, driver.getId());
+        if (isCarOccupied(car.getId(), null)) {
+            throw new BadRequestAlertException("Active Driver-Car exists, may not add another active driver", ENTITY_NAME, "activedriverexists");
+        }
+        DriverCar contract = new DriverCar();
+        contract.setCar(car);
+        contract.setDriver(driver);
+        contract.setStartDate(startDate);
+        contract.setConcluded(false);
+        contract.setSuspended(false);
+        contract.setPrimaryDriverCar(prepareAssignment(driver.getId(), car, type, startDate));
+        return driverCarRepository.save(contract);
+    }
+
+    /** Concludes a contract as the contract screen does when it is closed (never suspended afterwards). */
+    public void concludeContract(DriverCar contract, LocalDate date) {
+        conclude(contract, date);
+    }
+
     /** POST /return: concludes an active reserve and restores its primary when that is safe. */
     public ReserveReturnResultDTO returnReserve(DriverCar reserve, LocalDate endDate) {
+        lockContract(reserve);
         if (!reserve.isReserve()) {
             throw new BadRequestAlertException("O vínculo não é de carro reserva.", ENTITY_NAME, "drivercarnotreserve");
         }
@@ -154,6 +249,7 @@ public class DriverAssignmentService {
         Long primaryId = reserve.getPrimaryDriverCarId();
         Long driverId = reserve.getDriver() == null ? null : reserve.getDriver().getId();
         lockForAssignment(driverCarRepository.findCarIdById(primaryId), driverId);
+        lockRow(DriverCar.class, primaryId, () -> driverCarRepository.findByIdForUpdate(primaryId));
         DriverCar primary = driverCarRepository.findById(primaryId).orElseThrow();
 
         ReserveReturnResultDTO result = new ReserveReturnResultDTO();
@@ -187,11 +283,11 @@ public class DriverAssignmentService {
 
     /** POST /restore: a SUSPENDED primary back to ACTIVE once its car is free and its driver operates no other car. */
     public DriverCar restorePrimary(DriverCar primary) {
+        lockContract(primary);
         if (primary.isReserve() || Boolean.TRUE.equals(primary.getConcluded()) || !Boolean.TRUE.equals(primary.getSuspended())) {
             throw new BadRequestAlertException("Somente um vínculo principal suspenso pode ser restaurado.", ENTITY_NAME, "drivercarnotsuspended");
         }
         Long driverId = primary.getDriver() == null ? null : primary.getDriver().getId();
-        lockForAssignment(primary.getCar().getId(), driverId);
         if (isCarOccupied(primary.getCar().getId(), primary.getId())) {
             DriverCar occupying = driverCarRepository.findOperationalOnCar(primary.getCar().getId()).stream().findFirst().orElse(null);
             throw new DriverAssignmentConflictException(

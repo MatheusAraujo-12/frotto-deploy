@@ -102,7 +102,7 @@ class DriverCarResourceDriverChangeTest {
         pendencies = mock(PendencyRepository.class);
         when(driverCars.findOpenByCurrentUserAndDriver(anyLong()))
             .thenAnswer(call -> contracts.values().stream().filter(dc -> dc.getDriver() != null && dc.getDriver().getId().equals(call.getArgument(0)) && !Boolean.TRUE.equals(dc.getConcluded())).collect(Collectors.toList()));
-        resource = new DriverCarResource(driverCars, cars, addresses, drivers, new DriverAssignmentService(driverCars, drivers, cars, pendencies));
+        resource = new DriverCarResource(driverCars, cars, addresses, drivers, new DriverAssignmentService(driverCars, drivers, cars, pendencies, mock(javax.persistence.EntityManager.class)));
         ReflectionTestUtils.setField(resource, "applicationName", "localmaisApp");
 
         own(pendency(1000L, contract100, "Aluguel atrasado", "500.00"));

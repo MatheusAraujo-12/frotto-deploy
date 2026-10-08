@@ -70,6 +70,7 @@
     <include file="config/liquibase/changelog/20261005000000_add_pendency_debtor.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20261006000000_driver_car_reserve.xml" relativeToChangelogFile="false"/>
     <include file="config/liquibase/changelog/20261007000000_pendency_origin.xml" relativeToChangelogFile="false"/>
+    <include file="config/liquibase/changelog/20261008000000_checklist_inspection.xml" relativeToChangelogFile="false"/>
     <!-- jhipster-needle-liquibase-add-changelog - JHipster will add liquibase changelogs here -->
     <include file="config/liquibase/changelog/20220930140417_added_entity_constraints_Car.xml" relativeToChangelogFile="false"/>
     <!-- jhipster-needle-liquibase-add-constraints-changelog - JHipster will add liquibase constraints changelogs here -->

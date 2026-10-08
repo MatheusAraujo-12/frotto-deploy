@@ -241,6 +241,9 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
     [getValues, updateField, nav]
   );
 
+  /** Created by a finalized Entrega/Devolução checklist: the record of that operation, read-only (the backend refuses edits). */
+  const fromChecklist = Boolean(initialValues?.originDocumentId);
+
   const onSubmit = async (newInspectionForm: InspectionForm) => {
     const newInspection = inspectionFormtoInspection(newInspectionForm);
     setIsLoading(true);
@@ -306,13 +309,15 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
           </IonButtons>
           <IonTitle>{TEXT.addCarInspection}</IonTitle>
           <IonButtons slot="end">
-            <IonButton
-              className="app-save-btn"
-              disabled={isLoading}
-              onClick={handleSubmit(onSubmit, onInvalid)}
-            >
-              {TEXT.save}
-            </IonButton>
+            {!fromChecklist && (
+              <IonButton
+                className="app-save-btn"
+                disabled={isLoading}
+                onClick={handleSubmit(onSubmit, onInvalid)}
+              >
+                {TEXT.save}
+              </IonButton>
+            )}
           </IonButtons>
           {isLoading && <IonProgressBar type="indeterminate" />}
         </IonToolbar>
@@ -321,6 +326,12 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
       <IonContent>
         <div className="app-shell app-shell--compact">
           <section className="app-section">
+            {fromChecklist && (
+              <p className="documents-warning" data-testid="inspection-from-checklist">
+                Inspeção gerada pelo checklist de entrega/devolução finalizado: ela registra essa operação e não pode ser
+                alterada nem excluída.
+              </p>
+            )}
             <FrottoCard>
               <IonCardHeader className="app-panel-header">
                 <div className="app-soft-icon">
@@ -582,6 +593,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     <IonButton
                       fill="clear"
                       className="app-outline-btn"
+                      hidden={fromChecklist}
                       onClick={(e) => {
                         e.preventDefault();
                         setActiveExpense({});
@@ -654,6 +666,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
                     <IonButton
                       fill="clear"
                       className="app-outline-btn"
+                      hidden={fromChecklist}
                       onClick={(e) => {
                         e.preventDefault();
                         setActiveCarBodyDamage({
@@ -699,7 +712,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
               </IonCardContent>
             </FrottoCard>
 
-            {formInitial.id && (
+            {formInitial.id && !fromChecklist && (
               <div>
                 <FormDeleteButton
                   label={`${TEXT.delete} ${TEXT.inspection}`}

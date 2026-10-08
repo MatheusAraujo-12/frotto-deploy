@@ -157,7 +157,7 @@ class DriverAssignmentFlowTest {
                     .collect(Collectors.toList())
             );
 
-        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies);
+        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies, mock(javax.persistence.EntityManager.class));
         resource = new DriverCarResource(driverCars, cars, mock(AddressRepository.class), drivers, assignments);
         ReflectionTestUtils.setField(resource, "applicationName", "localmaisApp");
         pendencyResource = new PendencyResource(pendencies, driverCars, drivers, mock(DebtConfessionService.class), mock(DriverChargeService.class));

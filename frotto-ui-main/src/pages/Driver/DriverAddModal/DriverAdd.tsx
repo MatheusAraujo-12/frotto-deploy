@@ -80,6 +80,9 @@ const DRIVER_FORM_FIELDS: Array<keyof DriverForm> = [
   "driverContact",
   "driverEmergencyContact",
   "driverEmergencyContactSecond",
+  "driverContactsLoaded",
+  "driverLoadedEmergencyContact",
+  "driverLoadedEmergencyContactSecond",
   "driverDocumentDriverLicense",
   "driverDocumentDriverRegister",
   "driverPublicScore",
@@ -179,6 +182,11 @@ const DriverAdd: React.FC<DriverAddModalProps> = ({
       "driverEmergencyContact",
       driver.emergencyContact ? driver.emergencyContact : ""
     );
+    updateField("driverEmergencyContactSecond", driver.emergencyContactSecond ? driver.emergencyContactSecond : "");
+    // What the form now shows of this driver: the base of a later edit of the contacts.
+    updateField("driverContactsLoaded", true);
+    updateField("driverLoadedEmergencyContact", driver.emergencyContact ? driver.emergencyContact : "");
+    updateField("driverLoadedEmergencyContactSecond", driver.emergencyContactSecond ? driver.emergencyContactSecond : "");
     updateField(
       "driverPublicScore",
       driver.publicScore !== undefined && driver.publicScore !== null

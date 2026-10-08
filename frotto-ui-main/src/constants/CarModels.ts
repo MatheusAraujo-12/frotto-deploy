@@ -102,6 +102,12 @@ export interface InspectionModel {
   expenses?: InspectionExpenseModel[];
   carBodyDamages?: CarBodyDamageModel[];
   delete?: boolean;
+  /** EMPTY | QUARTER | HALF | THREE_QUARTERS | FULL (inspections created by an Entrega/Devolução checklist). */
+  fuelLevel?: string | null;
+  /** Read-only: the finalized checklist that created this inspection (it cannot be deleted). */
+  originDocumentId?: number | null;
+  /** Read-only: the contract of that checklist. */
+  driverCarId?: number | null;
 }
 
 export interface AdressModel {
@@ -126,6 +132,8 @@ export interface DriverModel {
   documentDriverLicense?: string;
   documentDriverRegister?: string;
   publicScore?: string | number;
+  /** Request-only: the two emergency contacts as the form loaded them (the backend applies only what the user changed). */
+  loadedEmergencyContacts?: string[];
   averageKm?: number;
   averageInspectioScore?: number;
   averageDriverCarScore?: number;

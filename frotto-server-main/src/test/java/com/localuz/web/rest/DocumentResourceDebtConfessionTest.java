@@ -23,6 +23,7 @@ import com.localuz.repository.DriverCarRepository;
 import com.localuz.repository.DriverDocumentRepository;
 import com.localuz.repository.DriverRepository;
 import com.localuz.repository.PendencyRepository;
+import com.localuz.service.ChecklistService;
 import com.localuz.service.DebtConfessionService;
 import com.localuz.service.UserService;
 import com.localuz.service.dto.DocumentDTO;
@@ -149,7 +150,8 @@ class DocumentResourceDebtConfessionTest {
                 mock(FileStorageGateway.class),
                 users,
                 objectMapper,
-                new DebtConfessionService(pendencies, types)
+                new DebtConfessionService(pendencies, types),
+                mock(ChecklistService.class)
             );
         ReflectionTestUtils.setField(resource, "applicationName", "localmaisApp");
     }

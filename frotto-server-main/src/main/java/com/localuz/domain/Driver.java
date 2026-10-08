@@ -164,6 +164,22 @@ public class Driver implements Serializable {
         this.emergencyContactSecond = emergencyContactSecond;
     }
 
+    /**
+     * Request-only (never stored nor returned): the two emergency contacts as the vínculo form loaded them, so an edit
+     * is applied against the value the user saw (see DriverCarResource#applyEmergencyContacts).
+     */
+    @Transient
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    private java.util.List<String> loadedEmergencyContacts;
+
+    public java.util.List<String> getLoadedEmergencyContacts() {
+        return loadedEmergencyContacts;
+    }
+
+    public void setLoadedEmergencyContacts(java.util.List<String> loadedEmergencyContacts) {
+        this.loadedEmergencyContacts = loadedEmergencyContacts;
+    }
+
     public String getDocumentDriverLicense() {
         return documentDriverLicense;
     }

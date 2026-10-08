@@ -34,3 +34,17 @@ describe("documentService.uploadDocumentAttachments", () => {
     expect(mockedApi.post).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("documentService.finalizeDocument", () => {
+  beforeEach(() => jest.resetAllMocks());
+
+  it("posts the finalization; the assignment goes in the query only when the user chose one", async () => {
+    mockedApi.post.mockResolvedValue({ data: { id: 20, status: "FINAL" } });
+
+    await documentService.finalizeDocument(20);
+    await documentService.finalizeDocument(20, "RESERVE");
+
+    expect(mockedApi.post.mock.calls[0][0]).toBe("/api/documents/20/finalize");
+    expect(mockedApi.post.mock.calls[1][0]).toBe("/api/documents/20/finalize?assignment=RESERVE");
+  });
+});

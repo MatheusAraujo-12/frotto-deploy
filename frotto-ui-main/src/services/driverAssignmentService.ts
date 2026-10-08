@@ -53,6 +53,10 @@ export const DRIVER_CAR_ERROR_MESSAGES: Record<string, string> = {
   drivernotfound: "Motorista não encontrado para esta conta.",
   drivercarhaspendencies: "O vínculo possui pendências e não pode ser excluído. Encerre o vínculo.",
   drivercarhasreserves: "O vínculo está suspenso ou ligado a um carro reserva e não pode ser excluído.",
+  drivercarreturnedbychecklist:
+    "Este vínculo foi encerrado pelo checklist de devolução finalizado e não pode ser reaberto. Cadastre um novo vínculo.",
+  driveremergencycontactschanged:
+    "Os contatos de emergência do motorista foram alterados enquanto este formulário estava aberto (por exemplo, por um checklist de entrega). Feche e abra o vínculo novamente para editá-los.",
 };
 
 export const DRIVER_CAR_STATUS_LABEL: Record<DriverCarStatus, string> = {

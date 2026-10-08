@@ -221,6 +221,9 @@ describe("Documentos - Checklist / contatos de emergência", () => {
     typeInto(fieldInput("Contato 2 - Nome"), "Beatriz Lima");
     typeInto(fieldInput("Contato 2 - Telefone"), "11955556666");
     expect(fieldInput("Contato 1 - Nome").value).toBe("Carlos Souza");
+    // A new checklist states its operation (required since the checklist drives the contract / inspection).
+    const tipo = within(dialog()).getAllByText((text, node) => node?.tagName === "LABEL" && text.trim().startsWith("Tipo"))[0];
+    fireEvent.change(tipo.parentElement!.querySelector("select") as HTMLSelectElement, { target: { value: "ENTREGA" } });
 
     clickButton("Salvar rascunho");
     await waitFor(() => expect(mockedDocuments.createDocument).toHaveBeenCalledTimes(1));

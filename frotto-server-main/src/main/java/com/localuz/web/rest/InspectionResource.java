@@ -124,6 +124,14 @@ public class InspectionResource {
         }
 
         com.localuz.service.VehicleLifecycleService.requireOperational(existingInspectionOpt.get().getCar());
+        if (existingInspectionOpt.get().getOriginDocumentId() != null) {
+            // It records a delivery / return made by a finalized checklist: the trace of that operation stays.
+            throw new BadRequestAlertException(
+                "Esta inspeção foi gerada por um checklist de entrega/devolução e não pode ser excluída.",
+                ENTITY_NAME,
+                "inspectionfromchecklist"
+            );
+        }
         inspectionRepository.deleteById(id);
         return ResponseEntity
             .noContent()
@@ -149,12 +157,17 @@ public class InspectionResource {
             throw new BadRequestAlertException("Car not found for current user", ENTITY_NAME, "notcurrentuser");
         }
         Inspection existingInspection = existingInspectionOpt.get();
+        requireManual(existingInspection);
 
         Car inspectionCar = existingInspection.getCar();
         com.localuz.service.VehicleLifecycleService.requireOperational(inspectionCar);
         validateChildren(inspection, inspectionCar, existingInspection);
         carService.updateCarOdometerByDate(inspection.getDate(), inspection.getOdometer(), inspectionCar);
         inspection.setCar(inspectionCar);
+        // Server-owned trace (read-only in JSON): an edit never detaches the inspection from its checklist / contract.
+        inspection.setOriginDocumentId(existingInspection.getOriginDocumentId());
+        inspection.setDriverCarId(existingInspection.getDriverCarId());
+        inspection.setFuelLevel(existingInspection.getFuelLevel());
         ArrayList<Tire> tires = new ArrayList<Tire>(
             Arrays.asList(
                 inspection.getLeftBack(),
@@ -210,6 +223,20 @@ public class InspectionResource {
             damages.add(stored);
         }
         incoming.setCarBodyDamages(damages);
+    }
+
+    /**
+     * An inspection created by a finalized Entrega/Devolução checklist is the record of that operation: it is read-only
+     * (no edit, no expense, no damage association). Manual inspections are unaffected.
+     */
+    static void requireManual(Inspection inspection) {
+        if (inspection != null && inspection.getOriginDocumentId() != null) {
+            throw new BadRequestAlertException(
+                "Esta inspeção foi gerada por um checklist de entrega/devolução finalizado e não pode ser alterada.",
+                ENTITY_NAME,
+                "inspectionfromchecklistreadonly"
+            );
+        }
     }
 
     private BadRequestAlertException invalidChild() {

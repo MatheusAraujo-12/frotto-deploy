@@ -163,3 +163,49 @@ describe("DriverAdd - transferência definitiva × carro reserva", () => {
     expect(screen.getByText("Reativar vínculo")).toBeInTheDocument();
   });
 });
+
+describe("DriverAdd - contatos de emergência contra o formulário desatualizado", () => {
+  beforeAll(() => {
+    (global as any).IntersectionObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  });
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+    mockedApi.get.mockResolvedValue({ data: {} });
+  });
+
+  const WITH_CONTACTS = {
+    ...PRIMARY_ACTIVE,
+    driver: { ...PRIMARY_ACTIVE.driver, emergencyContact: "11999990000", emergencyContactSecond: "" },
+  };
+
+  it("editing a contract sends the contacts it shows and the ones it loaded (the backend applies only real edits)", async () => {
+    mockedApi.put.mockResolvedValueOnce({ data: WITH_CONTACTS });
+    renderDriverAdd(WITH_CONTACTS);
+
+    await clickSave();
+
+    await waitFor(() => expect(mockedApi.put).toHaveBeenCalledTimes(1));
+    const body = mockedApi.put.mock.calls[0][1] as any;
+    expect(body.driver).toMatchObject({
+      emergencyContact: "11999990000",
+      emergencyContactSecond: "",
+      loadedEmergencyContacts: ["11999990000", ""],
+    });
+  });
+
+  it("the refusal of an edit over contacts changed meanwhile is explained", async () => {
+    mockedApi.put.mockRejectedValueOnce({ response: { status: 400, data: { errorKey: "driveremergencycontactschanged" } } });
+    renderDriverAdd(WITH_CONTACTS);
+
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockAlerts.showErrorAlert).toHaveBeenCalledWith(expect.stringMatching(/alterados enquanto este formulário estava aberto/))
+    );
+  });
+});

@@ -12,7 +12,7 @@ import {
   resolveFiscalIdentity,
 } from "../../services/pdfLetterhead";
 import { formatCurrencyPtBr, parseDecimal } from "../../services/decimalPtBr";
-import { serializeChecklistItems } from "./checklistUtils";
+import { checklistTypeLabel, formatChecklistDate, fuelLevelLabel, serializeChecklistItems } from "./checklistUtils";
 import { resolveApiUrl } from "../../services/resolveApiUrl";
 import { maskPhone } from "../../services/profileFormat";
 import {
@@ -576,18 +576,27 @@ async function buildEntregaDevolucaoChecklistContent(
     : [{ text: "[ ] Nenhum item informado", margin: [0, 0, 0, 4] }];
   void checklistLines;
 
+  // Structured checklist (checklistType): date, km and fuel are the fields the finalization recorded. Documents of the
+  // old wizard keep their free-text fields exactly as before.
+  const structured = Boolean(document.checklistType);
+  const operation = structured ? checklistTypeLabel(document.checklistType).toUpperCase() : getText(payload, "tipo", "ENTREGA");
+  const when = structured
+    ? formatChecklistDate(getText(payload, "dataVistoria"), getText(payload, "horaVistoria")) || "-"
+    : formatDateTime(getText(payload, "dataHora"));
+  const fuel = structured ? fuelLevelLabel(getText(payload, "combustivel")) || "-" : getText(payload, "combustivel", "-");
+
   return [
     { text: "TERMO DE ENTREGA/DEVOLUÇÃO DE VEÍCULO COM CHECKLIST E VISTORIA", style: "title" },
     {
       text:
         `Pelo presente termo, ${fiscal.fiscalName} (${fiscal.documentLabel} ${fiscal.documentValue || "-"}) e ${driverName} ` +
-        `registram a ${getText(payload, "tipo", "ENTREGA")} do veículo ${document.carPlate || getText(payload, "carPlate", "-")} ` +
-        `em ${formatDateTime(getText(payload, "dataHora"))}.`,
+        `registram a ${operation} do veículo ${document.carPlate || getText(payload, "carPlate", "-")} ` +
+        `em ${when}.`,
       style: "section",
     },
     {
       text:
-        `Quilometragem: ${getText(payload, "km", "-")} km. Combustível: ${getText(payload, "combustivel", "-")}.`,
+        `Quilometragem: ${getText(payload, "km", "-")} km. Combustível: ${fuel}.`,
       style: "section",
     },
     ...buildChecklistItemsTwoColumns(checklistItens),

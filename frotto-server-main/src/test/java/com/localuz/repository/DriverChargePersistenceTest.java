@@ -238,7 +238,8 @@ class DriverChargePersistenceTest {
                 mock(FileStorageGateway.class),
                 mock(UserService.class),
                 objectMapper,
-                confessions
+                confessions,
+                mock(com.localuz.service.ChecklistService.class)
             );
         ReflectionTestUtils.setField(documentResource, "applicationName", "localmaisApp");
         pendencyResource = new PendencyResource(pendencies, driverCars, repositories.getRepository(DriverRepository.class), confessions, charges);

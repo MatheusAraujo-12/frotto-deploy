@@ -1,11 +1,17 @@
 package com.localuz.service.dto;
 
+import com.localuz.domain.enumeration.ChecklistType;
+
 import com.localuz.domain.enumeration.DocumentStatus;
 import com.localuz.domain.enumeration.DocumentType;
 import java.util.List;
 import java.util.Map;
 
 public class DocumentSaveDTO {
+    /** Checklist de Entrega/Devolução: ENTREGA or DEVOLUCAO (required for every new checklist). */
+    private ChecklistType checklistType;
+    /** Checklist: the contract it delivers (optional, the finalization creates or reuses it) or returns (required). */
+    private Long driverCarId;
     private DocumentType type;
     private Long driverId;
     private Long carId;
@@ -68,5 +74,21 @@ public class DocumentSaveDTO {
 
     public void setPdfUrl(String pdfUrl) {
         this.pdfUrl = pdfUrl;
+    }
+
+    public ChecklistType getChecklistType() {
+        return checklistType;
+    }
+
+    public void setChecklistType(ChecklistType checklistType) {
+        this.checklistType = checklistType;
+    }
+
+    public Long getDriverCarId() {
+        return driverCarId;
+    }
+
+    public void setDriverCarId(Long driverCarId) {
+        this.driverCarId = driverCarId;
     }
 }

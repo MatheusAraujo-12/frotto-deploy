@@ -1,6 +1,7 @@
 package com.localuz.domain;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.localuz.domain.enumeration.ChecklistType;
 import com.localuz.domain.enumeration.DocumentStatus;
 import com.localuz.domain.enumeration.DocumentType;
 import java.io.Serializable;
@@ -71,6 +72,23 @@ public class DriverDocument implements Serializable {
     /** The pendency this document was issued from (Pendências -> Emitir documento); it never creates a pendency. */
     @Column(name = "origin_pendency_id")
     private Long originPendencyId;
+
+    /** Checklist: the contract (driver_car) it delivers or returns. NULL for historical checklists. */
+    @Column(name = "driver_car_id")
+    private Long driverCarId;
+
+    /** Checklist: ENTREGA / DEVOLUCAO (structural). NULL for historical checklists, which keep payload.tipo only. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "checklist_type", length = 20)
+    private ChecklistType checklistType;
+
+    /**
+     * Set to the checklist type only when the checklist becomes FINAL; UNIQUE with driver_car_id in the database: at
+     * most one FINAL Entrega and one FINAL Devolução per contract, whatever concurrent finalizations happen.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "final_checklist_slot", length = 20)
+    private ChecklistType finalChecklistSlot;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -157,6 +175,30 @@ public class DriverDocument implements Serializable {
 
     public void setAttachmentsJson(String attachmentsJson) {
         this.attachmentsJson = attachmentsJson;
+    }
+
+    public Long getDriverCarId() {
+        return driverCarId;
+    }
+
+    public void setDriverCarId(Long driverCarId) {
+        this.driverCarId = driverCarId;
+    }
+
+    public ChecklistType getChecklistType() {
+        return checklistType;
+    }
+
+    public void setChecklistType(ChecklistType checklistType) {
+        this.checklistType = checklistType;
+    }
+
+    public ChecklistType getFinalChecklistSlot() {
+        return finalChecklistSlot;
+    }
+
+    public void setFinalChecklistSlot(ChecklistType finalChecklistSlot) {
+        this.finalChecklistSlot = finalChecklistSlot;
     }
 
     public Long getOriginPendencyId() {

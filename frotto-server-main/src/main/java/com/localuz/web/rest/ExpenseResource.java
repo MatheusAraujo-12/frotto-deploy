@@ -69,6 +69,7 @@ public class ExpenseResource {
             throw new BadRequestAlertException("Car-Inspection not found for current user", ENTITY_NAME, "notcurrentuser");
         }
         com.localuz.service.VehicleLifecycleService.requireOperational(existingInspectionOpt.get().getCar());
+        InspectionResource.requireManual(existingInspectionOpt.get());
         expense.setInspection(existingInspectionOpt.get());
 
         Expense result = expenseRepository.save(expense);
@@ -87,6 +88,7 @@ public class ExpenseResource {
         }
 
         com.localuz.service.VehicleLifecycleService.requireOperational(existingExpenseOpt.get().getInspection().getCar());
+        InspectionResource.requireManual(existingExpenseOpt.get().getInspection());
         expenseRepository.deleteById(id);
         return ResponseEntity
             .noContent()
@@ -112,6 +114,7 @@ public class ExpenseResource {
         }
 
         com.localuz.service.VehicleLifecycleService.requireOperational(existingExpenseOpt.get().getInspection().getCar());
+        InspectionResource.requireManual(existingExpenseOpt.get().getInspection());
         expense.setInspection(existingExpenseOpt.get().getInspection());
 
         Expense result = expenseRepository.save(expense);

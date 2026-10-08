@@ -55,4 +55,11 @@ public interface DriverDocumentRepository extends JpaRepository<DriverDocument, 
     /** The document issued from a pendency for one type (unique by origin_pendency_id + type). */
     @Query("select document from DriverDocument document where document.originPendencyId = :pendencyId and document.type = :type")
     Optional<DriverDocument> findByOriginPendencyIdAndType(@Param("pendencyId") Long pendencyId, @Param("type") DocumentType type);
+
+    /** Whether the contract already has a FINAL checklist of this type (the database UNIQUE is the final barrier). */
+    @Query(
+        "select count(document) > 0 from DriverDocument document " +
+        "where document.driverCarId = :driverCarId and document.finalChecklistSlot = :type"
+    )
+    boolean existsFinalChecklist(@Param("driverCarId") Long driverCarId, @Param("type") com.localuz.domain.enumeration.ChecklistType type);
 }

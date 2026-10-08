@@ -21,6 +21,10 @@ export const initialDriverValues = (initialValues: CarDriverModel) => {
     driverEmergencyContact: initialValues.driver?.emergencyContact || "",
     driverEmergencyContactSecond:
       initialValues.driver?.emergencyContactSecond || "",
+    // The contacts as loaded: an edit is applied against them (never a stale form over current contacts).
+    driverContactsLoaded: Boolean(initialValues.driver?.id),
+    driverLoadedEmergencyContact: initialValues.driver?.emergencyContact || "",
+    driverLoadedEmergencyContactSecond: initialValues.driver?.emergencyContactSecond || "",
     driverDocumentDriverLicense:
       initialValues.driver?.documentDriverLicense || "",
     driverDocumentDriverRegister:
@@ -58,6 +62,9 @@ export const driverAddValidationSchema = Yup.object().shape({
   driverEmail: optionalString(),
   driverEmergencyContact: optionalString(),
   driverEmergencyContactSecond: optionalString(),
+  driverContactsLoaded: Yup.boolean().nullable().notRequired(),
+  driverLoadedEmergencyContact: optionalString(),
+  driverLoadedEmergencyContactSecond: optionalString(),
   driverDocumentDriverLicense: optionalString(),
   driverDocumentDriverRegister: optionalString(),
   driverPublicScore: optionalString(),
@@ -88,6 +95,9 @@ export interface DriverForm {
   driverContact?: string;
   driverEmergencyContact?: string;
   driverEmergencyContactSecond?: string;
+  driverContactsLoaded?: boolean;
+  driverLoadedEmergencyContact?: string;
+  driverLoadedEmergencyContactSecond?: string;
   driverDocumentDriverLicense?: string;
   driverDocumentDriverRegister?: string;
   driverPublicScore?: string | number;
@@ -123,6 +133,9 @@ export const driverFormtoDriver = (driverForm: DriverForm): CarDriverModel => {
     contact: driverForm.driverContact,
     emergencyContact: driverForm.driverEmergencyContact,
     emergencyContactSecond: driverForm.driverEmergencyContactSecond,
+    loadedEmergencyContacts: driverForm.driverContactsLoaded
+      ? [driverForm.driverLoadedEmergencyContact || "", driverForm.driverLoadedEmergencyContactSecond || ""]
+      : undefined,
     documentDriverLicense: driverForm.driverDocumentDriverLicense,
     documentDriverRegister: driverForm.driverDocumentDriverRegister,
     publicScore: normalizeOptionalNumber(driverForm.driverPublicScore),

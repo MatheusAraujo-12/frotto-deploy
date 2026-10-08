@@ -368,7 +368,7 @@ class PendencyOwnershipPersistenceTest {
     void transferConcludesTheOldContractAndKeepsTheDebtWithItsDebtorAndOrigin() {
         // B + A2/A3: C moves from car 91001 to car 91003 (same account).
         loginAs("owner-a");
-        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies);
+        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies, em);
         Car hb20 = cars.findById(91003L).orElseThrow();
         Driver c = drivers.findById(91003L).orElseThrow();
 
@@ -397,7 +397,7 @@ class PendencyOwnershipPersistenceTest {
     void aFailedTransferLeavesTheOldContractActive() {
         // B11: the conclusion is part of the caller's transaction; a failure before commit undoes it.
         loginAs("owner-a");
-        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies);
+        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies, em);
         assignments.prepareAssignment(91003L, cars.findById(91003L).orElseThrow(), DriverAssignmentType.PERMANENT, LocalDate.of(2026, 10, 1));
         em.flush();
         em.getTransaction().rollback();
@@ -463,7 +463,7 @@ class PendencyOwnershipPersistenceTest {
     void reserveAndReturnKeepTheSamePrimaryRow() {
         // 5/6: C (driver 91003) drives car 91001 in contract 91001; reserve car 91003, then return. Two rows, not three.
         loginAs("owner-a");
-        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies);
+        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies, em);
         DriverCar reserve = startReserve(assignments, 91003L, 91003L);
 
         assertThat(driverCars.findById(91001L).orElseThrow().getStatus()).isEqualTo("SUSPENDED");
@@ -487,7 +487,7 @@ class PendencyOwnershipPersistenceTest {
     void reserveSwappedForAnotherReserveStillReturnsToTheSamePrimary() {
         // 7: car 91001 (primary) -> 91003 reserve -> 91004 reserve -> back to 91001. Three rows, one primary.
         loginAs("owner-a");
-        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies);
+        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies, em);
         DriverCar first = startReserve(assignments, 91003L, 91003L);
         DriverCar second = startReserve(assignments, 91003L, 91004L);
         assignments.returnReserve(second, LocalDate.of(2026, 10, 8));
@@ -507,7 +507,7 @@ class PendencyOwnershipPersistenceTest {
     void aFailedReserveLeavesNoPrimarySuspendedAlone() {
         // 16: the suspension belongs to the caller's transaction.
         loginAs("owner-a");
-        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies);
+        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies, em);
         assignments.lockForAssignment(91003L, 91003L);
         assignments.prepareAssignment(91003L, cars.findById(91003L).orElseThrow(), DriverAssignmentType.RESERVE, LocalDate.of(2026, 10, 1));
         em.flush();
@@ -537,7 +537,8 @@ class PendencyOwnershipPersistenceTest {
                 setupContracts,
                 repositories.getRepository(DriverRepository.class),
                 repositories.getRepository(CarRepository.class),
-                repositories.getRepository(PendencyRepository.class)
+                repositories.getRepository(PendencyRepository.class),
+                setup
             );
             reserveId = startReserve(assignments, setupContracts, repositories.getRepository(CarRepository.class), repositories.getRepository(DriverRepository.class), 91003L, 91003L).getId();
             setup.getTransaction().commit();
@@ -551,7 +552,8 @@ class PendencyOwnershipPersistenceTest {
                     failingContracts,
                     failingRepositories.getRepository(DriverRepository.class),
                     failingRepositories.getRepository(CarRepository.class),
-                    failingRepositories.getRepository(PendencyRepository.class)
+                    failingRepositories.getRepository(PendencyRepository.class),
+                    failing
                 );
                 failingAssignments.returnReserve(failingContracts.findById(reserveId).orElseThrow(), LocalDate.of(2026, 10, 5));
                 failing.flush();
@@ -586,7 +588,7 @@ class PendencyOwnershipPersistenceTest {
     @Test
     void concurrentAssignmentsOfTheSameCarOrTheSameDriverAreSerialized() {
         // 18: the first transaction holds car 91003 and driver 91003; any second assignment touching either waits.
-        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies);
+        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies, em);
         assignments.lockForAssignment(91003L, 91003L);
 
         assertSecondLockTimesOut(91003L, 91001L);
@@ -603,9 +605,12 @@ class PendencyOwnershipPersistenceTest {
                 repositories.getRepository(DriverCarRepository.class),
                 repositories.getRepository(DriverRepository.class),
                 repositories.getRepository(CarRepository.class),
-                repositories.getRepository(PendencyRepository.class)
+                repositories.getRepository(PendencyRepository.class),
+                second
             );
-            assertThatThrownBy(() -> secondAssignments.lockForAssignment(carId, driverId)).isInstanceOf(javax.persistence.PersistenceException.class);
+            // The lock timeout comes out as the Spring exception a repository throws (409 / retry), not a raw JPA one.
+            assertThatThrownBy(() -> secondAssignments.lockForAssignment(carId, driverId))
+                .isInstanceOf(org.springframework.dao.PessimisticLockingFailureException.class);
         } finally {
             if (second.getTransaction().isActive()) {
                 second.getTransaction().rollback();
@@ -657,7 +662,7 @@ class PendencyOwnershipPersistenceTest {
             assertThat(countRows(connection, "SELECT COUNT(*) FROM driver_car WHERE id = 91006 AND concluded IS NULL")).isEqualTo(1);
         }
         loginAs("owner-a");
-        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies);
+        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies, em);
 
         assertThat(assignments.isCarOccupied(91005L, null)).isTrue();
         assertThat(driverCars.findOperationalOnCar(91005L)).extracting(DriverCar::getId).containsExactly(91006L);
@@ -674,7 +679,7 @@ class PendencyOwnershipPersistenceTest {
     void aDriverWithALegacyNullContractNeedsAnExplicitChoice() {
         // 6
         loginAs("owner-a");
-        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies);
+        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies, em);
         Car target = cars.findById(91004L).orElseThrow();
         assignments.lockForAssignment(target, 91005L);
 
@@ -689,7 +694,7 @@ class PendencyOwnershipPersistenceTest {
     void permanentTransferFromALegacyNullContract() {
         // 7
         loginAs("owner-a");
-        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies);
+        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies, em);
         Car target = cars.findById(91004L).orElseThrow();
         assignments.lockForAssignment(target, 91005L);
         assignments.prepareAssignment(91005L, target, DriverAssignmentType.PERMANENT, LocalDate.of(2026, 10, 1));
@@ -706,7 +711,7 @@ class PendencyOwnershipPersistenceTest {
     void reserveFromALegacyNullPrimaryThenReturnRestoresTheSameRow() {
         // 8 + 9
         loginAs("owner-a");
-        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies);
+        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies, em);
         DriverCar reserve = startReserve(assignments, 91005L, 91004L);
         em.flush();
         em.clear();
@@ -728,7 +733,7 @@ class PendencyOwnershipPersistenceTest {
     @Test
     void concurrentAssignmentOfACarHeldByALegacyNullContractIsSerialized() {
         // 10: whoever takes car 91005 (occupied by the NULL contract) does it under the car lock.
-        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies);
+        DriverAssignmentService assignments = new DriverAssignmentService(driverCars, drivers, cars, pendencies, em);
         assignments.lockForAssignment(91005L, 91005L);
 
         assertSecondLockTimesOut(91005L, 91001L);

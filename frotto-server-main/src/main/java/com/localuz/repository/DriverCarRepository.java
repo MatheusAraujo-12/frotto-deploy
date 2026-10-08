@@ -95,4 +95,16 @@ public interface DriverCarRepository extends JpaRepository<DriverCar, Long> {
         @Param("driverId") Long driverId,
         @Param("carId") Long carId
     );
+
+    /** SELECT ... FOR UPDATE of one contract row (after the ownership check and the car/driver locks). */
+    @org.springframework.data.jpa.repository.Lock(javax.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select driverCar from DriverCar driverCar where driverCar.id = :id")
+    Optional<DriverCar> findByIdForUpdate(@Param("id") Long id);
+
+    /** True when a FINAL checklist of this type was recorded on the contract (e.g. its Devolução). */
+    @Query(
+        "select count(document) > 0 from DriverDocument document where document.driverCarId = :id " +
+        "and document.finalChecklistSlot = :type"
+    )
+    boolean hasFinalChecklist(@Param("id") Long id, @Param("type") com.localuz.domain.enumeration.ChecklistType type);
 }

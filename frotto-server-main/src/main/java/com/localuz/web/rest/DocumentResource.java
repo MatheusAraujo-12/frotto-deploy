@@ -8,7 +8,9 @@ import com.localuz.domain.DriverCar;
 import com.localuz.domain.DriverDocument;
 import com.localuz.domain.Pendency;
 import com.localuz.domain.User;
+import com.localuz.domain.enumeration.ChecklistType;
 import com.localuz.domain.enumeration.DocumentStatus;
+import com.localuz.domain.enumeration.DriverAssignmentType;
 import com.localuz.domain.enumeration.DocumentType;
 import com.localuz.domain.enumeration.PendencyOriginType;
 import com.localuz.domain.enumeration.PendencyStatus;
@@ -17,6 +19,7 @@ import com.localuz.repository.DriverCarRepository;
 import com.localuz.repository.DriverDocumentRepository;
 import com.localuz.repository.DriverRepository;
 import com.localuz.repository.PendencyRepository;
+import com.localuz.service.ChecklistService;
 import com.localuz.service.DebtConfessionService;
 import com.localuz.service.UserService;
 import com.localuz.service.storage.FileStorageGateway;
@@ -50,6 +53,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -95,6 +100,7 @@ public class DocumentResource {
     private final UserService userService;
     private final ObjectMapper objectMapper;
     private final DebtConfessionService debtConfessionService;
+    private final ChecklistService checklistService;
 
     public DocumentResource(
         DriverDocumentRepository documentRepository,
@@ -105,9 +111,11 @@ public class DocumentResource {
         FileStorageGateway fileStorage,
         UserService userService,
         ObjectMapper objectMapper,
-        DebtConfessionService debtConfessionService
+        DebtConfessionService debtConfessionService,
+        ChecklistService checklistService
     ) {
         this.debtConfessionService = debtConfessionService;
+        this.checklistService = checklistService;
         this.documentRepository = documentRepository;
         this.driverRepository = driverRepository;
         this.carRepository = carRepository;
@@ -142,6 +150,11 @@ public class DocumentResource {
             rejectPendencyReferencesWithoutOrigin(payload.getPayload());
         }
         rejectChargeDocumentType(payload.getType());
+        boolean checklist = payload.getType() == DocumentType.ENTREGA_DEVOLUCAO_CHECKLIST;
+        if (checklist && payload.getStatus() != null && payload.getStatus() != DocumentStatus.DRAFT) {
+            // A checklist only becomes FINAL through /finalize, which performs the delivery / return.
+            throw checklistFinalizeRequired();
+        }
 
         DriverDocument document = new DriverDocument();
         document.setType(payload.getType());
@@ -149,6 +162,13 @@ public class DocumentResource {
         document.setCar(car);
         document.setUser(getCurrentUserOrThrow());
         document.setStatus(payload.getStatus() == null ? DocumentStatus.DRAFT : payload.getStatus());
+        if (checklist) {
+            // New checklists are structured: their type and contract are columns, validated against driver and car.
+            if (storedPayload == null) {
+                storedPayload = new LinkedHashMap<>();
+            }
+            checklistService.bindDraft(document, payload.getChecklistType(), payload.getDriverCarId(), storedPayload);
+        }
         document.setPayloadJson(writePayload(storedPayload));
         // attachments and pdfUrl are never taken from clients: attachments only come from the upload endpoint
         // (server-generated keys) and PDFs are generated in the browser, never stored.
@@ -197,6 +217,14 @@ public class DocumentResource {
     public ResponseEntity<Void> deleteDocument(@PathVariable Long id) {
         DriverDocument document = getDocumentOrThrow(id);
         com.localuz.service.VehicleLifecycleService.requireOperational(document.getCar());
+        if (document.getChecklistType() != null && document.getStatus() != DocumentStatus.DRAFT) {
+            // It delivered / returned a contract and generated an inspection: the record of that operation stays.
+            throw new BadRequestAlertException(
+                "Checklist finalizado não pode ser excluído: ele efetivou a entrega/devolução e gerou a inspeção.",
+                ENTITY_NAME,
+                "checklistfinalcannotbedeleted"
+            );
+        }
         List<String> attachments = readAttachments(document.getAttachmentsJson());
         documentRepository.delete(document);
         deleteStoredAttachments(document.getId(), attachments);
@@ -222,6 +250,14 @@ public class DocumentResource {
             throw new BadRequestAlertException("A origem da confissão não pode ser alterada.", ENTITY_NAME, "confessionoriginimmutable");
         }
         rejectPendencyReferencesWithoutOrigin(payload.getPayload());
+        boolean checklist =
+            document.getType() == DocumentType.ENTREGA_DEVOLUCAO_CHECKLIST || payload.getType() == DocumentType.ENTREGA_DEVOLUCAO_CHECKLIST;
+        if (checklist && payload.getStatus() != null && payload.getStatus() != DocumentStatus.DRAFT) {
+            throw checklistFinalizeRequired();
+        }
+        if (document.getChecklistType() != null && payload.getType() != null && payload.getType() != document.getType()) {
+            throw new BadRequestAlertException("O tipo do checklist não pode ser alterado: crie um novo checklist.", ENTITY_NAME, "checklisttypeimmutable");
+        }
 
         if (payload.getType() != null && payload.getType() != document.getType()) {
             // A draft is never turned into a new fine / shared maintenance (those are born in Pendências).
@@ -250,18 +286,49 @@ public class DocumentResource {
         if (payload.getPayload() != null) {
             document.setPayloadJson(writePayload(payload.getPayload()));
         }
+        if (
+            document.getType() == DocumentType.ENTREGA_DEVOLUCAO_CHECKLIST &&
+            (document.getChecklistType() != null || payload.getChecklistType() != null)
+        ) {
+            // Structured checklist: the binding is checked again against the (possibly edited) driver and car.
+            Map<String, Object> stored = readPayload(document.getPayloadJson());
+            Map<String, Object> editable = stored == null ? new LinkedHashMap<>() : new LinkedHashMap<>(stored);
+            checklistService.bindDraft(document, payload.getChecklistType(), payload.getDriverCarId(), editable);
+            document.setPayloadJson(writePayload(editable));
+        }
 
         DriverDocument result = documentRepository.save(document);
         return ResponseEntity.ok(toDto(result, true));
     }
 
+    public ResponseEntity<DocumentDTO> finalizeDocument(Long id) {
+        return finalizeDocument(id, null);
+    }
+
+    /**
+     * READ COMMITTED: after each lock (document, car, driver, contract) every read sees the latest committed state, so
+     * concurrent deliveries / returns / assignments of the same contract or car are decided on fresh data.
+     */
     @PostMapping("/{id}/finalize")
-    public ResponseEntity<DocumentDTO> finalizeDocument(@PathVariable Long id) {
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public ResponseEntity<DocumentDTO> finalizeDocument(
+        @PathVariable Long id,
+        @RequestParam(name = "assignment", required = false) DriverAssignmentType assignment
+    ) {
         // Row lock until commit: a double click, a retry or two tabs finalize one after the other, and the second
         // one reads FINAL here (the lock read is always the latest committed row), so it never creates a pendency.
         DriverDocument document = getDocumentForUpdateOrThrow(id);
         com.localuz.service.VehicleLifecycleService.requireOperational(document.getCar());
         DocumentStatus previousStatus = document.getStatus();
+        if (previousStatus == DocumentStatus.FINAL || previousStatus == DocumentStatus.SENT) {
+            // Idempotent retry: an already finalized (or sent) document is returned as it is - never moved back to FINAL,
+            // never processed again (no pendency, contract or inspection).
+            return ResponseEntity.ok(toDto(document, true));
+        }
+        if (previousStatus == DocumentStatus.CANCELED) {
+            // A canceled document is history: it is never finalized (nor processed: pendency, contract, inspection).
+            throw new BadRequestAlertException("Um documento cancelado não pode ser finalizado.", ENTITY_NAME, "documentcanceled");
+        }
         Map<String, Object> storedPayload = readPayload(document.getPayloadJson());
         boolean pendencyOrigin = DebtConfessionService.isPendencyOrigin(storedPayload);
         if (pendencyOrigin && previousStatus != DocumentStatus.FINAL && previousStatus != DocumentStatus.SENT) {
@@ -272,15 +339,39 @@ public class DocumentResource {
                 storedPayload
             );
         }
+        ChecklistService.Outcome checklistOutcome = null;
+        if (document.getChecklistType() != null && previousStatus == DocumentStatus.DRAFT) {
+            // Same transaction: contract, inspection and contacts are rolled back with the document if anything fails.
+            checklistOutcome = checklistService.finalizeChecklist(document, storedPayload, assignment);
+        }
         document.setStatus(DocumentStatus.FINAL);
-        DriverDocument result = documentRepository.save(document);
+        DriverDocument result;
+        if (checklistOutcome != null) {
+            try {
+                result = documentRepository.saveAndFlush(document);
+            } catch (DataIntegrityViolationException e) {
+                // The UNIQUE (driver_car_id, final_checklist_slot) lost a race: one FINAL checklist per contract and type.
+                throw new BadRequestAlertException(
+                    "Este vínculo já possui um checklist finalizado deste tipo.",
+                    ENTITY_NAME,
+                    "checklistalreadyfinalized"
+                );
+            }
+        } else {
+            result = documentRepository.save(document);
+        }
 
         // A document issued from a pendency is only its notification: it never creates another pendency.
         if (previousStatus == DocumentStatus.DRAFT && !pendencyOrigin && !isIssuedFromPendency(result, storedPayload)) {
             createPendencyIfApplicable(result);
         }
 
-        return ResponseEntity.ok(toDto(result, true));
+        DocumentDTO response = toDto(result, true);
+        if (checklistOutcome != null) {
+            response.setInspectionId(checklistOutcome.getInspectionId());
+            response.setReserveReturn(checklistOutcome.getReserveReturn());
+        }
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/{id}/generate-pdf")
@@ -298,6 +389,9 @@ public class DocumentResource {
     public ResponseEntity<DocumentDTO> markDocumentAsSent(@PathVariable Long id) {
         DriverDocument document = getDocumentOrThrow(id);
         com.localuz.service.VehicleLifecycleService.requireOperational(document.getCar());
+        if (document.getType() == DocumentType.ENTREGA_DEVOLUCAO_CHECKLIST && document.getStatus() == DocumentStatus.DRAFT) {
+            throw checklistFinalizeRequired();
+        }
         document.setStatus(DocumentStatus.SENT);
         DriverDocument result = documentRepository.save(document);
         return ResponseEntity.ok(toDto(result, true));
@@ -349,6 +443,11 @@ public class DocumentResource {
 
         dto.setPdfUrl(document.getPdfUrl());
         dto.setOriginPendencyId(document.getOriginPendencyId());
+        dto.setChecklistType(document.getChecklistType());
+        dto.setDriverCarId(document.getDriverCarId());
+        if (includeContent && document.getType() == DocumentType.ENTREGA_DEVOLUCAO_CHECKLIST) {
+            dto.setInspectionId(checklistService.inspectionIdOf(document.getId()).orElse(null));
+        }
 
         if (includeContent) {
             Map<String, Object> payload = readPayload(document.getPayloadJson());
@@ -384,6 +483,14 @@ public class DocumentResource {
         }
         Object origin = payload == null ? null : payload.get(DebtConfessionService.ORIGIN_KEY);
         return origin instanceof Map && "PENDENCIA".equals(((Map<?, ?>) origin).get("tipo"));
+    }
+
+    private static BadRequestAlertException checklistFinalizeRequired() {
+        return new BadRequestAlertException(
+            "Use a finalização do checklist: ela efetiva a entrega/devolução e gera a inspeção.",
+            ENTITY_NAME,
+            "checklistfinalizerequired"
+        );
     }
 
     private User getCurrentUserOrThrow() {

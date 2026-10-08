@@ -249,3 +249,73 @@ function normalizeLookupText(value: any): string {
     .trim()
     .toLowerCase();
 }
+
+// ---- Structured Entrega/Devolução (checklistType on the document): fields the backend reads to finalize ----
+
+export type ChecklistType = "ENTREGA" | "DEVOLUCAO";
+export type FuelLevel = "EMPTY" | "QUARTER" | "HALF" | "THREE_QUARTERS" | "FULL";
+
+export const CHECKLIST_TYPE_OPTIONS: Array<{ value: ChecklistType; label: string }> = [
+  { value: "ENTREGA", label: "Entrega" },
+  { value: "DEVOLUCAO", label: "Devolução" },
+];
+
+export const FUEL_LEVEL_OPTIONS: Array<{ value: FuelLevel; label: string }> = [
+  { value: "EMPTY", label: "Reserva / vazio" },
+  { value: "QUARTER", label: "1/4" },
+  { value: "HALF", label: "1/2" },
+  { value: "THREE_QUARTERS", label: "3/4" },
+  { value: "FULL", label: "Cheio" },
+];
+
+export function checklistTypeLabel(type?: string | null): string {
+  return CHECKLIST_TYPE_OPTIONS.find((option) => option.value === type)?.label || "";
+}
+
+export function fuelLevelLabel(level?: string | null): string {
+  return FUEL_LEVEL_OPTIONS.find((option) => option.value === level)?.label || "";
+}
+
+/** The km as the backend accepts it: a non-negative number with at most one decimal place (digits only, "." or ","). */
+export function parseChecklistKm(value: unknown): number | null {
+  const text = `${value ?? ""}`.trim().replace(",", ".");
+  if (!/^\d{1,7}(\.\d)?$/.test(text)) {
+    return null;
+  }
+  return Number(text);
+}
+
+/** Problems that keep a structured checklist from being finalized (same rules as the backend), in form order. */
+export function structuredChecklistErrors(
+  checklistType: string | null | undefined,
+  payload: Record<string, any> | undefined,
+  driverCarId: number | null | undefined
+): string[] {
+  const errors: string[] = [];
+  if (checklistType !== "ENTREGA" && checklistType !== "DEVOLUCAO") {
+    errors.push("Informe se o checklist é de Entrega ou de Devolução.");
+  }
+  if (checklistType === "DEVOLUCAO" && !driverCarId) {
+    errors.push("Selecione o vínculo que está sendo devolvido.");
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(`${payload?.dataVistoria || ""}`)) {
+    errors.push("Informe a data da vistoria.");
+  }
+  if (parseChecklistKm(payload?.km) === null) {
+    errors.push("Informe o KM do veículo (somente números).");
+  }
+  if (!FUEL_LEVEL_OPTIONS.some((option) => option.value === payload?.combustivel)) {
+    errors.push("Selecione o nível de combustível.");
+  }
+  return errors;
+}
+
+/** dd/mm/aaaa (às hh:mm) of the structured date and optional time; "" when absent. */
+export function formatChecklistDate(date?: string, time?: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(`${date || ""}`);
+  if (!match) {
+    return "";
+  }
+  const day = `${match[3]}/${match[2]}/${match[1]}`;
+  return /^\d{2}:\d{2}/.test(`${time || ""}`) ? `${day} às ${`${time}`.slice(0, 5)}` : day;
+}

@@ -27,6 +27,7 @@ import com.localuz.repository.DriverDocumentRepository;
 import com.localuz.repository.DriverRepository;
 import com.localuz.repository.PendencyRepository;
 import com.localuz.service.AWSS3FileService;
+import com.localuz.service.ChecklistService;
 import com.localuz.service.DebtConfessionService;
 import com.localuz.service.UserService;
 import com.localuz.service.dto.DocumentDTO;
@@ -163,7 +164,8 @@ class DocumentResourceStorageTest {
             gateway,
             users,
             objectMapper,
-            mock(DebtConfessionService.class)
+            mock(DebtConfessionService.class),
+            mock(ChecklistService.class)
         );
         ReflectionTestUtils.setField(resource, "applicationName", "localmaisApp");
         transactionManager = new TestTransactionManager();

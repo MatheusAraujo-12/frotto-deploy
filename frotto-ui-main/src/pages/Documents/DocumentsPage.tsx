@@ -38,7 +38,7 @@ import {
   walletOutline,
 } from "ionicons/icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DriverPendencyModel } from "../../constants/CarModels";
+import { CarDriverModel, DriverAssignmentType, DriverPendencyModel } from "../../constants/CarModels";
 import { DebtItemTypeModel } from "../../constants/DebtItemTypeModels";
 import {
   CarSearchModel,
@@ -58,11 +58,27 @@ import { useAlert } from "../../services/hooks/useAlert";
 import { formatDecimalInput, parseDecimal, sanitizeDecimalInput } from "../../services/decimalPtBr";
 import { generateDocumentPdf } from "./documentPdf";
 import {
+  CHECKLIST_TYPE_OPTIONS,
   ChecklistItem,
+  FUEL_LEVEL_OPTIONS,
+  checklistTypeLabel,
+  formatChecklistDate,
+  fuelLevelLabel,
   hydrateChecklistItems,
   isChecklistDefaultKey,
+  parseChecklistKm,
   serializeChecklistItems,
+  structuredChecklistErrors,
 } from "./checklistUtils";
+import DriverAssignmentChoice from "../Driver/DriverAssignmentChoice";
+import {
+  AssignmentConflict,
+  DRIVER_CAR_ERROR_MESSAGES,
+  describeReserveReturn,
+  driverCarStatus,
+  getAssignmentConflict,
+} from "../../services/driverAssignmentService";
+import { getApiErrorMessage } from "../../services/apiErrorMessage";
 import { maskPhone, sanitizeDigits } from "../../services/profileFormat";
 import endpoints from "../../constants/endpoints";
 import api from "../../services/axios/axios";
@@ -183,6 +199,15 @@ const DocumentsPage: React.FC = () => {
   const [wizardFiles, setWizardFiles] = useState<File[]>([]);
   const [checklistNewPhotos, setChecklistNewPhotos] = useState<File[]>([]);
   const [savedDocument, setSavedDocument] = useState<DocumentModel | null>(null);
+  /** Devolução: the contract being returned (chosen among the open contracts of the driver on the car). */
+  const [checklistDriverCarId, setChecklistDriverCarId] = useState<number | null>(null);
+  /** Contracts of the selected car (null while loading / no car). */
+  const [checklistContracts, setChecklistContracts] = useState<CarDriverModel[] | null>(null);
+  /** 409 of the finalization of an Entrega: the driver has an open contract on another car. */
+  const [checklistConflict, setChecklistConflict] = useState<AssignmentConflict | null>(null);
+  const [checklistFeedback, setChecklistFeedback] = useState("");
+  /** A draft of the old wizard (no checklistType) becomes structured only when the user converts it explicitly. */
+  const [checklistLegacyConversion, setChecklistLegacyConversion] = useState(false);
   const [newChecklistLabel, setNewChecklistLabel] = useState("");
   const [debtItemTypes, setDebtItemTypes] = useState<DebtItemTypeModel[]>([]);
   const [isDebtItemTypesLoading, setIsDebtItemTypesLoading] = useState(false);
@@ -405,6 +430,11 @@ const DocumentsPage: React.FC = () => {
     setWizardFiles([]);
     setChecklistNewPhotos([]);
     setSavedDocument(null);
+    setChecklistDriverCarId(null);
+    setChecklistContracts(null);
+    setChecklistConflict(null);
+    setChecklistFeedback("");
+    setChecklistLegacyConversion(false);
     setIsConfissaoPendenciesLoading(false);
     setConfissaoImportFeedback("");
     setConfissaoAutoImportedDriverId(null);
@@ -1114,6 +1144,89 @@ const DocumentsPage: React.FC = () => {
     };
   }, [isWizardOpen, logDocumentsDebug, wizardCar?.id, wizardType]);
 
+  const isChecklistWizard = wizardType === "ENTREGA_DEVOLUCAO_CHECKLIST";
+  /** Draft of the old wizard: kept as it was (free-text fields, no contract / inspection) until converted. */
+  const isLegacyChecklist =
+    isChecklistWizard && !!savedDocument?.id && !savedDocument.checklistType && !checklistLegacyConversion;
+  const isStructuredChecklist = isChecklistWizard && !isLegacyChecklist;
+  const isChecklistFinal = isStructuredChecklist && !!savedDocument?.checklistType && savedDocument.status !== "DRAFT";
+  const checklistType: "ENTREGA" | "DEVOLUCAO" | "" =
+    wizardPayload.tipo === "ENTREGA" || wizardPayload.tipo === "DEVOLUCAO" ? wizardPayload.tipo : "";
+
+  useEffect(() => {
+    if (!isWizardOpen || wizardType !== "ENTREGA_DEVOLUCAO_CHECKLIST" || !wizardCar?.id) {
+      setChecklistContracts(null);
+      return;
+    }
+    let active = true;
+    const carId = wizardCar.id;
+    setChecklistContracts(null);
+    const load = async () => {
+      try {
+        const { data } = await api.get<CarDriverModel[]>(endpoints.DRIVERS({ pathVariables: { id: carId } }));
+        if (active) {
+          setChecklistContracts(Array.isArray(data) ? data : []);
+        }
+      } catch (_error) {
+        if (active) {
+          setChecklistContracts([]);
+        }
+      }
+    };
+    void load();
+    return () => {
+      active = false;
+    };
+  }, [isWizardOpen, wizardType, wizardCar?.id, savedDocument?.status]);
+
+  /** Open contracts of the selected driver on the selected car, and whoever else operates the car. */
+  const checklistContractState = useMemo(() => {
+    const contracts = checklistContracts || [];
+    const ofDriver = contracts.filter(
+      (contract) => contract.driver?.id === wizardDriver?.id && driverCarStatus(contract) !== "CONCLUDED"
+    );
+    return {
+      loaded: checklistContracts !== null,
+      active: ofDriver.filter((contract) => driverCarStatus(contract) === "ACTIVE"),
+      suspended: ofDriver.filter((contract) => driverCarStatus(contract) === "SUSPENDED"),
+      otherDriver: contracts.find(
+        (contract) => contract.driver?.id !== wizardDriver?.id && driverCarStatus(contract) === "ACTIVE"
+      ),
+    };
+  }, [checklistContracts, wizardDriver?.id]);
+
+  // Devolução: the only open contract of the driver on the car is preselected; a choice that no longer applies is cleared.
+  useEffect(() => {
+    if (!isStructuredChecklist || isChecklistFinal || !checklistContractState.loaded || checklistType !== "DEVOLUCAO") {
+      return;
+    }
+    const ids = checklistContractState.active.map((contract) => contract.id);
+    if (checklistDriverCarId && !ids.includes(checklistDriverCarId)) {
+      setChecklistDriverCarId(null);
+    } else if (!checklistDriverCarId && ids.length === 1 && ids[0]) {
+      setChecklistDriverCarId(ids[0]);
+    }
+  }, [checklistContractState, checklistDriverCarId, checklistType, isChecklistFinal, isStructuredChecklist]);
+
+  /** Why the operation cannot happen with this driver / car / contract (explained before finalizing), or "". */
+  const checklistBlockingMessage = useMemo(() => {
+    if (!isStructuredChecklist || !wizardDriver?.id || !wizardCar?.id || !checklistContractState.loaded || !checklistType) {
+      return "";
+    }
+    const plate = wizardCar.plate || "selecionado";
+    if (!checklistContractState.active.length && checklistContractState.suspended.length) {
+      return "O vínculo deste motorista com este veículo está suspenso (o motorista está em um carro reserva). Devolva o carro reserva ou reative o vínculo antes.";
+    }
+    if (checklistType === "DEVOLUCAO" && !checklistContractState.active.length) {
+      return `Este motorista não possui vínculo ativo com o veículo ${plate}. A devolução só pode ser registrada sobre um vínculo existente.`;
+    }
+    if (checklistType === "ENTREGA" && !checklistContractState.active.length && checklistContractState.otherDriver) {
+      const other = checklistContractState.otherDriver.driver?.name || "outro motorista";
+      return `O veículo ${plate} está vinculado a ${other}. Registre a devolução ou encerre esse vínculo antes da entrega.`;
+    }
+    return "";
+  }, [checklistContractState, checklistType, isStructuredChecklist, wizardCar, wizardDriver?.id]);
+
   const validateWizard = () => {
     if (!wizardDriver?.id) {
       showErrorAlert("Selecione um motorista.");
@@ -1170,6 +1283,15 @@ const DocumentsPage: React.FC = () => {
         showErrorAlert("Telefone de emergência deve conter 10 ou 11 dígitos.");
         return false;
       }
+
+      if (isStructuredChecklist && !checklistType) {
+        showErrorAlert("Informe se o checklist é de Entrega ou de Devolução.");
+        return false;
+      }
+      if (isStructuredChecklist && checklistType === "DEVOLUCAO" && !checklistDriverCarId) {
+        showErrorAlert(checklistBlockingMessage || "Selecione o vínculo que está sendo devolvido.");
+        return false;
+      }
     }
 
     return true;
@@ -1184,12 +1306,25 @@ const DocumentsPage: React.FC = () => {
     try {
       const payload = syncMetaPayload();
       const normalizedPayload = normalizePayloadForApi(wizardType as DocumentType, payload);
+      if (isStructuredChecklist) {
+        // The backend reads the km as a number; an invalid text is kept as typed and refused at the finalization.
+        const km = parseChecklistKm(normalizedPayload.km);
+        if (km !== null) {
+          normalizedPayload.km = km;
+        }
+      }
       const request = {
         type: wizardType as DocumentType,
         status: "DRAFT" as DocumentStatus,
         driverId: wizardDriver!.id,
         carId: wizardRequiresCar ? wizardCar!.id : wizardCar?.id ?? null,
         payload: normalizedPayload,
+        ...(isStructuredChecklist
+          ? {
+              checklistType: checklistType || null,
+              ...(checklistType === "DEVOLUCAO" ? { driverCarId: checklistDriverCarId } : {}),
+            }
+          : {}),
       };
 
       logDocumentsDebug("saveDraft started", {
@@ -1288,7 +1423,11 @@ const DocumentsPage: React.FC = () => {
       return detailed;
     } catch (error) {
       logDocumentsDebug("saveDraft failed", { error: String(error) });
-      showErrorAlert("Falha ao salvar rascunho.");
+      showErrorAlert(
+        wizardType === "ENTREGA_DEVOLUCAO_CHECKLIST"
+          ? getApiErrorMessage(error, "Falha ao salvar rascunho.", CHECKLIST_ERROR_MESSAGES)
+          : "Falha ao salvar rascunho."
+      );
       return null;
     } finally {
       setIsActionLoading(false);
@@ -1296,7 +1435,13 @@ const DocumentsPage: React.FC = () => {
   };
 
   const generateWizardPdf = async () => {
-    const draft = (await saveDraft()) || savedDocument;
+    if (isStructuredChecklist && (!savedDocument?.id || savedDocument.status === "DRAFT")) {
+      // The PDF is only the document of a finalized checklist: it never finalizes (nor moves contract / inspection).
+      showErrorAlert("Finalize o checklist antes de gerar o PDF.");
+      return;
+    }
+    // A legacy checklist draft keeps the old flow (saved, finalized without automation, PDF).
+    const draft = isStructuredChecklist ? savedDocument : (await saveDraft()) || savedDocument;
     if (!draft?.id) {
       return;
     }
@@ -1318,6 +1463,74 @@ const DocumentsPage: React.FC = () => {
     }
   };
 
+  /**
+   * Finalizar (Entrega/Devolução): the operation itself, done by the backend in one transaction - contract created /
+   * reused / concluded, inspection registered, document FINAL. Asks PERMANENT/RESERVE only on the backend's 409.
+   */
+  const finalizeChecklist = async (assignment?: DriverAssignmentType) => {
+    if (!assignment) {
+      if (!validateWizard()) {
+        return;
+      }
+      const errors = structuredChecklistErrors(checklistType, wizardPayload, checklistDriverCarId);
+      if (checklistBlockingMessage) {
+        errors.push(checklistBlockingMessage);
+      }
+      if (errors.length) {
+        showErrorAlert(errors.join(" "));
+        return;
+      }
+      const effects =
+        checklistType === "ENTREGA"
+          ? "Finalizar a entrega vincula o motorista a este veículo (ou usa o vínculo já existente), registra a vistoria como inspeção do veículo e atualiza o hodômetro quando for a vistoria mais recente."
+          : "Finalizar a devolução encerra o vínculo do motorista com este veículo (carro reserva: o motorista volta ao vínculo principal quando possível), registra a vistoria como inspeção do veículo e atualiza o hodômetro quando for a vistoria mais recente.";
+      if (!window.confirm(`${effects} Depois de finalizado, o checklist não pode ser editado nem excluído. Deseja finalizar?`)) {
+        return;
+      }
+    }
+
+    let draft: DocumentModel | null = savedDocument;
+    if (savedDocument?.id) {
+      // A retry after a lost response: the document may already be final - then nothing is sent again.
+      try {
+        const current = await documentService.getDocument(savedDocument.id);
+        if (current.status !== "DRAFT") {
+          setSavedDocument(current);
+          setChecklistFeedback("Este checklist já estava finalizado.");
+          await loadDocuments();
+          return;
+        }
+      } catch (_error) {
+        // the save / finalization below reports the problem
+      }
+    }
+    if (!assignment) {
+      draft = await saveDraft();
+    }
+    if (!draft?.id) {
+      return;
+    }
+
+    setIsActionLoading(true);
+    try {
+      const result = await documentService.finalizeDocument(draft.id, assignment);
+      const detailed = await documentService.getDocument(draft.id);
+      setSavedDocument(detailed);
+      setChecklistFeedback(result?.reserveReturn ? describeReserveReturn(result.reserveReturn, wizardDriver?.name).message : "");
+      showSuccessToast(checklistType === "DEVOLUCAO" ? "Devolução finalizada." : "Entrega finalizada.");
+      await loadDocuments();
+    } catch (error) {
+      const conflict = getAssignmentConflict(error);
+      if (conflict && !assignment) {
+        setChecklistConflict(conflict);
+        return;
+      }
+      showErrorAlert(getApiErrorMessage(error, "Falha ao finalizar o checklist.", CHECKLIST_ERROR_MESSAGES));
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
   const loadDocumentIntoWizard = useCallback(
     (document: DocumentModel) => {
       const payload = document.payload || {};
@@ -1330,6 +1543,9 @@ const DocumentsPage: React.FC = () => {
       setWizardType(document.type);
       setWizardStep(3);
       setSavedDocument(document);
+      setChecklistDriverCarId(document.driverCarId ?? null);
+      setChecklistFeedback("");
+      setChecklistLegacyConversion(false);
       setWizardPayload(normalizePayloadForEditor(document.type, payload, document.attachments || []));
       setWizardFiles([]);
       setChecklistNewPhotos([]);
@@ -1463,6 +1679,83 @@ const DocumentsPage: React.FC = () => {
     } finally {
       setIsActionLoading(false);
     }
+  };
+
+  /** The contract the checklist operates on: the operation is explained before finalizing, never inferred silently. */
+  const renderChecklistContract = () => {
+    if (!wizardCar?.id || !wizardDriver?.id || !checklistType) {
+      return null;
+    }
+    if (!checklistContractState.loaded) {
+      return <p className="documents-hint">Carregando vínculos do veículo…</p>;
+    }
+    if (checklistBlockingMessage) {
+      return (
+        <p className="documents-warning" data-testid="checklist-contract-blocked">
+          {checklistBlockingMessage}
+        </p>
+      );
+    }
+    const since = (contract: CarDriverModel) =>
+      `Vínculo desde ${formatChecklistDate(contract.startDate) || "-"}${contract.reserve ? " (carro reserva)" : ""}`;
+    if (checklistType === "ENTREGA") {
+      const existing = checklistContractState.active[0];
+      return (
+        <p className="documents-hint" data-testid="checklist-contract-info">
+          {existing
+            ? `${since(existing)}: a entrega será registrada neste vínculo.`
+            : "Ao finalizar, o motorista será vinculado a este veículo. Se ele já tiver vínculo com outro veículo, você escolherá entre transferência definitiva e carro reserva."}
+        </p>
+      );
+    }
+    const selected = checklistContractState.active.find((contract) => contract.id === checklistDriverCarId);
+    return (
+      <>
+        {checklistContractState.active.length > 1 && (
+          <SelectField
+            label="Vínculo devolvido *"
+            value={checklistDriverCarId ? `${checklistDriverCarId}` : ""}
+            options={checklistContractState.active.map((contract) => ({ value: `${contract.id}`, label: since(contract) }))}
+            onChange={(v) => setChecklistDriverCarId(Number(v) || null)}
+          />
+        )}
+        {selected && (
+          <p className="documents-hint" data-testid="checklist-contract-info">
+            {selected.reserve
+              ? `${since(selected)}: ao finalizar, o carro reserva é devolvido e o motorista volta ao vínculo principal quando o veículo principal estiver livre.`
+              : `${since(selected)}: ao finalizar, este vínculo será encerrado na data da vistoria.`}
+          </p>
+        )}
+      </>
+    );
+  };
+
+  /** Finalized checklist: what the operation did; from here on the PDF is only the document. */
+  const renderChecklistFinal = () => {
+    const type = savedDocument?.checklistType;
+    const payload = savedDocument?.payload || {};
+    return (
+      <div className="documents-checklist-final" data-testid="checklist-final">
+        <p>
+          <strong>{type ? `Checklist de ${checklistTypeLabel(type)} finalizado.` : "Checklist finalizado."}</strong>
+        </p>
+        {type && (
+          <p>
+            {type === "ENTREGA"
+              ? "O motorista está vinculado ao veículo e a vistoria foi registrada como inspeção do veículo."
+              : "A devolução foi registrada no vínculo e a vistoria foi registrada como inspeção do veículo."}
+          </p>
+        )}
+        {checklistFeedback && <p data-testid="checklist-final-feedback">{checklistFeedback}</p>}
+        {type && (
+          <p>
+            Vistoria: {formatChecklistDate(payload.dataVistoria, payload.horaVistoria) || "-"} · KM: {`${payload.km ?? "-"}`} ·
+            Combustível: {fuelLevelLabel(payload.combustivel) || "-"}
+          </p>
+        )}
+        <p className="documents-hint">Gerar o PDF não altera o vínculo, a inspeção nem o hodômetro.</p>
+      </div>
+    );
   };
 
   const renderTypeFields = () => {
@@ -1714,20 +2007,87 @@ const DocumentsPage: React.FC = () => {
 
     return (
       <>
+        {isLegacyChecklist ? (
+          <>
+            <p className="documents-warning" data-testid="checklist-legacy-draft">
+              Rascunho criado antes do checklist estruturado. Ele continua como era: ao gerar o PDF é finalizado sem criar
+              vínculo nem inspeção. Para registrar a entrega/devolução no vínculo e na inspeção do veículo, converta-o.
+            </p>
+            <IonButton fill="outline" className="app-outline-btn" onClick={() => setChecklistLegacyConversion(true)}>
+              Converter em checklist estruturado
+            </IonButton>
+            <FormGroup title="Entrega ou devolução" columns>
+              <SelectField
+                label="Tipo"
+                value={wizardPayload.tipo || ""}
+                options={CHECKLIST_TYPE_OPTIONS}
+                onChange={(v) => setPayload("tipo", v)}
+              />
+              <TextField label="Data/Hora" value={wizardPayload.dataHora} onChange={(v) => setPayload("dataHora", v)} />
+              <TextField label="KM" value={wizardPayload.km} onChange={(v) => setPayload("km", v)} />
+              <TextField
+                label="Combustível"
+                value={wizardPayload.combustivel}
+                onChange={(v) => setPayload("combustivel", v)}
+              />
+            </FormGroup>
+          </>
+        ) : (
+          <>
         <FormGroup title="Entrega ou devolução" columns>
-          <SelectField
-            label="Tipo"
-            value={wizardPayload.tipo || ""}
-            options={[
-              { value: "ENTREGA", label: "Entrega" },
-              { value: "DEVOLUCAO", label: "Devolução" },
-            ]}
-            onChange={(v) => setPayload("tipo", v)}
+          {savedDocument?.checklistType ? (
+            <p className="documents-hint" data-testid="checklist-type-fixed">
+              <strong>{checklistTypeLabel(savedDocument.checklistType)}</strong> — o tipo não muda depois de salvo; para a
+              outra operação, crie um novo checklist.
+            </p>
+          ) : (
+            <SelectField
+              label="Tipo *"
+              value={wizardPayload.tipo || ""}
+              options={CHECKLIST_TYPE_OPTIONS}
+              onChange={(v) => {
+                setPayload("tipo", v);
+                setChecklistDriverCarId(null);
+              }}
+            />
+          )}
+          <NativeField
+            label="Data da vistoria *"
+            type="date"
+            field="dataVistoria"
+            value={wizardPayload.dataVistoria}
+            onChange={(v) => setPayload("dataVistoria", v)}
           />
-          <TextField label="Data/Hora" value={wizardPayload.dataHora} onChange={(v) => setPayload("dataHora", v)} />
-          <TextField label="KM" value={wizardPayload.km} onChange={(v) => setPayload("km", v)} />
-          <TextField label="Combustível" value={wizardPayload.combustivel} onChange={(v) => setPayload("combustivel", v)} />
+          <NativeField
+            label="Hora (opcional)"
+            type="time"
+            field="horaVistoria"
+            value={wizardPayload.horaVistoria}
+            onChange={(v) => setPayload("horaVistoria", v)}
+          />
+          <NativeField
+            label="KM *"
+            type="text"
+            inputMode="decimal"
+            field="km"
+            value={wizardPayload.km}
+            onChange={(v) => setPayload("km", `${v}`.replace(/[^\d.,]/g, ""))}
+          />
+          <SelectField
+            label="Combustível *"
+            value={wizardPayload.combustivel || ""}
+            options={FUEL_LEVEL_OPTIONS}
+            onChange={(v) => setPayload("combustivel", v)}
+          />
         </FormGroup>
+        {!!`${wizardPayload.dataHora || ""}`.trim() && !wizardPayload.dataVistoria && (
+          <p className="documents-hint" data-testid="checklist-legacy-datetime">
+            Data/Hora informada antes: {wizardPayload.dataHora}. Informe a data da vistoria no campo acima.
+          </p>
+        )}
+        {renderChecklistContract()}
+          </>
+        )}
         <FormGroup title="Checklist do veículo">
           <div className="documents-checklist-builder">
             {checklistItems.map((item) => (
@@ -2158,14 +2518,16 @@ const DocumentsPage: React.FC = () => {
                             Abrir PDF
                           </IonButton>
                         )}
-                        <IonButton
-                          size="small"
-                          fill="clear"
-                          className="app-danger-btn"
-                          onClick={() => void deleteDocument(item.id)}
-                        >
-                          Excluir
-                        </IonButton>
+                        {!(item.checklistType && item.status !== "DRAFT") && (
+                          <IonButton
+                            size="small"
+                            fill="clear"
+                            className="app-danger-btn"
+                            onClick={() => void deleteDocument(item.id)}
+                          >
+                            Excluir
+                          </IonButton>
+                        )}
                       </div>
                     </IonCardContent>
                   </FrottoCard>
@@ -2236,10 +2598,12 @@ const DocumentsPage: React.FC = () => {
         <IonFooter className="app-footer-bar">
           <IonToolbar>
             <div className="app-actions-row app-actions-row--end documents-modal-actions">
-              <IonButton fill="clear" className="app-danger-btn" onClick={() => void deleteDocument(viewDocument?.id)}>
-                <IonIcon icon={trashOutline} slot="start" />
-                Excluir
-              </IonButton>
+              {!(viewDocument?.checklistType && viewDocument.status !== "DRAFT") && (
+                <IonButton fill="clear" className="app-danger-btn" onClick={() => void deleteDocument(viewDocument?.id)}>
+                  <IonIcon icon={trashOutline} slot="start" />
+                  Excluir
+                </IonButton>
+              )}
               {(viewDocument?.status !== "DRAFT" || !!viewDocument?.pdfUrl) && (
                 <IonButton className="app-primary-btn" onClick={() => void openPdf(viewDocument?.id)}>
                   Abrir PDF
@@ -2359,9 +2723,9 @@ const DocumentsPage: React.FC = () => {
               <FrottoCard>
                 <IonCardContent className="documents-step-body">
                   <WizardStepHead step={3} typeLabel={wizardType ? resolveTypeLabel(wizardType) : undefined} />
-                  {renderTypeFields()}
+                  {isChecklistFinal ? renderChecklistFinal() : renderTypeFields()}
 
-                  {showAttachmentInput && (
+                  {showAttachmentInput && !isChecklistFinal && (
                     <FormGroup title="Anexos">
                     <IonItem lines="none" className="documents-attachments-item">
                       <IonLabel position="stacked">
@@ -2408,7 +2772,7 @@ const DocumentsPage: React.FC = () => {
                   Voltar
                 </IonButton>
               )}
-              {wizardStep === 3 && !!savedDocument?.id && (
+              {wizardStep === 3 && !!savedDocument?.id && !isChecklistFinal && (
                 <IonButton
                   fill="clear"
                   className="app-danger-btn documents-wizard-footer__delete"
@@ -2428,6 +2792,39 @@ const DocumentsPage: React.FC = () => {
                 >
                   Próximo
                 </IonButton>
+              ) : isStructuredChecklist ? (
+                // Checklist: Finalizar is the operation; Gerar PDF exists only after it (documentary action).
+                isChecklistFinal ? (
+                  <IonButton
+                    className="app-primary-btn documents-wizard-footer__primary"
+                    onClick={() => void generateWizardPdf()}
+                    disabled={isActionLoading}
+                  >
+                    Gerar PDF
+                  </IonButton>
+                ) : (
+                  <>
+                    <IonButton
+                      fill="outline"
+                      className="app-save-btn documents-wizard-footer__draft"
+                      onClick={() => void saveDraft()}
+                      disabled={isActionLoading}
+                    >
+                      Salvar rascunho
+                    </IonButton>
+                    <IonButton
+                      className="app-primary-btn documents-wizard-footer__primary"
+                      onClick={() => void finalizeChecklist()}
+                      disabled={isActionLoading}
+                    >
+                      {checklistType === "DEVOLUCAO"
+                        ? "Finalizar devolução"
+                        : checklistType === "ENTREGA"
+                        ? "Finalizar entrega"
+                        : "Finalizar checklist"}
+                    </IonButton>
+                  </>
+                )
               ) : (
                 <>
                   <IonButton
@@ -2450,6 +2847,18 @@ const DocumentsPage: React.FC = () => {
             </div>
           </IonToolbar>
         </IonFooter>
+      </IonModal>
+      <IonModal isOpen={!!checklistConflict} backdropDismiss={false} onDidDismiss={() => setChecklistConflict(null)}>
+        {checklistConflict && (
+          <DriverAssignmentChoice
+            conflictingCarPlate={checklistConflict.conflictingCarPlate}
+            onChoose={(assignment) => {
+              setChecklistConflict(null);
+              void finalizeChecklist(assignment);
+            }}
+            onCancel={() => setChecklistConflict(null)}
+          />
+        )}
       </IonModal>
     </IonPage>
   );
@@ -2559,6 +2968,48 @@ const IntegerField: React.FC<FieldProps> = ({ label, value, onChange }) => (
     </IonItem>
   </div>
 );
+
+/** Native date / time / text input (structured checklist fields); data-field identifies it in tests. */
+const NativeField: React.FC<
+  FieldProps & { type: "date" | "time" | "text"; field: string; inputMode?: "decimal" | "numeric" }
+> = ({ label, value, onChange, type, field, inputMode }) => (
+  <div className="app-form-field">
+    <IonItem className="app-form-item">
+      <FormInputLabel name={label} />
+      <IonInput
+        type={type}
+        inputmode={inputMode}
+        color="primary"
+        data-field={field}
+        value={value ?? ""}
+        onIonChange={(e) => onChange(e.detail.value || "")}
+      />
+    </IonItem>
+  </div>
+);
+
+/** Messages for the error codes of the checklist finalization (and of the contract rules it reuses). */
+export const CHECKLIST_ERROR_MESSAGES: Record<string, string> = {
+  ...DRIVER_CAR_ERROR_MESSAGES,
+  checklisttyperequired: "Informe se o checklist é de Entrega ou de Devolução.",
+  checklisttypeimmutable: "O tipo do checklist não pode ser alterado: crie um novo checklist.",
+  checklistdrivercarrequired: "Selecione o vínculo que está sendo devolvido.",
+  checklistdrivercarnotfound: "Vínculo não encontrado para esta conta.",
+  checklistdrivercardriver: "O vínculo selecionado é de outro motorista.",
+  checklistdrivercarcar: "O vínculo selecionado é de outro veículo.",
+  checklistdrivercarconcluded: "Este vínculo já foi encerrado: a operação não pode ser registrada nele.",
+  checklistdrivercarsuspended:
+    "Este vínculo está suspenso (o motorista está em um carro reserva). Devolva o carro reserva ou reative o vínculo antes.",
+  checklistalreadyfinalized: "Este vínculo já possui um checklist deste tipo finalizado.",
+  checklistdaterequired: "Informe a data da vistoria.",
+  checklistodometerinvalid: "Informe o KM do veículo (somente números).",
+  checklistfuelrequired: "Selecione o nível de combustível.",
+  checklistincomplete: "Checklist sem tipo, motorista ou veículo.",
+  checklistfinalizerequired: "O checklist só é finalizado pelo botão Finalizar.",
+  checklistfinalcannotbedeleted: "Um checklist finalizado registra a operação e não pode ser excluído.",
+  activedriverexists:
+    "O veículo já está vinculado a outro motorista. Registre a devolução ou encerre esse vínculo antes da entrega.",
+};
 
 const AreaField: React.FC<FieldProps> = ({ label, value, onChange }) => (
   <div className="app-form-field">

@@ -1,5 +1,5 @@
 import endpoints from "../constants/endpoints";
-import { DriverPendencyModel } from "../constants/CarModels";
+import { DriverAssignmentType, DriverPendencyModel } from "../constants/CarModels";
 import {
   CarSearchModel,
   DocumentModel,
@@ -120,9 +120,13 @@ const documentService = {
     return data;
   },
 
-  async finalizeDocument(id: number): Promise<DocumentModel> {
+  /**
+   * POST /documents/{id}/finalize[?assignment=]. For a structured Entrega/Devolução checklist this is the operation
+   * itself (contract + inspection); the assignment is sent only after the user's explicit choice on the 409.
+   */
+  async finalizeDocument(id: number, assignment?: DriverAssignmentType): Promise<DocumentModel> {
     const { data } = await api.post<DocumentModel>(
-      endpoints.DOCUMENT_FINALIZE({ pathVariables: { id } }),
+      endpoints.DOCUMENT_FINALIZE({ pathVariables: { id }, ...(assignment ? { query: { assignment } } : {}) }),
       {}
     );
     return data;
