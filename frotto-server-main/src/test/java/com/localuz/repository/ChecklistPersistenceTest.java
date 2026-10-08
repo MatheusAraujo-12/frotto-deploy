@@ -213,7 +213,7 @@ class ChecklistPersistenceTest {
             ? assignmentOverride
             : new DriverAssignmentService(driverCarRepository, drivers, carRepository, pendencyRepository, shared);
         CarService carService = new CarService(inspectionRepository, repositories.getRepository(MaintenanceRepository.class), carRepository);
-        ChecklistService checklistService = new ChecklistService(driverCarRepository, documentRepository, inspectionRepository, drivers, assignments, carService);
+        ChecklistService checklistService = new ChecklistService(driverCarRepository, documentRepository, inspectionRepository, drivers, assignments, carService, repositories.getRepository(CarBodyDamageRepository.class));
         UserService userService = mock(UserService.class);
         when(userService.getUserWithAuthorities())
             .thenAnswer(call -> {
@@ -340,16 +340,23 @@ class ChecklistPersistenceTest {
         assertThat(((Number) inspection.get("odometer")).doubleValue()).isEqualTo(15000.0);
         // Q/R) nothing financial, nothing guessed.
         assertThat(inspection.get("cost")).isNull();
-        assertThat(inspection.get("internal_cleaning")).isNull();
-        assertThat(inspection.get("external_cleaning")).isNull();
+        // Cleaning as informed in the checklist, on the inspection's scale.
+        assertThat(inspection.get("internal_cleaning")).isEqualTo("Boa");
+        assertThat(inspection.get("external_cleaning")).isEqualTo("Aceitavel");
         assertThat(inspection.get("score")).isNull();
         assertThat(count("SELECT COUNT(*) FROM expense WHERE inspection_id = " + result.getInspectionId())).isZero();
-        // Positional tires copied only when compatible (integrity of the inspection form).
+        // The tires checked in the checklist, per position (a position left empty gets no tire).
         Map<String, Object> leftFront = row("SELECT t.* FROM tire t JOIN inspection i ON i.left_front_id = t.id WHERE i.id = " + result.getInspectionId());
         assertThat(leftFront).containsEntry("model", "Pirelli").containsEntry("integrity", "70-90%");
+        Map<String, Object> rightBack = row("SELECT t.* FROM tire t JOIN inspection i ON i.right_back_id = t.id WHERE i.id = " + result.getInspectionId());
+        assertThat(rightBack.get("model")).isNull();
+        assertThat(rightBack).containsEntry("integrity", "50-70%");
         Map<String, Object> spare = row("SELECT t.* FROM tire t JOIN inspection i ON i.spare_id = t.id WHERE i.id = " + result.getInspectionId());
         assertThat(spare).containsEntry("model", "Goodyear");
-        assertThat(spare.get("integrity")).isNull(); // "BOM" is not an integrity of the form: not converted
+        assertThat(spare.get("integrity")).isNull();
+        assertThat(row("SELECT left_back_id, right_front_id FROM inspection WHERE id = " + result.getInspectionId()))
+            .containsEntry("left_back_id", null)
+            .containsEntry("right_front_id", null);
         Map<String, Object> document = row("SELECT * FROM driver_document WHERE id = " + draft);
         assertThat(document).containsEntry("status", "FINAL").containsEntry("driver_car_id", result.getDriverCarId()).containsEntry("final_checklist_slot", "ENTREGA");
         // S) the most recent inspection moves the car's odometer.
@@ -914,6 +921,187 @@ class ChecklistPersistenceTest {
             .isZero();
     }
 
+    // ------------------------------------------------------------------ vehicle conditions: cleaning, tires, damages
+
+    @Test
+    void cleaningIsRequiredOnTheInspectionScale() throws Exception {
+        long driver = newDriver("Limpeza", null);
+        long car = newCar(0);
+        Map<String, Object> missing = payload("2026-10-07", 10, "FULL");
+        missing.remove(ChecklistService.INTERNAL_CLEANING_KEY);
+        Map<String, Object> outOfScale = payload("2026-10-07", 10, "FULL");
+        outOfScale.put(ChecklistService.EXTERNAL_CLEANING_KEY, "Excelente");
+        for (Map<String, Object> bad : List.of(missing, outOfScale)) {
+            long draft = draft(ChecklistType.ENTREGA, driver, car, null, bad);
+            assertRejected(() -> finalizeAs(draft, null), "checklistcleaningrequired");
+            assertThat(count("SELECT COUNT(*) FROM driver_document WHERE id = " + draft + " AND status = 'DRAFT'")).isEqualTo(1);
+        }
+        assertThat(count("SELECT COUNT(*) FROM driver_car WHERE car_id = " + car)).isZero();
+    }
+
+    @Test
+    void tiresAreOptionalButNeverInvalid() throws Exception {
+        long driver = newDriver("Pneus", null);
+        long car = newCar(0);
+        Map<String, Object> none = payload("2026-10-07", 10, "FULL");
+        none.remove("tires");
+        DocumentDTO result = finalizeAs(draft(ChecklistType.ENTREGA, driver, car, null, none), null);
+        assertThat(row("SELECT left_front_id, right_front_id, left_back_id, right_back_id, spare_id FROM inspection WHERE id = " + result.getInspectionId()).values())
+            .containsOnlyNulls();
+
+        long other = newCar(0);
+        for (Map<String, Object> position : List.of(
+            Map.<String, Object>of("posicao", "Dianteiro esquerdo", "marca", "Pirelli", "estado", "BOM"),
+            Map.<String, Object>of("posicao", "Teto", "marca", "Pirelli", "estado", "70-90%")
+        )) {
+            Map<String, Object> bad = payload("2026-10-07", 10, "FULL");
+            bad.put("tires", Map.of("source", ChecklistService.TIRES_FROM_CHECKLIST, "positions", List.of(position)));
+            long draft = draft(ChecklistType.ENTREGA, newDriver("Pneu Ruim", null), other, null, bad);
+            assertRejected(() -> finalizeAs(draft, null), "checklisttireinvalid");
+        }
+        Map<String, Object> duplicated = payload("2026-10-07", 10, "FULL");
+        duplicated.put(
+            "tires",
+            Map.of(
+                "source",
+                ChecklistService.TIRES_FROM_CHECKLIST,
+                "positions",
+                List.of(Map.of("posicao", "Estepe", "estado", "70-90%"), Map.of("posicao", "Estepe", "estado", "10-20%"))
+            )
+        );
+        long dup = draft(ChecklistType.ENTREGA, newDriver("Pneu Duplo", null), other, null, duplicated);
+        assertRejected(() -> finalizeAs(dup, null), "checklisttireinvalid");
+    }
+
+    @Test
+    void tiresOfAPreviousInspectionAreNeverInherited() throws Exception {
+        long driver = newDriver("Heranca", null);
+        long car = newCar(0);
+        // A previous manual inspection with tires.
+        long tire = IDS.incrementAndGet();
+        exec("INSERT INTO tire (id,model,integrity) VALUES (" + tire + ",'Michelin','90-100%')");
+        exec("INSERT INTO inspection (id,date,driver_name,odometer,car_id,left_front_id) VALUES (" + IDS.incrementAndGet() + ",'2026-09-01','Manual',5," + car + "," + tire + ")");
+        // A draft of the previous form: positions suggested from that inspection (not checked in this checklist).
+        Map<String, Object> suggested = payload("2026-10-07", 10, "FULL");
+        suggested.put(
+            "tires",
+            Map.of("source", "LAST_INSPECTION", "positions", List.of(Map.of("posicao", "Dianteiro esquerdo", "marca", "Michelin", "estado", "90-100%")))
+        );
+
+        DocumentDTO result = finalizeAs(draft(ChecklistType.ENTREGA, driver, car, null, suggested), null);
+
+        assertThat(row("SELECT left_front_id, spare_id FROM inspection WHERE id = " + result.getInspectionId()).values()).containsOnlyNulls();
+        assertThat(count("SELECT COUNT(*) FROM tire WHERE model = 'Michelin'")).isEqualTo(1);
+    }
+
+    @Test
+    void confirmedDamagesAreLinkedNeverCreatedAndMustBeOfThisCar() throws Exception {
+        long driver = newDriver("Danos", null);
+        long car = newCar(0);
+        long otherCar = newCar(0);
+        long damage = IDS.incrementAndGet();
+        long otherCarDamage = IDS.incrementAndGet();
+        long otherAccountDamage = IDS.incrementAndGet();
+        exec(
+            "INSERT INTO car_body_damage (id,date,responsible,part,resolved,car_id) VALUES " +
+            "(" + damage + ",'2026-09-01','Oficina','Porta dianteira',false," + car + ")," +
+            "(" + otherCarDamage + ",'2026-09-01','Oficina','Capô',false," + otherCar + ")," +
+            "(" + otherAccountDamage + ",'2026-09-01','Oficina','Teto',false,93998)"
+        );
+        long damagesBefore = count("SELECT COUNT(*) FROM car_body_damage");
+        Map<String, Object> confirmed = payload("2026-10-07", 10, "FULL");
+        confirmed.put(ChecklistService.DAMAGES_KEY, List.of(Map.of("id", damage, "part", "Porta dianteira")));
+
+        DocumentDTO result = finalizeAs(draft(ChecklistType.ENTREGA, driver, car, null, confirmed), null);
+
+        assertThat(count("SELECT COUNT(*) FROM rel_inspection__car_body_damage WHERE inspection_id = " + result.getInspectionId() + " AND car_body_damage_id = " + damage)).isEqualTo(1);
+        assertThat(count("SELECT COUNT(*) FROM car_body_damage")).isEqualTo(damagesBefore);
+        for (long foreign : List.of(otherCarDamage, otherAccountDamage)) {
+            Map<String, Object> bad = payload("2026-10-07", 10, "FULL");
+            bad.put(ChecklistService.DAMAGES_KEY, List.of(Map.of("id", foreign)));
+            long draft = draft(ChecklistType.ENTREGA, newDriver("Dano Alheio", null), newCar(0), null, bad);
+            assertRejected(() -> finalizeAs(draft, null), "checklistdamageinvalid");
+        }
+    }
+
+    @Test
+    void damagesWithAnUnknownResolutionCanBeConfirmedButExplicitlyResolvedOnesCannot() throws Exception {
+        long car = newCar(0);
+        long unknown = IDS.incrementAndGet();
+        long resolved = IDS.incrementAndGet();
+        exec(
+            "INSERT INTO car_body_damage (id,date,responsible,part,resolved,car_id) VALUES " +
+            "(" + unknown + ",'2025-01-01','Antigo','Para-choque',NULL," + car + ")," +
+            "(" + resolved + ",'2025-02-01','Oficina','Retrovisor',true," + car + ")"
+        );
+        String history = rowsOf("SELECT id, resolved FROM car_body_damage WHERE car_id = " + car + " ORDER BY id");
+        Map<String, Object> withUnknown = payload("2026-10-07", 10, "FULL");
+        withUnknown.put(ChecklistService.DAMAGES_KEY, List.of(Map.of("id", unknown)));
+
+        DocumentDTO result = finalizeAs(draft(ChecklistType.ENTREGA, newDriver("Dano Antigo", null), car, null, withUnknown), null);
+
+        assertThat(count("SELECT COUNT(*) FROM rel_inspection__car_body_damage WHERE inspection_id = " + result.getInspectionId() + " AND car_body_damage_id = " + unknown)).isEqualTo(1);
+        Map<String, Object> withResolved = payload("2026-10-07", 10, "FULL");
+        withResolved.put(ChecklistService.DAMAGES_KEY, List.of(Map.of("id", resolved)));
+        long draft = draft(ChecklistType.ENTREGA, newDriver("Dano Resolvido", null), newCar(0), null, withResolved);
+        assertRejected(() -> finalizeAs(draft, null), "checklistdamageinvalid");
+        // The historical rows are untouched (a NULL stays NULL).
+        assertThat(rowsOf("SELECT id, resolved FROM car_body_damage WHERE car_id = " + car + " ORDER BY id")).isEqualTo(history);
+    }
+
+    @Test
+    void theFinalChecklistsOfAContractAreFoundWhateverTheNumberOfDocumentsOnlyInItsAccount() throws Exception {
+        long driver = newDriver("Muitos Documentos", null);
+        long car = newCar(0);
+        long contract = newContract(car, driver, false, false, null);
+        long entrega = IDS.incrementAndGet();
+        exec(
+            "INSERT INTO driver_document (id,type,driver_id,car_id,jhi_user_id,status,payload_json,created_at,updated_at,checklist_type,driver_car_id,final_checklist_slot) VALUES (" +
+            entrega + ",'ENTREGA_DEVOLUCAO_CHECKLIST'," + driver + "," + car + ",93001,'FINAL','{}','2026-01-01 08:00:00','2026-01-01 08:00:00','ENTREGA'," + contract + ",'ENTREGA')"
+        );
+        // 60 newer checklist documents of the same car push it out of any "last N" page.
+        StringBuilder newer = new StringBuilder("INSERT INTO driver_document (id,type,driver_id,car_id,jhi_user_id,status,payload_json,created_at,updated_at) VALUES ");
+        for (int i = 0; i < 60; i++) {
+            newer.append(i == 0 ? "" : ",").append("(").append(IDS.incrementAndGet()).append(",'ENTREGA_DEVOLUCAO_CHECKLIST',").append(driver).append(",").append(car)
+                .append(",93001,'DRAFT','{}',NOW(6),NOW(6))");
+        }
+        exec(newer.toString());
+
+        as(OWNER_A);
+        List<ChecklistType> ofOwner = transaction.execute(status -> driverCars.getFinalChecklistTypes(contract));
+        assertThat(ofOwner).containsExactly(ChecklistType.ENTREGA);
+        // Another account: nothing, even knowing the contract id.
+        as(OWNER_B);
+        List<ChecklistType> ofOtherAccount = transaction.execute(status -> driverCars.getFinalChecklistTypes(contract));
+        assertThat(ofOtherAccount).isEmpty();
+        // A contract without final checklists.
+        as(OWNER_A);
+        long open = newContract(newCar(0), newDriver("Sem Checklist", null), false, false, null);
+        List<ChecklistType> ofOpen = transaction.execute(status -> driverCars.getFinalChecklistTypes(open));
+        assertThat(ofOpen).isEmpty();
+        java.lang.reflect.Method method = DriverCarResource.class.getMethod("getFinalChecklistTypes", Long.class);
+        assertThat(method.getAnnotation(org.springframework.transaction.annotation.Transactional.class).readOnly()).isTrue();
+    }
+
+    @Test
+    void aFinalChecklistOfThePreviousFormStaysFinalWithoutTheNewFields() throws Exception {
+        long driver = newDriver("Historico", null);
+        long car = newCar(0);
+        long contract = newContract(car, driver, false, false, null);
+        long id = IDS.incrementAndGet();
+        exec(
+            "INSERT INTO driver_document (id,type,driver_id,car_id,jhi_user_id,status,payload_json,created_at,updated_at,checklist_type,driver_car_id,final_checklist_slot) VALUES (" +
+            id + ",'ENTREGA_DEVOLUCAO_CHECKLIST'," + driver + "," + car + ",93001,'FINAL','{\"dataVistoria\":\"2026-09-01\",\"km\":10,\"combustivel\":\"FULL\",\"tires\":{\"estado\":\"BOM\"}}',NOW(6),NOW(6),'ENTREGA'," + contract + ",'ENTREGA')"
+        );
+        String before = rowsOf("SELECT status, payload_json, updated_at FROM driver_document WHERE id = " + id);
+
+        DocumentDTO again = finalizeAs(id, null);
+
+        assertThat(again.getStatus().name()).isEqualTo("FINAL");
+        assertThat(rowsOf("SELECT status, payload_json, updated_at FROM driver_document WHERE id = " + id)).isEqualTo(before);
+        assertThat(count("SELECT COUNT(*) FROM inspection WHERE origin_document_id = " + id)).isZero();
+    }
+
     // ------------------------------------------------------------------ old DriverCar routes racing a checklist
     // Deterministic races: the old route is paused right after its first read (before any lock), the checklist
     // finalizes and commits meanwhile, then the route goes on. The route must decide on the committed state.
@@ -1305,17 +1493,24 @@ class ChecklistPersistenceTest {
         payload.put(ChecklistService.DATE_KEY, date);
         payload.put(ChecklistService.ODOMETER_KEY, km);
         payload.put(ChecklistService.FUEL_KEY, fuel);
+        payload.put(ChecklistService.INTERNAL_CLEANING_KEY, "Boa");
+        payload.put(ChecklistService.EXTERNAL_CLEANING_KEY, "Aceitavel");
         payload.put(
             "emergencyContacts",
             List.of(Map.of("nome", "Ana Souza", "telefone", "11999990000"), Map.of("nome", "Carlos Lima", "telefone", "11988880000"))
         );
+        // The checklist form's own tire fields (five positions, optional each).
         payload.put(
             "tires",
             Map.of(
+                "source",
+                ChecklistService.TIRES_FROM_CHECKLIST,
                 "positions",
                 List.of(
                     Map.of("posicao", "Dianteiro esquerdo", "marca", "Pirelli", "estado", "70-90%"),
-                    Map.of("posicao", "Estepe", "marca", "Goodyear", "estado", "BOM")
+                    Map.of("posicao", "Traseiro direito", "marca", "", "estado", "50-70%"),
+                    Map.of("posicao", "Traseiro esquerdo", "marca", "", "estado", ""),
+                    Map.of("posicao", "Estepe", "marca", "Goodyear", "estado", "")
                 )
             )
         );

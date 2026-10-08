@@ -51,6 +51,46 @@ describe("PDF do checklist de Entrega/Devolução", () => {
     expect(text).toMatch(/Quilometragem: 15000 km\. Combustível: 3\/4\./);
   });
 
+  it("the new form prints the cleaning, the tires checked per position and the confirmed damages", async () => {
+    const text = await printed({
+      ...base,
+      checklistType: "ENTREGA",
+      payload: {
+        dataVistoria: "2026-10-07",
+        km: 15000,
+        combustivel: "HALF",
+        limpezaInterna: "Aceitavel",
+        limpezaExterna: "Ótima",
+        tires: {
+          source: "CHECKLIST",
+          positions: [
+            { posicao: "Dianteiro esquerdo", marca: "PIRELLI", estado: "70-90%" },
+            { posicao: "Traseiro direito" },
+            { posicao: "Estepe", estado: "30-50%" },
+          ],
+        },
+        existingDamages: [{ id: 11, part: "Porta dianteira", date: "2026-09-01" }],
+      },
+    });
+    expect(text).toContain("Limpeza interna: Aceitável. Limpeza externa: Ótima.");
+    expect(text).toContain("Integridade");
+    expect(text).toContain("Dianteiro esquerdo\nPIRELLI\n70-90%");
+    expect(text).toContain("Estepe\n-\n30-50%");
+    expect(text).not.toContain("Traseiro direito"); // a position not checked is not printed
+    expect(text).not.toContain("Estado: ");
+    expect(text).toContain("Danos já registrados, confirmados na vistoria:\nPorta dianteira (01/09/2026)");
+  });
+
+  it("an old checklist keeps its tire block (marca / estado Bom - Meia vida - Ruim) as before", async () => {
+    const text = await printed({
+      ...base,
+      checklistType: null,
+      payload: { tipo: "ENTREGA", dataHora: "ontem", tires: { marca: "Pirelli", estado: "MEIA_VIDA", observacoes: "ok" } },
+    });
+    expect(text).toContain("Marca: Pirelli\nEstado: Meia vida\nObservações: ok");
+    expect(text).not.toMatch(/Limpeza interna/);
+  });
+
   it("an old checklist (no checklistType) prints its free-text fields exactly as before", async () => {
     const text = await printed({
       ...base,
@@ -79,14 +119,16 @@ describe("checklistUtils - regras do checklist estruturado", () => {
       "Informe a data da vistoria.",
       "Informe o KM do veículo (somente números).",
       "Selecione o nível de combustível.",
+      "Informe a limpeza interna do veículo.",
+      "Informe a limpeza externa do veículo.",
     ]);
-    expect(structuredChecklistErrors("DEVOLUCAO", { dataVistoria: "2026-10-07", km: 1, combustivel: "FULL" }, null)).toEqual([
+    expect(structuredChecklistErrors("DEVOLUCAO", { dataVistoria: "2026-10-07", km: 1, combustivel: "FULL", limpezaInterna: "Boa", limpezaExterna: "Ótima" }, null)).toEqual([
       "Selecione o vínculo que está sendo devolvido.",
     ]);
-    expect(structuredChecklistErrors("ENTREGA", { dataVistoria: "07/10/2026", km: 1, combustivel: "FULL" }, null)).toEqual([
+    expect(structuredChecklistErrors("ENTREGA", { dataVistoria: "07/10/2026", km: 1, combustivel: "FULL", limpezaInterna: "Boa", limpezaExterna: "Ótima" }, null)).toEqual([
       "Informe a data da vistoria.",
     ]);
-    expect(structuredChecklistErrors("ENTREGA", { dataVistoria: "2026-10-07", km: "0", combustivel: "EMPTY" }, null)).toEqual([]);
+    expect(structuredChecklistErrors("ENTREGA", { dataVistoria: "2026-10-07", km: "0", combustivel: "EMPTY", limpezaInterna: "Aceitavel", limpezaExterna: "Péssima" }, null)).toEqual([]);
   });
 
   it("formats the structured date with the optional time", () => {

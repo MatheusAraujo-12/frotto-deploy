@@ -98,6 +98,20 @@ public class DriverCarResource {
             .collect(java.util.stream.Collectors.toList());
     }
 
+    /**
+     * GET /driver-cars/{id}/final-checklists: the checklist types (ENTREGA / DEVOLUCAO) already finalized on this
+     * contract, read only, for the wizard to warn before a duplicate is filled. Only a contract of this account answers
+     * (another account's gets an empty list); the UNIQUE of the finalization stays the final word.
+     */
+    @GetMapping("/{id}/final-checklists")
+    @Transactional(readOnly = true)
+    public List<ChecklistType> getFinalChecklistTypes(@PathVariable Long id) {
+        if (driverCarRepository.findByCurrentUserAndId(id).isEmpty()) {
+            return List.of();
+        }
+        return driverCarRepository.findFinalChecklistTypesByCurrentUser(id);
+    }
+
     @GetMapping("/{id}")
     public DriverCar getDriverCarById(@PathVariable Long id) {
         log.debug("REST request to get DriverCar  by id : {}", id);

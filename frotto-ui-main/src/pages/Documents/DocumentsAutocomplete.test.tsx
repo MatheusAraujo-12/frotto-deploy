@@ -209,6 +209,8 @@ describe("Documentos - Checklist / contatos de emergência", () => {
   it("Adicionar contato cria uma nova linha; linhas vazias não vão para o payload e nomes mantêm espaços", async () => {
     await openWizardAndSelect();
     await goToStep3("ENTREGA_DEVOLUCAO_CHECKLIST");
+    // The contacts are in part 2 of the checklist (conferência).
+    fireEvent.click(within(dialog()).getByRole("tab", { name: "2. Conferência e finalização" }));
 
     expect(within(dialog()).queryByText(/Contato 3 - Nome/)).not.toBeInTheDocument();
     clickButton("Adicionar contato");
@@ -222,6 +224,7 @@ describe("Documentos - Checklist / contatos de emergência", () => {
     typeInto(fieldInput("Contato 2 - Telefone"), "11955556666");
     expect(fieldInput("Contato 1 - Nome").value).toBe("Carlos Souza");
     // A new checklist states its operation (required since the checklist drives the contract / inspection).
+    fireEvent.click(within(dialog()).getByRole("tab", { name: "1. Condições do veículo" }));
     const tipo = within(dialog()).getAllByText((text, node) => node?.tagName === "LABEL" && text.trim().startsWith("Tipo"))[0];
     fireEvent.change(tipo.parentElement!.querySelector("select") as HTMLSelectElement, { target: { value: "ENTREGA" } });
 

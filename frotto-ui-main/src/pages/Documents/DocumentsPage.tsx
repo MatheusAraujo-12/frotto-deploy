@@ -59,9 +59,16 @@ import { formatDecimalInput, parseDecimal, sanitizeDecimalInput } from "../../se
 import { generateDocumentPdf } from "./documentPdf";
 import { RouteComponentProps } from "react-router";
 import { parseChecklistLaunch } from "./checklistLaunch";
+import { TIRE_BRANDS } from "../../constants/selectOptions";
+import FormSelectFilterAdd from "../../components/Form/FormSelectFilterAdd";
+import { TIRE_BRANDS_KEY } from "../../services/localStorage/localstorage";
 import {
+  CHECKLIST_TIRE_POSITIONS,
   CHECKLIST_TYPE_OPTIONS,
+  CLEANING_OPTIONS,
   ChecklistItem,
+  TIRE_INTEGRITY_OPTIONS,
+  cleaningLabel,
   FUEL_LEVEL_OPTIONS,
   checklistTypeLabel,
   formatChecklistDate,
@@ -127,9 +134,13 @@ type ChecklistTires = {
   marca?: string;
   estado?: ChecklistTireCondition;
   observacoes?: string;
-  source?: "MANUAL" | "LAST_INSPECTION";
+  /** CHECKLIST: the five positions filled in the structured form (the only tires carried to the inspection). */
+  source?: "MANUAL" | "LAST_INSPECTION" | "CHECKLIST";
   positions?: ChecklistTirePosition[];
 };
+
+/** A damage already registered on the car, confirmed in the checklist (snapshot for the PDF; the backend reads the id). */
+type ChecklistExistingDamage = { id: number; part?: string; date?: string };
 
 const MIN_EMERGENCY_CONTACTS = 2;
 const DOCUMENTS_DEV_LOG = process.env.NODE_ENV === "development";
@@ -215,6 +226,14 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
   const [launchReturnTo, setLaunchReturnTo] = useState<string | null>(null);
   /** The checklist was finalized but its PDF could not be generated: Gerar PDF retries (never finalizes again). */
   const [checklistPdfFailed, setChecklistPdfFailed] = useState(false);
+  /** Structured checklist form: 1 = condições do veículo, 2 = conferência e finalização. */
+  const [checklistPart, setChecklistPart] = useState<1 | 2>(1);
+  /** Tires of the car's last inspection: only offered as a suggestion, never copied by itself. */
+  const [lastInspectionTires, setLastInspectionTires] = useState<ChecklistTirePosition[]>([]);
+  /** Damages of the car not explicitly resolved (an unknown resolution - older records - included): can be confirmed. */
+  const [carDamages, setCarDamages] = useState<Array<{ id: number; part?: string; date?: string; responsible?: string }>>([]);
+  /** Checklist types already finalized on the contract being delivered (read from the backend for that contract). */
+  const [contractFinalChecklists, setContractFinalChecklists] = useState<{ contractId: number; types: string[] } | null>(null);
   const [newChecklistLabel, setNewChecklistLabel] = useState("");
   const [debtItemTypes, setDebtItemTypes] = useState<DebtItemTypeModel[]>([]);
   const [isDebtItemTypesLoading, setIsDebtItemTypesLoading] = useState(false);
@@ -442,6 +461,8 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
     setChecklistConflict(null);
     setChecklistFeedback("");
     setChecklistLegacyConversion(false);
+    setChecklistPart(1);
+    setLastInspectionTires([]);
     setIsConfissaoPendenciesLoading(false);
     setConfissaoImportFeedback("");
     setConfissaoAutoImportedDriverId(null);
@@ -1123,26 +1144,10 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
           return;
         }
 
+        // Only a suggestion the user may apply: the checklist records the tires checked now, never a copy by itself.
         const tiresSuggestion = buildChecklistTiresFromInspection(data?.lastInspection);
-        if (!tiresSuggestion) {
-          logDocumentsDebug("checklist tires suggestion not found", { carId: wizardCar.id });
-          return;
-        }
-
-        setWizardPayload((current) => {
-          const currentTires = normalizeChecklistTiresForEditor(current?.tires);
-          if (hasChecklistTiresData(currentTires)) {
-            return current;
-          }
-          logDocumentsDebug("checklist tires suggestion applied", {
-            carId: wizardCar.id,
-            source: tiresSuggestion.source,
-          });
-          return {
-            ...current,
-            tires: tiresSuggestion,
-          };
-        });
+        setLastInspectionTires(tiresSuggestion?.positions || []);
+        logDocumentsDebug("checklist tires suggestion loaded", { carId: wizardCar.id, found: Boolean(tiresSuggestion) });
       } catch (error) {
         logDocumentsDebug("checklist tires suggestion failed", {
           carId: wizardCar.id,
@@ -1192,6 +1197,33 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
     };
   }, [isWizardOpen, wizardType, wizardCar?.id, savedDocument?.status]);
 
+  useEffect(() => {
+    if (!isWizardOpen || wizardType !== "ENTREGA_DEVOLUCAO_CHECKLIST" || !wizardCar?.id) {
+      setCarDamages([]);
+      return;
+    }
+    let active = true;
+    const carId = wizardCar.id;
+    const load = async () => {
+      try {
+        // Every damage of the car (this account), but the explicitly resolved ones: older records without a
+        // resolution (NULL) are shown, never hidden nor rewritten.
+        const { data } = await api.get(endpoints.BODY_DAMAGE({ pathVariables: { id: carId } }));
+        if (active) {
+          setCarDamages((Array.isArray(data) ? data : []).filter((damage: any) => damage?.resolved !== true));
+        }
+      } catch (_error) {
+        if (active) {
+          setCarDamages([]);
+        }
+      }
+    };
+    void load();
+    return () => {
+      active = false;
+    };
+  }, [isWizardOpen, wizardType, wizardCar?.id, savedDocument?.status]);
+
   /** Open contracts of the selected driver on the selected car, and whoever else operates the car. */
   const checklistContractState = useMemo(() => {
     const contracts = checklistContracts || [];
@@ -1207,6 +1239,32 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
       ),
     };
   }, [checklistContracts, wizardDriver?.id]);
+
+  // An Entrega on an existing contract: the checklist types already finalized on it (any number of documents).
+  const deliveryContractId = checklistType === "ENTREGA" ? checklistContractState.active[0]?.id : undefined;
+  useEffect(() => {
+    if (!isStructuredChecklist || isChecklistFinal || !deliveryContractId) {
+      setContractFinalChecklists(null);
+      return;
+    }
+    let active = true;
+    const load = async () => {
+      try {
+        const { data } = await api.get<string[]>(endpoints.DRIVER_CAR_FINAL_CHECKLISTS({ pathVariables: { id: deliveryContractId } }));
+        if (active) {
+          setContractFinalChecklists({ contractId: deliveryContractId, types: Array.isArray(data) ? data : [] });
+        }
+      } catch (_error) {
+        if (active) {
+          setContractFinalChecklists(null); // the finalization keeps the final word
+        }
+      }
+    };
+    void load();
+    return () => {
+      active = false;
+    };
+  }, [deliveryContractId, isChecklistFinal, isStructuredChecklist]);
 
   // Devolução: the only open contract of the driver on the car is preselected; a choice that no longer applies is cleared.
   useEffect(() => {
@@ -1233,12 +1291,22 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
     if (checklistType === "DEVOLUCAO" && !checklistContractState.active.length) {
       return `Este motorista não possui vínculo ativo com o veículo ${plate}. A devolução só pode ser registrada sobre um vínculo existente.`;
     }
+    const deliveredContract = checklistContractState.active[0];
+    if (
+      checklistType === "ENTREGA" &&
+      deliveredContract &&
+      contractFinalChecklists !== null &&
+      contractFinalChecklists.contractId === deliveredContract.id &&
+      contractFinalChecklists.types.includes("ENTREGA")
+    ) {
+      return "Este vínculo já possui um Checklist de Entrega finalizado. Para outra via, use Emitir 2ª via (PDF) em Inspeções.";
+    }
     if (checklistType === "ENTREGA" && !checklistContractState.active.length && checklistContractState.otherDriver) {
       const other = checklistContractState.otherDriver.driver?.name || "outro motorista";
       return `O veículo ${plate} está vinculado a ${other}. Registre a devolução ou encerre esse vínculo antes da entrega.`;
     }
     return "";
-  }, [checklistContractState, checklistType, isStructuredChecklist, wizardCar, wizardDriver?.id]);
+  }, [contractFinalChecklists, checklistContractState, checklistType, isStructuredChecklist, wizardCar, wizardDriver?.id]);
 
   // Launch from Inspeções (/documents?checklist=ENTREGA|DEVOLUCAO&carId=..&from=..): the existing wizard, already on
   // the checklist of that car; a Devolução also gets the driver of the car's active contract. The URL is consumed.
@@ -1328,7 +1396,8 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
     }
   };
 
-  const validateWizard = () => {
+  /** forFinalize: a structured checklist needs its 2 contacts to be finalized, not to keep a draft (they are in part 2). */
+  const validateWizard = (forFinalize = false) => {
     if (!wizardDriver?.id) {
       showErrorAlert("Selecione um motorista.");
       return false;
@@ -1371,7 +1440,7 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
         return false;
       }
 
-      if (completeContacts.length < MIN_EMERGENCY_CONTACTS) {
+      if ((!isStructuredChecklist || forFinalize) && completeContacts.length < MIN_EMERGENCY_CONTACTS) {
         showErrorAlert("Informe ao menos 2 contatos de emergência (nome e telefone).");
         return false;
       }
@@ -1574,13 +1643,26 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
     }
   };
 
+  /** Part 1 (condições do veículo) complete: the conference opens; otherwise the missing fields are named. */
+  const goToChecklistConference = () => {
+    const errors = structuredChecklistErrors(checklistType, wizardPayload, checklistDriverCarId);
+    if (checklistBlockingMessage) {
+      errors.push(checklistBlockingMessage);
+    }
+    if (errors.length) {
+      showErrorAlert(errors.join(" "));
+      return;
+    }
+    setChecklistPart(2);
+  };
+
   /**
    * Finalizar (Entrega/Devolução): the operation itself, done by the backend in one transaction - contract created /
    * reused / concluded, inspection registered, document FINAL. Asks PERMANENT/RESERVE only on the backend's 409.
    */
   const finalizeChecklist = async (assignment?: DriverAssignmentType) => {
     if (!assignment) {
-      if (!validateWizard()) {
+      if (!validateWizard(true)) {
         return;
       }
       const errors = structuredChecklistErrors(checklistType, wizardPayload, checklistDriverCarId);
@@ -1661,6 +1743,7 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
       setChecklistDriverCarId(document.driverCarId ?? null);
       setChecklistFeedback("");
       setChecklistLegacyConversion(false);
+      setChecklistPart(1);
       setWizardPayload(normalizePayloadForEditor(document.type, payload, document.attachments || []));
       setWizardFiles([]);
       setChecklistNewPhotos([]);
@@ -1845,6 +1928,158 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
     );
   };
 
+  /** The two parts of the structured checklist form (the second opens once the first is complete). */
+  const renderChecklistParts = () => (
+    <div className="documents-checklist-parts" role="tablist" aria-label="Etapas do checklist">
+      {[
+        { part: 1 as const, label: "1. Condições do veículo" },
+        { part: 2 as const, label: "2. Conferência e finalização" },
+      ].map((item) => (
+        <button
+          key={item.part}
+          type="button"
+          role="tab"
+          aria-selected={checklistPart === item.part}
+          className={`documents-checklist-parts__tab${checklistPart === item.part ? " documents-checklist-parts__tab--active" : ""}`}
+          onClick={() => setChecklistPart(item.part)}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  const checklistTirePositions = CHECKLIST_TIRE_POSITIONS.map(
+    (label) => (checklistTires.positions || []).find((position) => position.posicao === label) || { posicao: label }
+  );
+
+  /** One tire position edited: the five positions are kept, marked as filled in this checklist. */
+  const setChecklistTire = (label: string, patch: Partial<ChecklistTirePosition>) => {
+    setWizardPayload((prev) => {
+      const current = normalizeChecklistTiresForEditor(prev?.tires);
+      const positions = CHECKLIST_TIRE_POSITIONS.map((position) => {
+        const stored = (current.positions || []).find((item) => item.posicao === position) || { posicao: position };
+        return position === label ? { ...stored, ...patch } : stored;
+      });
+      return { ...prev, tires: { source: "CHECKLIST", positions, observacoes: current.observacoes } };
+    });
+  };
+
+  /** The user applies the last inspection's tires (then checks / edits them): never applied by itself. */
+  const applyLastInspectionTires = () => {
+    setWizardPayload((prev) => {
+      const current = normalizeChecklistTiresForEditor(prev?.tires);
+      const positions = CHECKLIST_TIRE_POSITIONS.map((position) => {
+        const suggested = lastInspectionTires.find((item) => item.posicao === position);
+        return {
+          posicao: position,
+          marca: suggested?.marca || "",
+          estado: TIRE_INTEGRITY_OPTIONS.includes(`${suggested?.estado || ""}`) ? suggested?.estado : "",
+        };
+      });
+      return { ...prev, tires: { source: "CHECKLIST", positions, observacoes: current.observacoes } };
+    });
+  };
+
+  /** Part 1: cleaning (required) and the five tire positions (optional), with the scales of the inspection form. */
+  const renderVehicleConditions = () => (
+    <>
+      <FormGroup title="Condições do veículo" columns>
+        <SelectField
+          label="Limpeza interna *"
+          value={wizardPayload.limpezaInterna || ""}
+          options={CLEANING_OPTIONS}
+          onChange={(v) => setPayload("limpezaInterna", v)}
+        />
+        <SelectField
+          label="Limpeza externa *"
+          value={wizardPayload.limpezaExterna || ""}
+          options={CLEANING_OPTIONS}
+          onChange={(v) => setPayload("limpezaExterna", v)}
+        />
+      </FormGroup>
+      <FormGroup title="Pneus (opcional por posição)">
+        {lastInspectionTires.length > 0 && (
+          <IonButton fill="outline" size="small" className="app-outline-btn" onClick={applyLastInspectionTires}>
+            Usar pneus da última inspeção (conferir antes de finalizar)
+          </IonButton>
+        )}
+        {checklistTirePositions.map((position) => (
+          <div key={position.posicao} className="documents-checklist-tire" data-testid="checklist-tire-position">
+            <p className="documents-checklist-subtitle">{position.posicao}</p>
+            <div className="documents-form-group__fields documents-form-group__fields--grid">
+              {/* The brand picker of the inspection form: its brands and the custom ones saved there (same storage). */}
+              <FormSelectFilterAdd
+                label={`${position.posicao} - Marca`}
+                initialValue={position.marca || ""}
+                options={TIRE_BRANDS}
+                storageToken={TIRE_BRANDS_KEY}
+                formCallBack={(value: string) => setChecklistTire(position.posicao, { marca: value || "" })}
+              />
+              <SelectField
+                label={`${position.posicao} - Integridade`}
+                value={position.estado || ""}
+                options={[{ value: "", label: "Não verificado" }, ...TIRE_INTEGRITY_OPTIONS.map((value) => ({ value, label: value }))]}
+                onChange={(v) => setChecklistTire(position.posicao, { estado: v || "" })}
+              />
+            </div>
+          </div>
+        ))}
+      </FormGroup>
+    </>
+  );
+
+  const confirmedDamages: ChecklistExistingDamage[] = Array.isArray(wizardPayload.existingDamages) ? wizardPayload.existingDamages : [];
+
+  /** Part 2: damages already registered on the car, confirmed in this checklist (linked, never registered again). */
+  const renderExistingDamages = () => (
+    <FormGroup title="Danos já registrados no veículo">
+      {carDamages.length === 0 ? (
+        <p className="documents-hint" data-testid="checklist-no-damages">
+          Nenhum dano ativo registrado para este veículo. Danos novos vão em Avarias e nas fotos.
+        </p>
+      ) : (
+        carDamages.map((damage) => {
+          const checked = confirmedDamages.some((item) => item.id === damage.id);
+          return (
+            <IonItem key={damage.id} lines="none" data-testid="checklist-existing-damage">
+              <IonCheckbox
+                slot="start"
+                checked={checked}
+                aria-label={`Confirmar dano ${damage.part || ""}`}
+                onIonChange={(event) => {
+                  const keep = confirmedDamages.filter((item) => item.id !== damage.id);
+                  setPayload(
+                    "existingDamages",
+                    event.detail.checked ? [...keep, { id: damage.id, part: damage.part || "", date: damage.date || "" }] : keep
+                  );
+                }}
+              />
+              <IonLabel>
+                {damage.part || "Dano"} {damage.date ? `(${formatChecklistDate(damage.date)})` : ""}
+              </IonLabel>
+            </IonItem>
+          );
+        })
+      )}
+    </FormGroup>
+  );
+
+  /** Part 2: what will be recorded, before finalizing. */
+  const renderChecklistReview = () => {
+    const tiresChecked = checklistTirePositions.filter((position) => position.marca || position.estado).length;
+    return (
+      <FormGroup title="Revisão">
+        <p className="documents-hint" data-testid="checklist-review">
+          {checklistTypeLabel(checklistType) || "-"} · Vistoria {formatChecklistDate(wizardPayload.dataVistoria, wizardPayload.horaVistoria) || "-"} ·
+          KM {`${wizardPayload.km ?? "-"}`} · Combustível {fuelLevelLabel(wizardPayload.combustivel) || "-"} · Limpeza interna{" "}
+          {cleaningLabel(wizardPayload.limpezaInterna) || "-"} / externa {cleaningLabel(wizardPayload.limpezaExterna) || "-"} · Pneus
+          verificados: {tiresChecked} de 5 · Danos confirmados: {confirmedDamages.length}
+        </p>
+      </FormGroup>
+    );
+  };
+
   /** Finalized checklist: what the operation did; from here on the PDF is only the document. */
   const renderChecklistFinal = () => {
     const type = savedDocument?.checklistType;
@@ -1866,6 +2101,7 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
           <p>
             Vistoria: {formatChecklistDate(payload.dataVistoria, payload.horaVistoria) || "-"} · KM: {`${payload.km ?? "-"}`} ·
             Combustível: {fuelLevelLabel(payload.combustivel) || "-"}
+            {payload.limpezaInterna ? ` · Limpeza: ${cleaningLabel(payload.limpezaInterna)} / ${cleaningLabel(payload.limpezaExterna)}` : ""}
           </p>
         )}
         {checklistPdfFailed && (
@@ -2154,6 +2390,9 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
           </>
         ) : (
           <>
+        {renderChecklistParts()}
+        {checklistPart === 1 && (
+          <>
         <FormGroup title="Entrega ou devolução" columns>
           {savedDocument?.checklistType ? (
             <p className="documents-hint" data-testid="checklist-type-fixed">
@@ -2206,8 +2445,13 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
           </p>
         )}
         {renderChecklistContract()}
+        {renderVehicleConditions()}
           </>
         )}
+          </>
+        )}
+        {(isLegacyChecklist || checklistPart === 2) && (
+          <>
         <FormGroup title="Checklist do veículo">
           <div className="documents-checklist-builder">
             {checklistItems.map((item) => (
@@ -2401,6 +2645,7 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
           )}
         </FormGroup>
 
+        {isLegacyChecklist && (
         <FormGroup title="Vistoria dos pneus">
           {checklistTires.source === "LAST_INSPECTION" && (
             <p className="documents-warning">Dados sugeridos a partir da última inspeção do carro.</p>
@@ -2439,13 +2684,19 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
             </div>
           )}
         </FormGroup>
+        )}
+        {!isLegacyChecklist && renderExistingDamages()}
         <FormGroup title="Avarias">
           <AreaField
-            label="Avarias"
+            label={isLegacyChecklist ? "Avarias" : "Avarias novas e observações"}
             value={wizardPayload.avariasTexto}
             onChange={(v) => setPayload("avariasTexto", v)}
           />
         </FormGroup>
+        {!isLegacyChecklist && renderChecklistContract()}
+        {!isLegacyChecklist && renderChecklistReview()}
+          </>
+        )}
       </>
     );
   };
@@ -2887,7 +3138,13 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
                 <IonButton
                   fill="outline"
                   className="app-neutral-btn documents-wizard-footer__back"
-                  onClick={() => setWizardStep((prev) => (prev === 1 ? 1 : ((prev - 1) as 1 | 2 | 3)))}
+                  onClick={() => {
+                    if (wizardStep === 3 && isStructuredChecklist && !isChecklistFinal && checklistPart === 2) {
+                      setChecklistPart(1);
+                      return;
+                    }
+                    setWizardStep((prev) => (prev === 1 ? 1 : ((prev - 1) as 1 | 2 | 3)));
+                  }}
                 >
                   Voltar
                 </IonButton>
@@ -2932,6 +3189,15 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
                     >
                       Salvar rascunho
                     </IonButton>
+                    {checklistPart === 1 ? (
+                      <IonButton
+                        className="app-primary-btn documents-wizard-footer__primary"
+                        onClick={goToChecklistConference}
+                        disabled={isActionLoading}
+                      >
+                        Continuar para conferência
+                      </IonButton>
+                    ) : (
                     <IonButton
                       className="app-primary-btn documents-wizard-footer__primary"
                       onClick={() => void finalizeChecklist()}
@@ -2943,6 +3209,7 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
                         ? "Finalizar entrega"
                         : "Finalizar checklist"}
                     </IonButton>
+                    )}
                   </>
                 )
               ) : (
@@ -3485,10 +3752,8 @@ function normalizeChecklistTiresForEditor(source: any): ChecklistTires {
   }
 
   const raw = source as Record<string, any>;
-  const sourceFlag =
-    `${raw.source || ""}`.toUpperCase() === "LAST_INSPECTION"
-      ? "LAST_INSPECTION"
-      : "MANUAL";
+  const flag = `${raw.source || ""}`.toUpperCase();
+  const sourceFlag = flag === "LAST_INSPECTION" ? "LAST_INSPECTION" : flag === "CHECKLIST" ? "CHECKLIST" : "MANUAL";
   const positions = normalizeChecklistTirePositions(raw.positions);
   const marca = `${raw.marca || raw.brand || raw.model || ""}`.trim();
   const estado = normalizeChecklistTireCondition(raw.estado || raw.condition || raw.integrity);

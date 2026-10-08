@@ -12,7 +12,7 @@ import {
   resolveFiscalIdentity,
 } from "../../services/pdfLetterhead";
 import { formatCurrencyPtBr, parseDecimal } from "../../services/decimalPtBr";
-import { checklistTypeLabel, formatChecklistDate, fuelLevelLabel, serializeChecklistItems } from "./checklistUtils";
+import { checklistTypeLabel, cleaningLabel, formatChecklistDate, fuelLevelLabel, serializeChecklistItems } from "./checklistUtils";
 import { resolveApiUrl } from "../../services/resolveApiUrl";
 import { maskPhone } from "../../services/profileFormat";
 import {
@@ -601,7 +601,18 @@ async function buildEntregaDevolucaoChecklistContent(
     },
     ...buildChecklistItemsTwoColumns(checklistItens),
     ...buildEmergencyContactsSection(payload),
+    ...(structured && getText(payload, "limpezaInterna")
+      ? [
+          {
+            text: `Limpeza interna: ${cleaningLabel(getText(payload, "limpezaInterna")) || "-"}. Limpeza externa: ${
+              cleaningLabel(getText(payload, "limpezaExterna")) || "-"
+            }.`,
+            style: "section",
+          },
+        ]
+      : []),
     ...buildChecklistTiresSection(payload),
+    ...buildConfirmedDamagesSection(payload),
     { text: `Avarias registradas: ${getText(payload, "avariasTexto", "-")}`, style: "section" },
     ...checklistPhotosSection,
     {
@@ -611,6 +622,21 @@ async function buildEntregaDevolucaoChecklistContent(
       style: "section",
     },
     ...buildSignatureBlock(fiscal.fiscalName, driverName),
+  ];
+}
+
+/** Damages already registered on the car and confirmed in the checklist (structured documents only). */
+function buildConfirmedDamagesSection(payload: Record<string, any>) {
+  const damages = Array.isArray(payload?.existingDamages) ? payload.existingDamages : [];
+  if (!damages.length) {
+    return [];
+  }
+  return [
+    { text: "Danos já registrados, confirmados na vistoria:", style: "section", margin: [0, 0, 0, 4] },
+    {
+      ul: damages.map((damage: any) => `${damage?.part || "Dano"}${damage?.date ? ` (${formatChecklistDate(damage.date)})` : ""}`),
+      margin: [0, 0, 0, 10],
+    },
   ];
 }
 
@@ -733,6 +759,8 @@ function resolveChecklistTires(payload: Record<string, any>) {
     estado,
     observacoes,
     positions,
+    /** The structured form's own tire fields (per position, integrity of the inspection form). */
+    fromChecklist: `${tires.source || ""}`.toUpperCase() === "CHECKLIST",
   };
 }
 
@@ -754,6 +782,30 @@ function buildChecklistTiresSection(payload: Record<string, any>) {
   const tires = resolveChecklistTires(payload);
   if (!tires) {
     return [];
+  }
+  if (tires.fromChecklist) {
+    const checked = tires.positions.filter((item: any) => item.marca || item.estado);
+    return [
+      { text: "Vistoria dos pneus:", style: "section", margin: [0, 0, 0, 4] },
+      checked.length
+        ? {
+            table: {
+              headerRows: 1,
+              widths: ["*", "*", "*"],
+              body: [
+                [
+                  { text: "Posição", style: "tableHeader" },
+                  { text: "Marca", style: "tableHeader" },
+                  { text: "Integridade", style: "tableHeader" },
+                ],
+                ...checked.map((item: any) => [item.posicao || "-", item.marca || "-", item.estado || "-"]),
+              ],
+            },
+            layout: "lightHorizontalLines",
+            margin: [0, 0, 0, 10],
+          }
+        : { text: "Pneus não verificados nesta vistoria.", margin: [0, 0, 0, 10] },
+    ];
   }
 
   const positionRows = tires.positions.length

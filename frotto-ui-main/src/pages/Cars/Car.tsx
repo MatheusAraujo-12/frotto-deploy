@@ -44,6 +44,7 @@ import { servicesToString } from "../../services/toString";
 import DriverAdd from "../Driver/DriverAddModal/DriverAdd";
 import InspectionAdd from "../Inspection/InspectionAddModal/InspectionAdd";
 import InspectionNewMenu from "../Inspection/InspectionNewMenu";
+import { inspectionCopyFrom } from "../Inspection/inspectionCopy";
 import MaintenanceAdd from "../Maintenance/MaintenanceAddModal/MaintenanceAdd";
 import CarAdd from "./CarAddModal/CarAdd";
 import "./Car.css";
@@ -139,38 +140,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const newInspection = useMemo((): InspectionModel => {
-    if (inspection) {
-      return {
-        ...inspection,
-        id: undefined,
-        date: undefined,
-        leftBack: {
-          ...inspection.leftBack,
-          id: undefined,
-        },
-        rightBack: {
-          ...inspection.rightBack,
-          id: undefined,
-        },
-        leftFront: {
-          ...inspection.leftFront,
-          id: undefined,
-        },
-        rightFront: {
-          ...inspection.rightFront,
-          id: undefined,
-        },
-        spare: {
-          ...inspection.spare,
-          id: undefined,
-        },
-        carBodyDamages: [],
-        expenses: [],
-      };
-    }
-    return {};
-  }, [inspection]);
+  const newInspection = useMemo((): InspectionModel => inspectionCopyFrom(inspection), [inspection]);
 
   const maintenanceInitialValues = useMemo(
     (): MaintenanceModel => ({

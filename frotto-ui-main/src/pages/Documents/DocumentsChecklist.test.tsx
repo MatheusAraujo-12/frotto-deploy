@@ -88,6 +88,7 @@ jest.mock("@ionic/react", () => {
     IonLabel: passthrough("label"),
     IonList: passthrough("div"),
     IonText: passthrough("span"),
+    IonSearchbar: () => null,
     IonNote: passthrough("span"),
   };
 });
@@ -136,10 +137,21 @@ async function openChecklist() {
   change(wizard().querySelector("select") as HTMLSelectElement, "ENTREGA_DEVOLUCAO_CHECKLIST");
   click("Próximo");
   await within(wizard()).findByText("Passo 3 de 3");
-  change(input("Contato 1 - Nome"), "Ana Souza");
-  change(input("Contato 1 - Telefone"), "11999990000");
-  change(input("Contato 2 - Nome"), "Carlos Lima");
-  change(input("Contato 2 - Telefone"), "11988880000");
+}
+
+/** Part 2 of the structured form (Continuar validates part 1), with the two emergency contacts filled there. */
+async function conference() {
+  const next = within(wizard()).queryByRole("button", { name: "Continuar para conferência" });
+  if (next) {
+    fireEvent.click(next);
+  }
+  await act(async () => undefined);
+  if (within(wizard()).queryAllByText((text, node) => node?.tagName === "LABEL" && text.trim().startsWith("Contato 1 - Nome")).length && !input("Contato 1 - Nome").value) {
+    change(input("Contato 1 - Nome"), "Ana Souza");
+    change(input("Contato 1 - Telefone"), "11999990000");
+    change(input("Contato 2 - Nome"), "Carlos Lima");
+    change(input("Contato 2 - Telefone"), "11988880000");
+  }
 }
 
 function fill(type: "ENTREGA" | "DEVOLUCAO", { km = "15000", fuel = "HALF", date = "2026-10-07" } = {}) {
@@ -148,6 +160,8 @@ function fill(type: "ENTREGA" | "DEVOLUCAO", { km = "15000", fuel = "HALF", date
   change(field("horaVistoria"), "08:30");
   change(field("km"), km);
   change(select("Combustível"), fuel);
+  change(select("Limpeza interna"), "Boa");
+  change(select("Limpeza externa"), "Aceitavel");
 }
 
 beforeEach(() => {
@@ -155,7 +169,7 @@ beforeEach(() => {
   contracts = [];
   stored = null;
   jest.spyOn(window, "confirm").mockReturnValue(true);
-  mockedApi.get.mockImplementation(async () => ({ data: contracts }) as any);
+  mockedApi.get.mockImplementation(async (url: string) => ({ data: `${url}`.startsWith("/api/driver-cars/car/") ? contracts : [] }) as any);
   mockedDocuments.listDocuments.mockResolvedValue([] as any);
   mockedDocuments.searchDrivers.mockResolvedValue([DRIVER] as any);
   mockedDocuments.searchCars.mockResolvedValue([CAR] as any);
@@ -208,7 +222,7 @@ describe("Checklist de Entrega/Devolução - campos estruturados", () => {
     fill("ENTREGA", { km: "15.000 km" });
     expect(field("km").value).toBe("15.000");
 
-    click("Finalizar entrega");
+    click("Continuar para conferência"); // part 1 is validated before the conference
 
     await waitFor(() => expect(toastMessages().join(" ")).toMatch(/Informe o KM do veículo/));
     expect(mockedDocuments.finalizeDocument).not.toHaveBeenCalled();
@@ -218,7 +232,7 @@ describe("Checklist de Entrega/Devolução - campos estruturados", () => {
     await openChecklist();
     change(select("Tipo"), "ENTREGA");
     change(field("km"), "100");
-    click("Finalizar entrega");
+    click("Continuar para conferência"); // part 1 is validated before the conference
 
     await waitFor(() => expect(toastMessages().join(" ")).toMatch(/Informe a data da vistoria\. Selecione o nível de combustível\./));
     expect(mockedDocuments.finalizeDocument).not.toHaveBeenCalled();
@@ -232,6 +246,7 @@ describe("Checklist - Finalizar e Gerar PDF", () => {
     expect(within(wizard()).queryByRole("button", { name: "Gerar PDF" })).not.toBeInTheDocument();
     expect(within(wizard()).getByTestId("checklist-contract-info").textContent).toMatch(/o motorista será vinculado a este veículo/);
 
+    await conference();
     click("Finalizar entrega");
 
     await within(wizard()).findByTestId("checklist-final");
@@ -259,6 +274,7 @@ describe("Checklist - Finalizar e Gerar PDF", () => {
     (generateDocumentPdf as jest.Mock).mockRejectedValueOnce(new Error("popup blocked"));
     await openChecklist();
     fill("ENTREGA");
+    await conference();
     click("Finalizar entrega");
 
     expect(await within(wizard()).findByTestId("checklist-pdf-failed")).toBeInTheDocument();
@@ -278,6 +294,7 @@ describe("Checklist - Finalizar e Gerar PDF", () => {
     (window.confirm as jest.Mock).mockReturnValue(false);
     await openChecklist();
     fill("ENTREGA");
+    await conference();
     click("Finalizar entrega");
 
     await act(async () => undefined);
@@ -291,6 +308,7 @@ describe("Checklist - Finalizar e Gerar PDF", () => {
     );
     await openChecklist();
     fill("ENTREGA");
+    await conference();
     click("Finalizar entrega");
 
     expect(await screen.findByText("Motorista já vinculado a outro veículo")).toBeInTheDocument();
@@ -306,6 +324,7 @@ describe("Checklist - Finalizar e Gerar PDF", () => {
     mockedDocuments.finalizeDocument.mockRejectedValueOnce(apiError(409, "driverassignmentrequired"));
     await openChecklist();
     fill("ENTREGA");
+    await conference();
     click("Finalizar entrega");
     await screen.findByText("Motorista já vinculado a outro veículo");
     fireEvent.click(screen.getAllByRole("button", { name: "Cancelar" })[0]);
@@ -319,6 +338,7 @@ describe("Checklist - Finalizar e Gerar PDF", () => {
     mockedDocuments.finalizeDocument.mockRejectedValueOnce(apiError(400, "checklistalreadyfinalized"));
     await openChecklist();
     fill("ENTREGA");
+    await conference();
     click("Finalizar entrega");
 
     await waitFor(() => expect(toastMessages()).toContain("Este vínculo já possui um checklist deste tipo finalizado."));
@@ -332,10 +352,12 @@ describe("Checklist - Finalizar e Gerar PDF", () => {
     });
     await openChecklist();
     fill("ENTREGA");
+    await conference();
     click("Finalizar entrega");
     await waitFor(() => expect(mockedDocuments.finalizeDocument).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(within(wizard()).getByRole("button", { name: "Finalizar entrega" })).not.toBeDisabled());
 
+    await conference();
     click("Finalizar entrega");
 
     await within(wizard()).findByTestId("checklist-final");
@@ -364,7 +386,7 @@ describe("Checklist - vínculo (DriverCar)", () => {
     expect((await within(wizard()).findByTestId("checklist-contract-blocked")).textContent).toMatch(
       /O veículo ABC1D23 está vinculado a Maria Outra\. Registre a devolução ou encerre esse vínculo antes da entrega\./
     );
-    click("Finalizar entrega");
+    click("Continuar para conferência"); // part 1 is validated before the conference
     await waitFor(() => expect(toastMessages().join(" ")).toMatch(/vinculado a Maria Outra/));
     expect(mockedDocuments.finalizeDocument).not.toHaveBeenCalled();
   });
@@ -377,6 +399,7 @@ describe("Checklist - vínculo (DriverCar)", () => {
     expect((await within(wizard()).findByTestId("checklist-contract-info")).textContent).toMatch(
       /Vínculo desde 01\/09\/2026: ao finalizar, este vínculo será encerrado/
     );
+    await conference();
     click("Finalizar devolução");
 
     await within(wizard()).findByTestId("checklist-final");
@@ -394,6 +417,7 @@ describe("Checklist - vínculo (DriverCar)", () => {
     fill("DEVOLUCAO");
     expect((await within(wizard()).findByTestId("checklist-contract-info")).textContent).toMatch(/o carro reserva é devolvido/);
 
+    await conference();
     click("Finalizar devolução");
 
     expect((await within(wizard()).findByTestId("checklist-final-feedback")).textContent).toMatch(
@@ -498,6 +522,9 @@ describe("Checklist - histórico", () => {
     change(field("dataVistoria"), "2026-10-07");
     change(field("km"), "12000");
     change(select("Combustível"), "HALF");
+    change(select("Limpeza interna"), "Ótima");
+    change(select("Limpeza externa"), "Boa");
+    fireEvent.click(within(wizard()).getByRole("tab", { name: "2. Conferência e finalização" }));
     change(input("Contato 1 - Nome"), "Ana Souza");
     change(input("Contato 1 - Telefone"), "11999990000");
     change(input("Contato 2 - Nome"), "Carlos Lima");
@@ -556,5 +583,195 @@ describe("Checklist aberto a partir de Inspeções", () => {
     await act(async () => undefined);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(mockedApi.get).not.toHaveBeenCalledWith("/api/cars/7");
+  });
+});
+
+describe("Checklist - condições do veículo e conferência", () => {
+  const LAST_INSPECTION = { leftFront: { model: "MICHELIN", integrity: "90-100%" }, spare: { model: "PIRELLI", integrity: "50-70%" } };
+  const DAMAGE = { id: 11, part: "Porta dianteira", date: "2026-09-01", responsible: "Oficina" };
+  const routeApi = (extra: Record<string, any> = {}) =>
+    mockedApi.get.mockImplementation(async (url: string) => {
+      if (url in extra) return { data: extra[url] } as any;
+      if (url.startsWith("/api/driver-cars/car/")) return { data: contracts } as any;
+      return { data: [] } as any;
+    });
+  const tireSelect = (position: string, field: "Marca" | "Integridade") => select(`${position} - ${field}`);
+  /** The brand picker of the inspection form (opens a list: its brands and the custom ones saved there). */
+  const brandItem = (position: string) => labelled(`${position} - Marca`);
+  const brandShown = (position: string) => `${brandItem(position).querySelector("button")?.textContent || ""}`.trim();
+  const chooseBrand = async (position: string, brand: string) => {
+    fireEvent.click(brandItem(position));
+    const options = await within(wizard()).findAllByText(brand);
+    fireEvent.click(options[options.length - 1]);
+  };
+  const savedPayload = () => (mockedDocuments.createDocument.mock.calls[0][0] as any).payload;
+
+  it("part 1 has the cleaning (required) and the five tire positions; Finalizar only in part 2", async () => {
+    routeApi();
+    await openChecklist();
+    change(select("Tipo"), "ENTREGA");
+    change(field("dataVistoria"), "2026-10-07");
+    change(field("km"), "100");
+    change(select("Combustível"), "FULL");
+
+    expect(within(wizard()).getAllByTestId("checklist-tire-position")).toHaveLength(5);
+    expect(within(wizard()).queryByRole("button", { name: /^Finalizar/ })).not.toBeInTheDocument();
+    click("Continuar para conferência");
+
+    await waitFor(() => expect(toastMessages().join(" ")).toMatch(/Informe a limpeza interna do veículo\. Informe a limpeza externa do veículo\./));
+    expect(within(wizard()).getByRole("tab", { name: "1. Condições do veículo" })).toHaveAttribute("aria-selected", "true");
+
+    change(select("Limpeza interna"), "Boa");
+    change(select("Limpeza externa"), "Aceitavel");
+    click("Continuar para conferência");
+    expect(within(wizard()).getByRole("tab", { name: "2. Conferência e finalização" })).toHaveAttribute("aria-selected", "true");
+    expect(within(wizard()).getByRole("button", { name: "Finalizar entrega" })).toBeInTheDocument();
+  });
+
+  it("tires are optional: a draft saved in part 1 keeps the cleaning and only the positions informed", async () => {
+    routeApi();
+    await openChecklist();
+    fill("ENTREGA");
+    await chooseBrand("Dianteiro esquerdo", "PIRELLI");
+    change(tireSelect("Dianteiro esquerdo", "Integridade"), "70-90%");
+    change(tireSelect("Estepe", "Integridade"), "30-50%");
+    click("Salvar rascunho"); // part 1, contacts not filled yet: a draft is still saved
+
+    await waitFor(() => expect(mockedDocuments.createDocument).toHaveBeenCalledTimes(1));
+    expect(savedPayload()).toMatchObject({ limpezaInterna: "Boa", limpezaExterna: "Aceitavel" });
+    expect(savedPayload().tires.source).toBe("CHECKLIST");
+    const informed = savedPayload().tires.positions.filter((position: any) => position.marca || position.estado);
+    expect(informed).toEqual([
+      { posicao: "Dianteiro esquerdo", marca: "PIRELLI", estado: "70-90%" },
+      { posicao: "Estepe", estado: "30-50%" },
+    ]);
+  });
+
+  it("the tires of the last inspection are never copied by themselves, only when the user applies them", async () => {
+    routeApi({ "/api/cars/7": { car: { id: 7 }, lastInspection: LAST_INSPECTION } });
+    await openChecklist();
+    fill("ENTREGA");
+    expect(await within(wizard()).findByText(/Usar pneus da última inspeção/)).toBeInTheDocument();
+    expect(brandShown("Dianteiro esquerdo")).not.toContain("MICHELIN");
+
+    click("Salvar rascunho");
+    await waitFor(() => expect(mockedDocuments.createDocument).toHaveBeenCalledTimes(1));
+    expect(savedPayload().tires).toBeUndefined();
+
+    click("Usar pneus da última inspeção (conferir antes de finalizar)");
+    expect(brandShown("Dianteiro esquerdo")).toBe("MICHELIN");
+    expect(tireSelect("Dianteiro esquerdo", "Integridade").value).toBe("90-100%");
+    expect(tireSelect("Estepe", "Integridade").value).toBe("50-70%");
+  });
+
+  it("a saved draft reopens with the vehicle conditions recovered", async () => {
+    routeApi();
+    stored = {
+      id: 5,
+      type: "ENTREGA_DEVOLUCAO_CHECKLIST",
+      status: "DRAFT",
+      driverId: 1,
+      carId: 7,
+      carPlate: "ABC1D23",
+      checklistType: "ENTREGA",
+      payload: {
+        tipo: "ENTREGA",
+        dataVistoria: "2026-10-07",
+        km: 100,
+        combustivel: "HALF",
+        limpezaInterna: "Ótima",
+        limpezaExterna: "Ruim",
+        tires: { source: "CHECKLIST", positions: [{ posicao: "Traseiro direito", marca: "GOODYEAR", estado: "10-20%" }] },
+      },
+      attachments: [],
+    };
+    mockedDocuments.listDocuments.mockResolvedValue([{ ...stored, payload: undefined }] as any);
+    render(<DocumentsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Editar" }));
+
+    await within(await screen.findByRole("dialog")).findByText("Passo 3 de 3");
+    expect(select("Limpeza interna").value).toBe("Ótima");
+    expect(select("Limpeza externa").value).toBe("Ruim");
+    expect(brandShown("Traseiro direito")).toBe("GOODYEAR");
+    expect(tireSelect("Traseiro direito", "Integridade").value).toBe("10-20%");
+    expect(within(wizard()).getByRole("tab", { name: "1. Condições do veículo" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("damages already registered on the car are confirmed in part 2 (a snapshot for the PDF; the backend links them)", async () => {
+    routeApi({ "/api/car-body-damages/car/7": [DAMAGE] });
+    await openChecklist();
+    fill("ENTREGA");
+    await conference();
+
+    const damage = await within(wizard()).findByText(/Porta dianteira/);
+    fireEvent.click(damage.parentElement!.querySelector("input[type=checkbox]") as HTMLInputElement);
+    expect(within(wizard()).getByTestId("checklist-review")).toHaveTextContent("Danos confirmados: 1");
+    click("Salvar rascunho");
+
+    await waitFor(() => expect(mockedDocuments.createDocument).toHaveBeenCalledTimes(1));
+    expect(savedPayload().existingDamages).toEqual([{ id: 11, part: "Porta dianteira", date: "2026-09-01" }]);
+  });
+
+  it("damages of the car are listed but the explicitly resolved ones; an unknown resolution (older records) is shown", async () => {
+    routeApi({
+      "/api/car-body-damages/car/7": [
+        DAMAGE,
+        { id: 12, part: "Para-choque", date: "2025-01-01", resolved: null },
+        { id: 13, part: "Retrovisor", date: "2025-02-01", resolved: true },
+      ],
+    });
+    await openChecklist();
+    fill("ENTREGA");
+    await conference();
+
+    expect(await within(wizard()).findByText(/Porta dianteira/)).toBeInTheDocument();
+    expect(within(wizard()).getByText(/Para-choque/)).toBeInTheDocument();
+    expect(within(wizard()).queryByText(/Retrovisor/)).not.toBeInTheDocument();
+    fireEvent.click(within(wizard()).getByText(/Para-choque/).parentElement!.querySelector("input[type=checkbox]") as HTMLInputElement);
+    click("Salvar rascunho");
+    await waitFor(() => expect(mockedDocuments.createDocument).toHaveBeenCalledTimes(1));
+    expect(savedPayload().existingDamages).toEqual([{ id: 12, part: "Para-choque", date: "2025-01-01" }]);
+  });
+
+  it("the brands are the inspection form's, custom ones saved there included", async () => {
+    window.localStorage.setItem("TIRE_BRANDS_KEY", JSON.stringify(["MARCA DA CASA"]));
+    routeApi();
+    await openChecklist();
+    fill("ENTREGA");
+
+    fireEvent.click(brandItem("Estepe"));
+    expect(await within(wizard()).findByText("PIRELLI")).toBeInTheDocument(); // a standard brand
+    fireEvent.click(within(wizard()).getByText("MARCA DA CASA")); // a custom brand of the inspection form
+    expect(brandShown("Estepe")).toBe("MARCA DA CASA");
+    click("Salvar rascunho");
+
+    await waitFor(() => expect(mockedDocuments.createDocument).toHaveBeenCalledTimes(1));
+    expect(savedPayload().tires.positions.find((position: any) => position.posicao === "Estepe")).toMatchObject({ marca: "MARCA DA CASA" });
+    window.localStorage.removeItem("TIRE_BRANDS_KEY");
+  });
+
+  it("an Entrega on a contract without a final checklist is not warned (asked for that contract)", async () => {
+    contracts = [OPEN_CONTRACT];
+    routeApi({ "/api/driver-cars/5/final-checklists": [] });
+    await openChecklist();
+    fill("ENTREGA");
+
+    expect((await within(wizard()).findByTestId("checklist-contract-info")).textContent).toMatch(/a entrega será registrada neste vínculo/);
+    expect(mockedApi.get).toHaveBeenCalledWith("/api/driver-cars/5/final-checklists");
+  });
+
+  it("a second Entrega on a contract that already has one is warned before filling; nothing is finalized", async () => {
+    contracts = [OPEN_CONTRACT];
+    // Asked to the backend for this contract: found whatever the number of documents of the car.
+    routeApi({ "/api/driver-cars/5/final-checklists": ["ENTREGA"] });
+    await openChecklist();
+    fill("ENTREGA");
+
+    expect((await within(wizard()).findByTestId("checklist-contract-blocked")).textContent).toMatch(
+      /Este vínculo já possui um Checklist de Entrega finalizado\. Para outra via, use Emitir 2ª via \(PDF\) em Inspeções\./
+    );
+    click("Continuar para conferência");
+    await waitFor(() => expect(toastMessages().join(" ")).toMatch(/já possui um Checklist de Entrega finalizado/));
+    expect(mockedDocuments.finalizeDocument).not.toHaveBeenCalled();
   });
 });

@@ -242,7 +242,7 @@ const InspectionAdd: React.FC<InspectionAddModalProps> = ({ closeModal, initialV
   );
 
   /** Created by a finalized Entrega/Devolução checklist: the record of that operation, read-only (the backend refuses edits). */
-  const fromChecklist = Boolean(initialValues?.originDocumentId);
+  const fromChecklist = Boolean(initialValues?.id && initialValues?.originDocumentId); // only an existing derived record
 
   const onSubmit = async (newInspectionForm: InspectionForm) => {
     const newInspection = inspectionFormtoInspection(newInspectionForm);

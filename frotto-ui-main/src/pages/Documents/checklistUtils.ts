@@ -268,6 +268,25 @@ export const FUEL_LEVEL_OPTIONS: Array<{ value: FuelLevel; label: string }> = [
   { value: "FULL", label: "Cheio" },
 ];
 
+/** Cleaning scale of the inspection form (same stored values; labels with accents). */
+export const CLEANING_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "Péssima", label: "Péssima" },
+  { value: "Ruim", label: "Ruim" },
+  { value: "Aceitavel", label: "Aceitável" },
+  { value: "Boa", label: "Boa" },
+  { value: "Ótima", label: "Ótima" },
+];
+
+/** Tire integrity of the inspection form. */
+export const TIRE_INTEGRITY_OPTIONS = ["0-10%", "10-20%", "30-50%", "50-70%", "70-90%", "90-100%"];
+
+/** The five tire positions of the inspection form, as the checklist stores them. */
+export const CHECKLIST_TIRE_POSITIONS = ["Dianteiro esquerdo", "Dianteiro direito", "Traseiro esquerdo", "Traseiro direito", "Estepe"];
+
+export function cleaningLabel(value?: string | null): string {
+  return CLEANING_OPTIONS.find((option) => option.value === value)?.label || "";
+}
+
 export function checklistTypeLabel(type?: string | null): string {
   return CHECKLIST_TYPE_OPTIONS.find((option) => option.value === type)?.label || "";
 }
@@ -306,6 +325,12 @@ export function structuredChecklistErrors(
   }
   if (!FUEL_LEVEL_OPTIONS.some((option) => option.value === payload?.combustivel)) {
     errors.push("Selecione o nível de combustível.");
+  }
+  if (!CLEANING_OPTIONS.some((option) => option.value === payload?.limpezaInterna)) {
+    errors.push("Informe a limpeza interna do veículo.");
+  }
+  if (!CLEANING_OPTIONS.some((option) => option.value === payload?.limpezaExterna)) {
+    errors.push("Informe a limpeza externa do veículo.");
   }
   return errors;
 }

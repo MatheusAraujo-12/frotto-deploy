@@ -118,4 +118,12 @@ public interface DriverCarRepository extends JpaRepository<DriverCar, Long> {
         "and document.finalChecklistSlot = :type"
     )
     boolean hasFinalChecklist(@Param("id") Long id, @Param("type") com.localuz.domain.enumeration.ChecklistType type);
+
+    /** Checklist types already finalized on the contract, among the current account's documents (whatever their number). */
+    @Query(
+        "select distinct document.finalChecklistSlot from DriverDocument document " +
+        "where document.driverCarId = :id and document.finalChecklistSlot is not null " +
+        "and document.user.login = ?#{principal.username}"
+    )
+    List<com.localuz.domain.enumeration.ChecklistType> findFinalChecklistTypesByCurrentUser(@Param("id") Long id);
 }

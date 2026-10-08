@@ -1,6 +1,7 @@
 package com.localuz.service;
 
 import com.localuz.domain.Car;
+import com.localuz.domain.CarBodyDamage;
 import com.localuz.domain.Driver;
 import com.localuz.domain.DriverCar;
 import com.localuz.domain.DriverDocument;
@@ -9,6 +10,7 @@ import com.localuz.domain.Tire;
 import com.localuz.domain.enumeration.ChecklistType;
 import com.localuz.domain.enumeration.DriverAssignmentType;
 import com.localuz.domain.enumeration.FuelLevel;
+import com.localuz.repository.CarBodyDamageRepository;
 import com.localuz.repository.DriverCarRepository;
 import com.localuz.repository.DriverDocumentRepository;
 import com.localuz.repository.DriverRepository;
@@ -43,8 +45,18 @@ public class ChecklistService {
     public static final String ODOMETER_KEY = "km";
     public static final String FUEL_KEY = "combustivel";
     static final double MAX_ODOMETER = 9_999_999;
-    /** Tire integrity values of the inspection form: only these are copied, nothing is converted. */
-    private static final Set<String> TIRE_INTEGRITY = Set.of("0-10%", "10-20%", "30-50%", "50-70%", "70-90%", "90-100%");
+    public static final String INTERNAL_CLEANING_KEY = "limpezaInterna";
+    public static final String EXTERNAL_CLEANING_KEY = "limpezaExterna";
+    public static final String DAMAGES_KEY = "existingDamages";
+    /** tires.source of the checklist form's own tire fields (anything else - a suggestion, an old draft - is not copied). */
+    public static final String TIRES_FROM_CHECKLIST = "CHECKLIST";
+    /** Cleaning scale of the inspection form (the same values, as stored by it). */
+    static final Set<String> CLEANING = Set.of("Péssima", "Ruim", "Aceitavel", "Boa", "Ótima");
+    /** Tire integrity values of the inspection form. */
+    static final Set<String> TIRE_INTEGRITY = Set.of("0-10%", "10-20%", "30-50%", "50-70%", "70-90%", "90-100%");
+    /** The five tire positions of the inspection form, as the checklist names them. */
+    static final List<String> TIRE_POSITIONS = List.of("Dianteiro esquerdo", "Dianteiro direito", "Traseiro esquerdo", "Traseiro direito", "Estepe");
+    private static final int TIRE_MODEL_LENGTH = 60;
     private static final int INSPECTION_DRIVER_NAME_LENGTH = 60;
 
     private final DriverCarRepository driverCars;
@@ -53,6 +65,7 @@ public class ChecklistService {
     private final DriverRepository drivers;
     private final DriverAssignmentService assignments;
     private final CarService carService;
+    private final CarBodyDamageRepository damages;
 
     public ChecklistService(
         DriverCarRepository driverCars,
@@ -60,7 +73,8 @@ public class ChecklistService {
         InspectionRepository inspections,
         DriverRepository drivers,
         DriverAssignmentService assignments,
-        CarService carService
+        CarService carService,
+        CarBodyDamageRepository damages
     ) {
         this.driverCars = driverCars;
         this.documents = documents;
@@ -68,6 +82,7 @@ public class ChecklistService {
         this.drivers = drivers;
         this.assignments = assignments;
         this.carService = carService;
+        this.damages = damages;
     }
 
     /** What the finalization did, for the response. */
@@ -147,6 +162,10 @@ public class ChecklistService {
         LocalDate date = requireDate(payload);
         float odometer = requireOdometer(payload);
         FuelLevel fuel = requireFuel(payload);
+        String internalCleaning = requireCleaning(payload, INTERNAL_CLEANING_KEY, "Informe a limpeza interna do veículo.");
+        String externalCleaning = requireCleaning(payload, EXTERNAL_CLEANING_KEY, "Informe a limpeza externa do veículo.");
+        Map<String, Tire> tires = checklistTires(payload);
+        Set<CarBodyDamage> confirmedDamages = confirmedDamages(payload, car);
 
         // Domain order of locks (DriverAssignmentService#lockContract): cars, then the driver, then contract rows.
         // A known contract (the one returned / delivered) is locked first, with its cars; a delivery that opens a new
@@ -201,7 +220,15 @@ public class ChecklistService {
         inspection.setDriverCarId(contract.getId());
         inspection.setFuelLevel(fuel);
         inspection.setOriginDocumentId(document.getId());
-        applyPositionalTires(inspection, payload);
+        inspection.setInternalCleaning(internalCleaning);
+        inspection.setExternalCleaning(externalCleaning);
+        inspection.setLeftFront(tires.get(TIRE_POSITIONS.get(0)));
+        inspection.setRightFront(tires.get(TIRE_POSITIONS.get(1)));
+        inspection.setLeftBack(tires.get(TIRE_POSITIONS.get(2)));
+        inspection.setRightBack(tires.get(TIRE_POSITIONS.get(3)));
+        inspection.setSpare(tires.get(TIRE_POSITIONS.get(4)));
+        // Damages already registered on the car and confirmed in the inspection: linked, never created again.
+        inspection.setCarBodyDamages(confirmedDamages);
         // Same rule as a manual inspection: the car's odometer follows the most recent inspection / maintenance.
         carService.updateCarOdometerByDate(date, odometer, car);
         Inspection saved = inspections.save(inspection);
@@ -325,48 +352,84 @@ public class ChecklistService {
         return text(value).replaceAll("[^0-9]", "");
     }
 
-    /** Only positional tires with a known position are copied: the brand as model, the integrity when it is one of the form's. */
-    private static void applyPositionalTires(Inspection inspection, Map<String, Object> payload) {
+    /**
+     * Tires filled in the checklist form itself (tires.source = CHECKLIST): per position, the brand and the integrity of
+     * the inspection form. A suggestion copied from a previous inspection, or an older draft, is never carried over: the
+     * inspection records only what was checked now. Invalid positions or values are refused, never silently dropped.
+     */
+    static Map<String, Tire> checklistTires(Map<String, Object> payload) {
+        Map<String, Tire> result = new java.util.HashMap<>();
         Object tires = payload == null ? null : payload.get("tires");
-        if (!(tires instanceof Map) || !(((Map<?, ?>) tires).get("positions") instanceof List)) {
-            return;
+        if (!(tires instanceof Map) || !TIRES_FROM_CHECKLIST.equals(text(((Map<?, ?>) tires).get("source")))) {
+            return result;
         }
-        for (Object raw : (List<?>) ((Map<?, ?>) tires).get("positions")) {
+        Object positions = ((Map<?, ?>) tires).get("positions");
+        if (positions == null) {
+            return result;
+        }
+        if (!(positions instanceof List)) {
+            throw invalid("Pneus do checklist inválidos.", "checklisttireinvalid");
+        }
+        for (Object raw : (List<?>) positions) {
             if (!(raw instanceof Map)) {
-                continue;
+                throw invalid("Pneus do checklist inválidos.", "checklisttireinvalid");
             }
             Map<?, ?> position = (Map<?, ?>) raw;
-            String model = truncate(text(position.get("marca")), 60);
+            String label = text(position.get("posicao"));
+            String model = text(position.get("marca"));
             String integrity = text(position.get("estado"));
+            if (!TIRE_POSITIONS.contains(label) || result.containsKey(label)) {
+                throw invalid("Posição de pneu inválida: " + label, "checklisttireinvalid");
+            }
+            if (model.length() > TIRE_MODEL_LENGTH || (!integrity.isEmpty() && !TIRE_INTEGRITY.contains(integrity))) {
+                throw invalid("Marca ou integridade do pneu inválida (" + label + ").", "checklisttireinvalid");
+            }
+            if (model.isEmpty() && integrity.isEmpty()) {
+                continue; // position not checked (e.g. no spare): optional
+            }
             Tire tire = new Tire();
             tire.setModel(model.isEmpty() ? null : model);
-            tire.setIntegrity(TIRE_INTEGRITY.contains(integrity) ? integrity : null);
-            if (tire.getModel() == null && tire.getIntegrity() == null) {
-                continue;
-            }
-            switch (text(position.get("posicao"))) {
-                case "Dianteiro esquerdo":
-                    inspection.setLeftFront(tire);
-                    break;
-                case "Dianteiro direito":
-                    inspection.setRightFront(tire);
-                    break;
-                case "Traseiro esquerdo":
-                    inspection.setLeftBack(tire);
-                    break;
-                case "Traseiro direito":
-                    inspection.setRightBack(tire);
-                    break;
-                case "Estepe":
-                    inspection.setSpare(tire);
-                    break;
-                default:
-                    break;
-            }
+            tire.setIntegrity(integrity.isEmpty() ? null : integrity);
+            result.put(label, tire);
         }
+        return result;
+    }
+
+    /** Damages already registered on this car (in this account) that the checklist confirmed: ids of existingDamages. */
+    private Set<CarBodyDamage> confirmedDamages(Map<String, Object> payload, Car car) {
+        Set<CarBodyDamage> result = new java.util.HashSet<>();
+        Object raw = payload == null ? null : payload.get(DAMAGES_KEY);
+        if (raw == null) {
+            return result;
+        }
+        if (!(raw instanceof List)) {
+            throw invalid("Danos do checklist inválidos.", "checklistdamageinvalid");
+        }
+        for (Object item : (List<?>) raw) {
+            Object id = item instanceof Map ? ((Map<?, ?>) item).get("id") : item;
+            if (!(id instanceof Number)) {
+                throw invalid("Danos do checklist inválidos.", "checklistdamageinvalid");
+            }
+            CarBodyDamage damage = damages
+                .findByCurrentUserAndCarBdId(((Number) id).longValue())
+                .filter(found -> found.getCar() != null && Objects.equals(found.getCar().getId(), car.getId()))
+                // A damage explicitly resolved is history: not confirmed again (an unknown resolution - NULL - can be).
+                .filter(found -> !Boolean.TRUE.equals(found.getResolved()))
+                .orElseThrow(() -> invalid("O dano informado não pertence a este veículo ou já foi resolvido.", "checklistdamageinvalid"));
+            result.add(damage);
+        }
+        return result;
     }
 
     // ---------------------------------------------------------------- structured fields
+
+    static String requireCleaning(Map<String, Object> payload, String key, String message) {
+        String value = text(payload == null ? null : payload.get(key));
+        if (!CLEANING.contains(value)) {
+            throw invalid(message, "checklistcleaningrequired");
+        }
+        return value;
+    }
 
     static LocalDate requireDate(Map<String, Object> payload) {
         Object value = payload == null ? null : payload.get(DATE_KEY);

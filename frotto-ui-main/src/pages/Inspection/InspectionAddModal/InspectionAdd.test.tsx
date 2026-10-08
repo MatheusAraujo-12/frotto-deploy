@@ -62,6 +62,15 @@ describe("Inspection - registro gerado pelo checklist", () => {
     expect(mockedApi.delete).not.toHaveBeenCalled();
   });
 
+  it("a NEW inspection prefilled from a checklist inspection is an ordinary, editable one", async () => {
+    // Even if a copy still carried the origin, read-only applies only to an existing derived record (with id).
+    renderInspection({ ...FROM_CHECKLIST, id: undefined });
+
+    await screen.findByText("Salvar");
+    expect(screen.queryByTestId("inspection-from-checklist")).not.toBeInTheDocument();
+    expect(addButtonsHidden()).toEqual([false, false]);
+  });
+
   it("a manual inspection stays editable: save, add expenses and delete", async () => {
     const closeModal = renderInspection(MANUAL);
 

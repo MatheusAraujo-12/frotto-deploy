@@ -645,3 +645,45 @@
     aspect-ratio: 4 / 3;
   }
 }
+
+/* Structured checklist: the two parts of the form and the tire positions (the wizard is an ion-modal). */
+.documents-modal .documents-checklist-parts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 4px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  border: var(--app-border);
+  background: var(--app-card);
+}
+
+.documents-modal .documents-checklist-parts__tab {
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ion-color-medium);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.documents-modal .documents-checklist-parts__tab--active {
+  background: var(--ion-color-primary);
+  color: var(--ion-color-primary-contrast);
+}
+
+.documents-modal .documents-checklist-parts__tab:focus-visible {
+  outline: 2px solid var(--ion-color-primary);
+  outline-offset: 2px;
+}
+
+.documents-modal .documents-checklist-tire {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: var(--app-border);
+}
