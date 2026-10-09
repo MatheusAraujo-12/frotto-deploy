@@ -44,6 +44,7 @@ import { servicesToString } from "../../services/toString";
 import DriverAdd from "../Driver/DriverAddModal/DriverAdd";
 import InspectionAdd from "../Inspection/InspectionAddModal/InspectionAdd";
 import InspectionNewMenu from "../Inspection/InspectionNewMenu";
+import ChecklistDrafts from "../Inspection/ChecklistDrafts";
 import { inspectionCopyFrom } from "../Inspection/inspectionCopy";
 import MaintenanceAdd from "../Maintenance/MaintenanceAddModal/MaintenanceAdd";
 import CarAdd from "./CarAddModal/CarAdd";
@@ -397,7 +398,11 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                 <ItemNotFound message={TEXT.noInspection} />
               )}
               <div className="app-actions-row car-page__actions">
-                <InspectionNewMenu carId={match.params.id} onSingleInspection={() => setAddInspectionModalOpen(true)} />
+                <InspectionNewMenu
+                  carId={match.params.id}
+                  returnTo={`/menu/carros/${match.params.id}`}
+                  onSingleInspection={() => setAddInspectionModalOpen(true)}
+                />
                 <IonButton
                   className="app-semantic-btn app-semantic--neutral"
                   size="small"
@@ -415,6 +420,7 @@ const Car: React.FC<CarDetail> = ({ match }) => {
                   {TEXT.damage}
                 </IonButton>
               </div>
+              <ChecklistDrafts carId={match.params.id} returnTo={`/menu/carros/${match.params.id}`} />
             </IonCardContent>
           </FrottoCard>
 

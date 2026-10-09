@@ -13,12 +13,13 @@ import {
   IonTitle,
   IonToolbar,
   useIonRouter,
+  useIonViewWillEnter,
   useIonViewWillLeave,
 } from "@ionic/react";
 import api from "../../services/axios/axios";
 import endpoints from "../../constants/endpoints";
 import { TEXT } from "../../constants/texts";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAlert } from "../../services/hooks/useAlert";
 import { InspectionModel } from "../../constants/CarModels";
 import { filterListObj } from "../../services/filterList";
@@ -32,6 +33,7 @@ import FrottoBadge from "../../components/UI/FrottoBadge";
 import documentService from "../../services/documentService";
 import { generateDocumentPdf } from "../Documents/documentPdf";
 import { ChecklistType, checklistTypeLabel } from "../Documents/checklistUtils";
+import ChecklistDrafts from "./ChecklistDrafts";
 import "./Inspections.css";
 
 /**
@@ -130,6 +132,14 @@ const Inspections: React.FC<InspectionDetail> = ({ match }) => {
     loadInspections();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Back from a checklist (an Entrega/Devolução finalized there): the list is read again (the first entry already loaded it).
+  const enteredRef = useRef(false);
+  useIonViewWillEnter(() => {
+    if (enteredRef.current) {
+      loadInspections();
+    }
+    enteredRef.current = true;
+  }, []);
 
   useIonViewWillLeave(() => {
     setIsModalOpen(false);
@@ -185,6 +195,8 @@ const Inspections: React.FC<InspectionDetail> = ({ match }) => {
                 Histórico de inspeções registradas para este veículo.
               </p>
             </div>
+
+            <ChecklistDrafts carId={match.params.id} returnTo={`/menu/carros/${match.params.id}/inspecoes`} />
 
             <div className="inspections-list">
               {filteredList.map((inspection: InspectionModel, index) => {

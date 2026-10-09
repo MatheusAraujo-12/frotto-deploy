@@ -1,5 +1,5 @@
 import { act, configure, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { IonApp } from "@ionic/react";
+import { DefaultIonLifeCycleContext, IonApp, IonLifeCycleContext } from "@ionic/react";
 import { MemoryRouter } from "react-router";
 import Inspections from "./Inspections";
 import api from "../../services/axios/axios";
@@ -120,5 +120,41 @@ describe("Inspeções - checklists e 2ª via", () => {
 
     await waitFor(() => expect(generateDocumentPdf).toHaveBeenCalledTimes(2));
     expect(mockedDocuments.finalizeDocument).not.toHaveBeenCalled();
+  });
+});
+
+describe("Inspeções - volta de um checklist", () => {
+  beforeAll(() => {
+    (global as any).IntersectionObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  });
+  beforeEach(() => jest.resetAllMocks());
+
+  it("coming back to this screen (a checklist finalized or a draft saved) reads the inspections and the drafts again", async () => {
+    scenario();
+    mockedDocuments.listDocuments.mockResolvedValue([]);
+    const lifecycle = new DefaultIonLifeCycleContext();
+    render(
+      <IonApp>
+        <MemoryRouter>
+          <IonLifeCycleContext.Provider value={lifecycle}>
+            <Inspections match={{ params: { id: "20" }, isExact: true, path: "", url: "" }} history={{} as any} location={{} as any} />
+          </IonLifeCycleContext.Provider>
+        </MemoryRouter>
+      </IonApp>
+    );
+    await screen.findByText("Checklist de Devolução");
+    expect(mockedApi.get).toHaveBeenCalledTimes(1);
+
+    await act(async () => lifecycle.ionViewWillEnter()); // the first entry: already loaded on mount
+    expect(mockedApi.get).toHaveBeenCalledTimes(1);
+
+    const drafts = mockedDocuments.listDocuments.mock.calls.length;
+    await act(async () => lifecycle.ionViewWillEnter()); // back from the checklist
+    expect(mockedApi.get).toHaveBeenCalledTimes(2);
+    expect(mockedDocuments.listDocuments.mock.calls.length).toBeGreaterThan(drafts);
   });
 });

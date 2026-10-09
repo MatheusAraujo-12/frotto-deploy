@@ -58,7 +58,7 @@ import { useAlert } from "../../services/hooks/useAlert";
 import { formatDecimalInput, parseDecimal, sanitizeDecimalInput } from "../../services/decimalPtBr";
 import { generateDocumentPdf } from "./documentPdf";
 import { RouteComponentProps } from "react-router";
-import { parseChecklistLaunch } from "./checklistLaunch";
+import { ChecklistLaunch, parseChecklistLaunch, withLaunchDocument } from "./checklistLaunch";
 import { TIRE_BRANDS } from "../../constants/selectOptions";
 import FormSelectFilterAdd from "../../components/Form/FormSelectFilterAdd";
 import { TIRE_BRANDS_KEY } from "../../services/localStorage/localstorage";
@@ -223,7 +223,10 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
   /** A draft of the old wizard (no checklistType) becomes structured only when the user converts it explicitly. */
   const [checklistLegacyConversion, setChecklistLegacyConversion] = useState(false);
   /** Where to go back when a wizard opened from another screen (Inspeções) closes. */
-  const [launchReturnTo, setLaunchReturnTo] = useState<string | null>(null);
+  const [activeLaunch, setActiveLaunch] = useState<ChecklistLaunch | null>(null);
+  /** Last saved (or opened) state of the checklist wizard: closing with changes after it asks before discarding. */
+  const savedSnapshotRef = useRef<string | null>(null);
+  const snapshotPendingRef = useRef(false);
   /** The checklist was finalized but its PDF could not be generated: Gerar PDF retries (never finalizes again). */
   const [checklistPdfFailed, setChecklistPdfFailed] = useState(false);
   /** Structured checklist form: 1 = condições do veículo, 2 = conferência e finalização. */
@@ -469,18 +472,41 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
   };
 
   const closeWizard = () => {
+    if (!isWizardOpen) {
+      return; // the dismissal of a wizard already closed (Fechar, then onDidDismiss): never a second return
+    }
+    if (isChecklistDirty() && !window.confirm("Descartar as alterações não salvas deste checklist?")) {
+      return;
+    }
     setIsWizardOpen(false);
     resetWizard();
     setChecklistPdfFailed(false);
-    if (launchReturnTo) {
-      const target = launchReturnTo;
-      setLaunchReturnTo(null);
-      history?.push(target);
+    savedSnapshotRef.current = null;
+    if (activeLaunch) {
+      leaveLaunch(activeLaunch);
+    }
+  };
+
+  /**
+   * Back to the screen the checklist was started from (car page / inspections): the entry the app pushed is left
+   * with goBack (no Documentos entry stays in the history); a URL opened directly (or reloaded without that entry)
+   * is replaced by its origin. Never Documentos for a launch from Inspeções.
+   */
+  const leaveLaunch = (launch: ChecklistLaunch) => {
+    setActiveLaunch(null);
+    handledLaunchRef.current = null;
+    const target = launch.returnTo || `/menu/carros/${launch.carId}`;
+    const pushedByApp = Boolean((location?.state as any)?.checklistLaunch) && typeof window !== "undefined" && window.history.length > 1;
+    if (pushedByApp && history?.goBack) {
+      history.goBack();
+    } else {
+      history?.replace(target);
     }
   };
 
   const openWizard = () => {
     resetWizard();
+    snapshotPendingRef.current = true;
     setIsWizardOpen(true);
   };
 
@@ -1331,9 +1357,36 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
       return;
     }
     handledLaunchRef.current = search;
-    history?.replace({ pathname: location?.pathname || "/documents", search: "" });
     const open = async () => {
       const active = () => mountedRef.current;
+      if (launch.documentId) {
+        // Continuing a draft (from Inspeções, or a reload after its first save): only a draft checklist of this car.
+        try {
+          const document = await documentService.getDocument(launch.documentId);
+          if (!active()) {
+            return;
+          }
+          if (document?.type !== "ENTREGA_DEVOLUCAO_CHECKLIST" || Number(document.carId) !== launch.carId) {
+            showErrorAlert("Este checklist não pertence a este veículo.");
+            leaveLaunch(launch);
+            return;
+          }
+          if (document.status !== "DRAFT") {
+            showErrorAlert("Este checklist já foi finalizado: use Emitir 2ª via (PDF) em Inspeções.");
+            leaveLaunch(launch);
+            return;
+          }
+          loadDocumentIntoWizard(document);
+          setActiveLaunch(launch);
+          snapshotPendingRef.current = true;
+        } catch (_error) {
+          if (active()) {
+            showErrorAlert("Não foi possível abrir o rascunho deste checklist.");
+            leaveLaunch(launch);
+          }
+        }
+        return;
+      }
       try {
         const { data } = await api.get(endpoints.CAR({ pathVariables: { id: launch.carId } }));
         const car = data?.car ?? data; // GET /cars/{id} answers { car, ... } (as the car page reads it)
@@ -1370,8 +1423,9 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
         });
         // With the driver known the form opens directly; otherwise the first step asks for the driver.
         setWizardStep(driver ? 3 : 1);
-        setLaunchReturnTo(launch.returnTo);
+        setActiveLaunch(launch);
         setIsWizardOpen(true);
+        snapshotPendingRef.current = true;
       } catch (_error) {
         if (active()) {
           showErrorAlert("Não foi possível abrir o checklist deste veículo.");
@@ -1395,6 +1449,53 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
       return false;
     }
   };
+
+  /**
+   * What a save would persist (normalized as saveDraft does, so the editor's own normalization never counts as a
+   * change: an ion-input echoes the saved km 45678 back as "45678").
+   */
+  const checklistSnapshot = () => {
+    const payload = wizardType ? normalizePayloadForApi(wizardType as DocumentType, wizardPayload) : { ...wizardPayload };
+    const km = isStructuredChecklist ? parseChecklistKm(payload.km) : null;
+    if (km !== null) {
+      payload.km = km;
+    }
+    return JSON.stringify({
+      type: wizardType,
+      driver: wizardDriver?.id ?? null,
+      car: wizardCar?.id ?? null,
+      contract: checklistDriverCarId,
+      payload,
+      pendingFiles: wizardFiles.length + checklistNewPhotos.length,
+    });
+  };
+  useEffect(() => {
+    if (isWizardOpen && snapshotPendingRef.current) {
+      snapshotPendingRef.current = false;
+      savedSnapshotRef.current = checklistSnapshot();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isWizardOpen, wizardPayload, wizardDriver, wizardCar, wizardType, checklistDriverCarId, wizardFiles, checklistNewPhotos]);
+  /** Unsaved changes in an open checklist (a finalized one has nothing left to lose). */
+  const isChecklistDirty = () =>
+    isWizardOpen && isChecklistWizard && !isChecklistFinal && savedSnapshotRef.current !== null && checklistSnapshot() !== savedSnapshotRef.current;
+  const isChecklistDirtyRef = useRef(isChecklistDirty);
+  isChecklistDirtyRef.current = isChecklistDirty;
+  // A refresh or closing the tab with unsaved changes also asks first (the browser's own prompt). Browser Back is not
+  // blocked: history.block cannot revert a Back after a reload (the router and the URL would disagree).
+  useEffect(() => {
+    if (!isWizardOpen) {
+      return;
+    }
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (isChecklistDirtyRef.current()) {
+        event.preventDefault();
+        event.returnValue = "Descartar as alterações não salvas deste checklist?";
+      }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isWizardOpen]);
 
   /** forFinalize: a structured checklist needs its 2 contacts to be finalized, not to keep a draft (they are in part 2). */
   const validateWizard = (forFinalize = false) => {
@@ -1589,6 +1690,13 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
       );
       setWizardFiles([]);
       setChecklistNewPhotos([]);
+      snapshotPendingRef.current = true;
+      if (activeLaunch && !activeLaunch.documentId && detailed.id) {
+        const next = withLaunchDocument(activeLaunch, detailed.id);
+        handledLaunchRef.current = next.slice(next.indexOf("?"));
+        setActiveLaunch({ ...activeLaunch, documentId: detailed.id });
+        history?.replace(next, location?.state);
+      }
       await loadDocuments();
       return detailed;
     } catch (error) {
@@ -1711,6 +1819,7 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
       setSavedDocument(detailed);
       setChecklistFeedback(result?.reserveReturn ? describeReserveReturn(result.reserveReturn, wizardDriver?.name).message : "");
       showSuccessToast(checklistType === "DEVOLUCAO" ? "Devolução finalizada." : "Entrega finalizada.");
+      snapshotPendingRef.current = true;
       await loadDocuments();
       // Only after the confirmed finalization: the PDF of the FINAL document (a failure keeps Gerar PDF to retry).
       if (!(await issueChecklistPdf(draft.id))) {
@@ -1788,6 +1897,7 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
       }
 
       setIsWizardOpen(true);
+      snapshotPendingRef.current = true;
     },
     [logDocumentsDebug, normalizePayloadForEditor]
   );
@@ -1827,6 +1937,7 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
         setViewDocument(null);
       }
       if (savedDocument?.id === id) {
+        savedSnapshotRef.current = null; // deleted on purpose: nothing left to discard
         closeWizard();
       }
       await loadDocuments();
@@ -2985,7 +3096,13 @@ const DocumentsPage: React.FC<Partial<RouteComponentProps>> = ({ location, histo
         </IonFooter>
       </IonModal>
 
-      <IonModal className="documents-modal documents-modal--wizard" isOpen={isWizardOpen} onDidDismiss={closeWizard}>
+      <IonModal
+        className="documents-modal documents-modal--wizard"
+        isOpen={isWizardOpen}
+        // An open checklist closes only by its buttons (Fechar asks before discarding changes), never by the backdrop / Esc.
+        backdropDismiss={!(isChecklistWizard && !isChecklistFinal)}
+        onDidDismiss={closeWizard}
+      >
         <IonHeader className="ion-no-border">
           <IonToolbar className="app-toolbar-clean">
             <IonTitle>{savedDocument?.id ? "Editar Documento" : "Novo Documento"}</IonTitle>

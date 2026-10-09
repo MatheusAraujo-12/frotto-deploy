@@ -544,7 +544,10 @@ describe("Checklist aberto a partir de Inspeções", () => {
   /** The page under a router-like harness: replace really changes the location (and re-renders), as in the app. */
   const Harness: React.FC<{ search: string; history: { push: jest.Mock; replace: jest.Mock } }> = ({ search, history }) => {
     const [location, setLocation] = React.useState({ pathname: "/documents", search, hash: "", state: undefined });
-    history.replace.mockImplementation((to: any) => setLocation({ pathname: to.pathname, search: to.search, hash: "", state: undefined }));
+    history.replace.mockImplementation((to: any) => {
+      const url = typeof to === "string" ? new URL(to, "http://app") : null;
+      setLocation({ pathname: url ? url.pathname : to.pathname, search: url ? url.search : to.search, hash: "", state: undefined });
+    });
     return <DocumentsPage {...({ location, history } as any)} />;
   };
   const launch = async (search: string, contractsOfCar: any[] = []) => {
@@ -562,12 +565,15 @@ describe("Checklist aberto a partir de Inspeções", () => {
     const props = await launch("?checklist=DEVOLUCAO&carId=7&from=%2Fmenu%2Fcarros%2F7", [OPEN_CONTRACT]);
 
     await within(await screen.findByRole("dialog")).findByText("Passo 3 de 3");
-    expect(props.history.replace).toHaveBeenCalledWith({ pathname: "/documents", search: "" });
+    // The URL is kept while the wizard is open (a refresh reopens the same checklist).
+    expect(props.history.replace).not.toHaveBeenCalled();
     expect(select("Tipo").value).toBe("DEVOLUCAO");
     expect((await within(wizard()).findByTestId("checklist-contract-info")).textContent).toMatch(/Vínculo desde 01\/09\/2026/);
 
     fireEvent.click(wizard().querySelector("button.app-cancel-btn") as HTMLElement); // Fechar (icon button)
-    expect(props.history.push).toHaveBeenCalledWith("/menu/carros/7");
+    // Opened directly (no entry pushed by the app): the origin replaces Documentos in the history.
+    expect(props.history.replace).toHaveBeenCalledWith("/menu/carros/7");
+    expect(props.history.push).not.toHaveBeenCalled();
   });
 
   it("Entrega opens on the first step with the car already chosen (the driver is picked there)", async () => {
@@ -773,5 +779,245 @@ describe("Checklist - condições do veículo e conferência", () => {
     click("Continuar para conferência");
     await waitFor(() => expect(toastMessages().join(" ")).toMatch(/já possui um Checklist de Entrega finalizado/));
     expect(mockedDocuments.finalizeDocument).not.toHaveBeenCalled();
+  });
+});
+
+describe("Checklist - rascunhos e retorno para Inspeções", () => {
+  const CAR_ROW = { id: 7, plate: "ABC1D23", model: "Onix", active: true };
+  const DRAFT = {
+    id: 40,
+    type: "ENTREGA_DEVOLUCAO_CHECKLIST",
+    status: "DRAFT",
+    driverId: 1,
+    driverName: "João Motorista",
+    carId: 7,
+    carPlate: "ABC1D23",
+    checklistType: "ENTREGA",
+    payload: {
+      tipo: "ENTREGA",
+      dataVistoria: "2026-10-07",
+      km: 120,
+      combustivel: "THREE_QUARTERS",
+      limpezaInterna: "Ótima",
+      limpezaExterna: "Boa",
+      tires: { source: "CHECKLIST", positions: [{ posicao: "Estepe", estado: "30-50%" }] },
+      emergencyContacts: [{ nome: "Ana Souza", telefone: "11999990000" }, { nome: "Carlos Lima", telefone: "11988880000" }],
+    },
+    attachments: [],
+  };
+  /** Router-like harness: replace / goBack really change the location; state marks an entry pushed by the app. */
+  const Harness: React.FC<{ search: string; state?: any; history: { push: jest.Mock; replace: jest.Mock; goBack: jest.Mock } }> = ({
+    search,
+    state,
+    history,
+  }) => {
+    const [location, setLocation] = React.useState<any>({ pathname: "/documents", search, hash: "", state });
+    history.replace.mockImplementation((to: any, nextState?: any) => {
+      const url = typeof to === "string" ? new URL(to, "http://app") : null;
+      setLocation({ pathname: url ? url.pathname : to.pathname, search: url ? url.search : to.search, hash: "", state: nextState });
+    });
+    return <DocumentsPage {...({ location, history } as any)} />;
+  };
+  const launch = async (search: string, { state, documents = {} as Record<number, any> } = {} as any) => {
+    mockedApi.get.mockImplementation(async (url: string) => {
+      if (url === "/api/cars/7") return { data: { car: CAR_ROW } } as any;
+      if (url.startsWith("/api/driver-cars/car/")) return { data: contracts } as any;
+      return { data: [] } as any;
+    });
+    mockedDocuments.getDocument.mockImplementation(async (id: number) => ({ ...(documents[id] || stored) }));
+    const history = { push: jest.fn(), replace: jest.fn(), goBack: jest.fn() };
+    render(<Harness search={search} state={state} history={history} />);
+    return history;
+  };
+
+  it("continuing a draft (from Inspeções) recovers every field, in part 1, and closes back without asking", async () => {
+    const history = await launch("?carId=7&documentId=40&from=%2Fmenu%2Fcarros%2F7%2Finspecoes", { documents: { 40: DRAFT } });
+
+    await within(await screen.findByRole("dialog")).findByText("Passo 3 de 3");
+    expect(mockedDocuments.getDocument).toHaveBeenCalledWith(40);
+    expect(within(wizard()).getByTestId("checklist-type-fixed")).toHaveTextContent("Entrega");
+    expect(field("dataVistoria").value).toBe("2026-10-07");
+    expect(field("km").value).toBe("120");
+    expect(select("Combustível").value).toBe("THREE_QUARTERS");
+    expect(select("Limpeza interna").value).toBe("Ótima");
+    expect(select("Estepe - Integridade").value).toBe("30-50%");
+    fireEvent.click(within(wizard()).getByRole("tab", { name: "2. Conferência e finalização" }));
+    expect(input("Contato 1 - Nome").value).toBe("Ana Souza");
+
+    (window.confirm as jest.Mock).mockClear();
+    fireEvent.click(wizard().querySelector("button.app-cancel-btn") as HTMLElement);
+    expect(window.confirm).not.toHaveBeenCalled(); // nothing changed since it was opened
+    expect(history.replace).toHaveBeenCalledWith("/menu/carros/7/inspecoes");
+    expect(mockedDocuments.createDocument).not.toHaveBeenCalled();
+    expect(mockedDocuments.finalizeDocument).not.toHaveBeenCalled();
+  });
+
+  it("the first save of a new checklist puts the draft in the URL: a reload reopens it, never a second new one", async () => {
+    const history = await launch("?checklist=ENTREGA&carId=7&from=%2Fmenu%2Fcarros%2F7", { state: { checklistLaunch: true } });
+    await within(await screen.findByRole("dialog")).findByText("Passo 1 de 3");
+    change(input("Motorista"), "Jo");
+    fireEvent.click(await within(wizard()).findByText("João Motorista (39053344705)"));
+    click("Próximo");
+    click("Próximo");
+    fill("ENTREGA");
+    click("Salvar rascunho");
+
+    await waitFor(() => expect(mockedDocuments.createDocument).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(history.replace).toHaveBeenCalledWith("/documents?checklist=ENTREGA&carId=7&documentId=99&from=%2Fmenu%2Fcarros%2F7", {
+        checklistLaunch: true,
+      })
+    );
+    // Saving again updates the same draft.
+    change(field("km"), "16000");
+    await waitFor(() => expect(within(wizard()).getByRole("button", { name: "Salvar rascunho" })).not.toBeDisabled());
+    click("Salvar rascunho");
+    await waitFor(() => expect(mockedDocuments.updateDocument).toHaveBeenCalled());
+    expect(mockedDocuments.createDocument).toHaveBeenCalledTimes(1);
+    // Saved: closing goes back with the entry the app pushed (no Documentos left behind), no question.
+    (window.confirm as jest.Mock).mockClear();
+    Object.defineProperty(window.history, "length", { configurable: true, value: 3 });
+    fireEvent.click(wizard().querySelector("button.app-cancel-btn") as HTMLElement);
+    expect(window.confirm).not.toHaveBeenCalled();
+    expect(history.goBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("closing with unsaved changes asks first: Cancelar keeps the checklist open, OK discards and returns", async () => {
+    const history = await launch("?carId=7&documentId=40&from=%2Fmenu%2Fcarros%2F7", { documents: { 40: DRAFT } });
+    await within(await screen.findByRole("dialog")).findByText("Passo 3 de 3");
+    change(field("km"), "999");
+
+    (window.confirm as jest.Mock).mockReturnValueOnce(false);
+    fireEvent.click(wizard().querySelector("button.app-cancel-btn") as HTMLElement);
+    expect(window.confirm).toHaveBeenCalledWith("Descartar as alterações não salvas deste checklist?");
+    expect(screen.queryByRole("dialog")).toBeInTheDocument();
+    expect(history.replace).not.toHaveBeenCalled();
+
+    (window.confirm as jest.Mock).mockReturnValueOnce(true);
+    fireEvent.click(wizard().querySelector("button.app-cancel-btn") as HTMLElement);
+    expect(history.replace).toHaveBeenCalledWith("/menu/carros/7");
+    expect(mockedDocuments.updateDocument).not.toHaveBeenCalled();
+  });
+
+  it("a finalized checklist or one of another car is never reopened as a draft", async () => {
+    const history = await launch("?carId=7&documentId=41&from=%2Fmenu%2Fcarros%2F7", {
+      documents: { 41: { ...DRAFT, id: 41, status: "FINAL" } },
+    });
+    await waitFor(() => expect(toastMessages()).toContain("Este checklist já foi finalizado: use Emitir 2ª via (PDF) em Inspeções."));
+    expect(history.replace).toHaveBeenCalledWith("/menu/carros/7");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("a draft of another car in the URL is refused", async () => {
+    const history = await launch("?carId=7&documentId=42&from=%2Fmenu%2Fcarros%2F7", { documents: { 42: { ...DRAFT, id: 42, carId: 8 } } });
+    await waitFor(() => expect(toastMessages()).toContain("Este checklist não pertence a este veículo."));
+    expect(history.replace).toHaveBeenCalledWith("/menu/carros/7");
+  });
+
+  it("finalizing a continued draft finalizes that same document once, then Fechar (after the PDF) returns to Inspeções", async () => {
+    stored = { ...DRAFT };
+    const history = await launch("?carId=7&documentId=40&from=%2Fmenu%2Fcarros%2F7%2Finspecoes");
+    await within(await screen.findByRole("dialog")).findByText("Passo 3 de 3");
+
+    await conference();
+    click("Finalizar entrega");
+    await within(wizard()).findByTestId("checklist-final");
+    await waitFor(() => expect(mockedDocuments.generateDocumentPdf).toHaveBeenCalledWith(40));
+    expect(mockedDocuments.finalizeDocument).toHaveBeenCalledTimes(1);
+    expect(mockedDocuments.finalizeDocument).toHaveBeenCalledWith(40, undefined);
+    expect(mockedDocuments.createDocument).not.toHaveBeenCalled();
+
+    (window.confirm as jest.Mock).mockClear();
+    fireEvent.click(wizard().querySelector("button.app-cancel-btn") as HTMLElement);
+    expect(window.confirm).not.toHaveBeenCalled(); // a finalized checklist has nothing left to discard
+    expect(history.replace).toHaveBeenCalledWith("/menu/carros/7/inspecoes");
+    expect(history.replace).not.toHaveBeenCalledWith(expect.stringMatching(/^\/documents/));
+  });
+
+  it("a Devolução draft saved in part 2 keeps the same document (no new one, no finalization) and closes back", async () => {
+    contracts = [OPEN_CONTRACT];
+    const devolucao = { ...DRAFT, id: 44, checklistType: "DEVOLUCAO", driverCarId: 5, payload: { ...DRAFT.payload, tipo: "DEVOLUCAO" } };
+    stored = { ...devolucao };
+    const history = await launch("?carId=7&documentId=44&from=%2Fmenu%2Fcarros%2F7%2Finspecoes");
+    await within(await screen.findByRole("dialog")).findByText("Passo 3 de 3");
+    expect(within(wizard()).getByTestId("checklist-type-fixed")).toHaveTextContent("Devolução");
+
+    fireEvent.click(within(wizard()).getByRole("tab", { name: "2. Conferência e finalização" }));
+    change(input("Contato 1 - Nome"), "Beatriz Souza");
+    click("Salvar rascunho");
+
+    await waitFor(() => expect(mockedDocuments.updateDocument).toHaveBeenCalled());
+    const [id, request] = mockedDocuments.updateDocument.mock.calls[0] as any[];
+    expect(id).toBe(44);
+    expect(request.payload.emergencyContacts[0]).toMatchObject({ nome: "Beatriz Souza" });
+    expect(mockedDocuments.createDocument).not.toHaveBeenCalled();
+    expect(mockedDocuments.finalizeDocument).not.toHaveBeenCalled();
+
+    // The save ends by reading the list again: only then it is the saved state.
+    await waitFor(() =>
+      expect(Math.max(...mockedDocuments.listDocuments.mock.invocationCallOrder)).toBeGreaterThan(
+        mockedDocuments.updateDocument.mock.invocationCallOrder[0]
+      )
+    );
+    await act(async () => undefined);
+    (window.confirm as jest.Mock).mockClear();
+    fireEvent.click(wizard().querySelector("button.app-cancel-btn") as HTMLElement);
+    expect(window.confirm).not.toHaveBeenCalled(); // saved: nothing to discard
+    expect(history.replace).toHaveBeenCalledWith("/menu/carros/7/inspecoes");
+  });
+
+  it("an older draft (no type) is continued as it was, from Inspeções, and comes back there", async () => {
+    const legacy = {
+      ...DRAFT,
+      id: 43,
+      checklistType: null,
+      payload: { tipo: "ENTREGA", dataHora: "ontem 10h", km: "12.000", combustivel: "meio tanque" },
+    };
+    const history = await launch("?carId=7&documentId=43&from=%2Fmenu%2Fcarros%2F7%2Finspecoes", { documents: { 43: legacy } });
+
+    await screen.findByTestId("checklist-legacy-draft");
+    expect(input("KM").value).toBe("12.000");
+    fireEvent.click(wizard().querySelector("button.app-cancel-btn") as HTMLElement);
+    expect(history.replace).toHaveBeenCalledWith("/menu/carros/7/inspecoes");
+    expect(mockedDocuments.updateDocument).not.toHaveBeenCalled();
+  });
+
+  it("a refresh (or closing the tab) with unsaved changes asks first; the km echoed back by the input is no change", async () => {
+    const history = await launch("?carId=7&documentId=40&from=%2Fmenu%2Fcarros%2F7", { documents: { 40: DRAFT } });
+    await within(await screen.findByRole("dialog")).findByText("Passo 3 de 3");
+    await act(async () => undefined);
+    const refresh = () => {
+      const event = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+
+    expect(refresh()).toBe(false); // nothing changed yet
+    change(field("km"), "1200");
+    change(field("km"), "120"); // the saved km 120 again, as text (as the ion-input echoes it after a save): no change
+    expect(refresh()).toBe(false);
+
+    change(field("km"), "999");
+    expect(refresh()).toBe(true);
+
+    // Discarded on purpose with Fechar: asked once, then back to the origin; nothing is asked any more.
+    fireEvent.click(wizard().querySelector("button.app-cancel-btn") as HTMLElement);
+    expect(window.confirm).toHaveBeenCalledTimes(1);
+    expect(history.replace).toHaveBeenCalledWith("/menu/carros/7");
+    expect(refresh()).toBe(false);
+  });
+
+  it("started in Documentos (no launch), closing stays in Documentos", async () => {
+    const history = { push: jest.fn(), replace: jest.fn(), goBack: jest.fn() };
+    render(<Harness search="" history={history} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Novo Documento/ }));
+    await within(screen.getByRole("dialog")).findByText("Passo 1 de 3");
+
+    fireEvent.click(wizard().querySelector("button.app-cancel-btn") as HTMLElement);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(history.replace).not.toHaveBeenCalled();
+    expect(history.goBack).not.toHaveBeenCalled();
+    expect(history.push).not.toHaveBeenCalled();
   });
 });
