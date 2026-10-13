@@ -105,8 +105,8 @@ public class BillingResource {
      * 5G.11: a pre-5G.9 user can have more than one PAYMENT_PROVIDER contract; cancel() already
      * attempts every one of them and returns the primary (most-recently-started) result, but a
      * historical duplicate can still fail independently - hasResidualActiveContract is checked
-     * fresh after cancel() so the response never claims full success while a hidden recurrence is
-     * still chargeable.
+     * fresh after cancel() so the response never claims full success while a recurrence without a
+     * confirmed cancellation is still live (a confirmed one still inside its paid period is not).
      */
     @PostMapping("/cancel")
     public SubscriptionCancellationResultDTO cancelSubscription() {

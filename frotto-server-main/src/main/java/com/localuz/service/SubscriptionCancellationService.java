@@ -69,10 +69,12 @@ public class SubscriptionCancellationService {
     }
 
     /**
-     * Whether the user still has ANY PAYMENT_PROVIDER contract able to charge them, re-checked
-     * fresh after cancel() has run. True means a historical duplicate could not be confirmed
-     * cancelled (partial failure) - the caller must tell the user, never silently report full
-     * success.
+     * Whether the user still has a PAYMENT_PROVIDER recurrence whose cancellation was NOT confirmed
+     * (canceledAt null) and that is still live, re-checked fresh after cancel() has run. True means
+     * a contract could not be confirmed cancelled (partial failure, or still pending/ambiguous) - the
+     * caller must tell the user, never silently report full success. A confirmed cancellation still
+     * inside its paid period is NOT residual, even though it keeps blocking a new checkout until
+     * that period ends - see SubscriptionCancellationSteps#hasRemainingChargeableContract.
      */
     public boolean hasResidualActiveContract(User authenticatedUser) {
         return steps.hasRemainingChargeableContract(requireUserId(authenticatedUser));

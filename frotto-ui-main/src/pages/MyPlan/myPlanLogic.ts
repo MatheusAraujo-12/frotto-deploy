@@ -211,7 +211,8 @@ export const paymentNotice = (state: BillingPaymentStateDTO | null): PaymentNoti
   if (checkout === "CREATED") return { title: "Pagamento em preparação", detail: "Seu pagamento está sendo preparado. Aguarde antes de iniciar uma nova tentativa.", tone: "info" };
   if (checkout === "PROVIDER_PENDING") return { title: "Aguardando confirmação do Mercado Pago", detail: "Seu pagamento foi iniciado e estamos aguardando a confirmação.", tone: "info" };
   if (checkout === "PROVIDER_UNKNOWN") return { title: "Estamos confirmando seu pagamento", detail: "Recebemos uma resposta inconclusiva do serviço de pagamento. Estamos verificando o status antes de permitir uma nova tentativa.", tone: "warning" };
-  if (checkout === "FAILED") return { title: "Não foi possível iniciar o pagamento.", detail: "Você pode tentar novamente quando quiser.", tone: "danger" };
+  // FAILED = the preapproval was never created on Mercado Pago (non-ambiguous error), so nothing was charged.
+  if (checkout === "FAILED") return { title: "Não foi possível concluir o pagamento.", detail: "Nenhuma cobrança foi realizada. Você pode tentar novamente quando quiser.", tone: "warning" };
   if (checkout === "AUTHORIZED") return { title: "Confirmação em andamento", detail: "O pagamento foi autorizado e estamos confirmando sua assinatura.", tone: "info" };
   return null;
 };
@@ -238,6 +239,89 @@ export const isNoticeRedundantWithGrantedPlan = (notice: PaymentNotice | null, b
 export const resumableCheckoutUrl = (state: BillingPaymentStateDTO | null): string | null => {
   const checkout = state?.latestCheckout;
   return checkout?.canResume ? checkout.checkoutUrl : null;
+};
+
+/**
+ * What the Meu Plano page tells the user about their billing right now. Only states the backend
+ * already sustains: BillingMeDTO is the entitlement verdict, payment-state the raw contract and
+ * the latest checkout attempt.
+ */
+export type BillingUiState = "FREE" | "ACTIVE" | "CANCEL_SCHEDULED" | "PLAN_ENDED" | "PAYMENT_PENDING" | "PAYMENT_FAILED";
+
+export type BillingPresentation = {
+  state: BillingUiState;
+  notice: PaymentNotice | null;
+  /** "Continuar pagamento" target - only ever set in PAYMENT_PENDING, from the backend's canResume. */
+  resumeUrl: string | null;
+  /** "Atualizar status" next to the notice. */
+  canRefresh: boolean;
+  /** Secondary CTA that only leads to the existing plan list (checkout stays the only payment path). */
+  planAction: "VIEW_PLANS" | "RETRY_PAYMENT" | null;
+};
+
+const TERMINAL_CONTRACT_STATUSES: SubscriptionStatus[] = ["CANCELED", "EXPIRED"];
+
+/**
+ * A remote contract is over once it no longer grants anything: either terminal and without
+ * residual coverage, or a confirmed cancellation whose paid period the backend no longer covers
+ * (the row keeps status=ACTIVE after the period ends - nothing flips it - so status alone is not
+ * enough; see SubscriptionService#isProviderSubscriptionEntitled). For the second case the
+ * effective entitlement (BillingMeDTO) must also agree the contract is not what grants the plan.
+ */
+export const isContractEnded = (billing: BillingMeDTO, paymentState: BillingPaymentStateDTO | null): boolean => {
+  const contract = paymentState?.paymentProviderSubscription;
+  if (!contract || contract.financiallyCovered) return false;
+  if (TERMINAL_CONTRACT_STATUSES.includes(contract.status)) return true;
+  return contract.cancellationState === "CONFIRMED" && billing.subscriptionSource !== "PAYMENT_PROVIDER";
+};
+
+const pastDate = (value: string | null | undefined, now: number): string | null => {
+  if (!value) return null;
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) || time > now ? null : formatDate(value);
+};
+
+const planEndedNotice = (billing: BillingMeDTO, endedAt: string | null): PaymentNotice => billing.planCode === "FREE"
+  ? { title: "Você está no plano gratuito", detail: `Seu plano pago foi encerrado${endedAt ? ` em ${endedAt}` : ""}. Você pode escolher um novo plano quando quiser.`, tone: "info" }
+  : { title: "Assinatura anterior encerrada", detail: `Sua assinatura paga foi encerrada${endedAt ? ` em ${endedAt}` : ""}. Seu plano atual é ${friendlyPlan(billing.planCode)}.`, tone: "info" };
+
+/**
+ * Single decision point for the billing banner. "Continuar pagamento" needs BOTH a checkout the
+ * backend reports as resumable (canResume: open status + init_point) AND no live contract: while a
+ * contract is live the backend refuses any new checkout (RecurringSubscriptionGuardService), so an
+ * open checkout next to it can only be that contract's own attempt - never something to pay again.
+ * An ended contract, a cancelled/expired/authorized historical checkout or the FREE plan alone
+ * never produce a payment CTA.
+ */
+export const resolveBillingPresentation = (billing: BillingMeDTO, paymentState: BillingPaymentStateDTO | null, now: number = Date.now()): BillingPresentation => {
+  const contract = paymentState?.paymentProviderSubscription ?? null;
+  const checkout = paymentState?.latestCheckout ?? null;
+  const ended = isContractEnded(billing, paymentState);
+  const none: BillingPresentation = { state: "FREE", notice: null, resumeUrl: null, canRefresh: false, planAction: null };
+
+  if (contract && !ended) {
+    const terminal = TERMINAL_CONTRACT_STATUSES.includes(contract.status);
+    const scheduled = terminal || contract.cancellationState !== "NONE";
+    // A terminal contract only reaches here with residual paid coverage: "encerrada, não vigente" would be false.
+    const rawNotice = terminal ? null : paymentNotice({ paymentProviderSubscription: contract, latestCheckout: null });
+    return { ...none, state: scheduled ? "CANCEL_SCHEDULED" : "ACTIVE", notice: isNoticeRedundantWithGrantedPlan(rawNotice, billing) ? null : rawNotice, canRefresh: checkoutNeedsRefresh(paymentState) };
+  }
+
+  const checkoutOnly: BillingPaymentStateDTO = { paymentProviderSubscription: null, latestCheckout: checkout };
+  if (checkout && OPEN_CHECKOUTS.includes(checkout.status)) {
+    return { ...none, state: "PAYMENT_PENDING", notice: paymentNotice(checkoutOnly), resumeUrl: resumableCheckoutUrl(paymentState), canRefresh: true };
+  }
+  // AUTHORIZED next to an ended contract is that contract's own (historical) checkout.
+  if (checkout?.status === "AUTHORIZED" && !contract) {
+    return { ...none, state: "PAYMENT_PENDING", notice: paymentNotice(checkoutOnly), canRefresh: true };
+  }
+  if (checkout?.status === "FAILED") {
+    return { ...none, state: "PAYMENT_FAILED", notice: paymentNotice(checkoutOnly), planAction: "RETRY_PAYMENT" };
+  }
+  if (ended) {
+    return { ...none, state: "PLAN_ENDED", notice: planEndedNotice(billing, pastDate(contract?.currentPeriodEnd, now)), planAction: billing.planCode === "FREE" ? "VIEW_PLANS" : null };
+  }
+  return none;
 };
 
 export const isCheckoutInProgressError = (error: unknown): boolean => {

@@ -1,5 +1,5 @@
 import { BillingMeDTO, BillingPaymentStateDTO, PlanDTO, PlanUpgradeStatusDTO, SubscriptionCancellationState, SubscriptionStatus } from "../../constants/BillingModels";
-import { checkoutBlocksPurchase, checkoutNeedsRefresh, fleetUsage, hasPendingPlanChange, isCheckoutInProgressError, isNoticeRedundantWithGrantedPlan, isPlanChangeBlockedByCancellation, isRecurringSubscriptionExistsError, isPlanCompatible, isSubscriptionCancelable, isUnauthorizedError, isUpgradeInProgress, paymentNotice, planChangeErrorMessage, planDirection, pendingPlanChangeMessage, recurringSubscriptionExistsMessage, remoteCancellationState, remoteCurrentPeriodEnd, resumableCheckoutUrl, sourceDetail, sourceLabel, upgradeNotice, usageState, vehicleRange } from "./myPlanLogic";
+import { checkoutBlocksPurchase, checkoutNeedsRefresh, fleetUsage, hasPendingPlanChange, isCheckoutInProgressError, isNoticeRedundantWithGrantedPlan, isPlanChangeBlockedByCancellation, isRecurringSubscriptionExistsError, isPlanCompatible, isSubscriptionCancelable, isUnauthorizedError, isUpgradeInProgress, paymentNotice, planChangeErrorMessage, planDirection, pendingPlanChangeMessage, recurringSubscriptionExistsMessage, remoteCancellationState, remoteCurrentPeriodEnd, resolveBillingPresentation, resumableCheckoutUrl, sourceDetail, sourceLabel, upgradeNotice, usageState, vehicleRange } from "./myPlanLogic";
 const billing=(changes:Partial<BillingMeDTO>={}):BillingMeDTO=>({planCode:"FREE",planName:"Free",subscriptionStatus:null,billingCycle:null,subscriptionSource:null,activeVehicleCount:0,vehicleLimit:2,canAddVehicle:true,needsUpgrade:false,requiredPlanCode:"FREE",requiredPlanName:"Free",currentMonthlyPrice:0,currentPeriodStart:null,currentPeriodEnd:null,grantExpiresAt:null,cancelAtPeriodEnd:false,cancellationState:"NONE",...changes});
 const plan=(changes:Partial<PlanDTO>={}):PlanDTO=>({code:"BRONZE",name:"Bronze",minVehicles:3,maxVehicles:5,monthlyBasePrice:29.9,billingModel:"FLAT",tiers:[],...changes});
 const subscription=(status:SubscriptionStatus,financiallyCovered=true,canCancel=true,cancellationState:SubscriptionCancellationState="NONE",currentPeriodEnd:string|null=null):BillingPaymentStateDTO=>({paymentProviderSubscription:{status,planCode:"BRONZE",billingCycle:"MONTHLY",financiallyCovered,canCancel,cancellationState,currentPeriodEnd},latestCheckout:null});
@@ -40,7 +40,7 @@ describe("myPlanLogic",()=>{
  it("5G.11: null notice is never treated as redundant",()=>{
   expect(isNoticeRedundantWithGrantedPlan(null,billing({subscriptionSource:"PAYMENT_PROVIDER",subscriptionStatus:"ACTIVE"}))).toBe(false);
  });
- it.each([["CREATED","Pagamento em preparação",true],["PROVIDER_PENDING","Aguardando confirmação do Mercado Pago",true],["PROVIDER_UNKNOWN","Estamos confirmando seu pagamento",true],["FAILED","Não foi possível iniciar o pagamento.",false],["CANCELED",null,false],["AUTHORIZED","Confirmação em andamento",false]] as const)("presents checkout %s without technical enums",(status,title,blocked)=>{const state=checkout(status);expect(paymentNotice(state)?.title||null).toBe(title);expect(checkoutBlocksPurchase(state)).toBe(blocked)});
+ it.each([["CREATED","Pagamento em preparação",true],["PROVIDER_PENDING","Aguardando confirmação do Mercado Pago",true],["PROVIDER_UNKNOWN","Estamos confirmando seu pagamento",true],["FAILED","Não foi possível concluir o pagamento.",false],["CANCELED",null,false],["AUTHORIZED","Confirmação em andamento",false]] as const)("presents checkout %s without technical enums",(status,title,blocked)=>{const state=checkout(status);expect(paymentNotice(state)?.title||null).toBe(title);expect(checkoutBlocksPurchase(state)).toBe(blocked)});
  it("refreshes open states and authorized without a confirmed subscription",()=>{expect(checkoutNeedsRefresh(checkout("CREATED"))).toBe(true);expect(checkoutNeedsRefresh(checkout("PROVIDER_PENDING"))).toBe(true);expect(checkoutNeedsRefresh(checkout("PROVIDER_UNKNOWN"))).toBe(true);expect(checkoutNeedsRefresh(checkout("AUTHORIZED"))).toBe(true);expect(checkoutNeedsRefresh(subscription("ACTIVE"))).toBe(false)});
  it("recognizes only the stable backend conflict",()=>{expect(isCheckoutInProgressError({response:{status:409,data:{message:"error.BILLING_CHECKOUT_IN_PROGRESS"}}})).toBe(true);expect(isCheckoutInProgressError({response:{status:409,data:{message:"other"}}})).toBe(false)});
  it("5G.9-A: recognizes only the stable BILLING_RECURRING_SUBSCRIPTION_EXISTS conflict",()=>{
@@ -163,4 +163,32 @@ describe("myPlanLogic",()=>{
   expect(isUnauthorizedError({response:{status:409}})).toBe(false);
   expect(planChangeErrorMessage(unauthorized)).toBe("Sua sessão expirou. Faça login novamente.");
  });
+});
+
+describe("resolveBillingPresentation",()=>{
+ const NOW=Date.parse("2026-10-12T12:00:00Z");
+ const paid=billing({planCode:"BRONZE",subscriptionSource:"PAYMENT_PROVIDER",subscriptionStatus:"ACTIVE"});
+ const open=(status:NonNullable<BillingPaymentStateDTO["latestCheckout"]>["status"],canResume=false):BillingPaymentStateDTO["latestCheckout"]=>({status,planCode:"SILVER",createdAt:"2026-10-11T12:00:00Z",canResume,checkoutUrl:canResume?"https://mp.test/resume":null});
+ const state=(sub:BillingPaymentStateDTO,latestCheckout:BillingPaymentStateDTO["latestCheckout"]=null):BillingPaymentStateDTO=>({...sub,latestCheckout});
+ it("ACTIVE: live covered contract, no payment CTA",()=>{const p=resolveBillingPresentation(paid,subscription("ACTIVE"),NOW);expect(p.state).toBe("ACTIVE");expect(p.resumeUrl).toBeNull();expect(p.notice).toBeNull();expect(p.planAction).toBeNull()});
+ it("ACTIVE: a resumable checkout next to a live contract is never offered",()=>expect(resolveBillingPresentation(paid,state(subscription("PAUSED"),open("PROVIDER_PENDING",true)),NOW).resumeUrl).toBeNull());
+ it("CANCEL_SCHEDULED: confirmed cancellation still covered",()=>{const p=resolveBillingPresentation(paid,subscription("ACTIVE",true,true,"CONFIRMED","2026-11-09T00:00:00Z"),NOW);expect(p.state).toBe("CANCEL_SCHEDULED");expect(p.resumeUrl).toBeNull()});
+ it("CANCEL_SCHEDULED: CANCELED with residual coverage is not described as ended",()=>{const p=resolveBillingPresentation(paid,subscription("CANCELED",true,false),NOW);expect(p.state).toBe("CANCEL_SCHEDULED");expect(p.notice).toBeNull()});
+ it("PLAN_ENDED: status kept ACTIVE after the confirmed cancellation's period ended, user on FREE",()=>{
+  const p=resolveBillingPresentation(billing(),state(subscription("ACTIVE",false,true,"CONFIRMED","2026-10-09T00:00:00Z"),open("AUTHORIZED")),NOW);
+  expect(p.state).toBe("PLAN_ENDED");expect(p.notice?.title).toBe("Você está no plano gratuito");expect(p.notice?.detail).toContain("encerrado em 09/10/2026");expect(p.planAction).toBe("VIEW_PLANS");expect(p.resumeUrl).toBeNull();expect(p.canRefresh).toBe(false);
+ });
+ it("PLAN_ENDED: never prints a future date as the end date",()=>expect(resolveBillingPresentation(billing(),subscription("CANCELED",false,false,"NONE","2026-12-01T00:00:00Z"),NOW).notice?.detail).toBe("Seu plano pago foi encerrado. Você pode escolher um novo plano quando quiser."));
+ it("PLAN_ENDED: another effective plan (courtesy) gets a discreet note and no CTA",()=>{const p=resolveBillingPresentation(billing({planCode:"GOLD",subscriptionSource:"ADMIN_GRANT"}),subscription("CANCELED",false,false),NOW);expect(p.notice?.title).toBe("Assinatura anterior encerrada");expect(p.planAction).toBeNull()});
+ it("not ended while BillingMeDTO still grants the plan through this contract",()=>expect(resolveBillingPresentation(paid,subscription("ACTIVE",false,true,"CONFIRMED","2026-11-09T00:00:00Z"),NOW).state).toBe("CANCEL_SCHEDULED"));
+ it("pending cancellation is never treated as ended (the contract may still charge)",()=>expect(resolveBillingPresentation(billing(),subscription("ACTIVE",false,true,"PENDING_CONFIRMATION","2026-10-09T00:00:00Z"),NOW).state).toBe("CANCEL_SCHEDULED"));
+ it("PAYMENT_PENDING: resumable checkout with no live contract (also after an ended one)",()=>{
+  expect(resolveBillingPresentation(billing(),checkout("PROVIDER_PENDING",{canResume:true,checkoutUrl:"https://mp.test/resume"}),NOW)).toMatchObject({state:"PAYMENT_PENDING",resumeUrl:"https://mp.test/resume",canRefresh:true});
+  expect(resolveBillingPresentation(billing(),state(subscription("CANCELED",false,false),open("PROVIDER_PENDING",true)),NOW)).toMatchObject({state:"PAYMENT_PENDING",resumeUrl:"https://mp.test/resume"});
+ });
+ it("PAYMENT_PENDING without canResume shows the notice but no Continuar pagamento",()=>expect(resolveBillingPresentation(billing(),checkout("PROVIDER_UNKNOWN"),NOW)).toMatchObject({state:"PAYMENT_PENDING",resumeUrl:null}));
+ it("an AUTHORIZED checkout next to an ended contract is history, not a pending payment",()=>expect(resolveBillingPresentation(billing(),state(subscription("CANCELED",false,false),open("AUTHORIZED")),NOW).state).toBe("PLAN_ENDED"));
+ it("PAYMENT_FAILED: explicit failure, retry through the plan list only",()=>{const p=resolveBillingPresentation(billing(),checkout("FAILED"),NOW);expect(p).toMatchObject({state:"PAYMENT_FAILED",resumeUrl:null,planAction:"RETRY_PAYMENT"});expect(p.notice?.title).toBe("Não foi possível concluir o pagamento.")});
+ it.each(["CANCELED","EXPIRED"] as const)("FREE: historical %s checkout without contract shows nothing",(status)=>expect(resolveBillingPresentation(billing(),checkout(status,{canResume:false,checkoutUrl:"https://mp.test/old"}),NOW)).toEqual({state:"FREE",notice:null,resumeUrl:null,canRefresh:false,planAction:null}));
+ it("FREE: no billing history at all",()=>expect(resolveBillingPresentation(billing(),null,NOW).state).toBe("FREE"));
 });

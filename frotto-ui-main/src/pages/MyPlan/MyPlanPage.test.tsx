@@ -426,7 +426,7 @@ describe("MyPlanPage - checkout modal", () => {
     request.resolve({ state: "CONFIRMED", hasResidualActiveContract: false, currentPeriodEnd: "2026-10-10T00:00:00Z", providerSubscriptionId: "private-provider-id" });
     expect(await screen.findByText("Cancelamento agendado")).toBeInTheDocument();
     expect(screen.queryByText(/Uma recorrência foi cancelada/)).not.toBeInTheDocument();
-    expect(screen.getByText("Seu plano ficará ativo até 10/10/2026. Não haverá nova renovação.")).toBeInTheDocument();
+    expect(screen.getByText("Seu plano continuará ativo até 10/10/2026. Após essa data, não haverá nova cobrança e sua conta passará para o plano gratuito.")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cancelar assinatura" })).not.toBeInTheDocument();
     expect(mockedBillingService.getMyBilling).toHaveBeenCalledTimes(2);
@@ -522,7 +522,7 @@ describe("MyPlanPage - checkout modal", () => {
     });
     await renderLoadedPage();
     expect(screen.getByText("Cancelamento agendado")).toBeInTheDocument();
-    expect(screen.getByText("Seu plano ficará ativo até 10/10/2026. Não haverá nova renovação.")).toBeInTheDocument();
+    expect(screen.getByText("Seu plano continuará ativo até 10/10/2026. Após essa data, não haverá nova cobrança e sua conta passará para o plano gratuito.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cancelar assinatura" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Tentar novamente" })).not.toBeInTheDocument();
     expect(mockedBillingService.cancelSubscription).not.toHaveBeenCalled();
@@ -950,5 +950,143 @@ describe("MyPlanPage - 5G.12 / 5G.12.1 plan change", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Nenhuma alteração foi feita");
     expect(screen.getByRole("button", { name: "Confirmar upgrade" })).toBeDisabled();
+  });
+});
+
+/**
+ * Billing UI states (resolveBillingPresentation): the banner reflects the user's CURRENT state.
+ * Reproduces a real account: paid plan, cancellation confirmed at period end, period over, back on
+ * FREE - the backend keeps that contract row at status=ACTIVE/CONFIRMED with financiallyCovered=false.
+ */
+describe("MyPlanPage - billing UI states", () => {
+  const scrollIntoView = jest.fn();
+  // As payment-state reports it since the backend fix: a history-only row is never cancellable.
+  const endedContract = { status: "ACTIVE" as const, planCode: "BRONZE" as const, billingCycle: "MONTHLY" as const, financiallyCovered: false, canCancel: false, cancellationState: "CONFIRMED" as const, currentPeriodEnd: "2026-10-09T00:00:00Z" };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    localStorage.clear();
+    setToken("Bearer user-token");
+    Element.prototype.scrollIntoView = scrollIntoView;
+    mockedBillingService.getMyBilling.mockResolvedValue(billing);
+    mockedBillingService.getBillingPaymentState.mockResolvedValue(cancellablePaymentState);
+    mockedBillingService.getPlans.mockResolvedValue(plans);
+    mockedBillingService.getPricePreview.mockImplementation(() => new Promise(() => {}));
+    mockedBillingService.getPlanUpgradeStatus.mockResolvedValue(noUpgrade);
+  });
+
+  afterEach(() => localStorage.clear());
+
+  it("1. assinatura ativa normal mantém a UX atual e não mostra Continuar pagamento", async () => {
+    await renderLoadedPage();
+
+    expect(screen.getByText("Bronze", { selector: "h1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancelar assinatura" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Continuar pagamento" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Você está no plano gratuito")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cancelamento agendado")).not.toBeInTheDocument();
+  });
+
+  it("1b. contrato vigente nunca oferece retomar o checkout que o originou, mesmo se o backend o reportar aberto", async () => {
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({
+      paymentProviderSubscription: { ...cancellablePaymentState.paymentProviderSubscription!, status: "PAUSED" },
+      latestCheckout: { status: "PROVIDER_PENDING", planCode: "BRONZE", createdAt: "2026-08-28T12:00:00Z", canResume: true, checkoutUrl: "https://mp.test/original" },
+    });
+    await renderLoadedPage();
+
+    expect(screen.getByText("Assinatura pausada")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continuar pagamento" })).not.toBeInTheDocument();
+  });
+
+  it("2. cancelamento agendado com período futuro mantém o plano pago e não mostra Continuar pagamento", async () => {
+    mockedBillingService.getMyBilling.mockResolvedValue({ ...billing, cancellationState: "CONFIRMED", cancelAtPeriodEnd: true, currentPeriodEnd: "2099-11-09T00:00:00Z" });
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({
+      paymentProviderSubscription: { ...endedContract, financiallyCovered: true, canCancel: true, currentPeriodEnd: "2099-11-09T00:00:00Z" },
+      latestCheckout: { status: "AUTHORIZED", planCode: "BRONZE", createdAt: "2026-08-28T12:00:00Z", canResume: false, checkoutUrl: null },
+    });
+    await renderLoadedPage();
+
+    expect(screen.getByText("Bronze", { selector: "h1" })).toBeInTheDocument();
+    expect(screen.getByText("Cancelamento agendado")).toBeInTheDocument();
+    expect(screen.getByText("Seu plano continuará ativo até 09/11/2099. Após essa data, não haverá nova cobrança e sua conta passará para o plano gratuito.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continuar pagamento" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Você está no plano gratuito")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ver planos" })).not.toBeInTheDocument();
+  });
+
+  it("3. período encerrado e usuário de volta ao gratuito: mostra Plano gratuito e Ver planos, nunca Continuar pagamento", async () => {
+    mockedBillingService.getMyBilling.mockResolvedValue(freeBilling);
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({
+      paymentProviderSubscription: endedContract,
+      latestCheckout: { status: "AUTHORIZED", planCode: "BRONZE", createdAt: "2026-08-28T12:00:00Z", canResume: false, checkoutUrl: null },
+    });
+    await renderLoadedPage();
+
+    expect(screen.getByText("Gratuito", { selector: "h1" })).toBeInTheDocument();
+    expect(screen.getByText("Você está no plano gratuito")).toBeInTheDocument();
+    expect(screen.getByText("Seu plano pago foi encerrado em 09/10/2026. Você pode escolher um novo plano quando quiser.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continuar pagamento" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Pagamento em processamento")).not.toBeInTheDocument();
+    expect(screen.queryByText("Confirmação em andamento")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cancelamento agendado")).not.toBeInTheDocument();
+    expect(screen.queryByText(/programada para encerrar/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Atualizar status" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancelar assinatura" })).not.toBeInTheDocument();
+    expect(planCardButton("Prata", "Escolher plano")).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Ver planos" }));
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(mockedBillingService.createCheckout).not.toHaveBeenCalled();
+    expect(mockedNavigate).not.toHaveBeenCalled();
+  });
+
+  it("4. checkout realmente pendente após uma assinatura encerrada mostra Continuar pagamento", async () => {
+    mockedBillingService.getMyBilling.mockResolvedValue(freeBilling);
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({
+      paymentProviderSubscription: { ...endedContract, status: "CANCELED" },
+      latestCheckout: { status: "PROVIDER_PENDING", planCode: "SILVER", createdAt: "2026-10-11T12:00:00Z", canResume: true, checkoutUrl: "https://mp.test/new" },
+    });
+    await renderLoadedPage();
+
+    expect(screen.getByText("Aguardando confirmação do Mercado Pago")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Continuar pagamento" }));
+    expect(mockedNavigate).toHaveBeenCalledWith("https://mp.test/new");
+    expect(screen.queryByText("Você está no plano gratuito")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["CANCELED" as const, "CANCELED" as const],
+    ["CANCELED" as const, "AUTHORIZED" as const],
+    ["ACTIVE" as const, "AUTHORIZED" as const],
+    ["EXPIRED" as const, "EXPIRED" as const],
+  ])("5. assinatura encerrada (%s) com checkout histórico %s não mostra Continuar pagamento", async (contractStatus, checkoutStatus) => {
+    mockedBillingService.getMyBilling.mockResolvedValue(freeBilling);
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({
+      paymentProviderSubscription: { ...endedContract, status: contractStatus },
+      latestCheckout: { status: checkoutStatus, planCode: "BRONZE", createdAt: "2026-08-28T12:00:00Z", canResume: false, checkoutUrl: "https://mp.test/old" },
+    });
+    await renderLoadedPage();
+
+    expect(screen.queryByRole("button", { name: "Continuar pagamento" })).not.toBeInTheDocument();
+    expect(screen.getByText("Você está no plano gratuito")).toBeInTheDocument();
+    expect(screen.queryByText("Assinatura encerrada")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ver planos" })).toBeInTheDocument();
+  });
+
+  it("6. pagamento recusado informa a falha sem confundir com assinatura ativa", async () => {
+    mockedBillingService.getMyBilling.mockResolvedValue(freeBilling);
+    mockedBillingService.getBillingPaymentState.mockResolvedValue({
+      paymentProviderSubscription: null,
+      latestCheckout: { status: "FAILED", planCode: "SILVER", createdAt: "2026-10-11T12:00:00Z", canResume: false, checkoutUrl: null },
+    });
+    await renderLoadedPage();
+
+    expect(screen.getByText("Não foi possível concluir o pagamento.")).toBeInTheDocument();
+    expect(screen.getByText("Gratuito", { selector: "h1" })).toBeInTheDocument();
+    expect(screen.queryByText("Assinatura ativa")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cancelamento agendado")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continuar pagamento" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(mockedBillingService.createCheckout).not.toHaveBeenCalled();
   });
 });

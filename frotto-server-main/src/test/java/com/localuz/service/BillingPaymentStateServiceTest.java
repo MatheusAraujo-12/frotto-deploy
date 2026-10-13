@@ -146,6 +146,84 @@ class BillingPaymentStateServiceTest {
         assertThat(result.getPaymentProviderSubscription().isCanCancel()).isFalse();
     }
 
+    // --- Confirmed cancellation whose status stays ACTIVE after the paid period ended ---------------
+
+    private Subscription endedConfirmedCancellation(){
+        Subscription ended=subscription(SubscriptionStatus.ACTIVE);
+        ended.setId(10L);
+        ended.setCancelAtPeriodEnd(true);
+        ended.setCanceledAt(NOW.minusSeconds(86400L*20));
+        ended.setCurrentPeriodEnd(NOW.minusSeconds(86400L*3));
+        FinancialCoverageEvaluation over=new FinancialCoverageEvaluation(false,FinancialCoverageEvaluation.CommercialState.CANCELED,null,null,null,null,FinancialCoverageEvaluation.Reason.PERIOD_EXPIRED);
+        when(financialCoverage.evaluate(ended,NOW)).thenReturn(over);
+        when(financialCoverage.evaluate(ended)).thenReturn(over);
+        return ended;
+    }
+
+    @Test void endedConfirmedCancellationStillShownAsHistoryButNeverCancellable(){
+        Subscription ended=endedConfirmedCancellation();
+        stubProviderRows(ended);
+
+        BillingPaymentStateDTO result=service.getState(user);
+
+        assertThat(recurringSubscriptionGuard.isStillChargeable(ended)).isFalse();
+        assertThat(result.getPaymentProviderSubscription()).isNotNull();
+        assertThat(result.getPaymentProviderSubscription().getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(result.getPaymentProviderSubscription().getCancellationState()).isEqualTo(com.localuz.service.dto.SubscriptionCancellationState.CONFIRMED);
+        assertThat(result.getPaymentProviderSubscription().getCurrentPeriodEnd()).isEqualTo(NOW.minusSeconds(86400L*3));
+        assertThat(result.getPaymentProviderSubscription().isFinanciallyCovered()).isFalse();
+        assertThat(result.getPaymentProviderSubscription().isCanCancel()).isFalse();
+    }
+
+    @Test void liveActiveContractIsCancellableAndWinsOverAnEndedOneStartedLater(){
+        Subscription ended=endedConfirmedCancellation();
+        ended.setStartDate(NOW);
+        Subscription live=subscription(SubscriptionStatus.ACTIVE);
+        live.setId(11L);
+        live.setStartDate(NOW.minusSeconds(86400));
+        stubProviderRows(ended,live);
+        when(financialCoverage.evaluate(live)).thenReturn(new FinancialCoverageEvaluation(true,FinancialCoverageEvaluation.CommercialState.ACTIVE,99L,null,null,null,FinancialCoverageEvaluation.Reason.PAID));
+
+        BillingPaymentStateDTO result=service.getState(user);
+
+        assertThat(result.getPaymentProviderSubscription().getCancellationState()).isEqualTo(com.localuz.service.dto.SubscriptionCancellationState.NONE);
+        assertThat(result.getPaymentProviderSubscription().isCanCancel()).isTrue();
+    }
+
+    @Test void endedContractWithHistoricalCheckoutNeverReoffersCancellation(){
+        Subscription ended=endedConfirmedCancellation();
+        stubProviderRows(ended);
+        BillingCheckout authorized=checkout(BillingCheckoutStatus.AUTHORIZED);
+        authorized.setInitPoint("https://mp.test/original");
+        when(checkouts.findFirstByUserIdOrderByCreatedAtDesc(42L)).thenReturn(Optional.of(authorized));
+
+        BillingPaymentStateDTO result=service.getState(user);
+
+        assertThat(result.getPaymentProviderSubscription().isCanCancel()).isFalse();
+        assertThat(result.getLatestCheckout().getStatus()).isEqualTo(BillingCheckoutStatus.AUTHORIZED);
+        assertThat(result.getLatestCheckout().isCanResume()).isFalse();
+        assertThat(result.getLatestCheckout().getCheckoutUrl()).isNull();
+    }
+
+    @Test void confirmedCancellationStillInItsPaidPeriodRemainsLiveAndCancellable(){
+        // canCancel=true here only mirrors the existing contract for a live row (the UI hides the
+        // action itself once cancellationState=CONFIRMED); what must not happen is losing the row.
+        Subscription residual=subscription(SubscriptionStatus.ACTIVE);
+        residual.setCancelAtPeriodEnd(true);
+        residual.setCanceledAt(NOW.minusSeconds(86400));
+        residual.setCurrentPeriodEnd(NOW.plusSeconds(86400L*10));
+        FinancialCoverageEvaluation paid=new FinancialCoverageEvaluation(true,FinancialCoverageEvaluation.CommercialState.CANCELED,99L,null,null,null,FinancialCoverageEvaluation.Reason.PAID);
+        when(financialCoverage.evaluate(residual,NOW)).thenReturn(paid);
+        when(financialCoverage.evaluate(residual)).thenReturn(paid);
+        stubProviderRows(residual);
+
+        BillingPaymentStateDTO result=service.getState(user);
+
+        assertThat(recurringSubscriptionGuard.isStillChargeable(residual)).isTrue();
+        assertThat(result.getPaymentProviderSubscription().isFinanciallyCovered()).isTrue();
+        assertThat(result.getPaymentProviderSubscription().isCanCancel()).isTrue();
+    }
+
     static Stream<org.junit.jupiter.params.provider.Arguments> cancellableStatuses(){
         return Stream.of(
             org.junit.jupiter.params.provider.Arguments.of(SubscriptionStatus.ACTIVE,true),

@@ -1,7 +1,9 @@
 package com.localuz.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.localuz.domain.Subscription;
@@ -9,8 +11,11 @@ import com.localuz.domain.enumeration.SubscriptionSource;
 import com.localuz.domain.enumeration.SubscriptionStatus;
 import com.localuz.repository.SubscriptionRepository;
 import com.localuz.service.dto.FinancialCoverageEvaluation;
+import com.localuz.service.dto.FinancialCoverageEvaluation.CommercialState;
+import com.localuz.service.dto.FinancialCoverageEvaluation.Reason;
 import com.localuz.web.rest.errors.BillingRecurringSubscriptionExistsException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -109,7 +114,138 @@ class RecurringSubscriptionGuardServiceTest {
         deferredCancellation.setCancelAtPeriodEnd(true);
         deferredCancellation.setCanceledAt(NOW.minusSeconds(60));
         stubProviderSubscriptions(deferredCancellation);
+        stubCoverage(deferredCancellation, true);
         assertThatThrownBy(() -> guard.assertNoBlockingRemoteRecurrence(7L)).isInstanceOf(BillingRecurringSubscriptionExistsException.class);
+    }
+
+    // --- Confirmed cancellation whose status stays ACTIVE/PAST_DUE after the paid period ends ------
+    // Real case: cancelAtPeriodEnd=true + canceledAt (provider-confirmed), period over, the user is
+    // already FREE for SubscriptionService - but nothing flips the persisted status, so the old rule
+    // answered 409 BILLING_RECURRING_SUBSCRIPTION_EXISTS to every new checkout.
+
+    private Subscription confirmedCancellation(SubscriptionStatus status, Instant currentPeriodEnd) {
+        Subscription subscription = subscription(SubscriptionSource.PAYMENT_PROVIDER, status);
+        subscription.setCancelAtPeriodEnd(true);
+        subscription.setCanceledAt(NOW.minus(Duration.ofDays(20)));
+        subscription.setCurrentPeriodEnd(currentPeriodEnd);
+        return subscription;
+    }
+
+    private void stubCoverage(Subscription subscription, boolean covered, CommercialState state, Reason reason) {
+        when(financialCoverage.evaluate(subscription, NOW)).thenReturn(new FinancialCoverageEvaluation(covered, state, null, null, null, null, reason));
+    }
+
+    @Test
+    void activeWithoutInvoiceAndWithoutCancellationNeverConsultsCoverage() {
+        Subscription activeUnproven = subscription(SubscriptionSource.PAYMENT_PROVIDER, SubscriptionStatus.ACTIVE);
+        stubProviderSubscriptions(activeUnproven);
+        assertThat(guard.isStillChargeable(activeUnproven)).isTrue();
+        verifyNoInteractions(financialCoverage);
+    }
+
+    @Test
+    void confirmedCancellationWithCoverageEndedAllowsNewContract() {
+        Subscription ended = confirmedCancellation(SubscriptionStatus.ACTIVE, NOW.minus(Duration.ofDays(3)));
+        stubProviderSubscriptions(ended);
+        stubCoverage(ended, false, CommercialState.CANCELED, Reason.PERIOD_EXPIRED);
+        assertThat(guard.isStillChargeable(ended)).isFalse();
+        guard.assertNoBlockingRemoteRecurrence(7L);
+    }
+
+    @Test
+    void confirmedCancellationWithoutInvoiceBlocksWhilePeriodEndIsInTheFuture() {
+        Subscription residual = confirmedCancellation(SubscriptionStatus.ACTIVE, NOW.plus(Duration.ofDays(5)));
+        stubProviderSubscriptions(residual);
+        stubCoverage(residual, false, CommercialState.CANCELED, Reason.NO_INVOICE);
+        assertThatThrownBy(() -> guard.assertNoBlockingRemoteRecurrence(7L)).isInstanceOf(BillingRecurringSubscriptionExistsException.class);
+    }
+
+    @Test
+    void confirmedCancellationWithoutInvoiceAllowsNewContractOncePeriodEndHasPassed() {
+        Subscription ended = confirmedCancellation(SubscriptionStatus.ACTIVE, NOW.minus(Duration.ofDays(1)));
+        stubProviderSubscriptions(ended);
+        stubCoverage(ended, false, CommercialState.CANCELED, Reason.NO_INVOICE);
+        guard.assertNoBlockingRemoteRecurrence(7L);
+    }
+
+    @Test
+    void confirmedCancellationWithoutInvoiceAllowsNewContractExactlyAtPeriodEnd() {
+        // Mirrors SubscriptionService: entitlement requires periodEnd.isAfter(now), so at NOW it is over.
+        Subscription ended = confirmedCancellation(SubscriptionStatus.ACTIVE, NOW);
+        stubProviderSubscriptions(ended);
+        stubCoverage(ended, false, CommercialState.CANCELED, Reason.NO_INVOICE);
+        guard.assertNoBlockingRemoteRecurrence(7L);
+    }
+
+    @Test
+    void confirmedCancellationWithoutInvoiceAndWithoutPeriodEndAllowsNewContract() {
+        // A missing date never means unlimited validity (SubscriptionService treats it as not entitled).
+        Subscription ended = confirmedCancellation(SubscriptionStatus.ACTIVE, null);
+        stubProviderSubscriptions(ended);
+        stubCoverage(ended, false, CommercialState.CANCELED, Reason.NO_INVOICE);
+        guard.assertNoBlockingRemoteRecurrence(7L);
+    }
+
+    @Test
+    void pastDueWithConfirmedCancellationAndCoverageEndedAllowsNewContract() {
+        Subscription ended = confirmedCancellation(SubscriptionStatus.PAST_DUE, NOW.minus(Duration.ofDays(3)));
+        stubProviderSubscriptions(ended);
+        stubCoverage(ended, false, CommercialState.CANCELED, Reason.GRACE_EXPIRED);
+        guard.assertNoBlockingRemoteRecurrence(7L);
+    }
+
+    @Test
+    void pastDueWithConfirmedCancellationStillInGraceBlocks() {
+        Subscription grace = confirmedCancellation(SubscriptionStatus.PAST_DUE, NOW.minus(Duration.ofDays(1)));
+        stubProviderSubscriptions(grace);
+        stubCoverage(grace, true, CommercialState.PAST_DUE, Reason.GRACE);
+        assertThatThrownBy(() -> guard.assertNoBlockingRemoteRecurrence(7L)).isInstanceOf(BillingRecurringSubscriptionExistsException.class);
+    }
+
+    @Test
+    void confirmedCancellationWithUnresolvedCoverageStaysFailClosed() {
+        Subscription ambiguous = confirmedCancellation(SubscriptionStatus.ACTIVE, NOW.minus(Duration.ofDays(3)));
+        stubProviderSubscriptions(ambiguous);
+        stubCoverage(ambiguous, false, CommercialState.UNRESOLVED, Reason.AMBIGUOUS_PERIOD);
+        assertThatThrownBy(() -> guard.assertNoBlockingRemoteRecurrence(7L)).isInstanceOf(BillingRecurringSubscriptionExistsException.class);
+    }
+
+    @Test
+    void pausedWithConfirmedCancellationStillBlocksWithoutConsultingCoverage() {
+        Subscription paused = confirmedCancellation(SubscriptionStatus.PAUSED, NOW.minus(Duration.ofDays(3)));
+        stubProviderSubscriptions(paused);
+        assertThatThrownBy(() -> guard.assertNoBlockingRemoteRecurrence(7L)).isInstanceOf(BillingRecurringSubscriptionExistsException.class);
+        verifyNoInteractions(financialCoverage);
+    }
+
+    @Test
+    void pendingCancellationWithPeriodOverStillBlocksWithoutConsultingCoverage() {
+        Subscription pending = confirmedCancellation(SubscriptionStatus.ACTIVE, NOW.minus(Duration.ofDays(3)));
+        pending.setCanceledAt(null);
+        stubProviderSubscriptions(pending);
+        assertThatThrownBy(() -> guard.assertNoBlockingRemoteRecurrence(7L)).isInstanceOf(BillingRecurringSubscriptionExistsException.class);
+        verifyNoInteractions(financialCoverage);
+    }
+
+    @Test
+    void endedConfirmedCancellationNextToALiveContractStillBlocks() {
+        Subscription ended = confirmedCancellation(SubscriptionStatus.ACTIVE, NOW.minus(Duration.ofDays(3)));
+        stubCoverage(ended, false, CommercialState.CANCELED, Reason.PERIOD_EXPIRED);
+        Subscription live = subscription(SubscriptionSource.PAYMENT_PROVIDER, SubscriptionStatus.ACTIVE);
+        live.setId(2L);
+        stubProviderSubscriptions(ended, live);
+        assertThatThrownBy(() -> guard.assertNoBlockingRemoteRecurrence(7L)).isInstanceOf(BillingRecurringSubscriptionExistsException.class);
+    }
+
+    @Test
+    void endedConfirmedCancellationNextToClosedHistoryAllowsNewContract() {
+        Subscription ended = confirmedCancellation(SubscriptionStatus.ACTIVE, NOW.minus(Duration.ofDays(3)));
+        stubCoverage(ended, false, CommercialState.CANCELED, Reason.PERIOD_EXPIRED);
+        Subscription older = subscription(SubscriptionSource.PAYMENT_PROVIDER, SubscriptionStatus.CANCELED);
+        older.setId(2L);
+        stubCoverage(older, false);
+        stubProviderSubscriptions(older, ended);
+        guard.assertNoBlockingRemoteRecurrence(7L);
     }
 
     @Test

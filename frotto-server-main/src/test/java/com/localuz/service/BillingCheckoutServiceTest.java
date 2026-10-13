@@ -50,6 +50,50 @@ class BillingCheckoutServiceTest {
   verify(client,times(1)).createPreapproval(any(),any());
  }
 
+ /**
+  * Re-subscription after a provider-confirmed cancellation: the old row keeps status=ACTIVE once its
+  * paid period ends. These run the REAL guard (repository/coverage mocked) so the number of
+  * Mercado Pago preapproval POSTs is asserted end to end.
+  */
+ private final SubscriptionRepository subscriptionRows=mock(SubscriptionRepository.class);
+ private final SubscriptionFinancialCoverageService coverage=mock(SubscriptionFinancialCoverageService.class);
+ private static final java.time.Instant GUARD_NOW=java.time.Instant.parse("2026-10-13T12:00:00Z");
+ private BillingCheckoutService serviceWithRealGuard(Subscription... rows){
+  when(subscriptionRows.findByUserIdAndSource(7L,com.localuz.domain.enumeration.SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(rows));
+  RecurringSubscriptionGuardService realGuard=new RecurringSubscriptionGuardService(subscriptionRows,coverage,java.time.Clock.fixed(GUARD_NOW,java.time.ZoneOffset.UTC));
+  return new BillingCheckoutService(properties,pricing,plans,checkouts,client,cars,users,realGuard);
+ }
+ private Subscription providerRow(com.localuz.domain.enumeration.SubscriptionStatus status,boolean confirmedCancellation,java.time.Instant periodEnd,boolean covered,com.localuz.service.dto.FinancialCoverageEvaluation.Reason reason){
+  Subscription row=new Subscription();row.setId(70L);row.setSource(com.localuz.domain.enumeration.SubscriptionSource.PAYMENT_PROVIDER);row.setStatus(status);row.setCurrentPeriodEnd(periodEnd);
+  if(confirmedCancellation){row.setCancelAtPeriodEnd(true);row.setCanceledAt(GUARD_NOW.minus(java.time.Duration.ofDays(25)));}
+  when(coverage.evaluate(row,GUARD_NOW)).thenReturn(new com.localuz.service.dto.FinancialCoverageEvaluation(covered,covered?com.localuz.service.dto.FinancialCoverageEvaluation.CommercialState.CANCELED:com.localuz.service.dto.FinancialCoverageEvaluation.CommercialState.AWAITING_PAYMENT,null,null,null,null,reason));
+  return row;
+ }
+
+ @Test void confirmedCancellationWhosePaidPeriodEndedAllowsANewCheckoutWithExactlyOnePreapproval(){
+  stubGoldCheckoutPricing();stubProviderSuccessAndCaptureRequest();
+  Subscription ended=providerRow(com.localuz.domain.enumeration.SubscriptionStatus.ACTIVE,true,GUARD_NOW.minus(java.time.Duration.ofDays(4)),false,com.localuz.service.dto.FinancialCoverageEvaluation.Reason.PERIOD_EXPIRED);
+  BillingCheckout result=serviceWithRealGuard(ended).createCheckout(user,PlanCode.GOLD);
+  assertThat(result.getStatus()).isEqualTo(com.localuz.domain.enumeration.BillingCheckoutStatus.PROVIDER_PENDING);
+  verify(client,times(1)).createPreapproval(any(),eq(result.getIdempotencyKey()));
+ }
+
+ @Test void confirmedCancellationWithResidualCoverageStill409sWithoutAnyProviderCall(){
+  Subscription residual=providerRow(com.localuz.domain.enumeration.SubscriptionStatus.ACTIVE,true,GUARD_NOW.plus(java.time.Duration.ofDays(6)),true,com.localuz.service.dto.FinancialCoverageEvaluation.Reason.PAID);
+  BillingCheckoutService guarded=serviceWithRealGuard(residual);
+  assertThatThrownBy(()->guarded.createCheckout(user,PlanCode.GOLD)).isInstanceOf(com.localuz.web.rest.errors.BillingRecurringSubscriptionExistsException.class).extracting("status.statusCode").isEqualTo(409);
+  verifyNoInteractions(client,pricing,plans);
+  verify(checkouts,never()).save(any());
+ }
+
+ @Test void plainActiveContractWithoutInvoiceStill409sAndNeverCreatesASecondRemoteContract(){
+  Subscription active=providerRow(com.localuz.domain.enumeration.SubscriptionStatus.ACTIVE,false,null,false,com.localuz.service.dto.FinancialCoverageEvaluation.Reason.NO_INVOICE);
+  BillingCheckoutService guarded=serviceWithRealGuard(active);
+  assertThatThrownBy(()->guarded.createCheckout(user,PlanCode.GOLD)).isInstanceOf(com.localuz.web.rest.errors.BillingRecurringSubscriptionExistsException.class).extracting("status.statusCode").isEqualTo(409);
+  verifyNoInteractions(client,pricing,plans);
+  verify(checkouts,never()).save(any());
+ }
+
  private void stubGoldCheckoutPricing(){Plan free=plan(PlanCode.FREE,0,2);plan(PlanCode.GOLD,16,30);when(cars.countBillableByUserId(7L)).thenReturn(2L);when(pricing.resolvePlanForVehicleCount(2)).thenReturn(free);when(pricing.calculatePriceForPlan(PlanCode.GOLD,2)).thenReturn(new PricingResult(PlanCode.GOLD,"GOLD",2,new BigDecimal("79.90"),List.of()));}
  private ArgumentCaptor<com.localuz.service.dto.MercadoPagoPreapprovalRequest> stubProviderSuccessAndCaptureRequest(){ArgumentCaptor<com.localuz.service.dto.MercadoPagoPreapprovalRequest> captor=ArgumentCaptor.forClass(com.localuz.service.dto.MercadoPagoPreapprovalRequest.class);when(client.createPreapproval(captor.capture(),any())).thenAnswer(i->{com.localuz.service.dto.MercadoPagoPreapprovalRequest r=i.getArgument(0);return new com.localuz.service.dto.MercadoPagoPreapproval("pre-1","pending",r.getExternalReference(),"https://mp.test/checkout");});return captor;}
 

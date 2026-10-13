@@ -9,7 +9,7 @@ import { SubscriptionCancellationResultDTO, BillingMeDTO, BillingPaymentStateDTO
 import { getApiErrorMessage } from "../../services/apiErrorMessage";
 import billingService from "../../services/billingService";
 import { getToken, subscribeToTokenChanges } from "../../services/localStorage/localstorage";
-import { formatDate, hasPendingPlanChange, isSubscriptionCancelable, checkoutBlocksPurchase, checkoutNeedsRefresh, fleetUsage, friendlyPlan, isCheckoutInProgressError, isNoticeRedundantWithGrantedPlan, isPlanChangeBlockedByCancellation, isRecurringSubscriptionExistsError, isPlanCompatible, isUnauthorizedError, isUpgradeInProgress, money, paymentNotice, planChangeErrorMessage, planDirection, pendingPlanChangeMessage, recurringSubscriptionExistsMessage, remoteCancellationState, remoteCurrentPeriodEnd, resumableCheckoutUrl, sourceDetail, sourceLabel, statusLabel, upgradeNotice, usageState, vehicleRange } from "./myPlanLogic";
+import { formatDate, hasPendingPlanChange, isSubscriptionCancelable, checkoutBlocksPurchase, fleetUsage, friendlyPlan, isCheckoutInProgressError, isPlanChangeBlockedByCancellation, isRecurringSubscriptionExistsError, isPlanCompatible, isUnauthorizedError, isUpgradeInProgress, money, planChangeErrorMessage, planDirection, pendingPlanChangeMessage, recurringSubscriptionExistsMessage, remoteCancellationState, remoteCurrentPeriodEnd, resolveBillingPresentation, sourceDetail, sourceLabel, statusLabel, upgradeNotice, usageState, vehicleRange } from "./myPlanLogic";
 import "./MyPlanPage.css";
 import { navigateToCheckout } from "./checkoutNavigation";
 
@@ -318,8 +318,10 @@ const MyPlanPage: React.FC = () => {
   const state = usageState(billing);
   const progress = billing.vehicleLimit == null ? 0 : Math.min(1, billing.activeVehicleCount / billing.vehicleLimit);
   const currentPrice = billing.subscriptionSource === "ADMIN_GRANT" ? "Sem cobrança" : money(billing.currentMonthlyPrice);
-  const rawNotice = paymentNotice(paymentState);
-  const notice = isNoticeRedundantWithGrantedPlan(rawNotice, billing) ? null : rawNotice;
+  // Banner + CTAs come from one resolver (myPlanLogic#resolveBillingPresentation) - no state inference in JSX.
+  const presentation = resolveBillingPresentation(billing, paymentState);
+  const { notice, resumeUrl } = presentation;
+  const planEnded = presentation.state === "PLAN_ENDED";
   const checkoutBlocked = checkoutBlocksPurchase(paymentState);
   const cancelable = isSubscriptionCancelable(paymentState);
   const cancellationState = cancellation?.state ?? remoteCancellationState(billing, paymentState);
@@ -327,12 +329,11 @@ const MyPlanPage: React.FC = () => {
   const pending = cancellationState === "PENDING_CONFIRMATION";
   const periodEnd = cancellation?.currentPeriodEnd ?? remoteCurrentPeriodEnd(billing, paymentState);
   const endDate = periodEnd && formatDate(periodEnd) !== "—" ? formatDate(periodEnd) : null;
-  const resumeUrl = resumableCheckoutUrl(paymentState);
   // 5G.12: only a PAYMENT_PROVIDER contract that is actually the effective plan right now can have
   // its plan changed in place - everyone else (FREE, ADMIN_GRANT, GRANDFATHERED) keeps using the
   // existing checkout/no-op flows below, never the change-plan modal.
   const canChangePlan = billing.subscriptionSource === "PAYMENT_PROVIDER" && billing.subscriptionStatus === "ACTIVE";
-  const changePlanBlockedByCancellation = isPlanChangeBlockedByCancellation(cancellationState);
+  const changePlanBlockedByCancellation = !planEnded && isPlanChangeBlockedByCancellation(cancellationState);
   const pendingChange = hasPendingPlanChange(billing);
   const pendingChangeBanner = pendingPlanChangeMessage(billing);
   // 5G.12.1: only an upgrade payment awaiting confirmation/application blocks other changes.
@@ -344,7 +345,7 @@ const MyPlanPage: React.FC = () => {
     <PageHeader />
     <IonContent>
       <div className="app-shell my-plan-shell">
-        {notice && <div className={`my-plan-alert my-plan-alert--${notice.tone}`} role={notice.tone === "warning" || notice.tone === "danger" ? "alert" : "status"}><strong>{notice.title}</strong><span>{notice.detail}</span>{resumeUrl && <IonButton size="small" onClick={() => navigateToCheckout(resumeUrl)}>Continuar pagamento</IonButton>}{checkoutNeedsRefresh(paymentState) && <IonButton size="small" fill="outline" onClick={() => void load()}>Atualizar status</IonButton>}</div>}
+        {notice && <div className={`my-plan-alert my-plan-alert--${notice.tone}`} role={notice.tone === "warning" || notice.tone === "danger" ? "alert" : "status"}><strong>{notice.title}</strong><span>{notice.detail}</span>{resumeUrl && <IonButton size="small" onClick={() => navigateToCheckout(resumeUrl)}>Continuar pagamento</IonButton>}{presentation.planAction && <IonButton size="small" onClick={() => plansRef.current?.scrollIntoView({ behavior: "smooth" })}>{presentation.planAction === "RETRY_PAYMENT" ? "Tentar novamente" : "Ver planos"}</IonButton>}{presentation.canRefresh && <IonButton size="small" fill="outline" onClick={() => void load()}>Atualizar status</IonButton>}</div>}
         {upgradeNote && <div className={`my-plan-alert my-plan-alert--${upgradeNote.tone}`} role={upgradeNote.tone === "warning" ? "alert" : "status"} data-testid="upgrade-notice">
           <strong>{upgradeNote.title}</strong><span>{upgradeNote.detail}</span>
           {(upgradeStatus?.checkoutUrl || upgradeOpen) && <div className="my-plan-actions">
@@ -357,7 +358,7 @@ const MyPlanPage: React.FC = () => {
         <IonCard className="my-plan-current">
           <IonCardContent>
             <div className="my-plan-current__header"><div><span className="my-plan-eyebrow">Seu plano</span><h1>{friendlyPlan(billing.planCode)}</h1><p>{sourceDetail(billing)}</p></div><IonBadge>{sourceLabel(billing.subscriptionSource)}</IonBadge></div>
-            {cancellation?.hasResidualActiveContract ? <div className="my-plan-alert" role="alert"><span>Uma recorrência foi cancelada, mas ainda existe outra assinatura recorrente ativa. Atualize o estado e tente cancelar novamente.</span><IonButton fill="outline" onClick={() => void load()}>Atualizar estado</IonButton></div> : confirmed && <div className="my-plan-alert" role="status"><IonBadge color="success">Cancelamento agendado</IonBadge><span>{endDate ? `Seu plano ficará ativo até ${endDate}. Não haverá nova renovação.` : "Seu plano ficará ativo até o fim do período atual. Não haverá nova renovação."}</span></div>}
+            {cancellation?.hasResidualActiveContract ? <div className="my-plan-alert" role="alert"><span>Uma recorrência foi cancelada, mas ainda existe outra assinatura recorrente ativa. Atualize o estado e tente cancelar novamente.</span><IonButton fill="outline" onClick={() => void load()}>Atualizar estado</IonButton></div> : confirmed && !planEnded && <div className="my-plan-alert" role="status"><IonBadge color="success">Cancelamento agendado</IonBadge><span>{endDate ? `Seu plano continuará ativo até ${endDate}.` : "Seu plano continuará ativo até o fim do período atual."} {billing.subscriptionSource === "PAYMENT_PROVIDER" ? "Após essa data, não haverá nova cobrança e sua conta passará para o plano gratuito." : "Não haverá nova renovação."}</span></div>}
             {pending && <div className="my-plan-alert" role="status">Estamos confirmando o cancelamento com o Mercado Pago.</div>}
             {!confirmed && !pending && pendingChangeBanner && <div className="my-plan-alert" role="status" data-testid="scheduled-downgrade">
               <strong>Mudança agendada</strong><span>{pendingChangeBanner}</span>

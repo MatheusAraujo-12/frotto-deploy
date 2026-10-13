@@ -9,6 +9,7 @@ import com.localuz.repository.SubscriptionRepository;
 import com.localuz.service.dto.BillingPaymentStateDTO;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,14 +42,16 @@ public class BillingPaymentStateService {
      */
     public BillingPaymentStateDTO getState(User user){
         List<Subscription> providerRows = subscriptions.findByUserIdAndSource(user.getId(), SubscriptionSource.PAYMENT_PROVIDER);
-        Subscription paid = providerRows.stream()
+        Optional<Subscription> liveContract = providerRows.stream()
             .filter(recurringSubscriptionGuard::isStillChargeable)
-            .findFirst()
-            .orElseGet(() -> mostRecentlyStarted(providerRows));
+            .findFirst();
+        Subscription paid = liveContract.orElseGet(() -> mostRecentlyStarted(providerRows));
         boolean covered = paid != null && financialCoverage.evaluate(paid).covered();
         // Deliberately NOT gated on `covered`: a remote contract the user can cancel is a
         // different question from one that currently grants paid access (5G.9 section B).
-        boolean canCancel = paid != null && SubscriptionCancellationSteps.CANCELLABLE_STATUSES.contains(paid.getStatus());
+        // A row shown only as history is never cancellable, even if its persisted status still
+        // reads ACTIVE (a confirmed cancellation whose paid period already ended).
+        boolean canCancel = liveContract.isPresent() && SubscriptionCancellationSteps.CANCELLABLE_STATUSES.contains(paid.getStatus());
         BillingCheckout checkout=checkouts.findFirstByUserIdOrderByCreatedAtDesc(user.getId()).orElse(null);
         return new BillingPaymentStateDTO(paid,covered,canCancel,checkout);
     }

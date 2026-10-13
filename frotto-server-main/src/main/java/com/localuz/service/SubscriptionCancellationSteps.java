@@ -203,15 +203,22 @@ public class SubscriptionCancellationSteps {
     }
 
     /**
-     * Re-evaluated fresh from the database (never from the outcomes just processed, which may be
-     * stale after a provider call) using the exact same predicate that blocks a second checkout
-     * (RecurringSubscriptionGuardService#isStillChargeable) - so "is there a hidden recurrence still
-     * charging after this cancellation" is answered identically everywhere, never re-derived.
+     * "After this cancellation, is there still a Mercado Pago recurrence whose deactivation was NOT
+     * confirmed?" - re-evaluated fresh from the database (never from the outcomes just processed,
+     * which may be stale after a provider call).
+     *
+     * Deliberately NOT the same question as RecurringSubscriptionGuardService#isStillChargeable,
+     * which answers "must this row still block a NEW recurrence?". A provider-confirmed cancellation
+     * (canceledAt set) keeps blocking a new checkout while its residual paid period lasts, yet it can
+     * no longer charge - so it is never a residual contract. Only rows without a local cancellation
+     * confirmation (never cancelled, or requested but still unconfirmed/ambiguous) that the guard
+     * still considers live count here.
      */
     @Transactional(readOnly = true)
     public boolean hasRemainingChargeableContract(Long userId) {
         return subscriptionRepository.findByUserIdAndSource(userId, SubscriptionSource.PAYMENT_PROVIDER)
             .stream()
+            .filter(subscription -> subscription.getCanceledAt() == null)
             .anyMatch(recurringSubscriptionGuard::isStillChargeable);
     }
 

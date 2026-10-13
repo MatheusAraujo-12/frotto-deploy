@@ -293,6 +293,49 @@ class BillingResourceTest {
         assertThat(response.getState()).isEqualTo(SubscriptionCancellationResultDTO.CancellationState.PENDING_CONFIRMATION);
     }
 
+    /**
+     * POST /cancel over the REAL cancellation chain (SubscriptionCancellationService ->
+     * SubscriptionCancellationSteps -> RecurringSubscriptionGuardService); only Mercado Pago, the
+     * repositories and financial coverage are mocked. A normal, single, provider-confirmed
+     * cancellation keeps status ACTIVE and its residual paid coverage - which still blocks a new
+     * checkout - but must never be reported as a residual active contract.
+     */
+    @Test
+    void cancelSubscriptionNeverFlagsAResidualContractForANormalSingleConfirmedCancellation() {
+        com.localuz.repository.UserRepository users = Mockito.mock(com.localuz.repository.UserRepository.class);
+        com.localuz.repository.SubscriptionRepository subscriptions = Mockito.mock(com.localuz.repository.SubscriptionRepository.class);
+        com.localuz.service.MercadoPagoClient client = Mockito.mock(com.localuz.service.MercadoPagoClient.class);
+        com.localuz.service.SubscriptionFinancialCoverageService coverage = Mockito.mock(com.localuz.service.SubscriptionFinancialCoverageService.class);
+        com.localuz.service.RecurringSubscriptionGuardService guard = new com.localuz.service.RecurringSubscriptionGuardService(subscriptions, coverage);
+        com.localuz.service.SubscriptionCancellationSteps steps = new com.localuz.service.SubscriptionCancellationSteps(users, subscriptions, client, guard);
+        BillingResource resource = new BillingResource(userService, entitlementService, pricingService, planRepository, planPricingTierRepository,
+            billingCheckoutService, billingPaymentStateService, new SubscriptionCancellationService(steps, client), subscriptionPlanChangeService);
+
+        Subscription contract = subscription(PlanCode.SILVER, false, null);
+        contract.setId(77L);
+        contract.setCurrentPeriodEnd(Instant.now().plusSeconds(10 * 24 * 3600L));
+        contract.setExternalProvider("MERCADO_PAGO");
+        contract.setExternalSubscriptionId("pre-77");
+        when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));
+        when(users.findByIdForBillingCheckoutLock(9L)).thenReturn(Optional.of(currentUser));
+        when(subscriptions.findByUserIdAndSourceAndStatusIn(Mockito.eq(9L), Mockito.eq(SubscriptionSource.PAYMENT_PROVIDER), Mockito.any())).thenReturn(List.of(contract));
+        when(subscriptions.findByUserIdAndSource(9L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(contract));
+        when(subscriptions.findById(77L)).thenReturn(Optional.of(contract));
+        when(client.cancelPreapproval(Mockito.eq("pre-77"), Mockito.anyString()))
+            .thenReturn(new com.localuz.service.dto.MercadoPagoPreapproval("pre-77", "cancelled", "ref", null));
+        when(coverage.evaluate(Mockito.eq(contract), Mockito.any(Instant.class))).thenReturn(new com.localuz.service.dto.FinancialCoverageEvaluation(
+            true, com.localuz.service.dto.FinancialCoverageEvaluation.CommercialState.CANCELED, 1L, null, contract.getCurrentPeriodEnd(), null,
+            com.localuz.service.dto.FinancialCoverageEvaluation.Reason.PAID));
+
+        SubscriptionCancellationResultDTO response = resource.cancelSubscription();
+
+        assertThat(response.getState()).isEqualTo(SubscriptionCancellationResultDTO.CancellationState.CONFIRMED);
+        assertThat(response.isHasResidualActiveContract()).isFalse();
+        assertThat(contract.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(guard.isStillChargeable(contract)).isTrue(); // still blocks a NEW checkout during the paid period
+        Mockito.verify(client, Mockito.times(1)).cancelPreapproval(Mockito.eq("pre-77"), Mockito.anyString());
+    }
+
     @Test
     void cancelSubscriptionSurfacesAControlledErrorWhenNothingCanBeCancelled() {
         when(userService.getUserWithAuthorities()).thenReturn(Optional.of(currentUser));

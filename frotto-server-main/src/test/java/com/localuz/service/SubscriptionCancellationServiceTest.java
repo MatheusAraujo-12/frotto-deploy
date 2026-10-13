@@ -21,6 +21,7 @@ import com.localuz.domain.enumeration.SubscriptionSource;
 import com.localuz.domain.enumeration.SubscriptionStatus;
 import com.localuz.repository.SubscriptionRepository;
 import com.localuz.repository.UserRepository;
+import com.localuz.service.dto.FinancialCoverageEvaluation;
 import com.localuz.service.dto.MercadoPagoPreapproval;
 import com.localuz.web.rest.errors.BadRequestAlertException;
 import com.localuz.web.rest.errors.BillingCancellationProviderRejectedException;
@@ -588,6 +589,111 @@ class SubscriptionCancellationServiceTest {
         // No cancellable rows at all -> nothing chargeable remains.
         when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of());
         assertThat(service.hasResidualActiveContract(user)).isFalse();
+    }
+
+    // --- "Residual active contract" vs "blocks a new checkout" ------------------------------------
+    // These use the REAL RecurringSubscriptionGuardService (only financial coverage is mocked), so the
+    // two different questions are exercised against the actual guard rule, not a stubbed answer.
+
+    private SubscriptionFinancialCoverageService coverage;
+    private RecurringSubscriptionGuardService realGuard;
+    private SubscriptionCancellationSteps realGuardSteps;
+
+    private void useRealGuard(Subscription... providerRows) {
+        coverage = mock(SubscriptionFinancialCoverageService.class);
+        realGuard = new RecurringSubscriptionGuardService(subscriptionRepository, coverage, Clock.fixed(NOW, ZoneOffset.UTC));
+        realGuardSteps = new SubscriptionCancellationSteps(userRepository, subscriptionRepository, client, realGuard, Clock.fixed(NOW, ZoneOffset.UTC));
+        when(subscriptionRepository.findByUserIdAndSource(1L, SubscriptionSource.PAYMENT_PROVIDER)).thenReturn(List.of(providerRows));
+    }
+
+    private void stubResidualCoverage(Subscription subscription) {
+        when(coverage.evaluate(subscription, NOW)).thenReturn(new FinancialCoverageEvaluation(true, FinancialCoverageEvaluation.CommercialState.CANCELED,
+            99L, NOW.minusSeconds(20 * 24 * 3600L), PERIOD_END, null, FinancialCoverageEvaluation.Reason.PAID));
+    }
+
+    private static Subscription confirmedCancellation(Long id, String externalId) {
+        Subscription subscription = subscription(id, SubscriptionStatus.ACTIVE, true, PERIOD_END, externalId);
+        subscription.setCanceledAt(NOW.minusSeconds(3600));
+        return subscription;
+    }
+
+    @Test
+    void singleConfirmedCancellationWithResidualCoverageIsNotAResidualContract() {
+        Subscription cancelled = confirmedCancellation(60L, "pre-cancelled");
+        useRealGuard(cancelled);
+        stubResidualCoverage(cancelled);
+
+        assertThat(realGuardSteps.hasRemainingChargeableContract(1L)).isFalse();
+    }
+
+    @Test
+    void confirmedPrimaryNextToAnotherUncancelledActiveContractIsResidual() {
+        Subscription cancelled = confirmedCancellation(61L, "pre-cancelled");
+        Subscription otherActive = subscription(62L, SubscriptionStatus.ACTIVE, false, PERIOD_END, "pre-other");
+        useRealGuard(cancelled, otherActive);
+        stubResidualCoverage(cancelled);
+
+        assertThat(realGuardSteps.hasRemainingChargeableContract(1L)).isTrue();
+    }
+
+    @Test
+    void pendingOrAmbiguousCancellationWithoutConfirmationIsResidual() {
+        Subscription pending = subscription(63L, SubscriptionStatus.ACTIVE, true, PERIOD_END, "pre-pending"); // canceledAt null
+        useRealGuard(pending);
+
+        assertThat(realGuardSteps.hasRemainingChargeableContract(1L)).isTrue();
+    }
+
+    @Test
+    void everyContractConfirmedCancelledLeavesNoResidual() {
+        Subscription residual = confirmedCancellation(64L, "pre-residual");
+        Subscription ended = subscription(65L, SubscriptionStatus.ACTIVE, true, NOW.minusSeconds(3600), "pre-ended");
+        ended.setCanceledAt(NOW.minusSeconds(40 * 24 * 3600L));
+        Subscription closed = subscription(66L, SubscriptionStatus.CANCELED, true, NOW.minusSeconds(3600), "pre-closed");
+        closed.setCanceledAt(NOW.minusSeconds(40 * 24 * 3600L));
+        useRealGuard(residual, ended, closed);
+        stubResidualCoverage(residual);
+        when(coverage.evaluate(ended, NOW)).thenReturn(new FinancialCoverageEvaluation(false, FinancialCoverageEvaluation.CommercialState.CANCELED,
+            null, null, null, null, FinancialCoverageEvaluation.Reason.PERIOD_EXPIRED));
+        when(coverage.evaluate(closed, NOW)).thenReturn(new FinancialCoverageEvaluation(false, FinancialCoverageEvaluation.CommercialState.CANCELED,
+            null, null, null, null, FinancialCoverageEvaluation.Reason.PERIOD_EXPIRED));
+
+        assertThat(realGuardSteps.hasRemainingChargeableContract(1L)).isFalse();
+    }
+
+    /**
+     * Deliberate divergence, not an inconsistency: a provider-confirmed cancellation still inside its
+     * paid period MUST keep blocking a new checkout (no overlapping recurrence while the paid period
+     * runs), yet it can no longer charge, so it is NOT a residual active contract.
+     */
+    @Test
+    void confirmedCancellationStillBlocksNewCheckoutButIsNotResidual() {
+        Subscription cancelled = confirmedCancellation(67L, "pre-cancelled");
+        useRealGuard(cancelled);
+        stubResidualCoverage(cancelled);
+
+        assertThat(realGuard.isStillChargeable(cancelled)).isTrue();
+        assertThatThrownBy(() -> realGuard.assertNoBlockingRemoteRecurrence(1L))
+            .isInstanceOf(com.localuz.web.rest.errors.BillingRecurringSubscriptionExistsException.class);
+        assertThat(realGuardSteps.hasRemainingChargeableContract(1L)).isFalse();
+    }
+
+    @Test
+    void normalSingleCancellationReportsNoResidualContractAfterTheRealFlow() {
+        Subscription subscription = subscription(68L, SubscriptionStatus.ACTIVE, false, PERIOD_END, "pre-single");
+        useRealGuard(subscription);
+        when(subscriptionRepository.findByUserIdAndSourceAndStatusIn(1L, SubscriptionSource.PAYMENT_PROVIDER, SubscriptionCancellationSteps.CANCELLABLE_STATUSES))
+            .thenReturn(List.of(subscription));
+        stubFindById(subscription);
+        stubResidualCoverage(subscription);
+        when(client.cancelPreapproval(eq("pre-single"), anyString())).thenReturn(new MercadoPagoPreapproval("pre-single", "cancelled", "ref", null));
+        SubscriptionCancellationService realService = new SubscriptionCancellationService(realGuardSteps, client);
+
+        Subscription result = realService.cancel(user);
+
+        assertThat(result.getCanceledAt()).isNotNull();
+        assertThat(result.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(realService.hasResidualActiveContract(user)).isFalse();
     }
 
     @Test

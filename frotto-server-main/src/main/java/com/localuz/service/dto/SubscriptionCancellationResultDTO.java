@@ -68,8 +68,10 @@ public class SubscriptionCancellationResultDTO {
     }
 
     /**
-     * 5G.11: true when, after this call, the user still has ANY PAYMENT_PROVIDER contract able to
-     * charge them - a historical pre-5G.9 duplicate that this call could not confirm as cancelled.
+     * 5G.11: true when, after this call, the user still has a live PAYMENT_PROVIDER recurrence whose
+     * cancellation was NOT confirmed - e.g. a historical pre-5G.9 duplicate that this call could not
+     * confirm as cancelled. A provider-confirmed cancellation still inside its paid period is never
+     * counted, even though it keeps blocking a new checkout until that period ends.
      * Never means "this cancellation failed" (state already covers that): the primary contract
      * above may be CONFIRMED while this is still true, and the frontend must surface both facts
      * rather than presenting a false "everything is cancelled".

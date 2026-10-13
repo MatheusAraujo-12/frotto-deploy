@@ -4,6 +4,7 @@ import com.localuz.domain.Subscription;
 import com.localuz.domain.enumeration.SubscriptionSource;
 import com.localuz.domain.enumeration.SubscriptionStatus;
 import com.localuz.repository.SubscriptionRepository;
+import com.localuz.service.dto.FinancialCoverageEvaluation;
 import com.localuz.web.rest.errors.BillingRecurringSubscriptionExistsException;
 import java.time.Clock;
 import java.time.Instant;
@@ -64,6 +65,11 @@ public class RecurringSubscriptionGuardService {
      * definition of "which contract is the real one" is exactly what would let a stale historical
      * row's cancel eligibility leak into the UI, or a live row be missed because a NEWER but
      * already-closed row happens to sort first.
+     *
+     * This answers "must this row still block a NEW recurrence?", not "can it still charge?": a
+     * provider-confirmed cancellation keeps blocking while its residual paid period lasts. The
+     * post-cancellation "residual contract" check filters those out (see
+     * SubscriptionCancellationSteps#hasRemainingChargeableContract).
      */
     public boolean isStillChargeable(Subscription subscription) {
         return blocks(subscription, clock.instant());
@@ -71,14 +77,16 @@ public class RecurringSubscriptionGuardService {
 
     private boolean blocks(Subscription subscription, Instant now) {
         SubscriptionStatus status = subscription.getStatus();
+        if (isConfirmedDeferredCancellation(subscription)) {
+            return confirmedDeferredCancellationStillCovers(subscription, now);
+        }
         if (status == SubscriptionStatus.ACTIVE || status == SubscriptionStatus.PAST_DUE || status == SubscriptionStatus.PAUSED) {
             // ACTIVE (with or without financial evidence yet), PAST_DUE, and PAUSED (assumed
             // resumable - the local model has no separate "cannot be resumed" signal, and the
             // fail-closed default is to treat every PAUSED preapproval as reactivatable) can all
-            // still charge. This also covers both cancellation sub-states that keep this status:
-            // requested-but-unconfirmed (cancelAtPeriodEnd=true, canceledAt=null) and confirmed-
-            // but-deferred-to-period-end (canceledAt set, status kept ACTIVE/PAST_DUE until the
-            // paid period ends - see MercadoPagoWebhookProcessor#reconcile).
+            // still charge. This also covers a cancellation requested but not yet confirmed by the
+            // provider (cancelAtPeriodEnd=true, canceledAt=null). Only a provider-CONFIRMED one with
+            // status kept ACTIVE/PAST_DUE is handled above, by its residual paid period.
             return true;
         }
         // CANCELED (and the currently-unused EXPIRED value): the contract itself is done, but a
@@ -87,5 +95,37 @@ public class RecurringSubscriptionGuardService {
         // than re-deriving "residual coverage" from currentPeriodEnd here - a second, divergent
         // definition of coverage is exactly what this task must not introduce.
         return financialCoverage.evaluate(subscription, now).covered();
+    }
+
+    /**
+     * Provider-confirmed cancellation deferred to the end of the paid period: status kept
+     * ACTIVE/PAST_DUE by MercadoPagoWebhookProcessor#reconcile / SubscriptionCancellationSteps, and
+     * nothing flips it once that period ends. canceledAt is only ever set from the provider's own
+     * cancelled confirmation, so the remote preapproval can no longer charge. PAUSED is deliberately
+     * excluded (stays fail-closed), as is a cancellation still pending confirmation (canceledAt null).
+     */
+    private static boolean isConfirmedDeferredCancellation(Subscription subscription) {
+        SubscriptionStatus status = subscription.getStatus();
+        return (status == SubscriptionStatus.ACTIVE || status == SubscriptionStatus.PAST_DUE)
+            && Boolean.TRUE.equals(subscription.getCancelAtPeriodEnd())
+            && subscription.getCanceledAt() != null;
+    }
+
+    /**
+     * Such a contract keeps blocking only while its residual paid period is in effect, decided by the
+     * same rules SubscriptionService#isProviderSubscriptionEntitled grants access with: the financial
+     * coverage verdict, and for a contract with no invoice at all, the persisted currentPeriodEnd.
+     * A verdict the coverage service itself cannot resolve (UNRESOLVED) stays fail-closed.
+     */
+    private boolean confirmedDeferredCancellationStillCovers(Subscription subscription, Instant now) {
+        FinancialCoverageEvaluation evaluation = financialCoverage.evaluate(subscription, now);
+        if (evaluation.covered() || evaluation.commercialState() == FinancialCoverageEvaluation.CommercialState.UNRESOLVED) {
+            return true;
+        }
+        if (evaluation.reason() == FinancialCoverageEvaluation.Reason.NO_INVOICE) {
+            Instant periodEnd = subscription.getCurrentPeriodEnd();
+            return periodEnd != null && periodEnd.isAfter(now);
+        }
+        return false;
     }
 }

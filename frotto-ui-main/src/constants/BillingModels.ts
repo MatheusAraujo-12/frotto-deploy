@@ -144,7 +144,8 @@ export interface BillingCheckoutDTO {
   checkoutUrl: string;
 }
 
-export type BillingCheckoutStatus = "CREATED" | "PROVIDER_PENDING" | "PROVIDER_UNKNOWN" | "AUTHORIZED" | "FAILED" | "CANCELED";
+/** Mirrors the backend enum (BillingCheckoutStatus.java), including EXPIRED. */
+export type BillingCheckoutStatus = "CREATED" | "PROVIDER_PENDING" | "PROVIDER_UNKNOWN" | "AUTHORIZED" | "FAILED" | "EXPIRED" | "CANCELED";
 
 export interface PaymentProviderSubscriptionState {
   status: SubscriptionStatus;
